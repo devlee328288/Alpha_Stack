@@ -1,0 +1,64 @@
+# ─────────────────────────────────────────────────────────────
+# AlphaStack — 추적하지 않을 것
+# ⚠️ 이 저장소는 PUBLIC 이다. 아래 규칙은 사고 예방용이지 보안 장치가 아니다.
+#    한 번 push 된 시크릿은 이력에 영원히 남는다 — push 전에 반드시
+#    `git status --short` 로 눈으로 확인한다.
+# ─────────────────────────────────────────────────────────────
+
+# 🔑 자격증명 — 절대 커밋 금지
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+service-account*.json
+
+# 🐍 파이썬
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# 📊 데이터 원본 — 재현은 스크립트로 한다, 파일로 하지 않는다
+# universe_core.json 은 예외다. 350종목 구성은 KRX 응답을 그대로 담은 것이
+# 아니라 우리가 만든 파생 산물이고, 이게 없으면 파이프라인이 시작되지 않는다.
+data/*.db
+data/*.sqlite*
+data/raw/
+data/interim/
+data/processed/
+*.parquet
+*.feather
+*.csv
+!data/universe_core.json
+
+# 🤖 학습 산출물 — 용량이 크고 재현 가능하다
+artifacts/
+models_out/
+*.pkl
+*.joblib
+*.onnx
+mlruns/
+
+# 📄 소개 문서 PDF — HTML 이 정본이다
+# HTML 을 고칠 때마다 735KB 짜리 새 blob 이 이력에 통째로 쌓이는 것을 막는다.
+# 재생성: 브라우저에서 docs/AlphaStack_팀프로젝트_소개.html 을 열고 PDF 로 인쇄
+docs/*.pdf
+
+# 💻 편집기·OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# 📓 노트북 체크포인트
+.ipynb_checkpoints/
+
+# 📝 로그
+*.log
