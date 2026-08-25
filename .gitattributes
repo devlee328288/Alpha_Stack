@@ -1,0 +1,49 @@
+# 줄바꿈을 저장소 안에서 LF 로 통일한다.
+#
+# 왜 필요한가. 팀원 4명의 OS 가 섞이면 (Windows 는 CRLF, macOS·Linux 는 LF)
+# 내용을 한 글자도 안 고쳐도 파일 전체가 변경된 것처럼 보인다. 그러면
+# `git diff` 와 PR 리뷰가 쓸모없어지고, 진짜 변경 한 줄이 1,300줄 diff 에 묻힌다.
+#
+# 이관 세션(2026-08-25)에 실제로 겪었다. 파이썬 스크립트로 문서 숫자 4곳을 고쳤는데
+# `Path.write_text()` 가 Windows 에서 \n 을 \r\n 으로 바꿔 1,336바이트가 늘었다.
+# 7줄 수정이 파일 전체 변경으로 보였다.
+#
+# `text=auto` 는 텍스트 파일을 **저장소에는 LF 로** 넣는다.
+# 작업 트리에서 어떻게 보일지는 각자의 core.autocrlf 가 정한다.
+* text=auto
+
+# 확실히 텍스트인 것들 — eol=lf 로 작업 트리에서도 LF 를 강제한다.
+# 파이썬은 CRLF 로도 동작하지만, 셸 스크립트는 CRLF 면 실행이 깨진다.
+*.py    text eol=lf
+*.sql   text eol=lf
+*.md    text eol=lf
+*.toml  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf
+*.json  text eol=lf
+*.sh    text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.js    text eol=lf
+.env.example text eol=lf
+.gitignore   text eol=lf
+
+# 바이너리 — 절대 변환하지 않는다. 변환하면 파일이 깨진다.
+*.pdf    binary
+*.docx   binary
+*.xlsx   binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.woff   binary
+*.woff2  binary
+*.parquet binary
+*.db     binary
+*.sqlite binary
+*.pkl    binary
+*.joblib binary
+
+# 노트북은 diff 가 거대해진다. 리뷰 시 참고하도록 표시만 해 둔다.
+*.ipynb  text eol=lf linguist-documentation

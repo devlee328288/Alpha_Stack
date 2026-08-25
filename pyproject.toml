@@ -1,0 +1,59 @@
+[project]
+name = "alphastack"
+version = "0.1.0"
+description = "주가지수 데이터 기반 등락 방향 예측과 성과 검증 — 팀 적층 1차 프로젝트"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+
+# 런타임이 **실제로 import 하는 것만** 적는다.
+# 실측 근거: `grep -rhoE '^\s*(from|import)\s+\w+' common/ ingest/ timeseries/ scripts/` (2026-08-25)
+#   → 이관 코드가 쓰는 서드파티는 numpy · sqlalchemy · yfinance 셋뿐이었다.
+#   나머지는 1차 프로젝트를 위해 새로 들이는 것이다.
+#
+# ⚠️ 버전은 추측이 아니라 실측이다. numpy 2.5.1 · pandas 3.0.5 는 상당히 앞선
+#    버전이라 ML 라이브러리와 ABI 가 어긋날 수 있어, 2026-08-25 에 실제로 설치해
+#    7종 전부 import 되는 것을 확인한 뒤 이 조합을 고정했다.
+dependencies = [
+  # ── 이관 코드가 이미 쓰던 것 ──────────────────────────────
+  "numpy==2.5.1",          # timeseries 전체가 이것 하나로 짜여 있다
+  "sqlalchemy==2.0.52",    # common/db.py — Postgres 어댑터
+  "yfinance==1.5.2",       # clients/yf_data.py — 해외 지수 대조군
+
+  # ── 1차 프로젝트가 새로 들이는 것 ─────────────────────────
+  "pandas==3.0.5",         # 피처 표(feature table) 조작
+  "scipy==1.18.1",         # sklearn 이 요구한다 (직접 쓰지는 않는다)
+  "scikit-learn==1.9.0",   # RandomForest · 지표 · 분할기
+  "lightgbm==4.7.0",       # ★ 로컬 학습 (배포판이 GPU 빌드가 아니라 코어 수가 좌우한다)
+  "xgboost==3.4.1",        # 모델 비교군
+  "joblib==1.5.3",         # 학습된 모델 저장·로드
+
+  # ── 최소 API (② 대시보드가 읽을 계약) ─────────────────────
+  "fastapi==0.141.1",
+  "uvicorn[standard]==0.52.0",
+  "pydantic==2.13.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.14",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# 패키지를 저장소 루트에 평탄하게 둔다 (Alpha_Stack/alphastack/ 이중 중첩을 만들지 않는다).
+[tool.setuptools.packages.find]
+include = ["common*", "ingest*", "timeseries*", "features*", "models*", "evaluation*", "api*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="주가지수 데이터 활용 머신러닝·딥러닝 팀 프로젝트 AlphaStack — 착수 자산·범위·역할·로드맵과 팀원 모집 안내">
+<title>AlphaStack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   토큰 — 라이트가 기본이고, 다크는 토큰만 다시 정의한다.
+   뷰어 상태가 셋(명시 라이트 · 명시 다크 · 미지정)이라 블록도 셋이다.
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+  /* 어두운 패널 — 두 테마에서 '항상 어둡다'를 보장한다.
+     ⚠️ --ink 를 배경으로 쓰지 말 것. 그것은 글자색이라 다크에서 밝은 값이 된다. */
+  --panel:      #0F1826;
+  --panel-2:    #16222F;
+  --panel-rule: #2B3B4F;
+  --on-panel:      #E4EAF2;
+  --on-panel-dim:  #C2CFDF;
+  --on-panel-faint:#8A96A8;
+  --on-panel-blue: #7FB0DC;
+  --on-panel-sig:  #E4787E;
+
+  --paper:      #E9ECF1;   /* 푸른기 도는 중성 — 순회색은 고르지 않은 티가 난다 */
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F6F9;
+  --ink:        #0F1826;   /* 남색 쪽으로 기운 먹 */
+  --muted:      #5A6779;
+  --faint:      #8A96A8;
+  --rule:       #CDD5E0;
+  --rule-soft:  #DFE5EC;
+
+  --navy:       #1B3A5C;   /* 구조색 — 계획서 docx 의 1F497D 와 한 계열 */
+  --navy-2:     #2E5F8F;
+  --navy-3:     #5E8DBC;
+  --navy-wash:  #E3EAF3;
+
+  --signal:     #B8323A;   /* 국내장 상승 적색. 강조·새것·모집에만 쓴다 */
+  --sig-solid:  #B8323A;   /* 흰 글자를 얹는 채움 블록. 두 테마 모두 어둡게 유지한다 */
+  --signal-wash:#F7E5E6;
+
+  --ok:         #1F6B4A;
+  --ok-wash:    #E2F0E9;
+  --warn:       #8A6A1F;
+  --warn-wash:  #F6EEDA;
+
+  --measure: 68ch;
+  --step--1: .8125rem;
+  --step-0:  1rem;
+  --step-1:  1.1875rem;
+  --step-2:  1.4375rem;
+  --step-3:  1.875rem;
+  --step-4:  2.5rem;
+  --step-5:  3.5rem;
+
+  --sans: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --serif: "Nanum Myeongjo", "Batang", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "D2Coding", Consolas, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --panel:      #16212F;
+    --panel-2:    #1D2A3A;
+    --panel-rule: #33455C;
+    --on-panel:      #E4EAF2;
+    --on-panel-dim:  #C2CFDF;
+    --on-panel-faint:#93A0B3;
+    --on-panel-blue: #7FB0DC;
+    --on-panel-sig:  #E4787E;
+
+    --paper:      #0C1420;
+    --surface:    #131E2D;
+    --surface-2:  #182536;
+    --ink:        #E4EAF2;
+    --muted:      #9AA8BA;
+    --faint:      #6E7C90;
+    --rule:       #2B3B4F;
+    --rule-soft:  #223044;
+
+    --navy:       #8FBBE4;
+    --navy-2:     #6BA1D2;
+    --navy-3:     #4A7BA8;
+    --navy-wash:  #16283C;
+
+    --signal:     #E4787E;
+    --sig-solid:  #B7434B;
+    --signal-wash:#2E1A1D;
+
+    --ok:         #6FC79E;
+    --ok-wash:    #14291F;
+    --warn:       #D8B364;
+    --warn-wash:  #2A2314;
+  }
+}
+
+:root[data-theme="dark"] {
+  --panel:      #16212F;
+  --panel-2:    #1D2A3A;
+  --panel-rule: #33455C;
+  --on-panel:      #E4EAF2;
+  --on-panel-dim:  #C2CFDF;
+  --on-panel-faint:#93A0B3;
+  --on-panel-blue: #7FB0DC;
+  --on-panel-sig:  #E4787E;
+
+  --paper:      #0C1420;
+  --surface:    #131E2D;
+  --surface-2:  #182536;
+  --ink:        #E4EAF2;
+  --muted:      #9AA8BA;
+  --faint:      #6E7C90;
+  --rule:       #2B3B4F;
+  --rule-soft:  #223044;
+
+  --navy:       #8FBBE4;
+  --navy-2:     #6BA1D2;
+  --navy-3:     #4A7BA8;
+  --navy-wash:  #16283C;
+
+  --signal:     #E4787E;
+  --sig-solid:  #B7434B;
+  --signal-wash:#2E1A1D;
+
+  --ok:         #6FC79E;
+  --ok-wash:    #14291F;
+  --warn:       #D8B364;
+  --warn-wash:  #2A2314;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-weight: 400;
+  font-size: var(--step-0);
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;      /* 한국어 줄바꿈이 어절 안에서 끊기지 않게 */
+  overflow-wrap: anywhere;
+}
+
+/* ── 레이아웃 ─────────────────────────────────────────────────── */
+.band { padding: clamp(3rem, 7vw, 5.5rem) 1.5rem; }
+.band--surface { background: var(--surface); }
+.band--wash    { background: var(--navy-wash); }
+.band--ink     { background: var(--panel); color: var(--on-panel); }
+
+.wrap { max-width: 74rem; margin: 0 auto; }
+.col  { max-width: var(--measure); }
+.col--wide { max-width: 58rem; }
+
+.stack   { display: flex; flex-direction: column; gap: 1.25rem; }
+.stack-s { display: flex; flex-direction: column; gap: .6rem; }
+.stack-l { display: flex; flex-direction: column; gap: 2.5rem; }
+
+/* ── 타이포 ──────────────────────────────────────────────────── */
+h1, h2, h3, h4 { font-family: var(--serif); font-weight: 700; text-wrap: balance; margin: 0; line-height: 1.3; }
+h1 { font-size: clamp(2.5rem, 7vw, var(--step-5)); font-weight: 800; letter-spacing: -.02em; }
+h2 { font-size: clamp(1.6rem, 4vw, var(--step-4)); letter-spacing: -.015em; }
+h3 { font-size: var(--step-2); }
+h4 { font-size: var(--step-1); }
+p  { margin: 0; }
+strong { font-weight: 600; color: var(--ink); }
+.cover strong, .band--ink strong { color: #FFFFFF; }
+
+.eyebrow {
+  font-family: var(--mono);
+  font-size: var(--step--1);
+  font-weight: 500;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--navy-2);
+}
+.band--ink .eyebrow { color: var(--on-panel-blue); }
+
+.lede { font-size: clamp(1.0625rem, 2.2vw, var(--step-1)); color: var(--muted); line-height: 1.8; }
+.band--ink .lede { color: var(--on-panel-dim); }
+.small { font-size: var(--step--1); color: var(--muted); line-height: 1.7; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+a { color: var(--navy-2); text-underline-offset: .2em; text-decoration-thickness: 1px; }
+a:hover { color: var(--signal); }
+a:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 2px;
+}
+
+/* ── 섹션 머리 ───────────────────────────────────────────────── */
+.head { display: flex; flex-direction: column; gap: .5rem; margin-bottom: 2.25rem; }
+.head .rule { height: 2px; background: var(--navy); width: 3rem; margin-bottom: .35rem; }
+
+/* ── 카드 ────────────────────────────────────────────────────── */
+.grid { display: grid; gap: 1rem; }
+.grid--3 { grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); }
+.grid--2 { grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); }
+.grid--4 { grid-template-columns: repeat(auto-fit, minmax(11.5rem, 1fr)); }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--rule-soft);
+  border-radius: 3px;
+  padding: 1.25rem 1.35rem;
+  display: flex; flex-direction: column; gap: .5rem;
+}
+.band--surface .card { background: var(--surface-2); }
+.card--flag { border-left: 3px solid var(--navy); }
+.card--signal { border-left: 3px solid var(--signal); }
+
+/* 수치 타일 */
+.stat { display: flex; flex-direction: column; gap: .15rem; }
+.stat .v {
+  font-family: var(--mono); font-weight: 600;
+  font-size: clamp(1.5rem, 3.4vw, 2rem);
+  font-variant-numeric: tabular-nums; letter-spacing: -.02em;
+  color: var(--navy-2); line-height: 1.15;
+}
+.stat .v.is-zero { color: var(--signal); }
+.stat .k { font-size: var(--step--1); color: var(--muted); }
+.stat .n { font-size: .75rem; color: var(--faint); font-family: var(--mono); }
+
+/* 배지 */
+.tag {
+  display: inline-flex; align-items: center; gap: .35em;
+  align-self: flex-start;   /* flex 세로 컨테이너 안에서 stretch 되어 전폭이 되는 것을 막는다 */
+  font-family: var(--mono); font-size: .72rem; font-weight: 500;
+  letter-spacing: .06em; padding: .18em .55em; border-radius: 2px;
+  white-space: nowrap;
+}
+.tag--live  { background: var(--ok-wash);     color: var(--ok); }
+.tag--soon  { background: var(--warn-wash);   color: var(--warn); }
+.tag--none  { background: var(--signal-wash); color: var(--signal); }
+.tag--info  { background: var(--navy-wash);   color: var(--navy-2); }
+:root[data-theme="dark"] .tag--info,
+.band--ink .tag--info { background: var(--panel-2); color: var(--on-panel-blue); }
+
+/* ── 표 ──────────────────────────────────────────────────────── */
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule-soft); border-radius: 3px; background: var(--surface); }
+.band--surface .tablewrap { background: var(--surface-2); }
+table { border-collapse: collapse; width: 100%; font-size: var(--step--1); }
+th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--rule-soft); vertical-align: top; line-height: 1.6; }
+thead th {
+  font-family: var(--mono); font-weight: 600; font-size: .72rem;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+  background: var(--navy-wash); border-bottom: 1px solid var(--rule); white-space: nowrap;
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+code {
+  font-family: var(--mono); font-size: .875em;
+  background: var(--navy-wash); padding: .1em .35em; border-radius: 2px;
+}
+.band--ink code { background: var(--panel-2); color: #C9D8E8; }
+
+/* ── 도형 ────────────────────────────────────────────────────── */
+figure { margin: 0; display: flex; flex-direction: column; gap: .75rem; }
+figure svg { width: 100%; height: auto; display: block; }
+.figbox {
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  border-radius: 3px; padding: 1.5rem 1.25rem; overflow-x: auto;
+}
+.band--surface .figbox { background: var(--surface-2); }
+figcaption { font-size: var(--step--1); color: var(--muted); line-height: 1.7; }
+
+/* ── SVG 색은 토큰으로 — 리터럴을 쓰면 다크 테마에서 대비가 무너진다 ── */
+svg [data-f="sig"]      { fill: var(--signal); }
+svg [data-f="sigblock"] { fill: var(--sig-solid); }
+svg [data-f="navy"]     { fill: var(--navy); }
+svg [data-f="white"]    { fill: #FFFFFF; }
+svg [data-s="sig"]      { stroke: var(--signal); }
+svg [data-s="navy"]     { stroke: var(--navy); }
+svg [data-c="sig"]      { color: var(--signal); }   /* marker-end 의 currentColor 가 이걸 상속한다 */
+
+/* ── 인용 · 경고 ─────────────────────────────────────────────── */
+.note {
+  border-left: 3px solid var(--rule); padding: .1rem 0 .1rem 1.1rem;
+  color: var(--muted); font-size: var(--step--1); line-height: 1.75;
+}
+.note--warn { border-left-color: var(--signal); }
+
+/* ── 목록 ────────────────────────────────────────────────────── */
+ul.clean, ol.clean { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: .55rem; }
+ul.clean li { position: relative; padding-left: 1.1rem; }
+ul.clean li::before {
+  content: ""; position: absolute; left: 0; top: .72em;
+  width: 5px; height: 5px; background: var(--navy-3); border-radius: 50%;
+}
+ol.num { margin: 0; padding: 0; counter-reset: n; list-style: none; display: flex; flex-direction: column; gap: 1rem; }
+/* ⚠️ li 를 grid 로 두면 <strong> 뒤의 텍스트 노드가 별도 그리드 항목이 되어
+   좁은 열에 떨어진다(한 글자씩 세로로 쪼개진다). 절대배치로 인라인을 흐르게 둔다. */
+ol.num > li { counter-increment: n; position: relative; padding-left: 2.85rem; }
+ol.num > li::before {
+  content: counter(n, decimal-leading-zero);
+  position: absolute; left: 0; top: .28em;
+  font-family: var(--mono); font-size: .8rem; font-weight: 600;
+  color: var(--navy-3); font-variant-numeric: tabular-nums;
+}
+
+/* ── 표지 ────────────────────────────────────────────────────── */
+.cover { background: var(--panel); color: var(--on-panel); padding: clamp(3.5rem, 9vw, 7rem) 1.5rem clamp(3rem, 6vw, 4.5rem); }
+.cover h1 { color: #FFFFFF; }
+.cover .han {
+  font-family: var(--serif); font-size: clamp(1.1rem, 2.6vw, 1.4rem);
+  letter-spacing: .5em; color: var(--on-panel-blue); font-weight: 400;
+}
+.cover .lede { color: var(--on-panel-dim); max-width: 46rem; }
+.metabar {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1.25rem; border-top: 1px solid var(--panel-rule); padding-top: 1.5rem; margin-top: 2.5rem;
+}
+.metabar .k { font-family: var(--mono); font-size: .7rem; letter-spacing: .12em; text-transform: uppercase; color: var(--on-panel-faint); }
+.metabar .v { font-size: var(--step-0); color: var(--on-panel); font-weight: 500; }
+.metabar .v.hi { color: var(--on-panel-sig); }
+
+/* ── 역할 순환 ───────────────────────────────────────────────── */
+.roles { display: grid; gap: .75rem; }
+.role {
+  display: grid; grid-template-columns: auto 1fr; gap: 1rem; align-items: start;
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  border-left: 3px solid var(--navy-3); border-radius: 3px; padding: 1rem 1.2rem;
+}
+.band--surface .role { background: var(--surface-2); }
+.role--lead { border-left-color: var(--signal); }
+.role .who {
+  font-family: var(--mono); font-size: .75rem; font-weight: 600; letter-spacing: .06em;
+  color: var(--navy-2); background: var(--navy-wash);
+  padding: .3em .6em; border-radius: 2px; white-space: nowrap;
+}
+.role--lead .who { color: var(--signal); background: var(--signal-wash); }
+
+/* ── 일정 ────────────────────────────────────────────────────── */
+.tl { display: grid; gap: 0; }
+.tl-row {
+  display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.25rem;
+  padding: .95rem 0; border-top: 1px solid var(--rule-soft); align-items: start;
+}
+.tl-row:first-child { border-top: 0; }
+.tl-row .when { font-family: var(--mono); font-size: var(--step--1); color: var(--navy-2); font-weight: 500; white-space: nowrap; }
+.tl-row .what { display: flex; flex-direction: column; gap: .2rem; }
+.tl-row .goal { font-size: var(--step--1); color: var(--muted); }
+
+/* ── 접기 ────────────────────────────────────────────────────── */
+details {
+  background: var(--surface); border: 1px solid var(--rule-soft);
+  border-radius: 3px; padding: 0 1.2rem;
+}
+.band--surface details { background: var(--surface-2); }
+details[open] { padding-bottom: 1.1rem; }
+summary {
+  cursor: pointer; padding: .95rem 0; font-weight: 600;
+  font-size: var(--step-0); list-style: none; display: flex;
+  align-items: center; justify-content: space-between; gap: 1rem;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "＋"; font-family: var(--mono); color: var(--navy-3); font-weight: 400; }
+details[open] summary::after { content: "－"; }
+
+/* ── 링크 카드 ───────────────────────────────────────────────── */
+.links { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .85rem; }
+.linkcard {
+  display: flex; flex-direction: column; gap: .3rem;
+  background: var(--panel-2); border: 1px solid var(--panel-rule); border-radius: 3px;
+  padding: 1rem 1.15rem; text-decoration: none; color: inherit;
+  transition: border-color .15s ease;
+}
+.linkcard:hover { border-color: var(--navy-3); color: inherit; }
+.linkcard .t { font-weight: 600; color: #FFFFFF; font-size: var(--step-0); }
+.linkcard .u { font-family: var(--mono); font-size: .72rem; color: var(--on-panel-faint); word-break: break-all; }
+
+@media (max-width: 640px) {
+  .tl-row { grid-template-columns: 1fr; gap: .3rem; }
+  .role { grid-template-columns: 1fr; gap: .5rem; }
+  .role .who { justify-self: start; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   인쇄 — 뷰어가 다크 모드여도 종이는 라이트로 낸다.
+   그래서 팔레트를 여기서 다시 못박는다 (:root 의 값을 그대로 가져왔다).
+   ══════════════════════════════════════════════════════════════════ */
+@media print {
+  @page { size: A4; margin: 12mm 10mm; }
+  :root {
+    color-scheme: light;
+  --panel:      #0F1826;
+  --panel-2:    #16222F;
+  --panel-rule: #2B3B4F;
+  --on-panel:      #E4EAF2;
+  --on-panel-dim:  #C2CFDF;
+  --on-panel-faint:#8A96A8;
+  --on-panel-blue: #7FB0DC;
+  --on-panel-sig:  #E4787E;
+  --paper:      #E9ECF1;   /* 푸른기 도는 중성 — 순회색은 고르지 않은 티가 난다 */
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F6F9;
+  --ink:        #0F1826;   /* 남색 쪽으로 기운 먹 */
+  --muted:      #5A6779;
+  --faint:      #8A96A8;
+  --rule:       #CDD5E0;
+  --rule-soft:  #DFE5EC;
+  --navy:       #1B3A5C;   /* 구조색 — 계획서 docx 의 1F497D 와 한 계열 */
+  --navy-2:     #2E5F8F;
+  --navy-3:     #5E8DBC;
+  --navy-wash:  #E3EAF3;
+  --signal:     #B8323A;   /* 국내장 상승 적색. 강조·새것·모집에만 쓴다 */
+  --sig-solid:  #B8323A;   /* 흰 글자를 얹는 채움 블록. 두 테마 모두 어둡게 유지한다 */
+  --signal-wash:#F7E5E6;
+  --ok:         #1F6B4A;
+  --ok-wash:    #E2F0E9;
+  --warn:       #8A6A1F;
+  --warn-wash:  #F6EEDA;
+  --measure: 68ch;
+  --step--1: .8125rem;
+  --step-0:  1rem;
+  --step-1:  1.1875rem;
+  --step-2:  1.4375rem;
+  --step-3:  1.875rem;
+  --step-4:  2.5rem;
+  --step-5:  3.5rem;
+  --sans: "IBM Plex Sans KR", system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --serif: "Nanum Myeongjo", "Batang", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, "D2Coding", Consolas, monospace;
+  }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #FFFFFF; font-size: 10.5pt; line-height: 1.65; }
+  .band { padding: 1.4rem 0; }
+  .cover { padding: 2.2rem 1.2rem 1.8rem; }
+  .wrap { max-width: none; }
+  section.band { break-before: page; }
+  footer.band  { break-before: page; }
+  figure, .figbox, .card, .role, details, .tablewrap, .tl-row, .stat, .linkcard {
+    break-inside: avoid;
+  }
+  h2, h3, h4, .head { break-after: avoid; }
+  .figbox, .tablewrap { overflow: visible; }
+  h1 { font-size: 30pt; } h2 { font-size: 17pt; }
+  h3 { font-size: 13pt; } h4 { font-size: 11.5pt; }
+}
+
+</style>
+</head>
+<body>
+<!-- ══════════════════════ 표지 ══════════════════════ -->
+<header class="cover">
+  <div class="wrap stack">
+    <div class="stack-s">
+      <div class="han">積 層</div>
+      <h1>AlphaStack</h1>
+    </div>
+    <p class="lede">
+      주가지수 데이터로 <strong>등락 방향을 예측하고, 그 예측이 실제로 쓸 만한지 검증</strong>하는
+      2주짜리 팀 프로젝트입니다. 데이터 수집·저장·화면은 이미 서 있습니다 —
+      <strong>비어 있는 것은 모델링과 검증 층</strong>이고, 그 자리를 함께 채울 3명을 찾습니다.
+    </p>
+
+    <div class="metabar">
+      <div><div class="k">기간</div><div class="v">2026.09.01 → 09.15</div></div>
+      <div><div class="k">팀</div><div class="v">적층 (積層) · 4인</div></div>
+      <div><div class="k">모집</div><div class="v hi">3명</div></div>
+      <div><div class="k">차수</div><div class="v">6주 3개 중 <strong>1차</strong></div></div>
+      <div><div class="k">발표</div><div class="v">koreaIT노원 B강의실</div></div>
+    </div>
+  </div>
+</header>
+
+
+<!-- ══════════════════════ 1. 왜 이 주제인가 ══════════════════════ -->
+<section class="band">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">01 — 문제</div>
+      <h2>맞히는 것보다 어려운 건, 맞혔다고 말해도 되는지 아는 것</h2>
+    </div>
+
+    <div class="col stack">
+      <p>
+        개별 기술적 지표(RSI·MACD 등)를 따로 쓰기보다 <strong>여러 지표를 머신러닝으로 종합하면
+        예측력이 실제로 오르는가</strong> — 이것이 출발점입니다. 그런데 이 질문에 답하려다 보면
+        더 어려운 문제를 먼저 만납니다.
+      </p>
+      <p>
+        주가 예측은 <strong>“몇 퍼센트를 맞혔는가”보다 “어떻게 검증했는가”가 결론을 좌우합니다.</strong>
+        시계열에 무작위 K-겹 교차검증을 쓰면 미래 정보가 학습에 새어 들어가 정확도가 부풀려지고,
+        기준선 없이 정확도 52%를 보면 그게 성과인지 알 수 없습니다.
+        올해 데이터로 배워서 작년을 맞히는 모델은 백테스트에서만 훌륭합니다.
+      </p>
+    </div>
+
+    <div class="col--wide">
+      <figure>
+        <div class="figbox">
+          <svg viewBox="0 0 720 300" role="img"
+               aria-label="무작위 K-겹 교차검증은 검증 구간 뒤의 데이터를 학습에 넣어 미래 정보가 새지만, 워크포워드 확장창은 학습 구간이 항상 검증 구간보다 앞에 있다">
+            <defs>
+              <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5"
+                      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+              </marker>
+              <marker id="ar-sig" viewBox="0 0 10 10" refX="9" refY="5"
+                      markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" data-f="sig"/>
+              </marker>
+            </defs>
+
+            <!-- 시간축 -->
+            <text x="0" y="16" font-family="IBM Plex Mono, monospace" font-size="11"
+                  fill="currentColor" opacity=".55">과거</text>
+            <text x="720" y="16" text-anchor="end" font-family="IBM Plex Mono, monospace"
+                  font-size="11" fill="currentColor" opacity=".55">현재</text>
+            <line x1="0" y1="24" x2="720" y2="24" stroke="currentColor"
+                  stroke-opacity=".25" stroke-width="1" marker-end="url(#ar)"/>
+
+            <!-- ── 위: 무작위 K-겹 ── -->
+            <text x="0" y="56" font-family="IBM Plex Mono, monospace" font-size="12"
+                  font-weight="600" fill="currentColor">무작위 K-겹</text>
+
+            <rect x="0"   y="70" width="200" height="30" fill="currentColor" fill-opacity=".18"/>
+            <rect x="204" y="70" width="140" height="30" data-f="sigblock"/>
+            <rect x="348" y="70" width="372" height="30" fill="currentColor" fill-opacity=".18"/>
+
+            <text x="100" y="90" text-anchor="middle" font-family="IBM Plex Mono, monospace"
+                  font-size="11" fill="currentColor">학습</text>
+            <text x="274" y="90" text-anchor="middle" font-family="IBM Plex Mono, monospace"
+                  font-size="11" data-f="white" font-weight="600">검증</text>
+            <text x="534" y="90" text-anchor="middle" font-family="IBM Plex Mono, monospace"
+                  font-size="11" fill="currentColor">학습</text>
+
+            <!-- 누수 화살표 -->
+            <path d="M 420 112 C 420 138, 300 138, 290 116" fill="none"
+                  data-s="sig" stroke-width="1.6" marker-end="url(#ar-sig)"/>
+            <text x="440" y="146" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  data-f="sig" font-weight="600">미래가 학습에 섞인다 — 정확도가 부풀려진다</text>
+
+            <line x1="0" y1="170" x2="720" y2="170" stroke="currentColor" stroke-opacity=".15"/>
+
+            <!-- ── 아래: 워크포워드 ── -->
+            <text x="0" y="196" font-family="IBM Plex Mono, monospace" font-size="12"
+                  font-weight="600" fill="currentColor">워크포워드 (확장창)</text>
+
+            <rect x="0"   y="210" width="200" height="14" data-f="navy" fill-opacity=".55"/>
+            <rect x="204" y="210" width="80"  height="14" data-f="sigblock"/>
+
+            <rect x="0"   y="230" width="284" height="14" data-f="navy" fill-opacity=".55"/>
+            <rect x="288" y="230" width="80"  height="14" data-f="sigblock"/>
+
+            <rect x="0"   y="250" width="368" height="14" data-f="navy" fill-opacity=".55"/>
+            <rect x="372" y="250" width="80"  height="14" data-f="sigblock"/>
+
+            <rect x="0"   y="270" width="452" height="14" data-f="navy" fill-opacity=".55"/>
+            <rect x="456" y="270" width="80"  height="14" data-f="sigblock"/>
+
+            <text x="560" y="222" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".7">폴드 1</text>
+            <text x="560" y="242" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".7">폴드 2</text>
+            <text x="560" y="262" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".7">폴드 3</text>
+            <text x="560" y="282" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".7">폴드 4 …</text>
+
+            <text x="0" y="298" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  fill="currentColor" opacity=".75">학습(남색)은 언제나 검증(적색)보다 앞이다 · 폴드마다 다시 학습한다</text>
+          </svg>
+        </div>
+        <figcaption>
+          <strong>검증 방식이 결론을 만든다.</strong> 같은 모델·같은 데이터라도 위쪽으로 재면 좋아 보이고
+          아래쪽으로 재면 사실이 나옵니다. 이 프로젝트는 아래쪽만 씁니다 —
+          그리고 <code>walk_forward</code> 는 이미 저장소에 구현되어 있습니다.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="col--wide grid grid--3">
+      <div class="card card--flag">
+        <h4>지표를 합치면 나아지는가</h4>
+        <p class="small">RSI·MACD·이동평균을 하나씩 쓸 때와 모델로 종합할 때를 같은 조건에서 비교합니다.</p>
+      </div>
+      <div class="card card--flag">
+        <h4>기준선을 이기는가</h4>
+        <p class="small">항상 매수·무작위·전일 방향 지속 3종을 항상 함께 냅니다. 기준선 없는 정확도는 숫자일 뿐입니다.</p>
+      </div>
+      <div class="card card--flag">
+        <h4>비용을 내고도 남는가</h4>
+        <p class="small">수수료와 세금을 넣습니다. 거래비용을 빼고 나면 사라지는 전략이 대부분입니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 2. 이미 있는 것 ══════════════════════ -->
+<section class="band band--surface">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">02 — 착수 자산</div>
+      <h2>데이터 수집·저장·화면은 이미 돌아갑니다</h2>
+    </div>
+
+    <div class="col stack">
+      <p>
+        제가 개인 프로젝트로 개발해 온 <strong>data-service</strong> 를 팀 저장소로 가져갑니다.
+        국내 투자 정보를 모아 두는 FastAPI 서비스이고, <strong>지금도 계속 개발 중</strong>입니다.
+        목업이 아니라 화면에 뜨는 시세·거래대금·시가총액이 전부 KRX 가 준 실제 값입니다.
+      </p>
+      <p class="note">
+        덕분에 2주 중 <strong>데이터를 구하고 정리하는 데 쓰는 시간이 거의 없습니다.</strong>
+        보통 이런 프로젝트에서 가장 많이 새는 시간입니다.
+      </p>
+    </div>
+
+    <div class="col--wide grid grid--4">
+      <div class="card stat"><div class="v">821,928</div><div class="k">시세 행</div><div class="n">2,875종목 · 297거래일</div></div>
+      <div class="card stat"><div class="v">9</div><div class="k">데이터 원천</div><div class="n">KRX·야후·DART·FRED…</div></div>
+      <div class="card stat"><div class="v">51</div><div class="k">API 엔드포인트</div><div class="n">라우터 14파일</div></div>
+      <div class="card stat"><div class="v">10</div><div class="k">화면</div><div class="n">차트·검색·분석</div></div>
+      <div class="card stat"><div class="v">177</div><div class="k">자동 테스트</div><div class="n">invoke check 하나로</div></div>
+      <div class="card stat"><div class="v">2,051</div><div class="k">시계열 엔진 줄</div><div class="n">numpy 로 직접 구현</div></div>
+      <div class="card stat"><div class="v">13</div><div class="k">결정 기록(ADR)</div><div class="n">왜 그렇게 했는지</div></div>
+      <div class="card stat"><div class="v is-zero">0</div><div class="k">ML 라이브러리</div><div class="n">← 여기가 빈 자리입니다</div></div>
+    </div>
+
+    <div class="col--wide">
+      <figure>
+        <div class="figbox">
+          <svg viewBox="0 0 720 430" role="img"
+               aria-label="data-service 는 외부 원천부터 화면까지 다섯 계층이 서 있고, 그 사이 피처·학습·검증 세 층이 비어 있어 팀이 그 자리를 만든다">
+            <defs>
+              <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5"
+                      markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+              </marker>
+            </defs>
+
+            <!-- 있는 것 -->
+            <text x="0" y="14" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  letter-spacing="1.5" fill="currentColor" opacity=".55">이미 있다</text>
+
+            <!-- L1 외부 원천 -->
+            <rect x="0" y="24" width="480" height="46" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3"/>
+            <text x="14" y="43" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" fill="currentColor">외부 원천 9종</text>
+            <text x="14" y="60" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".65">KRX · 야후 · DART · DART보고서 · KOSIS · ECOS · FRED · FSS · HuggingFace</text>
+            <text x="496" y="52" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".5">app/clients/ 9종 · 3,864줄</text>
+
+            <line x1="240" y1="70" x2="240" y2="86" stroke="currentColor" stroke-opacity=".4"
+                  stroke-width="1.4" marker-end="url(#ar2)"/>
+
+            <!-- L2 저장 -->
+            <rect x="0" y="88" width="480" height="46" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3"/>
+            <text x="14" y="107" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" fill="currentColor">저장 계층</text>
+            <text x="14" y="124" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".65">SQLite 3개(165MB) → Postgres 전환 중 · 821,928행 적재 완료</text>
+            <text x="496" y="116" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".5">app/repositories/ · sql/</text>
+
+            <line x1="240" y1="134" x2="240" y2="150" stroke="currentColor" stroke-opacity=".4"
+                  stroke-width="1.4" marker-end="url(#ar2)"/>
+
+            <!-- L3 전처리 -->
+            <rect x="0" y="152" width="480" height="46" rx="2" data-f="navy" fill-opacity=".14"
+                  data-s="navy" stroke-opacity=".5"/>
+            <text x="14" y="171" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" fill="currentColor">전처리 · 시계열 엔진</text>
+            <text x="14" y="188" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".7">품질검사 · 결측 · ADF · ACF/PACF · ARIMA · walk_forward</text>
+            <text x="496" y="180" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".5">2,833줄 · numpy 만</text>
+
+            <!-- ── 빈 자리 ── -->
+            <text x="600" y="222" text-anchor="end" font-family="IBM Plex Mono, monospace"
+                  font-size="10.5" letter-spacing="1.5" data-f="sig" font-weight="600">팀이 만든다</text>
+
+            <line x1="240" y1="198" x2="240" y2="214" data-s="sig" stroke-width="1.4"
+                  stroke-dasharray="4 3" marker-end="url(#ar2)" data-c="sig"/>
+
+            <rect x="0" y="216" width="480" height="42" rx="2" data-f="sig" fill-opacity=".07"
+                  data-s="sig" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <text x="14" y="233" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" data-f="sig">피처 엔지니어링</text>
+            <text x="14" y="249" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  data-f="sig" opacity=".85">RSI · MACD · 이동평균 · 볼린저 · 거래량 파생 · 레이블 정의</text>
+
+            <line x1="240" y1="258" x2="240" y2="272" data-s="sig" stroke-width="1.4"
+                  stroke-dasharray="4 3" marker-end="url(#ar2)" data-c="sig"/>
+
+            <rect x="0" y="274" width="480" height="42" rx="2" data-f="sig" fill-opacity=".07"
+                  data-s="sig" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <text x="14" y="291" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" data-f="sig">모델 학습 · 비교</text>
+            <text x="14" y="307" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  data-f="sig" opacity=".85">로지스틱 회귀(기준) · RandomForest · XGBoost · LightGBM · (LSTM)</text>
+
+            <line x1="240" y1="316" x2="240" y2="330" data-s="sig" stroke-width="1.4"
+                  stroke-dasharray="4 3" marker-end="url(#ar2)" data-c="sig"/>
+
+            <rect x="0" y="332" width="480" height="42" rx="2" data-f="sig" fill-opacity=".07"
+                  data-s="sig" stroke-width="1.4" stroke-dasharray="5 4"/>
+            <text x="14" y="349" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" data-f="sig">성과 검증 엔진</text>
+            <text x="14" y="365" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  data-f="sig" opacity=".85">MDD · Sharpe · CAGR · 승률 · 거래비용 · 기준선 대비 ★ 2·3차가 재사용</text>
+
+            <line x1="240" y1="374" x2="240" y2="390" stroke="currentColor" stroke-opacity=".4"
+                  stroke-width="1.4" marker-end="url(#ar2)"/>
+
+            <!-- L7 화면 -->
+            <rect x="0" y="392" width="480" height="38" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3"/>
+            <text x="14" y="416" font-family="IBM Plex Sans KR, sans-serif" font-size="12.5"
+                  font-weight="600" fill="currentColor">API 51개 · 화면 10개
+              <tspan font-family="IBM Plex Mono, monospace" font-size="10.5"
+                     font-weight="400" opacity=".65">  (FastAPI · 바닐라 JS · 빌드 없음)</tspan></text>
+            <text x="496" y="416" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".5">routers/ · static/</text>
+          </svg>
+        </div>
+        <figcaption>
+          <strong>실선은 이미 도는 코드, 파선은 이번에 만드는 층입니다.</strong>
+          위아래(데이터·화면)가 서 있어서 가운데 세 층에 집중할 수 있습니다.
+          시계열 엔진은 <code>statsmodels</code> 없이 numpy 로 직접 짜여 있어,
+          검증 엔진을 그 위에 얹기 좋습니다.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="col--wide stack">
+      <h3>기술 스택</h3>
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>층</th><th>쓰는 것</th><th>메모</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>언어 · 프레임워크</td>
+              <td class="num">Python 3.12 · FastAPI 0.141 · Uvicorn 0.52</td>
+              <td>버전은 전부 <code>==</code> 완전 고정</td>
+            </tr>
+            <tr>
+              <td>수치</td>
+              <td class="num">numpy 2.5.1</td>
+              <td><strong>이것 하나뿐입니다.</strong> scipy·statsmodels도 없습니다</td>
+            </tr>
+            <tr>
+              <td>저장</td>
+              <td class="num">SQLite 3개 · PostgreSQL 16 (pgvector)</td>
+              <td>SQLite → Postgres 전환 9단계 중 6단계 완료</td>
+            </tr>
+            <tr>
+              <td>DB 접근</td>
+              <td class="num">SQLAlchemy 2.0 (async) · asyncpg 0.30</td>
+              <td>엔진 계층은 섰고 읽기 경로 연결이 다음 과제</td>
+            </tr>
+            <tr>
+              <td>프런트</td>
+              <td class="num">바닐라 JS · ApexCharts 4</td>
+              <td><strong>번들러·프레임워크 없음.</strong> 브라우저가 원본을 그대로 받습니다</td>
+            </tr>
+            <tr>
+              <td>실행 · 배포</td>
+              <td class="num">Docker (2단 빌드 553MB) · Vercel</td>
+              <td>GitLab 에 push 하면 자동 배포</td>
+            </tr>
+            <tr>
+              <td>검증</td>
+              <td class="num">pytest 177 · ruff · markdownlint</td>
+              <td><code>invoke check</code> 명령 하나가 정본</td>
+            </tr>
+            <tr>
+              <td><strong>머신러닝</strong></td>
+              <td class="num"><span class="tag tag--none">아직 없음</span></td>
+              <td>scikit-learn·XGBoost·LightGBM·PyTorch 전부 <strong>이번에 도입</strong>합니다</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="note note--warn">
+        <strong>과장하지 않기 위해 적습니다.</strong> 수집 여섯 갈래 중 실제로 도는 것은
+        <strong>시세·통계 9원천뿐</strong>이고 뉴스·커뮤니티·동영상 수집기는 아직 없습니다.
+        Postgres 에 데이터는 들어갔지만 <strong>읽는 코드는 아직 SQLite</strong> 를 봅니다.
+        저장소는 “아직 아닌 것은 아니라고 쓴다”를 규칙으로 삼고 있고, 이 문서도 같습니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 3. 무엇을 가져가고 무엇을 버리나 ══════════════════════ -->
+<section class="band">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">03 — 이관</div>
+      <h2>필요한 것만 가져가서, 팀 저장소에서 다시 짭니다</h2>
+    </div>
+
+    <div class="col stack">
+      <p>
+        개인 저장소를 그대로 쓰지 않습니다. <strong>새 팀 저장소를 만들고 필요한 부분만 옮겨
+        리팩터링합니다.</strong> 제 커밋 이력과 팀의 커밋 이력을 섞지 않기 위해서이고,
+        여러분의 기여가 팀 저장소에 각자 이름으로 남게 하기 위해서입니다.
+      </p>
+    </div>
+
+    <div class="col--wide grid grid--2">
+      <div class="card card--flag">
+        <div class="tag tag--live">가져갑니다</div>
+        <h4>약 15,900줄</h4>
+        <ul class="clean small">
+          <li>수집 클라이언트 9종 — 학습 데이터 확보</li>
+          <li>시세 저장소 821,928행 — 첫날부터 학습 가능</li>
+          <li>전처리 · 시계열 엔진 2,833줄 — 검증 엔진의 토대</li>
+          <li>FastAPI 서비스 골격 + 화면 10개 — 대시보드 뼈대</li>
+          <li>검증 체계(<code>invoke check</code>) · 결정 기록 13건</li>
+        </ul>
+      </div>
+      <div class="card card--signal">
+        <div class="tag tag--none">버립니다</div>
+        <h4>약 11,200줄</h4>
+        <ul class="clean small">
+          <li><strong>기업 리서치 리포트 자동 생성 기능</strong> (24파일)</li>
+          <li>1차 주제(지표 기반 예측)와 무관합니다</li>
+          <li>2주 안에 팀 전원이 검수할 수 없는 분량입니다</li>
+          <li>원본 저장소에 남겨 두고 팀 저장소로 옮기지 않습니다</li>
+          <li>개인용 문서 미러링·배포 설정도 새로 정합니다</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="col">
+      <p class="note">
+        결과적으로 팀이 다루는 코드는 <strong>약 27,000줄에서 약 15,900줄로 줄어듭니다.</strong>
+        읽어야 할 양을 먼저 줄이는 것이 리팩터링의 첫 단계입니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 4. 1차에서 만드는 것 ══════════════════════ -->
+<section class="band band--surface">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">04 — 범위</div>
+      <h2>필수는 2주 안에 끝내고, 선택은 함께 고릅니다</h2>
+    </div>
+
+    <div class="col--wide stack">
+      <h3>필수 범위 — 반드시 닫습니다</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:2.5rem"></th><th>항목</th><th>완료 기준</th></tr></thead>
+          <tbody>
+            <tr><td class="num">①</td><td>기술적 지표 기반 등락 방향 예측 모델</td><td>예측 결과가 재현된다</td></tr>
+            <tr><td class="num">②</td><td>머신러닝 모델 성능 비교·평가</td><td>동일 조건 비교표가 나온다</td></tr>
+            <tr><td class="num">③</td><td>롤링(walk-forward) 백테스팅</td><td>폴드별 성능과 그 분산이 나온다</td></tr>
+            <tr><td class="num">④</td><td>재현 가능한 단일 파이프라인</td><td>한 명령으로 같은 결과가 나온다</td></tr>
+            <tr><td class="num">⑤</td><td><strong>성과 검증 엔진 분리</strong> (MDD·Sharpe·승률·거래비용)</td><td>2·3차가 그대로 가져다 쓴다</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:1.5rem">선택 범위 — 관심사에 따라 채택합니다</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th style="width:2.5rem"></th><th>항목</th><th>언제 넣나</th></tr></thead>
+          <tbody>
+            <tr><td class="num">⑥</td><td>딥러닝(LSTM/GRU)을 ML 과 동일 조건에서 비교</td><td>담당 희망자가 있을 때</td></tr>
+            <tr><td class="num">⑦</td><td>뉴스·공시 제목 감성을 피처로 결합 <span class="tag tag--info">무료 인코더만</span></td><td>필수 범위가 먼저 닫힌 뒤</td></tr>
+            <tr><td class="num">⑧</td><td>유니버스 확장 — 약 350종목 횡단면 랭킹 예측</td><td>학습 시간이 감당될 때</td></tr>
+            <tr><td class="num">⑨</td><td>ADF 정상성 검정·차분 적용 <span class="tag tag--live">기구현</span></td><td>언제든 — 비용이 거의 없음</td></tr>
+            <tr><td class="num">⑩</td><td>종목별 하이퍼파라미터 자동 탐색</td><td>과적합 관리가 가능할 때</td></tr>
+            <tr><td class="num">⑪</td><td>저장계층 Postgres 전환 마무리 (9단계 중 6단계 완료)</td><td>인프라에 관심 있는 분이 있을 때</td></tr>
+            <tr>
+              <td class="num" style="color:var(--signal)">⑫</td>
+              <td><strong>여러분이 제안하는 기능</strong> — 주제 안에 있고 설명할 수 있으면 채택</td>
+              <td>킥오프에서 협의</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:1.5rem">먼저 풀어야 할 것 — 숨기지 않고 적습니다</h3>
+      <p class="small" style="max-width:var(--measure)">
+        저장소를 실측해 보니 착수 전에 결정해야 할 것이 셋 남아 있습니다.
+        <strong>전부 첫 주에 처리 가능하고, 각각이 담당 하나의 첫 과제가 됩니다.</strong>
+      </p>
+      <div class="grid grid--3">
+        <div class="card card--signal">
+          <div class="tag tag--none">데이터</div>
+          <h4>학습 기간이 얇습니다</h4>
+          <p class="small">
+            지금 쌓인 시세는 <strong>297거래일</strong>(2025.06~2026.08)입니다.
+            학습·검증·홀드아웃으로 나누기에 넉넉하지 않아 <strong>과거 구간 백필이 먼저</strong>입니다.
+            수집 스크립트는 이미 있어서 돌리는 일에 가깝습니다.
+          </p>
+        </div>
+        <div class="card card--signal">
+          <div class="tag tag--none">인프라</div>
+          <h4>학습을 어디서 돌릴지</h4>
+          <p class="small">
+            배포처(Vercel)는 함수 용량 한도가 있어 <strong>PyTorch 급 라이브러리를 실을 수 없습니다.</strong>
+            학습은 로컬에서 돌리고 <strong>결과물만 서빙</strong>하는 구조로 가릅니다.
+            어떤 형식으로 저장할지가 첫 주 결정입니다.
+          </p>
+        </div>
+        <div class="card card--signal">
+          <div class="tag tag--none">설계</div>
+          <h4>피처·레이블을 담을 자리</h4>
+          <p class="small">
+            지금 DB 표는 시세용이라 <strong>피처 테이블과 레이블 테이블이 없습니다.</strong>
+            지표는 화면에 쓰고 버리는 일회성으로 계산됩니다.
+            <strong>학습용 데이터셋 스키마를 새로 설계</strong>해야 합니다.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 5. 팀원이 들어오면 ══════════════════════ -->
+<section class="band">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">05 — 합류</div>
+      <h2>기능을 얹는 건 환영입니다. 조건은 하나입니다</h2>
+    </div>
+
+    <div class="col stack">
+      <p>
+        <strong>이 프로젝트는 지금도 진행 중이고, 여러분이 자기 기능을 추가해도 아무 문제가 없습니다.</strong>
+        오히려 그러라고 선택 범위 ⑫를 열어 두었습니다. 하고 싶은 게 있으면 킥오프에서 말씀하시면 됩니다.
+      </p>
+      <p>
+        <strong>대신 한 가지가 필요합니다 — 지금까지의 코드를 이해하는 것.</strong>
+        기존 구조를 모른 채 옆에 새 폴더를 파면 같은 일을 하는 코드가 두 벌이 되고,
+        2·3차에서 그 둘을 합치는 비용을 우리가 냅니다. 붙일 자리를 알고 붙이면 그럴 일이 없습니다.
+      </p>
+      <p class="note">
+        어렵게 들릴 수 있지만 도구는 준비되어 있습니다 —
+        <strong>결정 기록(ADR) 13건</strong>이 “왜 그렇게 했는가”를 전부 적어 두었고,
+        README 가 화면·API·폴더 구조를 전수로 설명하며,
+        <code>docker compose up -d</code> 한 줄이면 30초 만에 로컬에서 돕니다.
+        첫 이틀을 <strong>다 같이 읽는 시간</strong>으로 잡아 두었습니다.
+      </p>
+    </div>
+
+    <div class="col--wide stack">
+      <h3>주담당과 교차 검수</h3>
+      <p class="small" style="max-width:var(--measure)">
+        아래는 “무엇을 했는지 말할 수 있게” 나눈 것이지 벽을 세운 것이 아닙니다.
+        각자 자기 영역을 끌고 가되 <strong>바로 옆 담당의 산출물을 한 번 더 확인</strong>합니다.
+        제가 백엔드로 참여할 때도 CRUD 를 맡으면서 배포·연동 쪽을 같이 봐 왔고, 그 방식이 잘 통했습니다.
+      </p>
+
+      <div class="roles">
+        <div class="role role--lead">
+          <div class="who">팀장</div>
+          <div class="stack-s">
+            <strong>데이터 파이프라인 · 저장계층 · 서비스 통합</strong>
+            <span class="small">수집·적재 스크립트, 조회 API · 검수는 ← 팀원 C</span>
+          </div>
+        </div>
+        <div class="role">
+          <div class="who">팀원 A</div>
+          <div class="stack-s">
+            <strong>피처 엔지니어링 · 기술적 지표 · 데이터 품질</strong>
+            <span class="small">피처 생성 모듈, 품질 리포트 · 검수는 ← 팀장</span>
+          </div>
+        </div>
+        <div class="role">
+          <div class="who">팀원 B</div>
+          <div class="stack-s">
+            <strong>머신러닝 / 딥러닝 모델링 · 성능 비교</strong>
+            <span class="small">학습 스크립트, 성능 비교표 · 검수는 ← 팀원 A</span>
+          </div>
+        </div>
+        <div class="role">
+          <div class="who">팀원 C</div>
+          <div class="stack-s">
+            <strong>백테스팅 · 성과 지표 · 대시보드</strong>
+            <span class="small">성과 검증 엔진, 대시보드 · 검수는 ← 팀원 B</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid--2" style="margin-top:.75rem">
+        <div class="card">
+          <h4>협업 규약</h4>
+          <ol class="num small">
+            <li>모든 코드는 Pull Request 로 병합하고 교차 검수자 1인의 승인을 받습니다.</li>
+            <li><strong>자기가 만든 기능은 5분 안에 설명할 수 있어야 합니다.</strong> 도구를 쓰는 건 자유지만, 설명하지 못하는 코드는 병합하지 않습니다.</li>
+            <li>매일 진행 상황을 짧게 공유합니다. 막히면 하루를 넘기지 않고 말합니다.</li>
+            <li>주요 결정은 한 장으로 남깁니다 — 무엇을, 왜, 어떤 대안을 버렸는지.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h4>합류 첫 이틀에 하는 일</h4>
+          <ul class="clean small">
+            <li><code>docker compose up -d</code> 로 각자 로컬에 띄우기</li>
+            <li>화면 10개를 직접 눌러 보며 무엇이 있는지 확인</li>
+            <li>ADR 13건 중 핵심 4건 같이 읽기 (경계·저장계층·응답상한·출처)</li>
+            <li>담당 영역 확정 · <strong>선택 범위에서 하고 싶은 것 고르기</strong></li>
+            <li>팀 저장소 생성 · 이관 범위 합의</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 6. 6주 3개 프로젝트 ══════════════════════ -->
+<section class="band band--wash">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">06 — 로드맵</div>
+      <h2>왜 팀 이름이 ‘적층’인가</h2>
+    </div>
+
+    <div class="col stack">
+      <p>
+        6주 동안 프로젝트를 세 번 합니다. 그리고 <strong>세 주제가 전부 “개발 및 성과 검증”으로
+        끝납니다.</strong> 매번 새로 만드는 것은 앞쪽이고, 검증하는 방법은 같습니다.
+      </p>
+      <p>
+        그래서 <strong>1차에서 검증 엔진을 재사용 가능하게 분리하면 2·3차는 그 위에 얹는 일</strong>이 되고,
+        노트북 셀에 흩어 놓으면 매번 처음부터 다시 짭니다.
+        <strong>이 판단 하나가 6주 전체의 비용을 결정합니다.</strong>
+      </p>
+    </div>
+
+    <div class="col--wide">
+      <figure>
+        <div class="figbox">
+          <svg viewBox="0 0 720 300" role="img"
+               aria-label="세 차수 모두 아래에 같은 데이터 층과 성과 검증 층을 두고, 그 위에 각 차수의 새 층만 쌓인다">
+            <!-- 공통 바닥층 -->
+            <rect x="0" y="228" width="720" height="30" rx="2" data-f="navy" fill-opacity=".2"
+                  data-s="navy" stroke-opacity=".45"/>
+            <text x="12" y="248" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">성과 검증 엔진 — MDD · Sharpe · 승률 · 거래비용 · 기준선 대비</text>
+
+            <rect x="0" y="262" width="720" height="30" rx="2" fill="currentColor" fill-opacity=".09"
+                  stroke="currentColor" stroke-opacity=".28"/>
+            <text x="12" y="282" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">데이터 파이프라인 — 수집 9원천 · 시세 821,928행 · 전처리</text>
+
+            <text x="708" y="248" text-anchor="end" font-family="IBM Plex Mono, monospace"
+                  font-size="10" fill="currentColor" opacity=".55">1차에서 만들고 3번 쓴다</text>
+
+            <!-- 1차 -->
+            <rect x="0" y="180" width="226" height="38" rx="2" data-f="sig" fill-opacity=".12"
+                  data-s="sig" stroke-opacity=".6" stroke-width="1.4"/>
+            <text x="12" y="197" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">예측 신호</text>
+            <text x="12" y="212" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".7">지표 → ML → 방향 예측</text>
+
+            <text x="0" y="168" font-family="IBM Plex Mono, monospace" font-size="11"
+                  font-weight="600" data-f="sig">1차 · 9/1–9/15</text>
+            <text x="0" y="152" font-family="IBM Plex Sans KR, sans-serif" font-size="11.5"
+                  fill="currentColor" opacity=".8">주가지수 데이터 ML·DL</text>
+
+            <!-- 2차 -->
+            <rect x="240" y="180" width="226" height="38" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 3"/>
+            <text x="252" y="197" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor" opacity=".85">예측 신호</text>
+            <text x="252" y="212" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".55">1차에서 물려받음</text>
+
+            <rect x="240" y="136" width="226" height="38" rx="2" data-f="navy" fill-opacity=".2"
+                  data-s="navy" stroke-opacity=".6" stroke-width="1.4"/>
+            <text x="252" y="153" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">포트폴리오 · 자산배분</text>
+            <text x="252" y="168" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".7">투자성향 · 리밸런싱</text>
+
+            <text x="240" y="124" font-family="IBM Plex Mono, monospace" font-size="11"
+                  font-weight="600" fill="currentColor" opacity=".7">2차</text>
+            <text x="240" y="108" font-family="IBM Plex Sans KR, sans-serif" font-size="11.5"
+                  fill="currentColor" opacity=".8">나만의 로보 어드바이저</text>
+
+            <!-- 3차 -->
+            <rect x="480" y="180" width="240" height="38" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 3"/>
+            <text x="492" y="197" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor" opacity=".85">예측 신호</text>
+            <text x="492" y="212" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".55">1차에서 물려받음</text>
+
+            <rect x="480" y="136" width="240" height="38" rx="2" fill="currentColor" fill-opacity=".07"
+                  stroke="currentColor" stroke-opacity=".3" stroke-dasharray="4 3"/>
+            <text x="492" y="153" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor" opacity=".85">포트폴리오 · 자산배분</text>
+            <text x="492" y="168" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".55">2차에서 물려받음</text>
+
+            <rect x="480" y="92" width="240" height="38" rx="2" data-f="navy" fill-opacity=".2"
+                  data-s="navy" stroke-opacity=".6" stroke-width="1.4"/>
+            <text x="492" y="109" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">자체 인디케이터</text>
+            <text x="492" y="124" font-family="IBM Plex Mono, monospace" font-size="10"
+                  fill="currentColor" opacity=".7">지표를 직접 정의하고 검정</text>
+
+            <text x="480" y="80" font-family="IBM Plex Mono, monospace" font-size="11"
+                  font-weight="600" fill="currentColor" opacity=".7">3차</text>
+            <text x="480" y="64" font-family="IBM Plex Sans KR, sans-serif" font-size="11.5"
+                  fill="currentColor" opacity=".8">나만의 투자 인디케이터</text>
+
+            <!-- 축 안내 -->
+            <text x="0" y="24" font-family="IBM Plex Sans KR, sans-serif" font-size="12"
+                  font-weight="600" fill="currentColor">
+              쌓이는 것은 위로, 바닥은 그대로
+            </text>
+            <text x="0" y="42" font-family="IBM Plex Mono, monospace" font-size="10.5"
+                  fill="currentColor" opacity=".6">
+              진한 칸 = 그 차수에 새로 만드는 것 · 파선 칸 = 앞 차수에서 물려받는 것
+            </text>
+          </svg>
+        </div>
+        <figcaption>
+          2차는 1차의 “한 종목 신호”를 “여러 종목의 배분”으로 넓히는 일이고,
+          3차는 1차에서 기성 지표(RSI·MACD)를 쓰던 자리를 <strong>우리가 만든 지표</strong>로 바꾸는 일입니다.
+          세 번 모두 같은 검증 엔진 위에서 성과를 잽니다.
+        </figcaption>
+      </figure>
+    </div>
+
+    <div class="col">
+      <p class="note note--warn">
+        <strong>그래서 간단한 프로젝트가 아닙니다.</strong> 사전 작업분이 있어 시작은 빠르지만,
+        1차에서 대충 만든 것은 2·3차 내내 우리를 따라다닙니다.
+        대신 <strong>여러분이 1차에 만든 코드도 6주 내내 살아남습니다.</strong>
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 7. 일정 ══════════════════════ -->
+<section class="band band--surface">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">07 — 일정</div>
+      <h2>2주를 어떻게 쓰나</h2>
+    </div>
+
+    <div class="col--wide">
+      <div class="tl">
+        <div class="tl-row">
+          <div class="when">9/1 화 – 9/2 수</div>
+          <div class="what">
+            <strong>킥오프 · 저장소 이관 · 다 같이 코드 읽기</strong>
+            <span class="goal">→ 전원이 로컬에서 서비스를 띄우고 시세를 조회한다 · 담당과 선택 범위 확정</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/3 목 – 9/5 토</div>
+          <div class="what">
+            <strong>학습 데이터셋 확정 · 레이블 정의 · 기술적 지표 피처 1차</strong>
+            <span class="goal">→ 피처 테이블이 생성되고 결측·이상치 리포트가 나온다</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/6 일 – 9/8 화</div>
+          <div class="what">
+            <strong>베이스라인 모델 · 워크포워드 골격 · 기준선 3종</strong>
+            <span class="goal">→ 로지스틱 회귀가 기준선 대비 수치를 낸다</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/9 수 – 9/10 목</div>
+          <div class="what">
+            <strong>모델 비교(RF · XGBoost · LightGBM) · 하이퍼파라미터 · 과적합 점검</strong>
+            <span class="goal">→ 모델 성능 비교표 초안이 나온다</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/11 금 – 9/12 토</div>
+          <div class="what">
+            <strong>성과 검증 엔진 완성(MDD · Sharpe · 거래비용) · 대시보드 연결</strong>
+            <span class="goal">→ 대시보드에서 신호와 성과를 함께 본다</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/13 일 – 9/14 월</div>
+          <div class="what">
+            <strong>선택 범위 반영 · 리포트 작성 · 발표 리허설</strong>
+            <span class="goal">→ 발표 자료와 README 가 완성된다</span>
+          </div>
+        </div>
+        <div class="tl-row">
+          <div class="when">9/15 화</div>
+          <div class="what">
+            <strong>발표</strong>
+            <span class="goal">→ koreaIT노원 B강의실</span>
+          </div>
+        </div>
+      </div>
+      <p class="note" style="margin-top:1.25rem">
+        주말(9/5·6, 9/12·13)을 일정에 포함했습니다. 매일 조금씩 진행하는 것을 전제로 잡은 일정이며,
+        실제 배분은 킥오프에서 함께 조정합니다.
+      </p>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 8. 함께할 분 ══════════════════════ -->
+<section class="band">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule"></div>
+      <div class="eyebrow">08 — 모집</div>
+      <h2>이런 분과 함께하고 싶습니다</h2>
+    </div>
+
+    <div class="col--wide grid grid--2">
+      <div class="card card--flag">
+        <h4>설명할 수 있는 분</h4>
+        <p class="small">
+          바이브 코딩을 하셔도 좋습니다. <strong>도구를 쓰는 건 자유입니다.</strong>
+          다만 자기가 만든 기능은 설명할 수 있어야 하고, 문서화와 버전 관리는 함께 합니다.
+        </p>
+      </div>
+      <div class="card card--flag">
+        <h4>남의 코드를 고칠 수 있는 분</h4>
+        <p class="small">
+          이미 진행된 코드를 팀 프로젝트로 리팩터링합니다.
+          <strong>사전 작업분을 읽고 고칠 수 있고, 주제에 맞는 자기 기능을 얹고 싶은 분</strong>을 찾습니다.
+        </p>
+      </div>
+      <div class="card card--flag">
+        <h4>6주를 함께 갈 분</h4>
+        <p class="small">
+          2주는 짧지만 3개 프로젝트로 이어집니다. 만든 것을 다음 차수로 가져가 확장하는 방식이라
+          <strong>1차의 설계가 3차까지 갑니다.</strong>
+        </p>
+      </div>
+      <div class="card card--flag">
+        <h4>매일 조금씩 하실 분</h4>
+        <p class="small">
+          많이 하지 않아도 됩니다. <strong>매일 조금씩, 중간 이탈 없이 끝까지</strong> 함께할 수 있는 분이면 좋겠습니다.
+          취업 준비 중인 대학생(20대 중반) 우대합니다.
+        </p>
+      </div>
+    </div>
+
+    <div class="col--wide stack">
+      <details open>
+        <summary>미리 말씀드리는 것 — 읽고 결정해 주세요</summary>
+        <ul class="clean small">
+          <li><strong>간단한 프로젝트는 아닙니다.</strong> 사전 작업분이 있어 시작은 빠르지만, 그만큼 완성도의 기준도 높습니다.</li>
+          <li><strong>역할은 고정이 아닙니다.</strong> 4개 영역은 주담당일 뿐이고, 원하는 기능을 제안하고 직접 만들 수 있습니다.</li>
+          <li>다만 추가하는 기능은 <strong>“지표 기반 예측과 그 성과 검증”이라는 주제 안</strong>에 있어야 하고, 왜 넣었는지 설명할 수 있어야 합니다.</li>
+          <li><strong>기존 코드를 이해하는 시간이 필요합니다.</strong> 첫 이틀을 그 시간으로 잡아 두었고, ADR·README 가 준비되어 있습니다.</li>
+          <li>개인 프로젝트의 코드를 가져오지만 <strong>팀 프로젝트는 별개의 저장소</strong>입니다. 기여는 팀 저장소의 커밋 이력으로 각자에게 남습니다.</li>
+          <li>유료 LLM API 는 쓰지 않습니다(비용 0원 방침). 클라우드 인프라도 쓰지 않고 로컬 + Vercel 무료 범위에서 돌립니다.</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════ 9. 링크 ══════════════════════ -->
+<footer class="band band--ink">
+  <div class="wrap stack-l">
+    <div class="head col">
+      <div class="rule" style="background:var(--on-panel-blue)"></div>
+      <div class="eyebrow">09 — 직접 보기</div>
+      <h2 style="color:#FFFFFF">코드와 문서는 공개되어 있습니다</h2>
+    </div>
+
+    <div class="col">
+      <p class="lede">
+        아래 저장소를 열어 보시면 이 문서가 말한 것이 실제로 있는지 확인할 수 있습니다.
+        <strong>README 한 편에 화면·API·폴더 구조가 전수로 적혀 있고</strong>,
+        <code>docs/decisions/</code> 에 “왜 그렇게 했는가”가 13건 남아 있습니다.
+      </p>
+    </div>
+
+    <div class="col--wide links">
+      <a class="linkcard" href="https://gitlab.com/dev-dongwon05253/est-data-service" target="_blank" rel="noopener">
+        <span class="t">GitLab — 저장소</span>
+        <span class="u">gitlab.com/dev-dongwon05253/est-data-service</span>
+      </a>
+      <a class="linkcard" href="https://github.com/EST-Bootcamp-Dongwon/data-service" target="_blank" rel="noopener">
+        <span class="t">GitHub — 미러</span>
+        <span class="u">github.com/EST-Bootcamp-Dongwon/data-service</span>
+      </a>
+    </div>
+
+    <div class="col">
+      <p class="small" style="color:var(--on-panel-faint)">
+        읽어 볼 만한 순서 — <code>README.md</code> 첫 화면(“지금 어디까지 왔나”) →
+        <code>docs/decisions/README.md</code>(결정 목록) →
+        <code>app/services/timeseries/</code>(검증 엔진의 토대) →
+        <code>docker compose up -d</code> 로 직접 띄워 보기.
+      </p>
+    </div>
+
+    <div class="col" style="border-top:1px solid var(--panel-rule); padding-top:1.5rem">
+      <p class="small" style="color:var(--on-panel-faint)">
+        <strong style="color:var(--on-panel-dim)">적층(積層) · AlphaStack</strong> —
+        주가지수 데이터 활용 머신러닝·딥러닝 · 2026.09.01 → 09.15 ·
+        1차 프로젝트 계획 및 팀원 모집 안내
+      </p>
+    </div>
+  </div>
+</footer>
+</body>
+</html>
