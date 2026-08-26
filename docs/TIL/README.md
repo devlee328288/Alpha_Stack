@@ -61,7 +61,7 @@ docs/TIL/YYYY-MM-DD-짧은-제목.md
 | 작성 | 홍길동 |
 | PR | [#12](https://github.com/devlee328288/Alpha_Stack/pull/12) |
 | 브랜치 | `feat/rsi-macd-features` |
-| 관련 | [ADR-AS-0003](../decisions/0003-....md) · [회의안건 B-1](../회의안건.md) |
+| 관련 | [ADR-AS-0003](../decisions/0003-수집-계층.md) · [회의안건 B-1](../회의안건.md) |
 
 ## 1. 무엇을 했나
 (한 문단. 코드가 아니라 **결과**를 적는다.)
