@@ -1,0 +1,33 @@
+{
+  "hash_method": "canonical-v1",
+  "schema_version": 1,
+  "snapshots": {
+    "kospi200_20260825": {
+      "columns": [
+        "date",
+        "index_name",
+        "index_class",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "change_rate",
+        "volume",
+        "value",
+        "market_cap"
+      ],
+      "end": "2026-08-25",
+      "frozen_at_kst": "2026-08-26T12:00:32+09:00",
+      "hash_method": "canonical-v1",
+      "index_name": "코스피 200",
+      "last_verified_at_kst": "2026-08-26T12:00:32+09:00",
+      "parquet_sha256": "e187d3295d8d3a5e84b6d4ec793ccebeda81ba80804491dbfae3ebabcb624d41",
+      "path": "data/snapshots/kospi200_20260825.parquet",
+      "rows": 4097,
+      "sha256": "885ea3d351863968c0b9244b04c026a8510d6d3fef0d2fee7d0ee33ec8fadc78",
+      "source": "KRX Open API · index_price",
+      "start": "2010-01-04"
+    }
+  }
+}
