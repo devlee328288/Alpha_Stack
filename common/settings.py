@@ -102,7 +102,23 @@ SQLITE = "sqlite"
 POSTGRES = "postgres"
 STORE_BACKENDS: tuple[str, ...] = (SQLITE, POSTGRES)
 
-# ⭐ **이제 두 환경이 같은 값이다 — 그것이 S6 의 정의다** (ADR-DS-0011 §1 · ADR-DS-0021).
+# ⭐⭐ **AlphaStack 팀 저장소는 원본과 기본값이 반대다 — 둘 다 `sqlite` 다** (ADR-AS-0002).
+#
+# 원본(data-service)은 S6 에서 양쪽을 `postgres` 로 뒤집었다. Supabase 에 core 350종목이
+# 이미 서 있었기 때문이다. **팀 저장소에는 그 Supabase 가 없다.**
+#
+#   · 팀 Postgres 를 팔 것인가가 아직 미결이다 → docs/회의안건.md A-1
+#   · `asyncpg` 가 의존성에 없다 (pyproject 는 sqlalchemy 만 싣는다)
+#   · `.env.example` 이 이미 `STORE_BACKEND=sqlite` 를 적어 두었다
+#
+# 기본값을 물려받은 채로 두면 팀원이 clone 직후 `fetch_krx.py --status` 하나에
+# `ModuleNotFoundError: No module named 'asyncpg'` 스택트레이스를 본다 (실측 2026-08-26).
+# "설정을 안 했다" 가 아니라 "코드가 깨졌다" 로 읽히는 실패다.
+#
+# 👉 **A-1 이 정해지면 이 두 상수를 `POSTGRES` 로 되돌리고 `asyncpg` 를 의존성에 넣는다.**
+#    그때 되돌릴 자리를 알아보게, 원본의 설명은 아래에 그대로 남겨 둔다.
+#
+# ── 아래는 원본(data-service)의 기록이다. 팀 저장소에는 아직 해당하지 않는다 ──
 #
 #   로컬  → `postgres`   S5 가 뒤집었다 (ADR-DS-0018)
 #   배포본 → `postgres`   S6 가 뒤집었다. Supabase 에 core 350종목이 서 있다
@@ -120,8 +136,8 @@ STORE_BACKENDS: tuple[str, ...] = (SQLITE, POSTGRES)
 #
 # ⚠️ 그래도 가장 빠른 되돌림은 여전히 환경변수 한 줄이다 — `STORE_BACKEND=sqlite`.
 #    사람이 적은 값이 언제나 이긴다(`app_env()` 와 같은 순서).
-DEFAULT_STORE_BACKEND_LOCAL = POSTGRES
-DEFAULT_STORE_BACKEND_VERCEL = POSTGRES
+DEFAULT_STORE_BACKEND_LOCAL = SQLITE      # ⚠️ 원본은 POSTGRES — 위 ⭐⭐ 참조
+DEFAULT_STORE_BACKEND_VERCEL = SQLITE     # ⚠️ 원본은 POSTGRES — 위 ⭐⭐ 참조
 
 
 def default_store_backend() -> str:
