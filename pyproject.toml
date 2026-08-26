@@ -21,6 +21,7 @@ dependencies = [
 
   # ── 1차 프로젝트가 새로 들이는 것 ─────────────────────────
   "pandas==3.0.5",         # 피처 표(feature table) 조작
+  "pyarrow==25.0.1",       # 스냅샷 parquet (F-02). pandas 3.0 은 parquet 에 이게 필요하다
   "scipy==1.18.1",         # sklearn 이 요구한다 (직접 쓰지는 않는다)
   "scikit-learn==1.9.0",   # RandomForest · 지표 · 분할기
   "lightgbm==4.7.0",       # ★ 로컬 학습 (배포판이 GPU 빌드가 아니라 코어 수가 좌우한다)

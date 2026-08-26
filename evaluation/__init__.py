@@ -31,13 +31,16 @@ MDD 를 재는 법은 무엇이 그 수익률을 만들었든 같다.
 ----
 | 모듈 | 하는 일 |
 |---|---|
-| `walk_forward` | 시간 순서를 지키는 분할기. 모델 불문 |
+| `walk_forward` | 시간 순서를 지키는 분할기. 모델 불문. `gap` 기본값 = 레이블 앞보기 |
 | `metrics`      | MDD · Sharpe · 승률 · 거래비용 차감 수익 |
 | `baseline`     | 기준선 3종. 이걸 못 이기면 결과에 그대로 적는다 |
 
 이 패키지가 지키는 세 가지
 ------------------------
 1. **미래를 보지 않는다.** 분할은 언제나 시간 순이다. K-fold 를 쓰지 않는다.
+   그리고 **기본값이 안전한 쪽이다** — `gap` 을 안 주면 레이블 앞보기만큼 자동으로
+   벌어지고, 더 짧게 주면 `LeakageError` 다. 누수는 예외를 내지 않고 성능만 올리므로
+   "빠뜨리면 위험한" 설계를 "명시해야 위험한" 설계로 뒤집었다 (요구사항 F-09).
 2. **기준선과 함께 보고한다.** 정확도 단독 수치는 아무 말도 하지 않는다.
    상승이 55% 나오는 구간에서 늘 "오른다"고 답해도 55%가 나온다.
 3. **비용을 뺀 뒤 말한다.** 거래비용 전 수익률은 실현할 수 없는 숫자다.
@@ -45,5 +48,6 @@ MDD 를 재는 법은 무엇이 그 수익률을 만들었든 같다.
 """
 
 from evaluation import baseline, metrics, walk_forward
+from evaluation.walk_forward import LeakageError
 
-__all__ = ["baseline", "metrics", "walk_forward"]
+__all__ = ["LeakageError", "baseline", "metrics", "walk_forward"]
