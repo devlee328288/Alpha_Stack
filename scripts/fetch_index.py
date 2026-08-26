@@ -59,6 +59,32 @@ def print_status() -> None:
         print(f"  ⚠️ {api.TARGET_INDEX} 가 아직 없습니다 — 예측 대상이 비어 있습니다.")
 
 
+def print_collect_log() -> None:
+    """수집 대장 현황. **왜 안 받았는지**가 여기서 갈린다."""
+    from ingest.store import collect_log
+
+    요약 = collect_log.summary()
+    if not 요약:
+        return
+
+    print()
+    print("── 수집 대장 ──")
+    for source in sorted(요약):
+        칸 = 요약[source]
+        print(f"  {source:<10} 받음 {human(칸['ok'])} · 0건 {human(칸['empty'])} · "
+              f"범위밖 {human(칸['out_of_range'])} · 실패 {human(칸['error'])} · "
+              f"한도소진 {human(칸['quota_exhausted'])}")
+        if 칸["last_success_at"]:
+            print(f"{'':<12} 마지막 성공 {칸['last_success_at']}")
+
+    # 재시도를 다 쓰고도 실패한 것만 따로 보여 준다 — 사람이 봐야 할 유일한 목록이다.
+    막힌것 = collect_log.stuck()
+    if 막힌것:
+        print(f"  ⚠️ 재시도를 다 쓴 대상 {len(막힌것)}건 — 사람이 봐야 합니다:")
+        for row in 막힌것[:10]:
+            print(f"     - {row['source']} {row['target']}: {(row['note'] or '')[:80]}")
+
+
 def print_list() -> None:
     """쌓인 지수 목록. 무엇을 피처로 쓸 수 있는지 고를 때 본다."""
     rows = store.available_indices()
@@ -85,10 +111,22 @@ def main() -> int:
                         help=f"쉼표로 구분 (기본 {','.join(store.DEFAULT_MARKETS)})")
     parser.add_argument("--status", action="store_true", help="수집하지 않고 현황만 출력")
     parser.add_argument("--list", action="store_true", help="쌓인 지수 목록만 출력")
+    parser.add_argument("--import-legacy", action="store_true",
+                        help="옛 대장(fetch_log·index_fetch_log)의 이력을 수집 대장으로 옮긴다")
     args = parser.parse_args()
+
+    if args.import_legacy:
+        from ingest.store import collect_log
+        # 옮기지 않으면 이미 받은 거래일이 전부 미수집으로 보여 16년치를 다시 받는다.
+        옮김 = collect_log.import_legacy()
+        for source, count in sorted(옮김.items()):
+            print(f"  {source}: {human(count)}건 확인")
+        print_collect_log()
+        return 0
 
     if args.status:
         print_status()
+        print_collect_log()
         return 0
     if args.list:
         print_list()
@@ -131,8 +169,13 @@ def main() -> int:
         for item in result["failed"][:10]:
             print(f"  - {item['date']} {item['market']}: {item['error'][:100]}")
 
+    if result.get("quota_exhausted"):
+        print(f"한도 소진으로 미룬 것 {result['quota_exhausted']}건 — "
+              "실패가 아닙니다. 내일 다시 실행하면 이어서 받습니다.")
+
     print()
     print_status()
+    print_collect_log()
     return 0
 
 

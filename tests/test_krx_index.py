@@ -210,3 +210,93 @@ def test_지수_가격이_DB_에서도_실수로_남는다(임시저장소):
         ).fetchone()[0]
 
     assert value == 1096.25
+
+
+# ==============================================================
+# 3. 수집 대장 — 왜 안 받았는지가 남는가
+# ==============================================================
+def test_받은_날은_대장에_성공으로_남는다(임시저장소):
+    from ingest.store import collect_log
+
+    store = 임시저장소
+    store._save("20260821", "KOSPI", [_행("20260821", 1096.25)])
+
+    행 = collect_log.entry("krx_index", "KOSPI/20260821", db_path=store.DB_PATH)
+    assert 행["status"] == collect_log.OK
+    assert 행["rows"] == 1
+
+
+def test_휴장일은_실패가_아니라_0건으로_남는다(임시저장소):
+    """실패로 남기면 배치를 돌릴 때마다 같은 날짜에 호출을 태운다."""
+    from ingest.store import collect_log
+
+    store = 임시저장소
+    store._save("20260815", "KOSPI", [])       # 광복절
+
+    행 = collect_log.entry("krx_index", "KOSPI/20260815", db_path=store.DB_PATH)
+    assert 행["status"] == collect_log.EMPTY
+    assert 행["attempts"] == 0                  # 재시도 횟수를 먹지 않았다
+
+
+def test_저장이_되돌아가면_대장도_되돌아간다(임시저장소, monkeypatch):
+    """적재만 롤백되고 대장이 남으면 그 날짜를 영영 다시 안 받는다."""
+    from ingest.store import collect_log
+
+    store = 임시저장소
+    # ⚠️ 경로를 **미리** 잡아 둔다. `monkeypatch.undo()` 는 이 테스트가 건 것뿐 아니라
+    #    fixture 가 건 DB_PATH 교체까지 함께 되돌려, 그 뒤 검증이 진짜 DB 를 읽는다.
+    db = store.DB_PATH
+
+    # 대장을 쓴 **직후**에 터뜨린다 — 커밋 직전이라 둘 다 되돌아가야 한다.
+    원래 = collect_log.mark_ok
+
+    def 쓰고_터뜨린다(*args, **kwargs):
+        원래(*args, **kwargs)
+        raise RuntimeError("적재 도중 죽었다")
+
+    monkeypatch.setattr(collect_log, "mark_ok", 쓰고_터뜨린다)
+    with pytest.raises(RuntimeError):
+        store._save("20260821", "KOSPI", [_행("20260821", 1096.25)])
+
+    monkeypatch.setattr(collect_log, "mark_ok", 원래)
+    assert collect_log.entry("krx_index", "KOSPI/20260821", db_path=db) is None
+    with sqlite3.connect(db) as conn:
+        assert conn.execute("SELECT COUNT(*) FROM index_price").fetchone()[0] == 0
+
+
+def test_제공_시작일_이전은_대장에_이유가_남는다(임시저장소, monkeypatch):
+    """이게 없으면 나중에 '2009년이 왜 비어 있나'에 아무도 답할 수 없다."""
+    from ingest.store import collect_log
+
+    store = 임시저장소
+    monkeypatch.setattr(store, "fetch_date", lambda bas_dd, market: 0)
+    store.sync(days=30, workers=1, end="20100115", markets=("KOSPI",))
+
+    행 = collect_log.entry("krx_index", "KOSPI/20091230", db_path=store.DB_PATH)
+    assert 행 is not None, "요청하지 않았다는 사실 자체가 안 남았다"
+    assert 행["status"] == collect_log.OUT_OF_RANGE
+    assert "20100104" in 행["note"]             # 경계가 어디인지까지 적혀 있다
+
+
+def test_한도_소진은_실패로_세지_않는다(임시저장소, monkeypatch):
+    """예산이 마른 것은 그 날짜의 잘못이 아니다 — 재시도 횟수를 먹으면 안 된다."""
+    from ingest.clients import krx_data
+    from ingest.store import collect_log
+
+    store = 임시저장소
+
+    def 한도소진(bas_dd, market):
+        raise krx_data.KrxQuotaExhausted("오늘 쓸 수 있는 KRX 호출을 다 썼습니다.")
+
+    monkeypatch.setattr(store, "fetch_date", 한도소진)
+    결과 = store.sync(days=3, workers=1, end="20260821", markets=("KOSPI",))
+
+    assert 결과["quota_exhausted"] == 3
+    assert 결과["failed"] == [], "한도 소진이 실패로 세어졌다"
+
+    행 = collect_log.entry("krx_index", "KOSPI/20260821", db_path=store.DB_PATH)
+    assert 행["status"] == collect_log.QUOTA_EXHAUSTED
+    assert 행["attempts"] == 0
+    # 예산이 풀리면 다시 받아야 한다
+    assert collect_log.should_collect("krx_index", "KOSPI/20260821",
+                                      db_path=store.DB_PATH) is True

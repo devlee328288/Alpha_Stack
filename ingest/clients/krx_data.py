@@ -31,7 +31,10 @@ from urllib.error import HTTPError, URLError  # 네트워크 오류 종류
 from urllib.parse import urlencode  # 쿼리스트링 생성
 from urllib.request import Request, urlopen  # HTTP 요청 (표준 라이브러리)
 
-from common import secrets  # 인증키 로딩 (공통)
+from common import (
+    budget,  # 하루 호출 한도 계수 (공통)
+    secrets,  # 인증키 로딩 (공통)
+)
 
 # 이 파일은 <루트>/ingest/clients/ 안에 있으므로 parents[2] 가 프로젝트 루트다.
 # (parents[0]=clients, parents[1]=ingest, parents[2]=프로젝트 루트)
@@ -161,6 +164,21 @@ class KrxError(Exception):
         self.unauthorized = unauthorized
 
 
+class KrxQuotaExhausted(KrxError):
+    """오늘 쓸 수 있는 호출을 다 썼다.
+
+    **고장이 아니라 정상적인 하루의 끝이다.** 그래서 부르는 쪽은 이걸 실패로 세면
+    안 된다 — 실패로 세면 멀쩡한 날짜가 재시도 한도를 까먹고 영영 버려진다.
+    내일 다시 부르면 받아진다.
+    """
+
+
+#: 호출 한도를 세는 이름. **종목과 지수가 같은 통을 쓴다** — 한도가 걸리는 단위는
+#: 엔드포인트가 아니라 인증키이기 때문이다. 여기를 나누면 합계가 한도를 넘겨도
+#: 각자는 여유 있어 보인다.
+BUDGET_SOURCE = "krx"
+
+
 # 가장 최근 KRX 호출 결과를 기억해 둔다 (`/api/krx/status` 에서 재호출 없이 보여주기 위함)
 _last_attempt: Dict[str, Optional[str]] = {"result": None, "detail": None}
 
@@ -234,6 +252,18 @@ def _request_once(path: str, bas_dd: str, api_name: str) -> List[Dict]:
     if _auth_blocked["reason"]:
         raise KrxError(_auth_blocked["reason"], unauthorized=True)
 
+    # ⚠️ **여기가 한도를 세는 자리다.** 한 단계 위(`_request_rows`)에서 세면 간헐적
+    #    401 재시도분이 통째로 누락된다 — 재시도도 서버 입장에서는 똑같은 한 번의
+    #    호출이고 한도를 똑같이 먹는다. 실측 실패율이 20%대라 그 차이가 1.25배다.
+    #
+    #    그리고 **부르기 전에** 센다. 부르고 나서 세면 응답을 못 받고 죽었을 때 이미
+    #    나간 호출이 장부에 안 남아 한도를 넘겨 쓴다. 세고 나서 실패하면 손해는 1콜뿐이다.
+    if not budget.try_spend(BUDGET_SOURCE):
+        detail = ("오늘 쓸 수 있는 KRX 호출을 다 썼습니다. "
+                  "내일 다시 실행하면 받은 곳부터 이어 받습니다.")
+        _last_attempt.update(result="quota_exhausted", detail=detail)
+        raise KrxQuotaExhausted(detail)
+
     key, _ = load_krx_key()
     if not key:
         detail = ("KRX 인증키가 없습니다. "
@@ -271,6 +301,16 @@ def _request_once(path: str, bas_dd: str, api_name: str) -> List[Dict]:
             _last_attempt.update(result="unauthorized", detail=detail)
             # 차단기는 여기서 세지 않는다. 재시도를 전부 쓴 뒤 `_request_rows` 가 센다.
             raise KrxError(detail, unauthorized=True) from error
+
+        if error.code == 429:
+            # 서버가 한도 초과를 알려 왔다. **우리 계산보다 서버가 맞다** — 한도가
+            # 실제로는 더 낮았거나, 같은 키를 다른 곳에서도 썼을 수 있다. 남은 예산을
+            # 즉시 소진 처리해 두면 이후 `try_spend()` 가 전부 False 를 주므로
+            # **재시도 루프가 저절로 멈춘다.** 재시도해 봐야 절대 성공하지 않는다.
+            budget.mark_exhausted(BUDGET_SOURCE, note="KRX 가 HTTP 429 로 거절했다.")
+            detail = "KRX 가 호출 한도 초과를 알려 왔습니다 (HTTP 429). 오늘은 여기까지입니다."
+            _last_attempt.update(result="quota_exhausted", detail=detail)
+            raise KrxQuotaExhausted(detail) from error
 
         detail = f"KRX API 요청 실패 (HTTP {error.code})"
         _last_attempt.update(result="http_error", detail=detail)
