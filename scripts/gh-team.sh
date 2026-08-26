@@ -34,11 +34,27 @@ if [ "$#" -eq 0 ]; then
 fi
 
 # 금지 명령을 스크립트가 직접 막는다. 규약을 문서에만 두면 언젠가 누가 넘는다.
-if [ "${1:-}" = "pr" ] && [ "${2:-}" = "merge" ]; then
-  echo "🚫 gh pr merge 는 이 저장소에서 금지입니다 (AGENTS.md 1.5 — 계정 정지 이력)." >&2
-  echo "   머지는 GitHub 웹에서 사람이 직접 합니다." >&2
-  exit 1
-fi
+#
+# ⚠️ **이 wrapper 를 거치지 않은 `gh` 는 못 막는다.** 2026-08-26 에 실제로 겪었다 —
+#    PR 본문을 쓰면서 heredoc 구분자를 따옴표 없이(`<<PY`) 열었더니 본문 안의
+#    백틱 `` `gh pr merge` `` 가 **셸 명령 치환으로 실행**됐다.
+#    다행히 플래그(`--merge`/`--squash`)가 없어 실패했고 아무것도 머지되지 않았다.
+#
+#    교훈 둘:
+#      · 문서·본문을 heredoc 으로 쓸 때는 **반드시 `<<'EOF'`** (따옴표) 를 쓴다.
+#        변수를 넣어야 하면 파일로 먼저 쓰고 python 으로 치환한다.
+#      · 이 가드는 **마지막 그물이지 유일한 그물이 아니다.**
+for arg in "$@"; do
+  if [ "$arg" = "merge" ]; then
+    case " $* " in
+      *" pr "*)
+        echo "🚫 gh pr merge 는 이 저장소에서 금지입니다 (AGENTS.md 1.5 — 계정 정지 이력)." >&2
+        echo "   머지는 GitHub 웹에서 사람이 직접 합니다." >&2
+        exit 1
+        ;;
+    esac
+  fi
+done
 
 if ! TOKEN="$(gh auth token --user "$TEAM_ACCOUNT" 2>/dev/null)"; then
   echo "❌ 팀 계정($TEAM_ACCOUNT) 토큰을 찾지 못했습니다." >&2
