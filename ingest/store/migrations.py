@@ -191,6 +191,30 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             "CREATE INDEX IF NOT EXISTS idx_raw_source ON raw_response(source, target)",
         ),
     ),
+    (
+        "v4: robots.txt 캐시",
+        (
+            # ── robots.txt ──────────────────────────────────────────────
+            # 크롤링은 **요청 직전에** 허용 여부를 확인한다. 그렇다고 매 요청마다
+            # `robots.txt` 를 받으면 그 자체가 상대 서버를 두드리는 일이 된다.
+            # 그래서 캐시하되 하루가 지나면 다시 받는다.
+            #
+            # ⚠️ **표에 담는 것은 원문이 아니라 판정의 재료다.** 상태 코드를 함께
+            #    남기는 이유는, 받지 못했다는 사실 자체가 판정에 쓰이기 때문이다 —
+            #    5xx 는 "전면 차단"이고 4xx 는 "전면 허용"이라 정반대다.
+            #    `status=0` 은 네트워크에 닿지도 못한 경우로, 5xx 와 같이 다룬다.
+            """
+            CREATE TABLE IF NOT EXISTS robots_cache (
+              origin      TEXT    NOT NULL,
+              status      INTEGER NOT NULL,
+              body        TEXT,
+              encoding    TEXT,
+              fetched_at  TEXT    NOT NULL,
+              PRIMARY KEY (origin)
+            )
+            """,
+        ),
+    ),
 )
 
 #: 이 코드가 아는 최신 스키마 버전.
