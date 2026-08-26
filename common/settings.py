@@ -264,6 +264,48 @@ def collect_api_enabled() -> bool:
     return collect_api() == ON
 
 
+# ==================================================
+# 3-3. KEEP_RAW — 응답 원문을 남길 것인가
+# ==================================================
+# 정규화는 틀린다. 원문이 없으면 고치는 방법이 **다시 받는 것뿐**이고, 16년치를 다시
+# 받는 것은 며칠과 하루 한도를 통째로 쓰는 일이다. 그래서 기본은 **켜짐**이다.
+#
+# 끌 수 있게 둔 이유는 용량 때문이다. 원문은 정규화 결과보다 크고, 디스크가 빠듯한
+# 환경에서는 "수집이 되긴 하는데 디스크가 찬다" 가 실제 장애가 된다.
+#
+# ⚠️ **끄면 `known_at` 의 근거가 사라진다.** 언제부터 알 수 있었는지를 정규화 표에만
+#    적어 두면 나중에 고쳐 적었는지 증명할 수 없고, 미래를 훔쳐본 모델은 성능이 좋아
+#    보이기 때문에 그 증명이 없으면 결과 전체를 믿을 수 없게 된다.
+KEEP_RAW_VALUES: tuple[str, ...] = (ON, OFF)
+DEFAULT_KEEP_RAW = ON
+
+
+def keep_raw() -> str:
+    """응답 원문을 보존할 것인가. `on`(기본) 또는 `off`.
+
+    어휘 밖 값이면 예외다 — 다른 손잡이와 같은 이유다. `KEEP_RAW=false` 를 조용히
+    기본값으로 떨어뜨리면 "껐다고 믿었는데 쌓이는" 상태가 된다.
+    """
+    raw = env("KEEP_RAW")
+    if not raw:
+        return DEFAULT_KEEP_RAW
+
+    value = raw.lower()
+    if value not in KEEP_RAW_VALUES:
+        raise ValueError(
+            f"KEEP_RAW 값 '{raw}' 을 모른다. 쓸 수 있는 값은 "
+            f"{', '.join(KEEP_RAW_VALUES)} 다.\n"
+            f"  원문을 남긴다   : KEEP_RAW={ON} (이 값이 기본이라 지워도 같다)\n"
+            f"  남기지 않는다   : KEEP_RAW={OFF} (재정규화와 known_at 근거를 포기한다)"
+        )
+    return value
+
+
+def keep_raw_enabled() -> bool:
+    """응답 원문을 보존하는가."""
+    return keep_raw() == ON
+
+
 def env(name: str, default: str = "") -> str:
     """환경변수 한 개를 읽는다 — **새 코드가 환경을 만지는 유일한 통로.**
 

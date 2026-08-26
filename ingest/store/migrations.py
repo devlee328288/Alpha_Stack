@@ -153,6 +153,44 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             "ALTER TABLE collect_log ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
         ),
     ),
+    (
+        "v3: 응답 원문 보존",
+        (
+            # ── 응답 원문 ───────────────────────────────────────────────
+            # **왜 정규화된 표만으로는 부족한가.** 정규화는 틀린다. 필드 이름을 잘못
+            # 매핑하거나, 숫자 파싱이 어떤 값에서만 깨지거나, 나중에 필요해진 칸을
+            # 그때는 안 담았거나. 그런데 원문이 없으면 **고치는 유일한 방법이 다시
+            # 받는 것**이고, 16년치를 다시 받는 것은 며칠과 하루 한도를 쓰는 일이다.
+            #
+            # 원문을 남겨 두면 네트워크를 한 번도 안 타고 다시 정규화할 수 있다.
+            #
+            # 그리고 이 표에는 두 번째 쓸모가 있다 — `fetched_at` 이 **"우리가 이 사실을
+            # 언제부터 알 수 있었나"의 근거**다. 그 시각을 정규화 표에만 적어 두면
+            # 나중에 고쳐 적었는지 아닌지를 증명할 수 없다.
+            #
+            # ⚠️ 응답을 **바이트 그대로** 담는다. 문자열로 바꿔 담으면 그 순간 인코딩
+            #    추측이 끼어들고(euc-kr 로 오는 곳이 실재한다), 잘못 디코딩한 원문은
+            #    원문이 아니다.
+            """
+            CREATE TABLE IF NOT EXISTS raw_response (
+              source       TEXT    NOT NULL,
+              target       TEXT    NOT NULL,
+              fetched_at   TEXT    NOT NULL,
+              body         BLOB    NOT NULL,
+              sha256       TEXT    NOT NULL,
+              bytes        INTEGER NOT NULL,
+              compression  TEXT    NOT NULL DEFAULT 'gzip',
+              encoding     TEXT,
+              note         TEXT,
+              -- 같은 대상을 다시 받으면 **덮지 않고 한 줄 더 쌓는다.** 출처가 값을
+              -- 정정하는 일이 실제로 있고, 그때 무엇이 어떻게 바뀌었는지가 증거다.
+              PRIMARY KEY (source, target, fetched_at)
+            )
+            """,
+            # 재정규화가 한 출처를 통째로 순회할 때 쓴다.
+            "CREATE INDEX IF NOT EXISTS idx_raw_source ON raw_response(source, target)",
+        ),
+    ),
 )
 
 #: 이 코드가 아는 최신 스키마 버전.

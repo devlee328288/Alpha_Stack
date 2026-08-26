@@ -85,6 +85,29 @@ def print_collect_log() -> None:
             print(f"     - {row['source']} {row['target']}: {(row['note'] or '')[:80]}")
 
 
+def print_raw() -> None:
+    """보존된 응답 원문 현황. 이게 있어야 다시 받지 않고 다시 정규화할 수 있다."""
+    from common import raw_store, settings
+
+    현황 = raw_store.stats()
+    if not 현황:
+        if settings.keep_raw_enabled():
+            print()
+            print("── 응답 원문 ── 아직 없음 (원문 보존은 2026-08-26 에 붙었습니다)")
+        else:
+            print()
+            print("── 응답 원문 ── ⚠️ KEEP_RAW=off — 재정규화와 known_at 근거를 포기한 상태입니다")
+        return
+
+    print()
+    print("── 응답 원문 ──")
+    for source in sorted(현황):
+        칸 = 현황[source]
+        print(f"  {source:<10} 응답 {human(칸['responses'])}건 · 대상 {human(칸['targets'])}개 · "
+              f"{human(칸['stored_bytes'])}B 저장 (원문의 {칸['ratio']:.1%})")
+    print("     python scripts/renormalize.py --dry-run 으로 다시 정규화할 수 있습니다")
+
+
 def print_list() -> None:
     """쌓인 지수 목록. 무엇을 피처로 쓸 수 있는지 고를 때 본다."""
     rows = store.available_indices()
@@ -127,6 +150,7 @@ def main() -> int:
     if args.status:
         print_status()
         print_collect_log()
+        print_raw()
         return 0
     if args.list:
         print_list()
@@ -176,6 +200,7 @@ def main() -> int:
     print()
     print_status()
     print_collect_log()
+    print_raw()
     return 0
 
 

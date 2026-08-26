@@ -23,6 +23,7 @@ FastAPI 에 의존하지 않는 순수 함수 모음이라 단독으로 실행·
 from __future__ import annotations
 
 import json  # KRX 응답 파싱
+import logging  # 원문 보존 실패 경고
 import re  # 날짜 형식 검증
 import time  # 재시도 백오프
 from pathlib import Path  # 파일 경로
@@ -33,8 +34,12 @@ from urllib.request import Request, urlopen  # HTTP 요청 (표준 라이브러�
 
 from common import (
     budget,  # 하루 호출 한도 계수 (공통)
+    raw_store,  # 응답 원문 보존 (공통)
     secrets,  # 인증키 로딩 (공통)
+    settings,  # 원문 보존 스위치 (공통)
 )
+
+log = logging.getLogger(__name__)
 
 # 이 파일은 <루트>/ingest/clients/ 안에 있으므로 parents[2] 가 프로젝트 루트다.
 # (parents[0]=clients, parents[1]=ingest, parents[2]=프로젝트 루트)
@@ -279,7 +284,12 @@ def _request_once(path: str, bas_dd: str, api_name: str) -> List[Dict]:
 
     try:
         with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            # ⚠️ **바이트 그대로 받아 둔다.** 곧바로 디코딩해 버리면 원문을 보존할 길이
+            #    없어진다 — 잘못 디코딩한 문자열은 더 이상 원문이 아니다.
+            #    KRX 는 UTF-8 이지만 응답 헤더가 말하는 값을 우선한다.
+            body = response.read()
+            charset = response.headers.get_content_charset() or "utf-8"
+        payload = json.loads(body.decode(charset))
     except HTTPError as error:
         body = ""
         try:
@@ -333,7 +343,31 @@ def _request_once(path: str, bas_dd: str, api_name: str) -> List[Dict]:
     _auth_blocked["reason"] = None
     _auth_failures["consecutive"] = 0
 
+    _keep_raw(path, bas_dd, body, charset)
     return payload.get("OutBlock_1", [])
+
+
+def raw_target(path: str, bas_dd: str) -> str:
+    """보존된 원문을 찾는 이름. 재정규화가 이 이름으로 되짚어 간다.
+
+    엔드포인트 경로를 넣는 이유는 **종목이냐 지수냐를 이름만 보고 갈라야** 하기 때문이다.
+    날짜만으로는 어느 정규화 함수를 다시 돌려야 하는지 알 수 없다.
+    """
+    return f"{path}/{bas_dd}"
+
+
+def _keep_raw(path: str, bas_dd: str, body: bytes, charset: str) -> None:
+    """응답 원문을 남긴다.
+
+    ⚠️ **여기서 실패해도 수집은 계속된다.** 원문 보존은 나중을 위한 보험이지 수집의
+       성립 조건이 아니다. 디스크가 찼다고 16년 백필이 멈추면 보험이 사고를 만든 셈이다.
+    """
+    if not settings.keep_raw_enabled():
+        return
+    try:
+        raw_store.save(BUDGET_SOURCE, raw_target(path, bas_dd), body, encoding=charset)
+    except Exception as error:                     # noqa: BLE001 — 수집을 막지 않는다
+        log.warning("[원문] %s %s 를 남기지 못했다: %s", path, bas_dd, error)
 
 
 def fetch_snapshot(bas_dd: str, market: str = "KOSPI", keep_raw: bool = False) -> List[Dict]:
