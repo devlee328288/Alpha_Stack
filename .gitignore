@@ -27,7 +27,13 @@ venv/
 # 📊 데이터 원본 — 재현은 스크립트로 한다, 파일로 하지 않는다
 # universe_core.json 은 예외다. 350종목 구성은 KRX 응답을 그대로 담은 것이
 # 아니라 우리가 만든 파생 산물이고, 이게 없으면 파이프라인이 시작되지 않는다.
-data/*.db
+# ⚠️ `*.db` 가 아니라 `*.db*` 다. SQLite 는 WAL 모드에서 `krx_cache.db-wal` ·
+#    `krx_cache.db-shm` 을 함께 만드는데(krx_store.py 의 `PRAGMA journal_mode=WAL`),
+#    `data/*.db` 는 그 둘을 **못 막는다** — 하이픈 뒤가 붙어 확장자가 달라지기 때문이다.
+#    수집 중에는 `-wal` 이 수십 MB까지 자라고 그 안은 전부 실제 시세다.
+#    실측 2026-08-26: 수집 5분 만에 `-wal` 이 9.6MB.
+#    KRX 이용약관 제11조 ② 가 제3자 제공을 금지하므로 이 저장소(PUBLIC)에 올라가면 안 된다.
+data/*.db*
 data/*.sqlite*
 data/raw/
 data/interim/
@@ -50,9 +56,13 @@ mlruns/
 # 재생성: 브라우저에서 docs/AlphaStack_팀프로젝트_소개.html 을 열고 PDF 로 인쇄
 docs/*.pdf
 
-# 💻 편집기·OS
+# 💻 편집기·OS·도구
 .vscode/
 .idea/
+# 코드 인덱싱 도구 캐시 — 사람마다 다르고 재생성된다.
+# ⚠️ 주석을 패턴 옆에 붙이지 않는다. .gitignore 에서 `#` 는 **줄 첫머리에서만** 주석이고,
+#    `.serena/   # 설명` 은 그 전체가 하나의 패턴이 되어 아무것도 막지 못한다 (실측).
+.serena/
 .DS_Store
 Thumbs.db
 *.swp

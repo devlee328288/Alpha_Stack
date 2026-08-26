@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import json  # KRX 응답 파싱
 import re  # 날짜 형식 검증
+import time  # 재시도 백오프
 from pathlib import Path  # 파일 경로
 from typing import Dict, List, Optional, Tuple
 from urllib.error import HTTPError, URLError  # 네트워크 오류 종류
@@ -46,6 +47,22 @@ MARKET_APIS = {
     "KOSDAQ": ("sto/ksq_bydd_trd", "코스닥 일별매매정보"),
     "KONEX": ("sto/knx_bydd_trd", "코넥스 일별매매정보"),
 }
+
+# 지수 일별시세. 위 `sto/*` 가 **종목**을 준다면 이쪽은 **지수 자체**의 종가를 준다.
+# 1차 프로젝트의 예측 대상(KOSPI200)이 여기서 나온다 (ADR-AS-0003).
+#
+# ⭐ 한 번 부르면 그 시장의 **지수 전부**가 온다 — 실측 2026-08-21 기준 KOSPI 51종 ·
+#    KOSDAQ 40종. 즉 "코스피 200" 하나를 받든 51종을 다 받든 **콜 비용이 같다.**
+#    그래서 전부 저장한다. 섹터 지수(코스피 200 정보기술 등)는 나중에 피처가 된다.
+INDEX_APIS = {
+    "KOSPI": ("idx/kospi_dd_trd", "코스피 지수 일별시세"),
+    "KOSDAQ": ("idx/kosdaq_dd_trd", "코스닥 지수 일별시세"),
+}
+
+# 예측 대상 지수의 **정확한 이름**. KRX 가 주는 `IDX_NM` 문자열 그대로다.
+# ⚠️ 띄어쓰기까지 맞아야 한다 — "코스피200" 이 아니라 "코스피 200" 이다 (실측).
+TARGET_INDEX = "코스피 200"
+TARGET_INDEX_KOSDAQ = "코스닥 150"
 
 # 환경변수·파일에서 찾아볼 키 이름들 (앞에 있는 것이 우선)
 KEY_NAMES = ("KRX_API_KEY", "KRX_AUTH_KEY")
@@ -147,38 +164,84 @@ class KrxError(Exception):
 # 가장 최근 KRX 호출 결과를 기억해 둔다 (`/api/krx/status` 에서 재호출 없이 보여주기 위함)
 _last_attempt: Dict[str, Optional[str]] = {"result": None, "detail": None}
 
-# 인증이 한 번 거부되면 그 사실을 기억해 두는 차단기(circuit breaker).
+# 인증이 거부되면 그 사실을 기억해 두는 차단기(circuit breaker).
 # 250거래일을 수집할 때 이게 없으면 실패가 확정된 요청을 500번 반복하게 된다.
 _auth_blocked: Dict[str, Optional[str]] = {"reason": None}
+
+# ⭐ **한 번이 아니라 연속 N 번이다** (2026-08-26 개정).
+#
+# 원래는 401 을 한 번만 받아도 곧바로 차단했다. 웹 서버에서는 옳다 — 키가 틀렸는데
+# 사용자 요청마다 KRX 를 두드릴 이유가 없다. 그런데 **배치 백필에서는 치명적이다.**
+#
+# 실측 2026-08-26: 지수 16년 백필(4,343콜) 도중 20210618 에서 일시적 401 이 한 번 났다.
+# 그 순간 차단기가 걸려 **남은 3,000일이 45초 만에 전부 즉시 실패**했다.
+# (네트워크를 안 타므로 빨랐다.) 곧바로 같은 날짜를 재시도하니 48행이 정상으로 왔다 —
+# 키는 멀쩡했다. 즉 **깜빡임 하나가 백필 3/4 를 날렸다.**
+#
+# 그래서 연속 실패를 센다. 성공이 하나라도 끼면 0 으로 되돌린다.
+#   · 진짜로 키가 틀렸으면 → 3번 만에 차단된다 (원래 목적 유지)
+#   · 일시적 깜빡임이면    → 그 요청만 실패하고 백필은 계속 간다
+#
+# ⚠️ 워커가 여럿이라 이 카운터는 여러 스레드가 함께 만진다. GIL 아래의 int 증감이라
+#    최악의 경우 몇 번 더 세거나 덜 셀 뿐이고, 임계값이 정확할 필요는 없다.
+AUTH_FAIL_THRESHOLD = 3
+_auth_failures: Dict[str, int] = {"consecutive": 0}
+
+# ⭐⭐ **KRX 는 멀쩡한 키에도 간헐적으로 401 을 준다** (실측 2026-08-26).
+#
+# 진단: 지수 엔드포인트를 **순차로 2초 간격** 5회 불렀더니 1회가 401, 나머지 4회가 성공했다.
+# 같은 키로 종목 엔드포인트는 2/2 성공, 같은 URL 을 urllib 로 직접 부르면 HTTP 200 에
+# 정상 본문이 왔다. 즉 키 문제도, 이용신청 문제도, 속도 제한도 아니다 — **그냥 흔들린다.**
+#
+# 실패율이 20% 대이면 워커 6개짜리 백필에서 연속 3회는 금방 나온다. 실제로 4,343콜 백필이
+# 두 번 다 초반에 차단기에 걸려 멈췄다. 그래서 **논리적 요청 하나당 재시도**를 둔다 —
+# 차단기는 재시도까지 전부 소진된 뒤에야 한 번을 센다.
+#
+#   기대 실패율: 0.20 → 0.20³ = 0.8%  (남은 것은 스크립트를 다시 돌려 메운다)
+#
+# ⚠️ 재시도는 하루 한도(10,000회)를 함께 먹는다. 20% 실패면 약 1.25배다.
+#    한도가 빠듯한 백필에서는 `--workers` 를 낮추는 것보다 이 값을 낮추는 편이 예측 가능하다.
+AUTH_RETRIES = 2                       # 최초 1회 + 재시도 2회 = 최대 3회
+AUTH_RETRY_BACKOFF = (0.5, 1.5)        # 초. 재시도 전에 이만큼 쉰다
+
+
+def _note_auth_failure(detail: str) -> None:
+    """인증 실패를 한 번 세고, 연속 임계에 닿으면 차단기를 건다."""
+    _auth_failures["consecutive"] += 1
+    if _auth_failures["consecutive"] >= AUTH_FAIL_THRESHOLD:
+        _auth_blocked["reason"] = detail
 
 
 def reset_auth_block() -> None:
     """차단기를 풀어 다음 호출에서 KRX 를 다시 시도하게 한다. (승인 직후 재시도용)"""
     _auth_blocked["reason"] = None
+    _auth_failures["consecutive"] = 0
 
 
-def fetch_snapshot(bas_dd: str, market: str = "KOSPI", keep_raw: bool = False) -> List[Dict]:
-    """해당 거래일·시장의 전 종목 매매정보를 받아 정규화해서 돌려준다.
+def _request_once(path: str, bas_dd: str, api_name: str) -> List[Dict]:
+    """KRX 를 **한 번** 부르고 `OutBlock_1` 원본 행 목록을 돌려준다. 재시도는 하지 않는다.
+
+    **종목(`sto/*`)과 지수(`idx/*`)가 이 함수를 함께 쓴다.** 인증 실패 판정과 차단기,
+    본문 오류코드 처리가 두 경로에서 갈리면 한쪽만 고치는 사고가 난다 — 그래서 한 곳에 둔다.
 
     휴장일이면 KRX 가 빈 배열을 주므로 결과도 빈 배열이다(오류가 아니다).
-    """
-    if not DATE_PATTERN.fullmatch(bas_dd):
-        raise KrxError("bas_dd 는 YYYYMMDD 형식이어야 합니다.")
-    if market not in MARKET_APIS:
-        raise KrxError(f"지원하지 않는 시장입니다: {market}")
 
+    ⚠️ **제공 대상기간 밖(2010-01-04 이전)도 빈 배열이다.** 예외가 아니라 0행으로
+       조용히 돌아오므로, 부르는 쪽이 "받았는데 없었다"와 "줄 수 없는 날짜다"를 구분하려면
+       경계를 따로 알고 있어야 한다 (실측 2026-08-26: 20091230 → 0행 · 20100104 → 1,961행).
+    """
     # 이미 인증이 거부된 상태라면 네트워크를 타지 않고 곧바로 실패시킨다
     if _auth_blocked["reason"]:
         raise KrxError(_auth_blocked["reason"], unauthorized=True)
 
     key, _ = load_krx_key()
     if not key:
-        detail = "KRX 인증키가 없습니다. .key 파일 · .env · KRX_API_KEY 환경변수 중 하나를 설정하세요."
+        detail = ("KRX 인증키가 없습니다. "
+                  ".key 파일 · .env · KRX_API_KEY 환경변수 중 하나를 설정하세요.")
         _last_attempt.update(result="no_key", detail=detail)
         _auth_blocked["reason"] = detail
         raise KrxError(detail, unauthorized=True)
 
-    path, _name = MARKET_APIS[market]
     url = f"{KRX_BASE_URL}/{path}?{urlencode({'basDd': bas_dd})}"
     # KRX 는 인증키를 쿼리스트링이 아니라 AUTH_KEY 헤더로 받는다.
     # 헤더로 보내면 브라우저 주소창·서버 접근 로그에 키가 남지 않는다.
@@ -199,13 +262,14 @@ def fetch_snapshot(bas_dd: str, market: str = "KOSPI", keep_raw: bool = False) -
             #   "Unauthorized API Call" → 키는 유효하지만 이 API 이용신청이 승인되지 않음
             if "API Call" in body:
                 detail = (
-                    f"키는 유효하지만 '{MARKET_APIS[market][1]}' 이용신청이 승인되지 않았습니다. "
-                    "KRX OpenAPI 마이페이지에서 승인 상태와 이용기간을 확인하세요."
+                    f"키는 유효하지만 '{api_name}' 이용신청이 승인되지 않았습니다. "
+                    "KRX OpenAPI 마이페이지에서 승인 상태와 이용기간을 확인하세요. "
+                    "인증키 발급과 서비스별 이용신청은 별개의 2단계입니다."
                 )
             else:
                 detail = "KRX 가 인증키를 인식하지 못했습니다. 키 값을 다시 확인하세요."
             _last_attempt.update(result="unauthorized", detail=detail)
-            _auth_blocked["reason"] = detail
+            # 차단기는 여기서 세지 않는다. 재시도를 전부 쓴 뒤 `_request_rows` 가 센다.
             raise KrxError(detail, unauthorized=True) from error
 
         detail = f"KRX API 요청 실패 (HTTP {error.code})"
@@ -220,18 +284,139 @@ def fetch_snapshot(bas_dd: str, market: str = "KOSPI", keep_raw: bool = False) -
     if payload.get("respCode") and str(payload["respCode"]) != "200":
         detail = payload.get("respMsg", "KRX API 오류")
         unauthorized = str(payload["respCode"]) in ("401", "403")
-        if unauthorized:
-            _auth_blocked["reason"] = detail
         _last_attempt.update(result="api_error", detail=detail)
         raise KrxError(detail, unauthorized=unauthorized)
 
     _last_attempt.update(result="ok", detail=None)
-    _auth_blocked["reason"] = None       # 성공하면 차단기를 자동으로 푼다
+    # 성공하면 차단기를 풀고 연속 실패 카운터도 0 으로 되돌린다.
+    # 카운터를 안 되돌리면 백필 내내 띄엄띄엄 난 실패가 누적돼 결국 차단된다.
+    _auth_blocked["reason"] = None
+    _auth_failures["consecutive"] = 0
 
-    return [normalize_row(row, bas_dd, market, keep_raw)
-            for row in payload.get("OutBlock_1", [])]
+    return payload.get("OutBlock_1", [])
 
 
+def fetch_snapshot(bas_dd: str, market: str = "KOSPI", keep_raw: bool = False) -> List[Dict]:
+    """해당 거래일·시장의 전 **종목** 매매정보를 받아 정규화해서 돌려준다.
+
+    휴장일이면 빈 배열이다(오류가 아니다).
+    """
+    if not DATE_PATTERN.fullmatch(bas_dd):
+        raise KrxError("bas_dd 는 YYYYMMDD 형식이어야 합니다.")
+    if market not in MARKET_APIS:
+        raise KrxError(f"지원하지 않는 시장입니다: {market}")
+
+    path, api_name = MARKET_APIS[market]
+    rows = _request_rows(path, bas_dd, api_name)
+    return [normalize_row(row, bas_dd, market, keep_raw) for row in rows]
+
+
+# ==================================================
+# 3-B. 지수 일별시세 (예측 대상이 여기서 나온다)
+# ==================================================
+# 정규화 필드명 → KRX 원본 필드명. 2026-08-21 실제 응답으로 검증했다.
+INDEX_FIELD_MAP = {
+    "index_name": "IDX_NM",          # 지수명 — "코스피 200" (띄어쓰기 포함)
+    "index_class": "IDX_CLSS",       # 시장 구분 — KOSPI · KOSDAQ
+    "close": "CLSPRC_IDX",           # 종가 지수
+    "change": "CMPPREVDD_IDX",       # 전일대비
+    "change_rate": "FLUC_RT",        # 등락률(%)
+    "open": "OPNPRC_IDX",            # 시가 지수
+    "high": "HGPRC_IDX",             # 고가 지수
+    "low": "LWPRC_IDX",              # 저가 지수
+    "volume": "ACC_TRDVOL",          # 누적거래량
+    "value": "ACC_TRDVAL",           # 누적거래대금
+    "market_cap": "MKTCAP",          # 시가총액
+}
+
+# ⚠️ 지수는 **정수가 아니다.** 종목 시세(원 단위 정수)와 다르게 소수점을 가진다
+#    (예: 코스피 200 이 "355.44"). int 로 깎으면 하루 등락이 통째로 사라진다.
+INDEX_FLOAT_FIELDS = ("close", "change", "change_rate", "open", "high", "low")
+INDEX_INT_FIELDS = ("volume", "value", "market_cap")
+
+
+def normalize_index_row(row: Dict, bas_dd: str, keep_raw: bool = False) -> Dict:
+    """KRX 지수 한 줄을 snake_case + 숫자 타입으로 정규화한다.
+
+    ⚠️ **가격 필드가 빈 문자열로 오는 지수가 있다** — 실측 2026-08-21 기준
+       "코스피 (외국주포함)" · "코스닥 (외국주포함)" 두 줄이 `CLSPRC_IDX: ""` 다.
+       거래량·시가총액은 채워져 있으므로 행 자체를 버리면 안 되고, 값만 None 이 된다.
+       부르는 쪽이 `close is None` 인 행을 걸러야 한다.
+    """
+    item = {"date": f"{bas_dd[:4]}-{bas_dd[4:6]}-{bas_dd[6:]}"}
+
+    for field, krx_key in INDEX_FIELD_MAP.items():
+        raw = row.get(krx_key)
+        if field in INDEX_FLOAT_FIELDS:
+            item[field] = _to_number(raw, as_int=False)
+        elif field in INDEX_INT_FIELDS:
+            item[field] = _to_number(raw, as_int=True)
+        else:
+            item[field] = (raw or "").strip() if isinstance(raw, str) else raw
+
+    if keep_raw:
+        item["raw"] = row
+    return item
+
+
+def fetch_index_snapshot(bas_dd: str, market: str = "KOSPI",
+                         keep_raw: bool = False) -> List[Dict]:
+    """해당 거래일·시장의 **지수 전부**를 받아 정규화해서 돌려준다.
+
+    한 번 부르면 그 시장의 지수가 모두 온다 (실측 2026-08-21: KOSPI 51종 · KOSDAQ 40종).
+    "코스피 200" 하나만 쓰더라도 콜 비용은 같으므로 전부 받아 저장한다.
+
+    휴장일이면 빈 배열이다(오류가 아니다).
+    """
+    if not DATE_PATTERN.fullmatch(bas_dd):
+        raise KrxError("bas_dd 는 YYYYMMDD 형식이어야 합니다.")
+    if market not in INDEX_APIS:
+        raise KrxError(
+            f"지수를 지원하지 않는 시장입니다: {market} "
+            f"(쓸 수 있는 값: {', '.join(INDEX_APIS)})"
+        )
+
+    path, api_name = INDEX_APIS[market]
+    rows = _request_rows(path, bas_dd, api_name)
+    return [normalize_index_row(row, bas_dd, keep_raw) for row in rows]
+
+
+
+def _request_rows(path: str, bas_dd: str, api_name: str) -> List[Dict]:
+    """`_request_once` 를 감싸 **간헐적 401 을 재시도**한다. 바깥은 이쪽만 부른다.
+
+    KRX 는 멀쩡한 키에도 401 을 띄엄띄엄 준다(위 ⭐⭐ 주석의 실측). 재시도가 없으면
+    4,343콜짜리 백필이 초반에 차단기에 걸려 멈춘다 — 실제로 두 번 그랬다.
+
+    재시도 대상은 **인증 실패(`unauthorized`)뿐**이다. 네트워크 오류·HTTP 5xx 는
+    그대로 올려보낸다 — 그쪽은 부르는 쪽(수집 스크립트)이 날짜 단위로 이미 처리하고,
+    여기서까지 재시도하면 실패가 몇 겹으로 늘어져 진행 상황이 안 보인다.
+    """
+    if _auth_blocked["reason"]:
+        raise KrxError(_auth_blocked["reason"], unauthorized=True)
+
+    last: Optional[KrxError] = None
+    for attempt in range(AUTH_RETRIES + 1):
+        try:
+            rows = _request_once(path, bas_dd, api_name)
+        except KrxError as error:
+            if not error.unauthorized:
+                raise                      # 인증 문제가 아니면 재시도하지 않는다
+            last = error
+            if attempt < AUTH_RETRIES:
+                # 키가 없어서 난 실패는 재시도해도 소용없다 — 차단기가 이미 걸려 있다
+                if _auth_blocked["reason"]:
+                    raise
+                time.sleep(AUTH_RETRY_BACKOFF[min(attempt, len(AUTH_RETRY_BACKOFF) - 1)])
+                continue
+            # 재시도를 전부 썼다. 이제서야 차단기에 한 번을 센다.
+            _note_auth_failure(error.message)
+            raise
+        else:
+            _auth_failures["consecutive"] = 0
+            return rows
+
+    raise last if last else KrxError("KRX 호출에 실패했습니다.")
 # ==================================================
 # 4. 집계 · 정렬 (화면이 바로 쓸 수 있는 형태로 가공)
 # ==================================================
