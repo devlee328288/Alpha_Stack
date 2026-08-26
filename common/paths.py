@@ -40,12 +40,14 @@ ARTIFACTS_DIR: Path = PROJECT_ROOT / "artifacts"
 # 최소 API 가 내보낼 정적 자산이 생기면 여기에 둔다. 아직 비어 있다.
 STATIC_DIR: Path = PROJECT_ROOT / "static"
 
-# 사람이 읽는 검사 결과 — 품질 게이트(D-10)의 `data_quality.json`,
-# 호출 예산(D-04)의 `quota_usage.json` 이 여기로 나간다.
+# 사람이 읽는 검사 결과가 나가는 곳.
+#   data_quality.json — 빠진 거래일·중복·OHLC 위반·이상치를 열거한 품질 리포트
+#   quota_usage.json  — 출처별 오늘 호출 수와 한도
 #
-# ⚠️ **여기 있는 것은 보고서지 상태의 정본이 아니다.** 워터마크·예산의 실제 값은
-#    SQLite 안에 있고(같은 트랜잭션에서 갱신돼야 재개가 성립한다), 이 폴더의 JSON 은
-#    거기서 파생 생성된다. 이 파일을 고쳐도 수집기는 달라지지 않는다.
+# ⚠️ **여기 있는 것은 보고서지 상태의 정본이 아니다.** "어디까지 받았나"와 "몇 번 불렀나"의
+#    실제 값은 SQLite 안에 있다 — 행을 적재하는 것과 같은 트랜잭션에서 갱신돼야
+#    수집이 중간에 죽어도 이어 받을 수 있기 때문이다. 이 폴더의 JSON 은 거기서 파생된
+#    사본이므로, 이 파일을 고쳐도 수집기의 판단은 달라지지 않는다.
 REPORTS_DIR: Path = PROJECT_ROOT / "reports"
 
 
@@ -60,9 +62,9 @@ def krx_db_path() -> Path:
     `KRX_DB_PATH` 환경변수로 직접 지정할 수도 있다.
 
     ⚠️ **이 함수가 이 경로의 유일한 정의다.** 원래는 `ingest/store/krx_store.py` 안에
-    있었는데, `common/budget.py`(D-04 호출 예산)가 같은 파일을 열어야 하면서 문제가 됐다 —
-    `ingest/store` 는 `ingest/clients` 를 import 하므로, 예산을 쓰는 clients 가 store 를
-    import 하면 **순환**이 된다. 그래서 두 계층 아래인 여기로 내렸다.
+    있었는데, 호출 수를 세는 `common/budget.py` 가 같은 DB 파일을 열어야 하면서 문제가 됐다 —
+    `ingest/store` 는 `ingest/clients` 를 import 하므로, 예산을 쓰는 쪽인 clients 가
+    store 를 import 하면 **순환**이 된다. 그래서 두 계층 아래인 여기로 내렸다.
     경로 계산을 두 곳에 두면 언젠가 서로 다른 파일을 가리킨다 — 이 파일 맨 위 주석이
     경고하는 바로 그 사고다.
     """

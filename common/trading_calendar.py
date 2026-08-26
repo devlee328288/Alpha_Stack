@@ -26,6 +26,22 @@ def today_kst() -> date:
     return datetime.now(KST).date()
 
 
+def now_kst_iso() -> str:
+    """지금 이 순간을 KST 오프셋이 붙은 ISO8601 문자열로. 예: `2026-08-26T13:54:48+09:00`
+
+    **왜 오프셋을 붙이나.** 기존 수집 대장(`fetch_log.fetched_at`)은 `datetime.now()` —
+    타임존이 없는 naive 값이라, 다른 시간대에서 돌리면 같은 문자열이 다른 순간을 뜻한다.
+
+    "언제 받았나" 는 두 곳이 기대는 값이라 모호하면 안 된다.
+    하나는 **어디까지 받았는지 판단해 중단 지점부터 이어 받는 것**이고,
+    다른 하나는 **그 시점에 알 수 있었던 자료만 골라 학습에 쓰는 것**이다.
+    뒤엣것이 흔들리면 미래를 훔쳐본 모델이 나오고, 그건 성능이 좋아 보여서 더 위험하다.
+
+    새 코드는 이 함수를 쓴다.
+    """
+    return datetime.now(KST).isoformat(timespec="seconds")
+
+
 def round_half_up(value: float) -> int:
     """파이썬 round() 는 은행가 반올림이라 0.5 가 짝수 쪽으로 붙는다.
 

@@ -1,10 +1,11 @@
 """SQLite 스키마를 버전으로 관리한다 — `PRAGMA user_version` 기반.
 
 **왜 필요한가.** `data/krx_cache.db` 에는 이미 시세 900만 행이 들어 있다(1.65GB).
-D-02(워터마크)·D-04(호출 예산)는 여기에 **표를 새로 얹어야** 하는데, 지금 스키마를 만드는
-방법은 `krx_store.init_db()` 의 `CREATE TABLE IF NOT EXISTS` 뿐이라 *"이미 있는 표에 칸을
-추가한다"* 를 표현할 길이 없다. Postgres 쪽 `sql/init/*.sql` 은 **볼륨 최초 생성 시 1회만**
-도는 init 스크립트라 더더욱 아니다(문서화된 유일한 갱신 방법이 `down -v` 다).
+여기에 **표를 새로 얹어야** 하는데 — 어디까지 받았는지 기록하는 표, 하루 몇 번 불렀는지
+세는 표 — 지금 스키마를 만드는 방법은 `krx_store.init_db()` 의
+`CREATE TABLE IF NOT EXISTS` 뿐이라 *"이미 있는 표에 칸을 추가한다"* 를 표현할 길이 없다.
+Postgres 쪽 `sql/init/*.sql` 은 **볼륨 최초 생성 시 1회만** 도는 init 스크립트라 더더욱
+아니다(문서화된 유일한 갱신 방법이 `down -v`, 즉 볼륨을 통째로 지우는 것이다).
 
 **왜 도구를 안 쓰나.** `alembic` 이 SQLite 에 주는 것은 batch(move-and-copy) 모드인데,
 그건 표를 통째로 복사하는 절차다. 우리에게 필요한 `ADD COLUMN` 은 그럴 필요가 없다.
@@ -72,12 +73,17 @@ class MigrationError(RuntimeError):
 # 전에 만들어진 DB 는 `user_version` 이 0 이면서 기본 표는 이미 갖고 있기 때문이다.
 MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
     (
-        "v1: 수집 대장(D-02) · 호출 예산(D-04)",
+        "v1: 수집 대장 · 호출 예산",
         (
-            # ── D-02 수집 대장 ──────────────────────────────────────────
+            # ── 수집 대장 ───────────────────────────────────────────────
+            # "어느 출처의 어디까지를 언제 받았나" 를 한 줄씩 남긴다. 이게 있어야
+            # 중간에 죽어도 받은 데를 건너뛰고 이어서 받을 수 있다.
+            #
             # 기존 `fetch_log`·`index_fetch_log` 를 **일반화한 것**이다. 그 둘은 이미
-            # `rows=0` 을 남겨 "휴장"과 "미수집"을 구별하고 있었고(그게 D-02 의 핵심
-            # 요구다), 여기서는 그 방식을 출처에 무관하게 쓸 수 있게 넓힌다.
+            # 0건으로 받은 날에도 `rows=0` 행을 남겨서 **"받아 봤더니 없었다"(휴장)와
+            # "아직 안 받았다"를 구별**하고 있었다. 이 구별이 없으면 휴장일마다 영원히
+            # 다시 요청하게 된다. 여기서는 그 방식을 날짜·시장 축에 묶여 있던 것에서
+            # 풀어 어떤 출처든 쓸 수 있게 넓힌다.
             #
             # ⚠️ 기존 두 표를 **지우거나 옮기지 않는다.** 900만 행 수집이 그 위에서
             #    돌고 있고, 옮기다 실패하면 16년치 백필을 다시 받아야 한다.
@@ -102,18 +108,22 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
               CHECK (status IN ('ok', 'empty', 'error', 'quota_exhausted', 'out_of_range'))
             )
             """,
-            # 화면(D-40)이 "출처별 마지막 성공 시각"을 뽑을 때 쓴다.
+            # 수집 현황 화면이 "출처별 마지막 성공 시각"을 뽑을 때 쓴다.
             "CREATE INDEX IF NOT EXISTS idx_collect_source_success "
             "ON collect_log(source, last_success_at)",
-            # 품질 게이트(D-10)가 "실패한 것만" 훑을 때 쓴다.
+            # 품질 검사가 "실패한 것만" 훑을 때 쓴다.
             "CREATE INDEX IF NOT EXISTS idx_collect_status ON collect_log(source, status)",
 
-            # ── D-04 호출 예산 ──────────────────────────────────────────
+            # ── 호출 예산 ───────────────────────────────────────────────
+            # 출처마다 하루 호출 한도가 있다. 넘기 전에 스스로 멈추려면 오늘 몇 번
+            # 불렀는지를 세어야 한다.
+            #
             # `kst_date` 를 PK 에 넣어 **자정 리셋 로직 자체를 없앤다.** 날짜가 바뀌면
             # 그냥 다른 행이라 0 부터 시작한다 — 리셋을 "잊어버리는" 버그가 불가능해진다.
             #
-            # 프로세스 간 공유가 목적이다. 배치(`scripts/fetch_*.py`)와 화면의 즉시수집
-            # 버튼(D-41)이 **따로 돌기 때문에**, 모듈 전역 카운터로는 한도를 두 배로 쓴다.
+            # 파일이 아니라 DB 에 두는 이유는 **프로세스가 여럿이기 때문**이다. 배치
+            # (`scripts/fetch_*.py`)와 화면의 즉시수집 버튼이 따로 도는데, 모듈 전역
+            # 변수로 세면 각자 0 부터 시작해 한도를 두 배로 쓴다.
             """
             CREATE TABLE IF NOT EXISTS call_budget (
               source       TEXT    NOT NULL,
@@ -156,7 +166,8 @@ def add_column_sql(conn: sqlite3.Connection, table: str, column: str,
     `ADD COLUMN` 은 **같은 이름이 이미 있으면 예외를 던진다** — `IF NOT EXISTS` 가 없다.
     마이그레이션은 여러 번 돌아도 안전해야 하므로 여기서 미리 걸러 준다.
 
-    D-00 이 `known_at` 을 얹을 때 쓸 자리다. 지금은 아직 쓰이지 않는다.
+    시세·공시 표에 *"이 행을 우리가 언제부터 알 수 있었나"* 칸을 얹을 때 쓸 자리다.
+    지금은 아직 쓰이지 않는다.
     """
     if column in column_names(conn, table):
         return None

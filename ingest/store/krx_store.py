@@ -34,9 +34,10 @@ from ingest.store import (
 
 # DB 경로 계산은 `common/paths.py` 로 내렸다.
 #
-# **왜 옮겼나.** D-04 호출 예산(`common/budget.py`)이 같은 SQLite 파일을 열어야 하는데,
-# 이 모듈(`ingest/store`)은 `ingest/clients` 를 import 한다. 예산을 쓰는 쪽이 clients 이므로
-# clients → store 로 가져다 쓰면 **순환 import** 가 된다. 그래서 두 계층 아래로 내렸다.
+# **왜 옮겼나.** 하루 호출 수를 세는 `common/budget.py` 가 같은 SQLite 파일을 열어야 하는데,
+# 이 모듈(`ingest/store`)은 `ingest/clients` 를 import 한다. 호출 수를 세는 쪽은 실제로
+# 바깥과 통신하는 clients 이므로, clients → store 로 가져다 쓰면 **순환 import** 가 된다.
+# 그래서 두 계층 아래로 내렸다.
 #
 # ⚠️ 여기서 다시 계산하지 않는다 — 경로 계산이 두 곳에 있으면 언젠가 서로 다른 파일을
 #    가리키고, 그건 예외도 없이 "빈 결과"로만 드러나 알아채기 어렵다.

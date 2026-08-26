@@ -1,4 +1,4 @@
-"""D-02·D-04 전제 — SQLite 스키마 마이그레이션 테스트.
+"""SQLite 스키마 마이그레이션 테스트.
 
 **무엇을 지키려는 테스트인가.** 이 러너는 **이미 900만 행이 든 1.65GB DB** 위에서 돈다.
 중간에 실패했을 때 *"표는 바뀌었는데 버전은 그대로"* 인 반쪽 상태가 남으면, 다음 실행이
@@ -44,7 +44,7 @@ def test_빈_DB_를_최신으로_올린다(tmp_path):
 
         assert 적용수 == mig.LATEST_VERSION
         assert mig.user_version(conn) == mig.LATEST_VERSION
-        # D-02 · D-04 가 쓸 표가 실제로 생겼는가
+        # 수집 대장과 호출 예산 표가 실제로 생겼는가
         assert {"collect_log", "call_budget"} <= 표목록(conn)
     finally:
         conn.close()
@@ -179,7 +179,9 @@ def test_DB_가_코드보다_최신이면_거부한다(tmp_path):
 def test_collect_log_는_모르는_상태값을_거부한다(tmp_path):
     """0건(empty)·한도소진(quota_exhausted)·범위밖(out_of_range)을 실패와 섞지 않기 위한 어휘다.
 
-    오타로 'OK' 나 'done' 이 들어가면 D-40 화면과 D-10 품질 게이트가 조용히 못 세게 된다.
+    "받아 봤더니 없었다"·"한도에 닿아 아껴 멈췄다"·"출처가 제공하지 않는 구간이다" 는
+    전부 실패가 아니다. 오타로 'OK' 나 'done' 이 들어가면 수집 현황 화면과 품질 검사가
+    이것들을 조용히 세지 못하고 넘어간다.
     """
     conn = 연결(tmp_path)
     try:
@@ -215,7 +217,7 @@ def test_call_budget_은_출처와_날짜로_한_행이다(tmp_path):
         conn.close()
 
 
-# ── ADD COLUMN 도구 (D-00 이 known_at 을 얹을 때 쓴다) ────────────────────────
+# ── ADD COLUMN 도구 — "이 행을 언제부터 알 수 있었나" 칸을 얹을 때 쓴다 ──────
 
 def test_add_column_sql_은_이미_있는_칸에_None_을_준다(tmp_path):
     """`ADD COLUMN` 은 `IF NOT EXISTS` 가 없어 두 번째 실행에서 터진다. 미리 걸러야 한다."""
