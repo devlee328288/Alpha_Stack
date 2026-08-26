@@ -136,6 +136,85 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             """,
         ),
     ),
+    (
+        "v2: 수집 대장에 시도 횟수",
+        (
+            # 실패한 대상은 다시 받아야 하지만 **영원히 다시 받으면 안 된다.** 어떤
+            # 날짜가 구조적으로 실패하면(출처가 그 날을 영영 안 주는 경우) 배치를 돌릴
+            # 때마다 같은 자리에서 호출을 태운다. 몇 번 시도했는지를 세야 "이건 그만"
+            # 이라고 판단할 수 있다.
+            #
+            # 횟수를 `note` 문자열에 적지 않는 이유는 그러면 읽을 때마다 파싱해야 하고,
+            # 파싱은 언젠가 실패하기 때문이다. 칸으로 두면 SQL 이 직접 거른다.
+            #
+            # `ADD COLUMN ... DEFAULT` 는 SQLite 가 스키마 텍스트만 고치고 행은 건드리지
+            # 않아 사실상 공짜다 (900만 행에서 0.16ms 실측 2026-08-26). 단 **CHECK 제약을
+            # 함께 걸면 전체 스캔이 일어나 3만 배 느려진다** — 그래서 걸지 않는다.
+            "ALTER TABLE collect_log ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
+        ),
+    ),
+    (
+        "v3: 응답 원문 보존",
+        (
+            # ── 응답 원문 ───────────────────────────────────────────────
+            # **왜 정규화된 표만으로는 부족한가.** 정규화는 틀린다. 필드 이름을 잘못
+            # 매핑하거나, 숫자 파싱이 어떤 값에서만 깨지거나, 나중에 필요해진 칸을
+            # 그때는 안 담았거나. 그런데 원문이 없으면 **고치는 유일한 방법이 다시
+            # 받는 것**이고, 16년치를 다시 받는 것은 며칠과 하루 한도를 쓰는 일이다.
+            #
+            # 원문을 남겨 두면 네트워크를 한 번도 안 타고 다시 정규화할 수 있다.
+            #
+            # 그리고 이 표에는 두 번째 쓸모가 있다 — `fetched_at` 이 **"우리가 이 사실을
+            # 언제부터 알 수 있었나"의 근거**다. 그 시각을 정규화 표에만 적어 두면
+            # 나중에 고쳐 적었는지 아닌지를 증명할 수 없다.
+            #
+            # ⚠️ 응답을 **바이트 그대로** 담는다. 문자열로 바꿔 담으면 그 순간 인코딩
+            #    추측이 끼어들고(euc-kr 로 오는 곳이 실재한다), 잘못 디코딩한 원문은
+            #    원문이 아니다.
+            """
+            CREATE TABLE IF NOT EXISTS raw_response (
+              source       TEXT    NOT NULL,
+              target       TEXT    NOT NULL,
+              fetched_at   TEXT    NOT NULL,
+              body         BLOB    NOT NULL,
+              sha256       TEXT    NOT NULL,
+              bytes        INTEGER NOT NULL,
+              compression  TEXT    NOT NULL DEFAULT 'gzip',
+              encoding     TEXT,
+              note         TEXT,
+              -- 같은 대상을 다시 받으면 **덮지 않고 한 줄 더 쌓는다.** 출처가 값을
+              -- 정정하는 일이 실제로 있고, 그때 무엇이 어떻게 바뀌었는지가 증거다.
+              PRIMARY KEY (source, target, fetched_at)
+            )
+            """,
+            # 재정규화가 한 출처를 통째로 순회할 때 쓴다.
+            "CREATE INDEX IF NOT EXISTS idx_raw_source ON raw_response(source, target)",
+        ),
+    ),
+    (
+        "v4: robots.txt 캐시",
+        (
+            # ── robots.txt ──────────────────────────────────────────────
+            # 크롤링은 **요청 직전에** 허용 여부를 확인한다. 그렇다고 매 요청마다
+            # `robots.txt` 를 받으면 그 자체가 상대 서버를 두드리는 일이 된다.
+            # 그래서 캐시하되 하루가 지나면 다시 받는다.
+            #
+            # ⚠️ **표에 담는 것은 원문이 아니라 판정의 재료다.** 상태 코드를 함께
+            #    남기는 이유는, 받지 못했다는 사실 자체가 판정에 쓰이기 때문이다 —
+            #    5xx 는 "전면 차단"이고 4xx 는 "전면 허용"이라 정반대다.
+            #    `status=0` 은 네트워크에 닿지도 못한 경우로, 5xx 와 같이 다룬다.
+            """
+            CREATE TABLE IF NOT EXISTS robots_cache (
+              origin      TEXT    NOT NULL,
+              status      INTEGER NOT NULL,
+              body        TEXT,
+              encoding    TEXT,
+              fetched_at  TEXT    NOT NULL,
+              PRIMARY KEY (origin)
+            )
+            """,
+        ),
+    ),
 )
 
 #: 이 코드가 아는 최신 스키마 버전.

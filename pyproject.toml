@@ -28,6 +28,13 @@ dependencies = [
   "xgboost==3.4.1",        # 모델 비교군
   "joblib==1.5.3",         # 학습된 모델 저장·로드
 
+  # ── 크롤링 가드 ───────────────────────────────────────────
+  # ⚠️ **0.6.2 이상이어야 한다** — 0.6.1 이하에 CVE-2026-55520 이 있다.
+  #    표준 라이브러리(`urllib.robotparser`)를 쓰지 않는 이유는 그쪽이 명시적으로
+  #    금지된 URL 에 can_fetch()=True 를 주기 때문이다(와일드카드를 %2A 로 인코딩해
+  #    버린다, 실측 2026-08-26). 차단 가드가 허용 쪽으로 틀리면 없느니만 못하다.
+  "protego==0.6.2",
+
   # ── 최소 API (② 대시보드가 읽을 계약) ─────────────────────
   "fastapi==0.141.1",
   "uvicorn[standard]==0.52.0",
@@ -46,7 +53,8 @@ build-backend = "setuptools.build_meta"
 
 # 패키지를 저장소 루트에 평탄하게 둔다 (Alpha_Stack/alphastack/ 이중 중첩을 만들지 않는다).
 [tool.setuptools.packages.find]
-include = ["common*", "ingest*", "timeseries*", "features*", "models*", "evaluation*", "api*"]
+include = ["common*", "ingest*", "supply*", "timeseries*", "features*", "models*",
+           "evaluation*", "api*"]
 
 [tool.ruff]
 line-length = 100

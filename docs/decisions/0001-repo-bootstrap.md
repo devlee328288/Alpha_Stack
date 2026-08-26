@@ -6,7 +6,7 @@
 
 ## 맥락
 
-1차 팀 프로젝트 AlphaStack 이 2026-09-01 에 시작한다. 팀장은 개인 프로젝트
+1차 팀 프로젝트 AlphaStack 이 2026-09-01 에 시작한다. 이동원은 개인 프로젝트
 `data-service` 를 이미 가지고 있고, 거기에 KRX 수집·저장·시계열 분석 코드가 있다.
 팀 프로젝트는 그 자산 위에서 출발하는 것이 합리적이다.
 
@@ -67,7 +67,7 @@ git checkout -b main --track origin/main   # docs/ 는 untracked 로 살아남�
 
 ### 4. GitLab 은 `main` 만 미러한다
 
-GitLab 은 팀장 개인 계정의 이중 보관용이다. 팀원 3명의 feature 브랜치까지 미러하면
+GitLab 은 이동원 개인 계정의 이중 보관용이다. 팀원 3명의 feature 브랜치까지 미러하면
 관리하지 못하는 ref 가 쌓이고, 팀원이 GitHub 에서 브랜치를 지워도 GitLab 에는 남는다.
 머지되면 어차피 `main` 에 들어오므로 합의된 결과물만 보관하면 충분하다.
 
@@ -107,7 +107,7 @@ common/  ingest/{clients,store}/  features/  models/  evaluation/  api/  timeser
 
 ### 7. 파이썬은 `snake_case` 를 쓴다
 
-팀장의 전역 규약은 "변수/함수는 camelCase" 지만, 이관한 9,000줄이 전부 `snake_case`
+이동원의 전역 규약은 "변수/함수는 camelCase" 지만, 이관한 9,000줄이 전부 `snake_case`
 이고 `sklearn`·`pandas` API 도 그렇다. 섞으면 한 파일 안에서 두 규약이 부딪힌다.
 **프론트엔드·JS 가 생기면 그쪽은 camelCase 다.**
 
@@ -191,14 +191,14 @@ LightGBM 4.7.0 · XGBoost 3.4.1 · joblib 1.5.3   → 7종 전부 import 성공
 - 원본과 코드를 주고받을 때 **import 경로를 손으로 번역해야 한다.**
   구조를 바꾼 값이다. 알고 택했다.
 - `common/settings.py`(437줄)에 1차가 쓰지 않는 원본 설정이 섞여 있다.
-  팀 Supabase 가 정해진 뒤 한 번에 덜어낸다 → [회의안건 C-1](../회의안건.md)
+  팀 Supabase 가 정해진 뒤 한 번에 덜어낸다 → [회의안건 C-1](../회의안건/2026-09-01-킥오프.md)
 - 최상위 패키지 이름(`alphastack.*`)이 없어 `common`·`models`·`api` 가 top-level 을
   차지한다. 서드파티와 이름이 부딪힐 이론적 위험이 있으나, 프로젝트 루트가 `sys.path`
   앞쪽에 오므로 실질 위험은 낮다.
 
 ## 남은 과제
 
-정해지지 않은 것은 [docs/회의안건.md](../회의안건.md) 에 모았다. 특히 아래 셋이
+정해지지 않은 것은 [docs/회의안건/2026-09-01-킥오프.md](../회의안건/2026-09-01-킥오프.md) 에 모았다. 특히 아래 셋이
 정해지기 전에는 `features/` 가 첫 줄도 못 나간다.
 
 1. 팀 Supabase — 팔 것인가, 용량은, 권한은

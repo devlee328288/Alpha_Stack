@@ -32,11 +32,21 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from common.trading_calendar import to_iso, today_kst, trading_days
 from ingest.clients import krx_data as api
+from ingest.store import collect_log
 from ingest.store.krx_store import (
     DB_PATH,  # 같은 DB 파일을 쓴다
     _write_lock,  # 같은 파일을 쓰므로 자물쇠도 같은 것을 써야 한다
     connect,
 )
+
+# 수집 대장에 남길 출처 이름. 종목 쪽과 갈라 둔다 — 같은 날짜라도 "종목은 받았고
+# 지수는 안 받은" 상태가 실재하므로 한 이름으로 묶으면 서로의 진행을 지운다.
+COLLECT_SOURCE = "krx_index"
+
+
+def _target(bas_dd: str, market: str) -> str:
+    """대장의 대상 이름. 시장과 날짜를 한 문자열로 묶는다 (표의 키가 둘이 아니라 하나다)."""
+    return f"{market}/{bas_dd}"
 
 # 지수를 받을 시장. **기본은 KOSPI 하나다.**
 #
@@ -112,6 +122,9 @@ def init_db() -> None:
     """표와 인덱스를 만든다. 이미 있으면 아무 일도 하지 않는다."""
     with _write_lock, connect() as conn:
         conn.executescript(SCHEMA)
+    # 수집 대장은 이 파일의 SCHEMA 가 아니라 마이그레이션이 만든다 — 이미 900만 행이
+    # 든 DB 에 칸을 얹으려면 버전 관리가 필요하고, DDL 을 두 곳에 두면 언젠가 갈라진다.
+    collect_log._ensure_schema(DB_PATH)
 
 
 # ==================================================
@@ -156,6 +169,18 @@ def _save(bas_dd: str, market: str, items: List[Dict]) -> int:
             "VALUES (?,?,?,?)",
             (bas_dd, market, len(rows), datetime.now().isoformat(timespec="seconds")),
         )
+        # 같은 트랜잭션 안에서 대장까지 남긴다. 따로 커밋하면 그 사이에 죽었을 때
+        # "저장은 됐는데 대장에는 없는" 어긋난 상태가 남고, 그러면 다음 실행이
+        # 이미 있는 날짜를 다시 받는다.
+        #
+        # ⚠️ 0행을 `mark_empty` 로 남기는 것이 요점이다. 휴장일은 **영원히 0행**이라
+        #    실패로 기록하면 배치를 돌릴 때마다 같은 날짜에 호출을 태운다.
+        if rows:
+            collect_log.mark_ok(COLLECT_SOURCE, _target(bas_dd, market),
+                                rows=len(rows), conn=conn)
+        else:
+            collect_log.mark_empty(COLLECT_SOURCE, _target(bas_dd, market),
+                                   note="0행 — 휴장일로 본다.", conn=conn)
     return len(rows)
 
 
@@ -179,10 +204,21 @@ def sync(days: int = 250, workers: int = DEFAULT_WORKERS, end: Optional[str] = N
     wanted = [d.strftime("%Y%m%d") for d in trading_days(days, end=anchor)]
     # 제공 대상기간 밖은 아예 요청하지 않는다. 0행을 받아 휴장일로 기록해 두면
     # 나중에 KRX 가 과거를 열어도 우리가 다시 안 물어보게 된다.
+    out_of_range = [d for d in wanted if d < DATA_START]
     wanted = [d for d in wanted if d >= DATA_START]
 
     result: Dict = {"requested": 0, "already": 0, "fetched": 0, "rows": 0,
-                    "failed": [], "skipped_before_start": 0}
+                    "failed": [], "skipped_before_start": 0, "quota_exhausted": 0}
+
+    # 왜 안 받았는지를 대장에 남긴다. 이게 없으면 나중에 "2009년이 왜 비어 있나"에
+    # 아무도 답할 수 없고, 누군가 버그로 오해해 다시 받으려 든다.
+    for bas_dd in out_of_range:
+        for market in markets:
+            collect_log.mark_out_of_range(
+                COLLECT_SOURCE, _target(bas_dd, market),
+                note=f"KRX 제공 시작일({DATA_START}) 이전이라 요청하지 않는다.",
+                db_path=DB_PATH)
+    result["skipped_before_start"] = len(out_of_range) * len(markets)
 
     todo: List[Tuple[str, str]] = []
     for market in markets:
@@ -198,18 +234,29 @@ def sync(days: int = 250, workers: int = DEFAULT_WORKERS, end: Optional[str] = N
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    def work(job: Tuple[str, str]) -> Tuple[str, str, int, Optional[str]]:
+    def work(job: Tuple[str, str]) -> Tuple[str, str, int, Optional[str], bool]:
         bas_dd, market = job
         try:
-            return bas_dd, market, fetch_date(bas_dd, market), None
+            return bas_dd, market, fetch_date(bas_dd, market), None, False
+        except api.KrxQuotaExhausted as error:
+            # ⚠️ **실패가 아니다.** 예산이 마른 것은 이 날짜의 잘못이 아니므로 재시도
+            #    횟수를 먹이면 안 된다 — 그러면 한도가 세 번 마르는 동안 멀쩡한 날짜가
+            #    영영 버려진다. 내일 다시 돌리면 여기서부터 이어 받는다.
+            collect_log.mark_quota_exhausted(COLLECT_SOURCE, _target(bas_dd, market),
+                                             note=str(error), db_path=DB_PATH)
+            return bas_dd, market, 0, str(error), True
         except Exception as error:      # 하루 실패가 전체를 멈추지 않게 한다
-            return bas_dd, market, 0, str(error)
+            collect_log.mark_error(COLLECT_SOURCE, _target(bas_dd, market),
+                                   note=str(error), db_path=DB_PATH)
+            return bas_dd, market, 0, str(error), False
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         futures = [pool.submit(work, job) for job in todo]
         for done, future in enumerate(as_completed(futures), start=1):
-            bas_dd, market, rows, error = future.result()
-            if error:
+            bas_dd, market, rows, error, quota = future.result()
+            if quota:
+                result["quota_exhausted"] += 1
+            elif error:
                 result["failed"].append({"date": bas_dd, "market": market, "error": error})
             else:
                 result["fetched"] += 1

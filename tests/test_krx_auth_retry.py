@@ -39,11 +39,22 @@ def _키있음(monkeypatch):
     monkeypatch.setattr(api, "load_krx_key", lambda: ("TESTKEY", "테스트"))
 
 
-def _응답(rows):
-    """urlopen 이 돌려줄 가짜 컨텍스트 매니저."""
-    body = json.dumps({"OutBlock_1": rows}).encode("utf-8")
+def _응답(rows, charset: str = "utf-8"):
+    """urlopen 이 돌려줄 가짜 컨텍스트 매니저.
+
+    ⚠️ `headers` 까지 흉내 내야 한다. 수집기는 응답이 말하는 문자셋을 보고 디코딩하고
+       원문을 보존하는데, 스텁이 그 자리를 비워 두면 **실물에서만 터지는 코드**가
+       테스트를 통과한다.
+    """
+    body = json.dumps({"OutBlock_1": rows}).encode(charset)
+
+    class _Headers:
+        def get_content_charset(self):
+            return charset
 
     class _Res(io.BytesIO):
+        headers = _Headers()
+
         def __enter__(self):
             return self
 
