@@ -44,7 +44,7 @@ git status --short                    # ⚠️ push 전 필수 — 아래 1.4 �
 git add -p                            # 의도한 것만 담는다
 git commit
 git push -u origin feat/무엇을-한다
-gh pr create                          # PR 생성까지만
+bash scripts/gh-team.sh pr create     # PR 생성까지만 (3절 — gh 는 폴더를 모른다)
 ```
 
 **머지는 사람이 GitHub 웹에서 직접 합니다.**
@@ -142,8 +142,34 @@ user.email = 312804146+devlee328288@users.noreply.github.com
 git config user.email     # 팀 이메일이 나와야 합니다
 ```
 
-⚠️ **`gh auth switch` 를 쓰지 않습니다.** 활성 계정을 바꾸는 대신 폴더 단위로
-가르는 것이 이 설정의 목적입니다. 개인 저장소 작업이 팀 계정으로 올라가는 사고를 막습니다.
+### ⚠️ `gh` 는 폴더 규칙을 모릅니다 — `scripts/gh-team.sh` 를 씁니다
+
+`git` 신원은 위 `includeIf` 가 폴더 단위로 갈라 주지만 **`gh` 는 그걸 모릅니다.**
+`gh` 는 전역 "활성 계정" 하나만 봅니다. 그래서 이 폴더에서 `gh pr create` 를 하면
+개인 계정으로 나가고 이렇게 실패합니다 (실측 2026-08-26):
+
+```
+pull request create failed: GraphQL: must be a collaborator (createPullRequest)
+```
+
+**`gh auth switch` 로 바꾸지 않습니다.** 활성 계정은 전역 상태라, 바꿔 두면 다른 창에서
+개인 저장소를 만질 때 **팀 계정으로 올라갑니다.** 여러 저장소에서 커밋·push·PR 을
+동시에 하는 상황에서 실제로 위험합니다.
+
+대신 **그 한 번의 실행에만** 팀 토큰을 쓰는 얇은 wrapper 를 둡니다.
+
+```bash
+bash scripts/gh-team.sh pr create --fill
+bash scripts/gh-team.sh pr list
+bash scripts/gh-team.sh repo view
+```
+
+키링에서 토큰을 그때그때 꺼내므로 **파일에 적히는 것이 없습니다** (PUBLIC 저장소).
+그리고 이 스크립트는 **`gh pr merge` 를 스스로 거부합니다** — 규약을 문서에만 두면
+언젠가 누가 넘습니다.
+
+> 처음 한 번은 팀 계정으로 `gh auth login` 을 해 둬야 합니다.
+> **로그인만 하면 되고 활성 계정을 바꿀 필요는 없습니다.**
 
 ---
 
