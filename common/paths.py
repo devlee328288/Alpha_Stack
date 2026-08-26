@@ -18,6 +18,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 # 이 파일은 <루트>/common/paths.py 이므로 parents[1] 이 저장소 루트다.
@@ -45,3 +47,39 @@ STATIC_DIR: Path = PROJECT_ROOT / "static"
 #    SQLite 안에 있고(같은 트랜잭션에서 갱신돼야 재개가 성립한다), 이 폴더의 JSON 은
 #    거기서 파생 생성된다. 이 파일을 고쳐도 수집기는 달라지지 않는다.
 REPORTS_DIR: Path = PROJECT_ROOT / "reports"
+
+
+def krx_db_path() -> Path:
+    """수집 DB(`data/krx_cache.db`) 의 경로. **쓸 수 있는 곳**이어야 한다.
+
+    평소에는 `data/krx_cache.db` 지만, 서버리스(Vercel 등)에 올리면 배포된 파일이
+    **읽기 전용**이라 그 자리에 DB 를 만들 수 없다. SQLite 는 파일을 열 때 없으면 만들려 하고,
+    `PRAGMA journal_mode=WAL` 도 쓰기라서 곧바로 예외가 난다. 그래서 쓰기가 막혀 있으면
+    임시 폴더로 옮긴다 — 500 으로 죽는 것보다 빈 DB 로 안내 문구를 내는 편이 낫다.
+
+    `KRX_DB_PATH` 환경변수로 직접 지정할 수도 있다.
+
+    ⚠️ **이 함수가 이 경로의 유일한 정의다.** 원래는 `ingest/store/krx_store.py` 안에
+    있었는데, `common/budget.py`(D-04 호출 예산)가 같은 파일을 열어야 하면서 문제가 됐다 —
+    `ingest/store` 는 `ingest/clients` 를 import 하므로, 예산을 쓰는 clients 가 store 를
+    import 하면 **순환**이 된다. 그래서 두 계층 아래인 여기로 내렸다.
+    경로 계산을 두 곳에 두면 언젠가 서로 다른 파일을 가리킨다 — 이 파일 맨 위 주석이
+    경고하는 바로 그 사고다.
+    """
+    override = os.getenv("KRX_DB_PATH", "").strip()
+    if override:
+        path = Path(override)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return path
+
+    default = DATA_DIR / "krx_cache.db"
+    try:
+        # 최초 실행 시 data/ 가 없으면 sqlite3.connect 가 실패하므로 미리 만들어 둔다.
+        default.parent.mkdir(parents=True, exist_ok=True)
+        # 폴더가 있어도 쓰기 권한이 없을 수 있다. 실제로 쓸 수 있는지 확인한다.
+        if os.access(default.parent, os.W_OK):
+            return default
+    except OSError:
+        pass          # 폴더를 만들 수 없는 환경 (읽기 전용 배포)
+
+    return Path(tempfile.gettempdir()) / "krx_cache.db"

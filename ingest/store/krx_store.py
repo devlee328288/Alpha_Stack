@@ -16,17 +16,15 @@ KRX OpenAPI 는 **하루치 전 종목 스냅샷**만 준다. 캔들 차트나 �
 
 from __future__ import annotations
 
-import os  # 환경변수 · 쓰기 권한 확인
 import sqlite3  # 파일 기반 DB (표준 라이브러리)
-import tempfile  # 읽기 전용 환경에서 쓸 임시 폴더
 import threading  # 쓰기 직렬화용 자물쇠
 import time  # 라이브 조회 메모리 캐시 TTL
 from contextlib import contextmanager  # 직접 만드는 with 블록
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from common import settings  # STORE_BACKEND — 어느 저장소에서 읽나 (ADR-DS-0015)
+from common.paths import krx_db_path  # DB 경로 — 유일한 정의 (순환 import 회피)
 from common.trading_calendar import to_iso, today_kst, trading_days  # 거래일 계산 (공통 유틸)
 from ingest.clients import krx_data as api  # KRX 호출·정규화 (외부 통신 담당)
 from ingest.store import (
@@ -34,45 +32,15 @@ from ingest.store import (
     krx_pg,  # Postgres 읽기 어댑터 (전환 S4 · ADR-DS-0015)
 )
 
-# 이 파일은 <루트>/ingest/store/ 안에 있으므로 parents[2] 가 프로젝트 루트다.
-# (parents[0]=store, parents[1]=ingest, parents[2]=프로젝트 루트)
-# 실행 위치(cwd)와 무관하게 항상 같은 DB 파일을 가리킨다.
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _resolve_db_path() -> Path:
-    """DB 파일 경로를 정한다. **쓸 수 있는 곳**이어야 한다.
-
-    평소에는 `data/krx_cache.db` 지만, 서버리스(Vercel 등)에 올리면 배포된 파일이
-    **읽기 전용**이라 그 자리에 DB 를 만들 수 없다. SQLite 는 파일을 열 때 없으면 만들려 하고,
-    `PRAGMA journal_mode=WAL` 도 쓰기라서 곧바로 예외가 난다.
-
-    그래서 쓰기가 막혀 있으면 임시 폴더(`/tmp`)로 옮긴다. 거기에 만들어진 DB 는 비어 있으므로
-    `/krx`·`/quant` 화면은 "시세 캐시가 비어 있습니다" 안내(503)를 그대로 받는다.
-    500 에러로 죽는 것보다, 무엇을 해야 하는지 알려 주는 편이 낫다.
-
-    `KRX_DB_PATH` 환경변수로 직접 지정할 수도 있다 (배포 환경에서 경로를 바꾸고 싶을 때).
-    """
-    override = os.getenv("KRX_DB_PATH", "").strip()
-    if override:
-        path = Path(override)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
-
-    default = PROJECT_ROOT / "data" / "krx_cache.db"
-    try:
-        # 최초 실행 시 data/ 폴더가 없으면 sqlite3.connect 가 실패하므로 미리 만들어 둔다.
-        default.parent.mkdir(parents=True, exist_ok=True)
-        # 폴더가 있어도 쓰기 권한이 없을 수 있다. 실제로 쓸 수 있는지 확인한다.
-        if os.access(default.parent, os.W_OK):
-            return default
-    except OSError:
-        pass          # 폴더를 만들 수 없는 환경 (읽기 전용 배포)
-
-    return Path(tempfile.gettempdir()) / "krx_cache.db"
-
-
-DB_PATH = _resolve_db_path()
+# DB 경로 계산은 `common/paths.py` 로 내렸다.
+#
+# **왜 옮겼나.** D-04 호출 예산(`common/budget.py`)이 같은 SQLite 파일을 열어야 하는데,
+# 이 모듈(`ingest/store`)은 `ingest/clients` 를 import 한다. 예산을 쓰는 쪽이 clients 이므로
+# clients → store 로 가져다 쓰면 **순환 import** 가 된다. 그래서 두 계층 아래로 내렸다.
+#
+# ⚠️ 여기서 다시 계산하지 않는다 — 경로 계산이 두 곳에 있으면 언젠가 서로 다른 파일을
+#    가리키고, 그건 예외도 없이 "빈 결과"로만 드러나 알아채기 어렵다.
+DB_PATH = krx_db_path()
 
 # 수집 대상 시장. KRX 는 시장마다 API 가 따로라 각각 호출해야 한다.
 MARKETS = ("KOSPI", "KOSDAQ")
@@ -303,7 +271,9 @@ PROVIDER = "krx"
 
 
 def tier() -> str:
-    """**저장소 전체**가 지금 어느 층에 서 있는지 — `db`(정본) · `bundle`(축약본) · `live`(둘 다 없음).
+    """**저장소 전체**가 지금 어느 층에 서 있는지.
+
+    `db`(정본) · `bundle`(축약본) · `live`(둘 다 없음) 중 하나를 돌려준다.
 
     화면 배지와 리포트가 "무엇을 근거로 말하고 있는지" 를 밝힐 때 쓴다.
 
@@ -607,7 +577,9 @@ def closes_matrix(codes: Sequence[str], days: int = 250) -> Dict[str, List[int]]
     return {code: [per_code[code][d] for d in ordered] for code in codes}
 
 
-def window(days: int = 60, columns: Sequence[str] = ("code", "bas_dd", "close", "value", "volume")) -> List[Dict]:
+def window(days: int = 60,
+           columns: Sequence[str] = ("code", "bas_dd", "close", "value", "volume"),
+           ) -> List[Dict]:
     """최근 `days` 거래일치를 필요한 컬럼만 골라 한 번에 읽어 온다.
 
     스크리닝·팩터·효율적 투자선은 모두 "전 종목 × 최근 N일" 을 훑어야 한다.
