@@ -240,8 +240,13 @@ def connect_for_migration(db_path: Optional[Path] = None) -> sqlite3.Connection:
         db_path = krx_db_path()
 
     conn = sqlite3.connect(db_path, timeout=60, isolation_level=None)
-    conn.execute("PRAGMA journal_mode=WAL")
+    # ⚠️ **순서가 중요하다.** `journal_mode=WAL` 은 DB 가 아직 WAL 이 아닐 때 잠깐
+    #    배타 잠금을 잡는데, `busy_timeout` 을 그 뒤에 걸면 기다릴 시간이 0 이라
+    #    다른 연결이 쓰는 중이면 즉시 `database is locked` 로 죽는다.
+    #    이미 WAL 인 DB 에서는 no-op 이라 잘 드러나지 않다가, **새 DB 를 여러 스레드가
+    #    동시에 열 때만** 터진다.
     conn.execute("PRAGMA busy_timeout=60000")
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 

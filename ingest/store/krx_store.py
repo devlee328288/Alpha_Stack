@@ -100,10 +100,15 @@ def connect():
     """
     conn = sqlite3.connect(DB_PATH, timeout=60)
     conn.row_factory = sqlite3.Row        # 결과를 컬럼명으로 꺼낼 수 있게 한다
+    # 다른 연결이 쓰는 중이면 최대 60초까지 기다린다 (바로 포기하지 않도록)
+    #
+    # ⚠️ **이 줄이 아래 WAL 보다 먼저여야 한다.** `journal_mode=WAL` 은 DB 가 아직 WAL 이
+    #    아닐 때 잠깐 배타 잠금을 잡는데, 기다릴 시간이 설정돼 있지 않으면 다른 연결이
+    #    쓰는 중일 때 즉시 `database is locked` 로 죽는다. 이미 WAL 인 DB 에서는 no-op 이라
+    #    평소엔 안 드러나고, **빈 DB 를 스레드 여럿이 동시에 열 때만** 터진다.
+    conn.execute("PRAGMA busy_timeout=60000")
     # WAL 모드: 읽기와 쓰기가 서로를 막지 않는다. 수집 중에도 화면 조회가 가능해진다.
     conn.execute("PRAGMA journal_mode=WAL")
-    # 다른 연결이 쓰는 중이면 최대 60초까지 기다린다 (바로 포기하지 않도록)
-    conn.execute("PRAGMA busy_timeout=60000")
     try:
         yield conn
         conn.commit()
