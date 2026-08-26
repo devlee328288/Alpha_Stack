@@ -37,3 +37,11 @@ ARTIFACTS_DIR: Path = PROJECT_ROOT / "artifacts"
 
 # 최소 API 가 내보낼 정적 자산이 생기면 여기에 둔다. 아직 비어 있다.
 STATIC_DIR: Path = PROJECT_ROOT / "static"
+
+# 사람이 읽는 검사 결과 — 품질 게이트(D-10)의 `data_quality.json`,
+# 호출 예산(D-04)의 `quota_usage.json` 이 여기로 나간다.
+#
+# ⚠️ **여기 있는 것은 보고서지 상태의 정본이 아니다.** 워터마크·예산의 실제 값은
+#    SQLite 안에 있고(같은 트랜잭션에서 갱신돼야 재개가 성립한다), 이 폴더의 JSON 은
+#    거기서 파생 생성된다. 이 파일을 고쳐도 수집기는 달라지지 않는다.
+REPORTS_DIR: Path = PROJECT_ROOT / "reports"

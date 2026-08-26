@@ -37,8 +37,7 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 #    → All checks passed!
 ```
 
-**API 키 없이도 여기까지 됩니다.** 실제 시세 수집은 `.env` 가 필요한데,
-그건 킥오프에서 팀 Supabase 를 정한 뒤입니다 ([회의안건 A-1](docs/회의안건.md)).
+**API 키 없이도 여기까지 됩니다.** 실제 수집만 `.env` 가 필요합니다.
 
 ```bash
 # 4) (선택) 자격증명 — 아직 안 해도 됩니다
@@ -47,6 +46,43 @@ cp .env.example .env      # 값은 팀장에게 요청
 
 > ⚠️ **`.env` 를 절대 커밋하지 마세요.** 이 저장소는 PUBLIC 입니다.
 > `.gitignore` 가 막고 있지만, push 전에 `git status --short` 로 눈으로 확인합니다.
+
+### 🔑 API 키 발급 안내
+
+**KRX 하나만 있으면 1차 필수범위(시세·지수·백테스트)는 전부 돕니다.** 나머지는 선택입니다.
+
+| 출처 | 쓰는 곳 | 발급 | 한도 |
+|---|---|---|---|
+| **KRX OpenAPI** ★필수 | 시세·지수 (F-01) | [openapi.krx.co.kr](https://openapi.krx.co.kr) | 문서상 10,000콜/일 — **아직 공식 확인 전** |
+| DART | 공시·재무 (D-12) | [opendart.fss.or.kr](https://opendart.fss.or.kr) | 기본 20,000콜/일 (**키별로 다를 수 있음**) |
+| ECOS · FRED · KOSIS | 거시 통계 (D-13) | 각 기관 사이트 | 여유 |
+| **네이버 검색** | 뉴스·카페글 (D-20·D-21) | ⚠️ **신규 발급 중단** — 아래 참조 | 25,000콜/일 (앱별 합산) |
+| **YouTube Data v3** | 동영상 (D-23) | [Google Cloud Console](https://console.cloud.google.com/apis/library/youtube.googleapis.com) | 10,000유닛/일 + `search.list` 별도 100콜 |
+
+#### 🚨 네이버 검색 API — 2026-07-30 부로 신규 신청이 막혔습니다
+
+> 개발자센터 약관 부칙 제2조 ①: *"2026년 7월 30일 24:00를 기점으로 (…) Search API (…)
+> 신규 이용 신청 접수를 중단합니다."*
+
+- **7/30 이전에 발급받은 키가 있다면** 그대로 씁니다. 단 **2027-06-30 24:00** 이 하드
+  데드라인입니다(부칙 제2조 ②·④). 그래서 코드는 `base_url` 과 인증 헤더를 상수로 분리해
+  **HUB 전환이 한 줄 교체**가 되도록 짭니다.
+- **키가 없다면** [NAVER Cloud Platform 의 API HUB](https://www.ncloud.com) 로 가야 합니다.
+  인증 헤더가 `X-NCP-APIGW-API-KEY-ID`/`X-NCP-APIGW-API-KEY` 로,
+  경로가 `/v1/search/news.json` → `/search/v1/news` 로 바뀌고,
+  한도가 일 25,000 이 아니라 **월 775,000건(월 단위 관리)** 이 됩니다.
+
+⚠️ 한도는 **클라이언트 아이디(앱)별 합산**입니다 — 뉴스와 카페글이 같은 쿼터를 나눠 씁니다.
+그리고 약관 7.3 ⑤ 가 **쿼터를 늘릴 목적의 다중 키 발급을 금지**하므로,
+*"팀원마다 키를 받아 분산"* 은 설계에서 배제합니다.
+
+#### 🚫 수집하지 않는 곳
+
+**`finance.naver.com` 은 수집하지 않습니다.** `robots.txt` 를 직접 받아 확인한 결과,
+`?code=*` 를 허용하는 규칙은 전부 `User-agent: yeti`(네이버 자체 크롤러) 그룹 소속이고,
+우리 같은 제3자 봇이 매칭되는 `User-agent: *` 그룹은 `Disallow: /` 한 줄입니다.
+RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르므로 **사이트 전체가 불허**입니다.
+→ 종목토론방 수집(D-22)은 **Won't** 로 내렸습니다.
 
 ---
 
