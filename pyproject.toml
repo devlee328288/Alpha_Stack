@@ -46,7 +46,8 @@ build-backend = "setuptools.build_meta"
 
 # 패키지를 저장소 루트에 평탄하게 둔다 (Alpha_Stack/alphastack/ 이중 중첩을 만들지 않는다).
 [tool.setuptools.packages.find]
-include = ["common*", "ingest*", "timeseries*", "features*", "models*", "evaluation*", "api*"]
+include = ["common*", "ingest*", "supply*", "timeseries*", "features*", "models*",
+           "evaluation*", "api*"]
 
 [tool.ruff]
 line-length = 100
