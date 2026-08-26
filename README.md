@@ -10,7 +10,7 @@
 | **주제** | 주가지수 데이터 활용 머신러닝·딥러닝 |
 | **GitHub** | https://github.com/devlee328288/Alpha_Stack (PUBLIC) |
 | **GitLab** | https://gitlab.com/dev-dongwon05253/alpha_stack (미러 · main 만) |
-| **상태** | 🟡 저장소 이관 완료 · 킥오프 대기 |
+| **상태** | 🟡 수집 공통 규칙 완료 · 킥오프 대기 (9/1) |
 
 ---
 
@@ -30,10 +30,10 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
 # 2) 검증 엔진이 살아 있는지 확인 (외부 연결·API 키 없이 돕니다)
 .venv/Scripts/python.exe -m pytest tests/ -q
-#    → 43 passed 가 나오면 성공입니다
+#    → 186 passed 가 나오면 성공입니다 (2026-08-26 기준)
 
 # 3) 코드 스타일 확인
-.venv/Scripts/python.exe -m ruff check evaluation/ tests/
+.venv/Scripts/python.exe -m ruff check evaluation/ supply/ tests/
 #    → All checks passed!
 ```
 
@@ -41,7 +41,7 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
 ```bash
 # 4) (선택) 자격증명 — 아직 안 해도 됩니다
-cp .env.example .env      # 값은 팀장에게 요청
+cp .env.example .env      # 값은 이동원에게 요청
 ```
 
 > ⚠️ **`.env` 를 절대 커밋하지 마세요.** 이 저장소는 PUBLIC 입니다.
@@ -141,18 +141,19 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 
 ## Who — 누가 무엇을 맡는가
 
+**2026-08-26 확정 · 3인**입니다. 4번째 팀원은 미정입니다.
+
 | 영역 | 담당 | 주 작업 위치 |
 |---|---|---|
-| 백테스팅 · 성과지표 · 대시보드 | 팀원 A | [evaluation/](evaluation/) |
-| 크롤링 검수 · 개선 | 팀원 B | [ingest/clients/](ingest/clients/) |
-| 수집 · 저장 · 검증엔진 기반 | 팀장 | [ingest/store/](ingest/store/) · [evaluation/](evaluation/) |
-| 피처 · 모델 | **미정** | [features/](features/) · [models/](models/) |
+| 데이터 수집·저장·정제·전처리·마이닝 **전반의 기획·관리** | **이동원** | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) |
+| 백테스팅 · 성과지표 · **대시보드** | **강민석** | [evaluation/](evaluation/) · 화면 |
+| **크롤링 · ML** (크롤링은 이동원과 분담) | **신장환** | [ingest/clients/](ingest/clients/) · [features/](features/) · [models/](models/) |
 
-> 역할 확정은 [회의안건 C-3](docs/회의안건.md) 입니다.
+> **팀장은 아직 정해지지 않았습니다** — [회의안건 A-1](docs/회의안건/2026-09-01-킥오프.md)에서 정합니다.
 
 ### 이 저장소를 만든 사람
 
-- 코드 기반: 팀장 개인 프로젝트 `data-service` 에서 필요한 것만 골라 이관 후 재구성
+- 코드 기반: 이동원 개인 프로젝트 `data-service` 에서 필요한 것만 골라 이관 후 재구성
 - 이관 세션: 2026-08-25 · 9,031줄 이관 + 734줄 신규 작성
 
 ---
@@ -341,7 +342,7 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 
 ### 개선하고 싶은 것
 
-- `common/settings.py`(437줄)에 1차가 쓰지 않는 원본 설정이 섞여 있다 → [회의안건 C-1](docs/회의안건.md)
+- `common/settings.py`(437줄)에 1차가 쓰지 않는 원본 설정이 섞여 있다 → [회의안건 C-1](docs/회의안건/2026-09-01-킥오프.md)
 - `ruff` 36건이 남아 있다 (전부 이관 코드의 한국어 주석 줄 길이)
 - `features/` · `models/` 는 아직 계약만 있고 구현이 없다
 
@@ -364,15 +365,22 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 | **지수 수집·저장** (신규) | [ingest/store/krx_index.py](ingest/store/krx_index.py) | 테스트 15개 통과 |
 | **인증 재시도·차단기** (신규) | [ingest/clients/krx_data.py](ingest/clients/krx_data.py) | 테스트 8개 통과 |
 | **데이터 품질 검사** (신규) | [scripts/check_index_data.py](scripts/check_index_data.py) | 4,097거래일 전부 통과 |
+| **스키마 마이그레이션** `PRAGMA user_version` | [ingest/store/migrations.py](ingest/store/migrations.py) | 테스트 11개 통과 · v4 까지 |
+| **호출 예산** 80% 경고·100% 정상종료 | [common/budget.py](common/budget.py) | 테스트 13개 통과 |
+| **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 23개 · 옛 이력 8,686건 이관 완료 |
+| **응답 원문 보존 + 재정규화** | [common/raw_store.py](common/raw_store.py) · [scripts/renormalize.py](scripts/renormalize.py) | 테스트 15개 · gzip 18.7~24.6% (실측) |
+| **`as_of` 정문** 미래 역류 차단 | [supply/](supply/) | 테스트 16개 · 경계를 테스트가 강제 |
+| **`robots.txt` 가드** 4xx 허용 / 5xx 차단 | [common/robots.py](common/robots.py) | 테스트 24개 · `protego==0.6.2` |
 | ★ **KOSPI200 시세** | 로컬 `data/krx_cache.db` (git 미추적) | **4,097거래일** · 2010-01-04~ |
 
 ### 🟡 구현 중 / 계약만 있음
 
 | 기능 | 위치 | 막고 있는 것 |
 |---|---|---|
-| **피처 엔지니어링** | [features/](features/) | 🟢 **막힘 해소** — 예측 대상·레이블 확정 ([ADR-AS-0002](docs/decisions/0002-예측대상과-레이블.md)). 담당자만 정하면 착수 |
+| **피처 엔지니어링** | [features/](features/) | 🟢 **막힘 해소** — 대상·레이블 확정([ADR-AS-0002](docs/decisions/0002-예측대상과-레이블.md)) · 담당 **신장환** 확정. 킥오프 후 착수 |
 | **모델 학습·비교** | [models/](models/) | 위와 동일 |
-| **정적 HTML 리포트** | 신규 예정 | 인터랙티브 대시보드는 **1차 범위 밖**으로 내렸습니다 ([요구사항 F-27](docs/요구사항/version1.0/요구사항.md)) |
+| **뉴스·동영상 수집기** | [ingest/clients/](ingest/clients/) | 산업 분류 기준이 정해져야 합니다 ([회의안건 A-2](docs/회의안건/2026-09-01-킥오프.md)). `robots.txt` 가드는 이미 섰습니다 |
+| **성과 리포트 화면** | 신규 예정 | 🔴 **스택이 문서끼리 어긋나 있습니다** — 정적 HTML vs Streamlit ([회의안건 A-3](docs/회의안건/2026-09-01-킥오프.md)) |
 | **재현 파이프라인** | [pipelines/](pipelines/) | 피처·모델이 선 뒤 |
 
 ### ⬜ 미착수
@@ -385,19 +393,19 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 
 ## 🗣️ 킥오프에서 정해야 할 것
 
-**2026-08-26 개정** — 12건 중 **5건이 닫혔습니다**
-([ADR-AS-0002](docs/decisions/0002-예측대상과-레이블.md) ·
-[ADR-AS-0003](docs/decisions/0003-수집-계층.md)).
+**2026-08-26 개정** — 이전 판 12건 중 **8건이 닫혔습니다.**
+저장소(SQLite 하나) · `features`/`models` 담당(신장환) · 종목토론방(Won't) 등이 빠졌습니다.
 킥오프는 그것들을 **"토론"하지 않고 "확인"만** 합니다.
 
-남은 것 중 급한 셋입니다.
+남은 것 중 급한 넷입니다.
 
-1. **팀 저장소** — Supabase 를 팔 것인가, parquet 스냅샷으로 갈 것인가
-2. 🔴 **`features/`·`models/` 담당** — Must 18건 중 **6건**이 여기 있습니다. 최대 리스크
-3. ⏰ **팀원 KRX 인증키** — 승인이 **익일**입니다.
+1. **팀장을 정한다** — 계획서·발표에 이름이 들어갑니다
+2. ⏰ **산업(섹터) 분류 기준** — 이게 정해져야 **뉴스 수집이 시작**됩니다
+3. 🔴 **화면 스택** — 요구사항은 정적 HTML 인데 수집 화면은 정적으로 **원리적으로 불가능**합니다
+4. ⏰ **팀원 KRX 인증키** — 승인이 **익일**입니다.
    9/1 에 신청하면 그날 아무도 데이터를 못 받습니다 → [합류 전 준비물](docs/합류전-준비물.md)
 
-👉 **전체 목록: [docs/회의안건.md](docs/회의안건.md)**
+👉 **전체 목록: [docs/회의안건/2026-09-01-킥오프.md](docs/회의안건/2026-09-01-킥오프.md)**
 
 ---
 
@@ -430,7 +438,7 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 | 문서 | 내용 |
 |---|---|
 | [docs/decisions/](docs/decisions/) | ADR — **번호가 곧 이력**이라 버전을 두지 않습니다 |
-| [docs/회의안건.md](docs/회의안건.md) | 킥오프에서 정할 것 (미결 사항 정본) |
+| [docs/회의안건/2026-09-01-킥오프.md](docs/회의안건/2026-09-01-킥오프.md) | 킥오프에서 정할 것 (미결 사항 정본) |
 | [docs/합류전-준비물.md](docs/합류전-준비물.md) | 팀원이 킥오프 전에 할 것 (KRX 키 발급) |
 | [docs/TIL/](docs/TIL/) | 작업 기록 — 날짜가 곧 버전 |
 | [AGENTS.md](AGENTS.md) | 팀 협업 규약 (Git·브랜치·코드 스타일) |
@@ -453,12 +461,43 @@ python scripts/check_doc_links.py      # 깨진 링크가 있으면 exit 1
 | 절 | 무엇을 적나 |
 |---|---|
 | **Why** (왜) | 왜 이 문제를 해결하려 했는가? 왜 이 주제를 택했는가? |
-| **What** (무엇을) | 무엇을 수행했는가? **핵심 기능 설명**과 **To-Do 계획**을 함께 |
+| **What** (무엇을) | 무엇을 수행했는가? **핵심 기능 설명** + **✅ 이번에 한 것** + **아직 안 한 것** |
 | **Who** (누가) | 프로젝트 내에서 내 책임과 기여도는? 누구의 작업을 이어받았나? |
 | **How** (어떻게) | 어떻게 해결했는가? **아키텍처·개발 프로세스**. **핵심 코드**를 붙인다 |
 | **Impact** (결과) | **수치·성능·비용·속도.** 재지 않았으면 "미측정"이라 쓴다 |
 | **Proof** (증명) | 심층적으로 다뤄볼 소재 — **트러블슈팅 기록**, 살펴볼 만한 코드 |
 | **Learn** (회고) | 그래서 무엇을 배웠는가? 가장 크게 배운 점은? (F1·Accuracy 등 지표 해석 포함) |
+
+### ✅ 체크리스트는 **빠뜨리지 않습니다** ★
+
+What 절에는 **`✅` 한 줄짜리 완료 목록**이 반드시 들어갑니다. 산문만 쓰면 무엇이 끝났는지
+읽는 사람이 세어야 하고, **팀에 공유할 때 그대로 붙여 넣을 수 있는 형태**가 없습니다.
+
+```markdown
+## What — 무엇을 했나
+
+### N차 PR에서 진행한 항목
+
+✅ 저장소 초기화 (기존 커밋 `be4e647` 위에 올라탐 — reset 없이)
+✅ 원본 `data-service` 에서 9,031줄 선별 이관 + 목적에 맞게 구조 재구성
+✅ 검증 엔진 신규 작성 (`evaluation/` 478줄) + 테스트 20개
+✅ ML 스택 호환성 실측 후 버전 고정
+✅ 문서 6종 (README · AGENTS · 아키텍처 · ERD · 회의안건 · ADR)
+
+### 아직 안 한 것
+
+D-02(워터마크) · D-01(원본 보존) 은 표가 먼저 서야 해서 다음 PR 로 갑니다.
+```
+
+한 줄에 **무엇을 · 얼마나** 가 같이 들어가게 씁니다.
+
+```markdown
+❌ ✅ 테스트 추가
+✅ ✅ 검증 엔진 신규 작성 (evaluation/ 478줄) + 테스트 20개
+```
+
+**"아직 안 한 것" 도 같은 절에 씁니다.** 안 한 것을 적지 않으면 다음 사람이 그게 된 줄
+알고 그 위에 쌓습니다. To-Do 를 미루는 게 아니라 **어디까지가 이번 PR 인지를 긋는 일**입니다.
 
 ### 왜 이 형식인가
 

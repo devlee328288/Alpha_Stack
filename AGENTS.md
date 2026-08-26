@@ -9,7 +9,7 @@
 
 ## 0. 이 저장소는 상위 규약의 예외입니다 ★
 
-팀장의 개인 모노레포(`EST-Camp-AI-Quant`)에는 별도의 `AGENTS.md` · `CLAUDE.md` 가 있고,
+이동원의 개인 모노레포(`EST-Camp-AI-Quant`)에는 별도의 `AGENTS.md` · `CLAUDE.md` 가 있고,
 그 규약은 **"모든 저장소에서 main 직커밋, 브랜치·PR 을 만들지 않는다"** 입니다.
 
 **이 저장소는 그 규칙을 따르지 않습니다.** 이유는 두 가지입니다.
@@ -105,19 +105,19 @@ git status --short --untracked-files=all
 | 원격 | 주소 | 범위 | 누가 |
 |---|---|---|---|
 | `origin` | github.com/devlee328288/Alpha_Stack | **모든 브랜치 + PR** | 팀 전원 |
-| `gitlab` | gitlab.com/dev-dongwon05253/alpha_stack | **`main` 만** | 팀장 개인 보관 |
+| `gitlab` | gitlab.com/dev-dongwon05253/alpha_stack | **`main` 만** | 이동원 개인 보관 |
 
 ### GitLab 은 왜 main 만인가
 
-GitLab 은 팀장 개인 계정의 이중 보관용입니다. 팀원 3명의 feature 브랜치까지 미러하면
+GitLab 은 이동원 개인 계정의 이중 보관용입니다. 팀원 3명의 feature 브랜치까지 미러하면
 
-- 팀장이 관리하지 못하는 ref 가 계속 쌓이고
+- 계정 주인이 관리하지 못하는 ref 가 계속 쌓이고
 - 팀원이 GitHub 에서 브랜치를 지워도 **GitLab 에는 영원히 남습니다**
 
 머지되면 어차피 `main` 에 들어오므로, 합의된 결과물만 보관하면 충분합니다.
 
 ```bash
-# 팀장만 · main 이 머지된 뒤
+# 계정 주인(이동원)만 · main 이 머지된 뒤
 git checkout main && git pull origin main
 git push gitlab main
 ```
@@ -187,7 +187,7 @@ bash scripts/gh-team.sh repo view
 | 줄 길이 | 100 | `ruff` 가 검사 |
 | 린터 | `ruff check .` | `E` `F` `W` `I` `B` |
 
-> ⚠️ **네이밍 예외 기록**: 팀장의 전역 규약은 "변수/함수는 camelCase" 입니다.
+> ⚠️ **네이밍 예외 기록**: 이동원의 전역 규약은 "변수/함수는 camelCase" 입니다.
 > 이 저장소는 파이썬에서 `snake_case` 를 씁니다 — 이관한 9,000줄이 전부 그렇고,
 > `sklearn` · `pandas` API 도 전부 `snake_case` 라 섞으면 읽기 어려워집니다.
 > **프론트엔드·JS 코드가 생기면 그쪽은 camelCase 입니다.**
@@ -247,9 +247,16 @@ docs/decisions/NNNN-짧은-제목.md
 
 ### 5.2 미결 사항은 회의안건으로
 
-정해지지 않은 것은 [docs/회의안건.md](docs/회의안건.md)에 모읍니다.
-코드 주석에서 `→ docs/회의안건.md` 로 가리킵니다.
+정해지지 않은 것은 [docs/회의안건/](docs/회의안건/)에 모읍니다.
+**한 회의 = 한 파일**입니다 — 지난 회의에서 닫힌 안건이 같은 문서에 남아 있으면
+*"이거 지난번에 정하지 않았나"* 를 매번 다시 떠올려야 합니다. 회의가 끝나면 그 파일을
+`archive/` 로 내리고 다음 회의 파일을 새로 만듭니다.
+
+다음 회의는 [2026-09-01 킥오프](docs/회의안건/2026-09-01-킥오프.md)입니다.
+
 **결정되면 ADR 로 옮기고 회의안건에서 지웁니다.**
+⚠️ 코드 주석에서는 문서 경로를 가리키지 않습니다 — 문서와 코드가 갈라지면 죽은 링크가
+됩니다. **그게 무엇인지를 주석에 직접** 씁니다.
 
 ### 5.3 README 는 상태를 반영합니다
 
@@ -294,7 +301,7 @@ Colab VM 안에만 남은 결과물은 런타임이 끊기면 사라지고 git �
 ## 8. 작업 시작 전 확인
 
 1. `git pull origin main`
-2. [docs/회의안건.md](docs/회의안건.md) — 내가 건드릴 부분이 미결인지 확인
+2. [docs/회의안건/2026-09-01-킥오프.md](docs/회의안건/2026-09-01-킥오프.md) — 내가 건드릴 부분이 미결인지 확인
 3. 브랜치를 판다 (`main` 에서 바로 작업하지 않습니다)
 4. 작업 → `pytest` → `ruff check` → `git status --short`
 5. PR 생성 (머지는 사람이)

@@ -49,7 +49,7 @@ split:
   gap: 0                  # ⚠️ label.horizon 이 1보다 크면 반드시 맞춘다
 models: [random_forest, xgboost, lightgbm]
 cost:
-  round_trip: 0.003       # ⚠️ 가정치 — docs/회의안건.md B-2
+  round_trip: 0.003       # ⚠️ 가정치 — docs/회의안건/2026-09-01-킥오프.md B-2
 seed: 42
 ```
 
@@ -78,6 +78,6 @@ seed: 42
 
 이 폴더를 채우려면 먼저 정해져야 합니다.
 
-- 예측 대상과 레이블 정의 → [회의안건 A-2](../docs/회의안건.md)
-- 지표 목록 → [회의안건 B-1](../docs/회의안건.md)
+- 예측 대상과 레이블 정의 → [회의안건 A-2](../docs/회의안건/2026-09-01-킥오프.md)
+- 지표 목록 → [회의안건 B-1](../docs/회의안건/2026-09-01-킥오프.md)
 - 진입점 형태 (`python -m` · `invoke` · `make`)
