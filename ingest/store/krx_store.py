@@ -17,7 +17,7 @@ KRX OpenAPI 는 **하루치 전 종목 스냅샷**만 준다. 캔들 차트나 �
 from __future__ import annotations
 
 import sqlite3  # 파일 기반 DB (표준 라이브러리)
-import threading  # 쓰기 직렬화용 자물쇠
+import threading  # 라이브 조회 캐시 자물쇠 (쓰기 자물쇠는 sqlite_db 것을 쓴다)
 import time  # 라이브 조회 메모리 캐시 TTL
 from contextlib import contextmanager  # 직접 만드는 with 블록
 from datetime import datetime, timedelta
@@ -31,6 +31,7 @@ from ingest.store import (
     krx_bundle,  # 배포용 축약본 (원본이 없을 때의 대타)
     krx_pg,  # Postgres 읽기 어댑터 (전환 S4 · ADR-DS-0015)
 )
+from ingest.store.sqlite_db import write_lock  # 같은 파일에 쓰는 모듈이 공유한다
 
 # DB 경로 계산은 `common/paths.py` 로 내렸다.
 #
@@ -116,9 +117,12 @@ def connect():
         conn.close()                      # 예외가 나도 반드시 닫는다
 
 
-# SQLite 는 동시에 한 연결만 쓸 수 있다. 쓰기를 줄 세워 잠금 충돌 자체를 없앤다.
-# (읽기는 WAL 덕분에 잠금과 무관하므로 이 자물쇠를 거치지 않는다.)
-_write_lock = threading.Lock()
+# 쓰기 자물쇠는 **같은 DB 파일에 쓰는 모듈이 공유해야** 한다. 모듈마다 따로 만들면
+# 자물쇠가 둘이 되어 없는 것과 같아진다. 그래서 sqlite_db 로 옮겼다.
+#
+# ⚠️ `_write_lock` 은 옛 이름이다. 밑줄이 "밖에서 쓰지 말라" 는 뜻인데 실제로는
+#    krx_index 가 밖에서 쓰고 있었다. 새 코드는 `write_lock` 을 쓴다.
+_write_lock = write_lock
 
 
 def init_db() -> None:
@@ -171,6 +175,63 @@ def _save(bas_dd: str, items: List[Dict]) -> int:
             (bas_dd, len(rows), datetime.now().isoformat(timespec="seconds")),
         )
     return len(rows)
+
+
+def save_renormalized(bas_dd: str, market: str, items: List[Dict]) -> int:
+    """보존된 원문으로 다시 정규화한 결과를 **가격 표에만** 쓴다.
+
+    ## 왜 `_save` 를 재사용하지 않나 — 두 가지가 조용히 망가진다
+
+    **① 수집 이력이 오늘로 덮인다.** `_save` 는 `fetch_log.fetched_at` 을 `now` 로 쓴다.
+    그런데 그 시각은 *"우리가 이 사실을 언제부터 알 수 있었나"* 의 근거다. 재정규화는
+    **자료를 새로 받은 것이 아니라 같은 원문을 다시 읽은 것**이므로 그 시각을 옮기면
+    안 된다. 옮기면 미래참조 방지의 바닥이 무너지는데 **어떤 검사도 안 잡는다.**
+
+    **② 건수가 줄어드는데 아무도 모른다.** `_save(bas_dd, items)` 는 시장 구분 없이
+    받아 `fetch_log.rows` 를 통째로 덮는다. 재정규화는 원문을 **시장별로** 쥐고 있으므로
+    KOSPI 원문만으로 부르면 `rows` 가 2,767 에서 944 로 줄어든다. 그리고
+    `fetched_dates()` 는 `rows > 0` 만 보므로 **재수집이 일어나지 않아 아무도 눈치채지
+    못한다.** 대장이 거짓이 되는데 예외도 경고도 없다.
+
+    그래서 이 함수는 `daily_price` 만 건드린다.
+    """
+    if market not in MARKETS:
+        raise ValueError(f"수집 대상 시장이 아니다: {market!r} (아는 시장: {MARKETS})")
+
+    # 원문이 어느 시장 것인지와 행이 말하는 시장이 어긋나면 **덮어쓰기 전에** 멈춘다.
+    # 어긋난 채로 쓰면 다른 시장 행이 이 시장 이름으로 굳어 버린다.
+    낯선시장 = {item.get("market") for item in items} - {market, None, ""}
+    if 낯선시장:
+        raise ValueError(
+            f"{bas_dd} {market} 원문에 다른 시장 행이 섞여 있다: {sorted(낯선시장)}")
+
+    rows = [tuple([bas_dd] + [item.get(col) for col in COLUMNS[1:]]) for item in items]
+    if not rows:
+        return 0                       # 쓸 것이 없으면 아무것도 건드리지 않는다
+
+    placeholders = ",".join("?" * len(COLUMNS))
+    with write_lock, connect() as conn:
+        conn.executemany(
+            f"INSERT OR REPLACE INTO daily_price ({','.join(COLUMNS)}) VALUES ({placeholders})",
+            rows,
+        )
+    return len(rows)
+
+
+def rows_for(bas_dd: str, market: str) -> Dict[str, Dict]:
+    """지금 표에 든 그 날짜·그 시장의 종목 행들. 재정규화 비교용이다.
+
+    ⚠️ `market` 조건이 **필수**다. 빼면 KOSPI 원문을 재정규화하면서 KOSDAQ 행까지
+       읽어 "달라졌다" 로 세어 버린다. 지수 쪽은 지수명이 전역에서 유일해서 이 실수가
+       드러나지 않는데, 종목은 조용히 틀린다.
+    """
+    with connect() as conn:
+        rows = conn.execute(
+            f"SELECT {','.join(COLUMNS)} FROM daily_price WHERE bas_dd=? AND market=?",
+            (bas_dd, market),
+        ).fetchall()
+    # strict=True — 컬럼 목록과 SELECT 결과 개수가 어긋나면 조용히 잘리는 대신 터진다.
+    return {row[1]: dict(zip(COLUMNS, row, strict=True)) for row in rows}
 
 
 def fetch_date(bas_dd: str) -> int:

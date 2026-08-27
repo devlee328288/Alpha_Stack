@@ -1,0 +1,160 @@
+"""예측 지평 계산 — 기준선 · 손익분기 · 클래스 균형
+
+**왜 이 모듈이 따로 있나.** 기준선을 두 곳에서 각자 계산하다가 실제로 갈라졌다.
+`scripts/check_index_data.py` 는 KRX 가 반올림해 준 등락률로 세어 **52.72%** 를 인쇄했고,
+지평 실측 스크립트는 원값으로 세어 **52.64%**(개발구간)를 냈다. 같은 것을 두 벌로 두면
+언젠가 갈라지고, **갈라져도 에러는 안 난다.** 그래서 계산을 여기 한 벌로 모은다.
+
+## 🔴 기준선은 KRX 원값(`change`)으로 센다
+
+`change_rate` 는 KRX 가 **소수 2자리로 반올림**해 준 값이라, 실제로는 오르내린 날이
+`0.00` 으로 찍혀 보합으로 빠진다. 전구간에서 15일이 그렇고 **그중 7일이 실제 상승일**이다.
+"항상 상승" 은 그 7일에 실제로 돈을 번다.
+
+반올림 기준을 쓰면 기준선이 0.17%p **낮아지는데**, 낮은 기준선은 **우리가 이기기 쉬워지는
+방향**이다. 오차가 작아도 **부호가 한쪽으로 쏠리면 그건 잡음이 아니라 편향**이다.
+
+## 이 모듈은 DB 를 모른다
+
+행 목록(`List[Dict]`)을 받아 숫자만 돌려준다. 자료를 어디서 어떻게 읽는지는 부르는 쪽의
+일이다. `evaluation/` 은 저장소를 직접 부르지 않는다는 경계
+(`tests/test_supply_boundary.py`)가 여기에도 적용된다.
+
+재현:
+    python scripts/measure_horizon.py
+"""
+
+from __future__ import annotations
+
+import math
+from typing import Dict, List, Sequence, Tuple
+
+#: 봉인 홀드아웃 시작일. 이 앞이 개발구간이다.
+HOLDOUT_START = "20210901"
+
+#: 3분류 중립 밴드. 예측 대상 ADR 이 못 박은 값이다.
+NEUTRAL_BAND = 0.01
+
+#: 왕복 거래비용 가정 (KOSPI200 ETF).
+#: ⚠️ **실측이 아니라 가정값**이다. 문서에도 그렇게 적는다.
+ROUND_TRIP_COST = 0.0005
+
+#: 연간 거래일 수. 회전 비용을 연율로 환산할 때 쓴다.
+TRADING_DAYS_PER_YEAR = 245
+
+#: 3분류가 통과해야 하는 클래스 비율 범위. 벗어나면 임계값을 조정하고
+#: **그 조정 1회를 시도 횟수 장부에 기록**해야 한다.
+CLASS_BALANCE_RANGE = (0.15, 0.45)
+
+
+def daily_baseline(rows: List[Dict]) -> Tuple[float, int, int, int]:
+    """KRX 원값 `change` 로 센 "항상 상승" 기준선.
+
+    반환: `(상승 비율, 상승, 하락, 보합)`
+
+    ⚠️ `change_rate` 를 쓰지 않는다. 이 모듈 맨 위에 그 이유가 있다.
+    """
+    up = sum(1 for r in rows if r.get("change") is not None and r["change"] > 0)
+    down = sum(1 for r in rows if r.get("change") is not None and r["change"] < 0)
+    flat = len(rows) - up - down
+    return (up / len(rows) if rows else float("nan")), up, down, flat
+
+
+def significance_threshold(baseline: float, n: int, z: float = 1.645) -> float:
+    """기준선을 단측 유의수준 5% 로 넘으려면 필요한 적중률.
+
+    정규근사다. `n` 이 1,000 단위면 이항분포와 거의 같다.
+    """
+    if n <= 0:
+        return float("nan")
+    return baseline + z * math.sqrt(baseline * (1.0 - baseline) / n)
+
+
+def mean_abs(values: Sequence[float]) -> float:
+    """기대 절대수익률. 손익분기 계산의 분모다."""
+    return sum(abs(v) for v in values) / len(values) if values else float("nan")
+
+
+def breakeven_accuracy(cost: float, expected_move: float) -> float:
+    """손익분기 방향정확도 — `0.5 + 왕복비용 / (2 × E|수익|)`.
+
+    ⚠️ *"방향 적중 여부와 수익 크기가 독립"* 이라는 **가정** 위에 있다. 큰 변동일이
+       예측하기 어렵다면 실제 손익분기는 **더 높다.**
+    """
+    if expected_move <= 0:
+        return float("nan")
+    return 0.5 + cost / (2.0 * expected_move)
+
+
+def annual_turnover_cost(hold_days: int, cost: float = ROUND_TRIP_COST) -> float:
+    """`hold_days` 마다 갈아탈 때의 연간 회전비용."""
+    if hold_days <= 0:
+        return float("nan")
+    return cost * TRADING_DAYS_PER_YEAR / hold_days
+
+
+def returns_1d_close(rows: List[Dict]) -> List[float]:
+    """1거래일 · 종가→종가.
+
+    ⚠️ 이 형태는 **실행할 수 없다** — 종가를 보고 판단했으면 빨라야 다음 날 시가에
+       들어간다. 비교용으로만 쓰고 체결 가정에는 쓰지 않는다.
+    """
+    return [rows[i + 1]["close"] / rows[i]["close"] - 1.0 for i in range(len(rows) - 1)]
+
+
+def returns_1d_open(rows: List[Dict]) -> List[float]:
+    """1거래일 · 시가(t+1)→시가(t+2). 우리 체결 규칙에 맞춘 형태다."""
+    return [rows[i + 2]["open"] / rows[i + 1]["open"] - 1.0 for i in range(len(rows) - 2)]
+
+
+def returns_5d_open(rows: List[Dict]) -> List[float]:
+    """5거래일 · 시가(t+1)→시가(t+6). 예측 대상 ADR 이 못 박은 형태다.
+
+    ⚠️ 시가(t)→시가(t+5) 로 잡으면 **t 일 장중 수익률이 라벨에 들어간다.** 조사에서
+       그 오염이 상관을 **10배** 부풀리는 것을 확인했다(+0.1709 대 +0.0171).
+       진입은 반드시 `t+1` 시가다.
+    """
+    return [rows[i + 6]["open"] / rows[i + 1]["open"] - 1.0 for i in range(len(rows) - 6)]
+
+
+def classify_3(returns: Sequence[float], band: float = NEUTRAL_BAND) -> Dict[str, int]:
+    """±`band` 3분류 분포."""
+    dist = {"상승": 0, "중립": 0, "하락": 0}
+    for r in returns:
+        if r > band:
+            dist["상승"] += 1
+        elif r < -band:
+            dist["하락"] += 1
+        else:
+            dist["중립"] += 1
+    return dist
+
+
+def class_balance_ok(dist: Dict[str, int]) -> bool:
+    """세 클래스가 전부 15~45% 안에 드는가.
+
+    벗어나면 임계값을 조정해야 하고, **그 조정 1회도 시도 횟수**다.
+    """
+    total = sum(dist.values())
+    if not total:
+        return False
+    low, high = CLASS_BALANCE_RANGE
+    return all(low <= n / total <= high for n in dist.values())
+
+
+def split_dev(rows: List[Dict], holdout_start: str = HOLDOUT_START) -> List[Dict]:
+    """개발구간만 남긴다.
+
+    **기본값이 안전한 쪽이다** — 부르는 쪽이 아무것도 안 정하면 봉인 구간이 빠진다.
+    홀드아웃을 보려면 명시적으로 `split_holdout` 을 불러야 한다.
+    """
+    return [r for r in rows if r["bas_dd"] < holdout_start]
+
+
+def split_holdout(rows: List[Dict], holdout_start: str = HOLDOUT_START) -> List[Dict]:
+    """봉인 홀드아웃 구간.
+
+    🔴 **여기서 본 값으로 설계를 고치면 봉인이 하는 일이 없어진다.**
+       무엇을 왜 봤는지 문서에 남기고 쓴다.
+    """
+    return [r for r in rows if r["bas_dd"] >= holdout_start]
