@@ -184,6 +184,37 @@ def _save(bas_dd: str, market: str, items: List[Dict]) -> int:
     return len(rows)
 
 
+def save_renormalized(bas_dd: str, market: str, items: List[Dict]) -> int:
+    """보존된 원문으로 다시 정규화한 결과를 **가격 표에만** 쓴다.
+
+    ## 🔴 이걸 안 만들어서 지금까지 시각이 오염되고 있었다
+
+    재정규화가 `_save` 를 그대로 불렀다. 그러면 `index_fetch_log.fetched_at` 과
+    수집 대장의 `last_success_at` 이 **오늘로 덮인다.**
+
+    그런데 그 시각은 *"우리가 이 사실을 언제부터 알 수 있었나"* 의 근거다. 재정규화는
+    **자료를 새로 받은 것이 아니라 같은 원문을 다시 읽은 것**이므로 시각이 움직이면
+    안 된다. 미래참조 방지의 바닥이 무너지는데 **예외도 경고도 없다.**
+
+    그래서 이 함수는 `index_price` 만 건드린다.
+
+    ⚠️ `market` 은 받되 표에는 쓰지 않는다 — 지수 행은 `index_class` 를 자기가 들고
+       있고, 지수명이 전역에서 유일하다. 인자로 두는 것은 종목 쪽과 **부르는 모양을
+       같게** 하기 위해서다(재정규화 스크립트가 한 분기표로 다룬다).
+    """
+    rows = [tuple([bas_dd] + [item.get(col) for col in COLUMNS[1:]]) for item in items]
+    if not rows:
+        return 0                       # 쓸 것이 없으면 아무것도 건드리지 않는다
+
+    placeholders = ",".join("?" * len(COLUMNS))
+    with write_lock, connect() as conn:
+        conn.executemany(
+            f"INSERT OR REPLACE INTO index_price ({','.join(COLUMNS)}) VALUES ({placeholders})",
+            rows,
+        )
+    return len(rows)
+
+
 def fetch_date(bas_dd: str, market: str) -> int:
     """한 거래일의 지수 전부를 받아 저장한다."""
     return _save(bas_dd, market, api.fetch_index_snapshot(bas_dd, market))
