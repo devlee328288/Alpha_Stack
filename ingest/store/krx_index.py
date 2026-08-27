@@ -35,9 +35,9 @@ from ingest.clients import krx_data as api
 from ingest.store import collect_log
 from ingest.store.krx_store import (
     DB_PATH,  # 같은 DB 파일을 쓴다
-    _write_lock,  # 같은 파일을 쓰므로 자물쇠도 같은 것을 써야 한다
     connect,
 )
+from ingest.store.sqlite_db import write_lock  # 같은 파일에 쓰므로 자물쇠도 같은 것
 
 # 수집 대장에 남길 출처 이름. 종목 쪽과 갈라 둔다 — 같은 날짜라도 "종목은 받았고
 # 지수는 안 받은" 상태가 실재하므로 한 이름으로 묶으면 서로의 진행을 지운다.
@@ -120,7 +120,7 @@ DATA_START = "20100104"
 
 def init_db() -> None:
     """표와 인덱스를 만든다. 이미 있으면 아무 일도 하지 않는다."""
-    with _write_lock, connect() as conn:
+    with write_lock, connect() as conn:
         conn.executescript(SCHEMA)
     # 수집 대장은 이 파일의 SCHEMA 가 아니라 마이그레이션이 만든다 — 이미 900만 행이
     # 든 DB 에 칸을 얹으려면 버전 관리가 필요하고, DDL 을 두 곳에 두면 언젠가 갈라진다.
@@ -159,7 +159,7 @@ def _save(bas_dd: str, market: str, items: List[Dict]) -> int:
     rows = [tuple([bas_dd] + [item.get(col) for col in COLUMNS[1:]]) for item in items]
     placeholders = ",".join("?" * len(COLUMNS))
 
-    with _write_lock, connect() as conn:
+    with write_lock, connect() as conn:
         conn.executemany(
             f"INSERT OR REPLACE INTO index_price ({','.join(COLUMNS)}) VALUES ({placeholders})",
             rows,

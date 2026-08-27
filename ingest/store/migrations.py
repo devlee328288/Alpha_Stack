@@ -71,6 +71,18 @@ class MigrationError(RuntimeError):
 #
 # 문장은 전부 **여러 번 돌려도 같은 결과**여야 한다(`IF NOT EXISTS`). 이 파일이 도입되기
 # 전에 만들어진 DB 는 `user_version` 이 0 이면서 기본 표는 이미 갖고 있기 때문이다.
+#
+# 🔴 **번호는 이름이 아니라 인덱스다.** `migrate()` 는 `range(현재, LATEST_VERSION)` 으로
+#    도므로, 두 갈래에서 각자 "다음은 v5" 라고 붙인 채 합쳐지면 **이미 v5 를 적용한 DB 는
+#    나중에 v5 자리에 들어온 항목을 영원히 건너뛴다.** 예외도 경고도 없다.
+#
+#    그래서 번호를 **미리 배정하고 그 순서대로 직렬로만 합친다.**
+#
+#      v5  공시 시점정합 (dart_disclosure · dart_financial)   예약
+#      v6  거시 통계 (macro_series)                            예약
+#      v7  다음 빈 번호
+#
+#    배정표는 `ingest/store/sqlite_db.py` 에도 있다. 둘을 함께 고친다.
 MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
     (
         "v1: 수집 대장 · 호출 예산",

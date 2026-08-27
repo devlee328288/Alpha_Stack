@@ -17,7 +17,7 @@ KRX OpenAPI 는 **하루치 전 종목 스냅샷**만 준다. 캔들 차트나 �
 from __future__ import annotations
 
 import sqlite3  # 파일 기반 DB (표준 라이브러리)
-import threading  # 쓰기 직렬화용 자물쇠
+import threading  # 라이브 조회 캐시 자물쇠 (쓰기 자물쇠는 sqlite_db 것을 쓴다)
 import time  # 라이브 조회 메모리 캐시 TTL
 from contextlib import contextmanager  # 직접 만드는 with 블록
 from datetime import datetime, timedelta
@@ -31,6 +31,7 @@ from ingest.store import (
     krx_bundle,  # 배포용 축약본 (원본이 없을 때의 대타)
     krx_pg,  # Postgres 읽기 어댑터 (전환 S4 · ADR-DS-0015)
 )
+from ingest.store.sqlite_db import write_lock  # 같은 파일에 쓰는 모듈이 공유한다
 
 # DB 경로 계산은 `common/paths.py` 로 내렸다.
 #
@@ -116,9 +117,12 @@ def connect():
         conn.close()                      # 예외가 나도 반드시 닫는다
 
 
-# SQLite 는 동시에 한 연결만 쓸 수 있다. 쓰기를 줄 세워 잠금 충돌 자체를 없앤다.
-# (읽기는 WAL 덕분에 잠금과 무관하므로 이 자물쇠를 거치지 않는다.)
-_write_lock = threading.Lock()
+# 쓰기 자물쇠는 **같은 DB 파일에 쓰는 모듈이 공유해야** 한다. 모듈마다 따로 만들면
+# 자물쇠가 둘이 되어 없는 것과 같아진다. 그래서 sqlite_db 로 옮겼다.
+#
+# ⚠️ `_write_lock` 은 옛 이름이다. 밑줄이 "밖에서 쓰지 말라" 는 뜻인데 실제로는
+#    krx_index 가 밖에서 쓰고 있었다. 새 코드는 `write_lock` 을 쓴다.
+_write_lock = write_lock
 
 
 def init_db() -> None:
