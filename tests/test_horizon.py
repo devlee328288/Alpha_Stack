@@ -160,3 +160,107 @@ def test_두_구간은_겹치지_않고_합치면_전체다():
 
     assert len(개발) + len(홀드) == len(rows)
     assert not ({r["bas_dd"] for r in 개발} & {r["bas_dd"] for r in 홀드})
+
+
+# ── 종목 구멍 처리 ──────────────────────────────────────────────────────────
+
+def test_거래정지_구간을_5일수익률로_세지_않는다():
+    """🔴 이 테스트가 이 파일에서 가장 중요하다.
+
+    종목은 **거래정지로 행이 비는데**, 행 번호로 "5거래일 뒤" 를 세면 정지 구간을
+    통째로 건너뛴 값이 5일 수익률로 둔갑한다. 아래는 그 상황이다 — 종목이
+    `0107` 다음 한 달을 쉬고 `0203` 에 돌아오는데, 그 사이 주가가 2배가 됐다.
+
+    행 번호로 세면 +100% 가 "5일 수익률" 로 들어간다. 달력으로 세면 **버려진다.**
+    """
+    # 시장은 1월 내내 열려 있었다. 멈춘 것은 이 종목이다.
+    달력 = horizon.trading_day_index(
+        [f"202001{d:02d}" for d in range(2, 32)]
+        + [f"202002{d:02d}" for d in range(3, 8)]
+    )
+    종목 = [_행("20200102", open_=100), _행("20200103", open_=100),
+            _행("20200106", open_=100), _행("20200107", open_=100),
+            _행("20200203", open_=200), _행("20200204", open_=200),
+            _행("20200205", open_=200), _행("20200206", open_=200),
+            _행("20200207", open_=200)]
+
+    구멍무시 = horizon.returns_5d_open(종목)
+    구멍인식 = horizon.returns_5d_open_gapless(종목, 달력)
+
+    # 행 번호로 세면 정지 구간을 건너뛴 +100% 가 섞인다.
+    assert any(r > 0.9 for r in 구멍무시)
+    # 달력으로 세면 진입·청산이 정확히 5거래일 떨어진 쌍만 남는다.
+    assert 구멍인식 == []
+
+
+def test_구멍이_없으면_두_계산이_같다():
+    """정지가 없는 종목에서는 기존 계산과 결과가 같아야 한다.
+
+    다르면 새 함수가 멀쩡한 행까지 버리고 있다는 뜻이다.
+    """
+    날짜 = [f"202001{d:02d}" for d in range(2, 20)]
+    달력 = horizon.trading_day_index(날짜)
+    종목 = [_행(d, open_=100 + i) for i, d in enumerate(날짜)]
+
+    assert horizon.returns_5d_open_gapless(종목, 달력) == horizon.returns_5d_open(종목)
+
+
+def test_시가가_없는_날은_진입하지_않는다():
+    """시가 0 은 체결 가정이 불가능하다. 나누면 조용히 폭발한다."""
+    날짜 = [f"202001{d:02d}" for d in range(2, 12)]
+    달력 = horizon.trading_day_index(날짜)
+    종목 = [_행(d, open_=100) for d in 날짜]
+    종목[1]["open"] = 0          # 첫 진입일의 시가가 없다
+
+    수익 = horizon.returns_5d_open_gapless(종목, 달력)
+
+    # 진입 후보 4개 중 시가가 0 인 첫 날이 빠져 3개가 남는다.
+    assert len(수익) == 3
+    assert all(math.isfinite(r) for r in 수익)
+
+
+# ── 중첩 레이블 보정 ────────────────────────────────────────────────────────
+
+def test_중첩_분산팽창계수는_알려진_값과_맞는다():
+    """h=5 의 이론값은 3.78 이다.
+
+    rho_k = (2/pi)·arcsin(1 - k/5) = 0.590 / 0.410 / 0.262 / 0.128
+    VIF = 1 + 2·(합) = 3.78
+    """
+    assert abs(horizon.overlap_vif(5) - 3.78) < 0.01
+    assert horizon.overlap_vif(1) == 1.0      # 중첩이 없으면 보정도 없다
+
+
+def test_지평이_길수록_실효표본이_더_준다():
+    assert horizon.overlap_vif(2) < horizon.overlap_vif(5) < horizon.overlap_vif(10)
+
+
+def test_중첩_보정이_유의임계를_실제로_올린다():
+    """🔴 이 테스트가 핵심이다.
+
+    우리 문서가 적어 온 54.99% 는 iid 가정에서 나온 값이다. 레이블이 5일 중첩인데
+    그 보정을 빠뜨리면 **유의하지 않은 것을 유의하다고 말하게 된다.**
+    """
+    iid = horizon.significance_threshold(0.5264, 1217)
+    보정 = horizon.significance_threshold_overlapping(0.5264, 1217, horizon=5)
+
+    assert abs(iid - 0.5499) < 0.0005        # 문서에 적힌 값이 재현된다
+    assert 보정 > iid                          # 보정은 반드시 임계를 올린다
+    assert abs(보정 - 0.5722) < 0.0010        # 실제로 2.2%p 위다
+
+
+def test_실측_분산팽창계수는_자기상관을_잡는다():
+    """완전 자기상관 계열은 VIF 가 커야 하고, 번갈아 뒤집히면 1 로 잘려야 한다."""
+    뭉친것 = [0.0] * 50 + [1.0] * 50          # 강한 양의 자기상관
+    번갈아 = [float(i % 2) for i in range(100)]  # 음의 자기상관
+
+    assert horizon.empirical_vif(뭉친것, 5) > 3.0
+    # 음의 자기상관으로 표준오차를 줄이지는 않는다 — 우리에게 유리한 보정은 안 한다
+    assert horizon.empirical_vif(번갈아, 5) == 1.0
+
+
+def test_보정은_주_검정에_쓰는_것이_아니다():
+    """vif=1 을 명시하면 iid 판과 같아야 한다 — 주 검정 d_t 쪽 경로다."""
+    a = horizon.significance_threshold(0.5264, 1217)
+    b = horizon.significance_threshold_overlapping(0.5264, 1217, horizon=5, vif=1.0)
+    assert abs(a - b) < 1e-12

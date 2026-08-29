@@ -70,6 +70,81 @@ def significance_threshold(baseline: float, n: int, z: float = 1.645) -> float:
     return baseline + z * math.sqrt(baseline * (1.0 - baseline) / n)
 
 
+def overlap_vif(horizon: int) -> float:
+    """중첩 레이블의 분산팽창계수 — 이론값.
+
+    🔴 **왜 필요한가.** 매일 `horizon` 일 앞을 보는 레이블을 만들면 이웃한 관측이
+       `horizon-1` 일을 공유한다. 적중 여부가 자기상관을 갖고, iid 를 가정한
+       표준오차는 **너무 작게** 나온다. 즉 유의하지 않은 것을 유의하다고 말하게 된다.
+
+    부호 지시자의 자기상관은 가우시안 가정에서 닫힌 형태로 나온다:
+
+        rho_k = (2/pi) * arcsin(1 - k/horizon)      (k = 1 .. horizon-1)
+        VIF   = 1 + 2 * sum(rho_k)
+
+    `horizon=5` 면 rho = 0.590 / 0.410 / 0.262 / 0.128 이고 **VIF = 3.78** 이다.
+    실효 표본이 1/3.78 로 줄어든다는 뜻이다.
+
+    ⚠️ 이건 **이론 앵커**다. 실제 적중 계열은 예측의 지속성까지 얹히므로 보통 더 크다.
+       실측이 가능하면 `empirical_vif` 를 쓰고, 이 값은 대조용으로만 본다.
+    """
+    if horizon <= 1:
+        return 1.0
+    rho = [(2.0 / math.pi) * math.asin(1.0 - k / horizon) for k in range(1, horizon)]
+    return 1.0 + 2.0 * sum(rho)
+
+
+def empirical_vif(hits: Sequence[float], horizon: int) -> float:
+    """적중 계열에서 직접 잰 분산팽창계수.
+
+    `hits` 는 0/1 적중 지시자다. `horizon-1` 시차까지의 자기상관을 더한다.
+
+    ⚠️ 음의 자기상관이 나와 VIF 가 1 아래로 내려가면 1 로 자른다. 표준오차를
+       **줄이는** 방향으로는 보정하지 않는다 — 우리에게 유리한 쪽으로 기우는 보정은
+       하지 않는다는 뜻이다.
+    """
+    n = len(hits)
+    if n < 2 or horizon <= 1:
+        return 1.0
+    mean = sum(hits) / n
+    dev = [h - mean for h in hits]
+    denom = sum(d * d for d in dev)
+    if denom <= 0:
+        return 1.0
+    rho = [
+        sum(dev[i] * dev[i + k] for i in range(n - k)) / denom
+        for k in range(1, min(horizon, n))
+    ]
+    return max(1.0, 1.0 + 2.0 * sum(rho))
+
+
+def significance_threshold_overlapping(
+    baseline: float,
+    n: int,
+    horizon: int,
+    z: float = 1.645,
+    vif: float | None = None,
+) -> float:
+    """중첩 레이블을 감안한 유의 임계.
+
+    `significance_threshold` 는 관측이 서로 독립이라고 본다. 매일 예측하는
+    `horizon` 일 레이블에서는 그 가정이 깨지고 임계가 **너무 낮게** 나온다.
+
+    우리 숫자로: 기준선 52.64% · N=1,217 · horizon=5 면
+    iid 로는 **54.99%** 지만 중첩을 반영하면 **57.2%** 다. 2.2%p 나 느슨했다.
+
+    ⚠️ ADR-AS-0004 §5 는 방향정확도를 **임계 없는 보조 지표**로 정했다. 이 함수는
+       그 보조 지표를 정직하게 읽기 위한 것이지, 기각 판정에 쓰라는 것이 아니다.
+       주 검정은 일간 초과수익 `d_t` 의 평균이고 **그쪽은 중첩 문제가 없다**
+       (같은 날의 손익을 두 번 세지 않는다).
+    """
+    if n <= 0:
+        return float("nan")
+    factor = overlap_vif(horizon) if vif is None else vif
+    se = math.sqrt(baseline * (1.0 - baseline) / n * factor)
+    return baseline + z * se
+
+
 def mean_abs(values: Sequence[float]) -> float:
     """기대 절대수익률. 손익분기 계산의 분모다."""
     return sum(abs(v) for v in values) / len(values) if values else float("nan")
@@ -115,6 +190,46 @@ def returns_5d_open(rows: List[Dict]) -> List[float]:
        진입은 반드시 `t+1` 시가다.
     """
     return [rows[i + 6]["open"] / rows[i + 1]["open"] - 1.0 for i in range(len(rows) - 6)]
+
+
+def trading_day_index(all_days: Sequence[str]) -> Dict[str, int]:
+    """거래일 문자열을 0,1,2… 순번으로 바꾼 표.
+
+    시장 전체의 거래일 달력이다. 종목별 행에는 **구멍이 있다**(거래정지·상장 전·
+    상장폐지 후). 그래서 종목의 행 번호로 "5거래일 뒤"를 세면 안 되고,
+    이 달력의 순번으로 세야 한다.
+    """
+    return {d: i for i, d in enumerate(sorted(set(all_days)))}
+
+
+def returns_5d_open_gapless(
+    rows: List[Dict],
+    day_index: Dict[str, int],
+    horizon: int = 5,
+) -> List[float]:
+    """종목용 5거래일 · 시가(t+1)→시가(t+6). **구멍을 건너뛰지 않는다.**
+
+    🔴 **왜 `returns_5d_open` 을 그대로 쓰면 안 되나.** 그 함수는 행 번호로 센다.
+       지수는 휴장일 말고 구멍이 없어서 맞지만, **종목은 거래정지가 있다.**
+       3개월 정지된 종목이면 `rows[i+6]` 이 3개월 뒤 행이고, 그걸 "5일 수익률" 로
+       세면 수익 크기가 통째로 부풀려진다. **에러는 나지 않는다.**
+
+       실제로 이 저장소에는 중도 소멸 종목이 910개 있고(상장폐지·합병), 정지 구간을
+       가진 종목은 그보다 많다.
+
+    이 함수는 시장 거래일 달력(`day_index`)으로 거리를 재서, 진입일과 청산일이
+    **정확히 `horizon` 거래일** 떨어진 경우만 남긴다.
+    """
+    out: List[float] = []
+    for i in range(len(rows) - horizon - 1):
+        entry, exit_ = rows[i + 1], rows[i + 1 + horizon]
+        ei, xi = day_index.get(entry["bas_dd"]), day_index.get(exit_["bas_dd"])
+        if ei is None or xi is None or xi - ei != horizon:
+            continue
+        if not entry.get("open"):
+            continue
+        out.append(exit_["open"] / entry["open"] - 1.0)
+    return out
 
 
 def classify_3(returns: Sequence[float], band: float = NEUTRAL_BAND) -> Dict[str, int]:
