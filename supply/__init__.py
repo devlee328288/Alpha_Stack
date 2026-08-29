@@ -31,20 +31,42 @@
 
 from supply.clock import (
     AsOfRequired,
+    as_bas_dd,
     is_known,
     known_at,
     latest_known_day,
     to_kst,
 )
-from supply.market import TARGET_INDEX, as_of_bounds, index_series
+from supply.market import (
+    INDEX_COLUMNS,
+    PRICE_COLUMNS,
+    TARGET_INDEX,
+    as_of_bounds,
+    index_series,
+    price_series,
+    to_frame,
+)
+from supply.training import MarketContext, market_context, training_frame, training_frames
 
 __all__ = [
+    # 시각·경계
     "AsOfRequired",
-    "TARGET_INDEX",
+    "as_bas_dd",
     "as_of_bounds",
-    "index_series",
     "is_known",
     "known_at",
     "latest_known_day",
     "to_kst",
+    # 예측 경로 — as_of 를 내고 그 시점에 알 수 있었던 것만 받는다
+    "INDEX_COLUMNS",
+    "PRICE_COLUMNS",
+    "TARGET_INDEX",
+    "index_series",
+    "price_series",
+    "to_frame",
+    # 학습 경로 — 여기서만 미래를 본다 (supply/training.py 를 읽고 쓴다)
+    "MarketContext",
+    "market_context",
+    "training_frame",
+    "training_frames",
 ]
