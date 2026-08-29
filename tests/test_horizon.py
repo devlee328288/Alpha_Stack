@@ -217,3 +217,50 @@ def test_시가가_없는_날은_진입하지_않는다():
     # 진입 후보 4개 중 시가가 0 인 첫 날이 빠져 3개가 남는다.
     assert len(수익) == 3
     assert all(math.isfinite(r) for r in 수익)
+
+
+# ── 중첩 레이블 보정 ────────────────────────────────────────────────────────
+
+def test_중첩_분산팽창계수는_알려진_값과_맞는다():
+    """h=5 의 이론값은 3.78 이다.
+
+    rho_k = (2/pi)·arcsin(1 - k/5) = 0.590 / 0.410 / 0.262 / 0.128
+    VIF = 1 + 2·(합) = 3.78
+    """
+    assert abs(horizon.overlap_vif(5) - 3.78) < 0.01
+    assert horizon.overlap_vif(1) == 1.0      # 중첩이 없으면 보정도 없다
+
+
+def test_지평이_길수록_실효표본이_더_준다():
+    assert horizon.overlap_vif(2) < horizon.overlap_vif(5) < horizon.overlap_vif(10)
+
+
+def test_중첩_보정이_유의임계를_실제로_올린다():
+    """🔴 이 테스트가 핵심이다.
+
+    우리 문서가 적어 온 54.99% 는 iid 가정에서 나온 값이다. 레이블이 5일 중첩인데
+    그 보정을 빠뜨리면 **유의하지 않은 것을 유의하다고 말하게 된다.**
+    """
+    iid = horizon.significance_threshold(0.5264, 1217)
+    보정 = horizon.significance_threshold_overlapping(0.5264, 1217, horizon=5)
+
+    assert abs(iid - 0.5499) < 0.0005        # 문서에 적힌 값이 재현된다
+    assert 보정 > iid                          # 보정은 반드시 임계를 올린다
+    assert abs(보정 - 0.5722) < 0.0010        # 실제로 2.2%p 위다
+
+
+def test_실측_분산팽창계수는_자기상관을_잡는다():
+    """완전 자기상관 계열은 VIF 가 커야 하고, 번갈아 뒤집히면 1 로 잘려야 한다."""
+    뭉친것 = [0.0] * 50 + [1.0] * 50          # 강한 양의 자기상관
+    번갈아 = [float(i % 2) for i in range(100)]  # 음의 자기상관
+
+    assert horizon.empirical_vif(뭉친것, 5) > 3.0
+    # 음의 자기상관으로 표준오차를 줄이지는 않는다 — 우리에게 유리한 보정은 안 한다
+    assert horizon.empirical_vif(번갈아, 5) == 1.0
+
+
+def test_보정은_주_검정에_쓰는_것이_아니다():
+    """vif=1 을 명시하면 iid 판과 같아야 한다 — 주 검정 d_t 쪽 경로다."""
+    a = horizon.significance_threshold(0.5264, 1217)
+    b = horizon.significance_threshold_overlapping(0.5264, 1217, horizon=5, vif=1.0)
+    assert abs(a - b) < 1e-12
