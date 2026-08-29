@@ -381,30 +381,39 @@ def latest_date() -> Optional[str]:
     return krx_bundle.latest_date()
 
 
-def available_dates(limit: int = 400) -> List[str]:
+def available_dates(limit: int = 400, end: Optional[str] = None) -> List[str]:
     """데이터가 있는 거래일 목록 (최근순). 화면의 날짜 선택 범위로 쓴다.
 
     원본이 비면 **파생 캘린더**(`krx_derived.json`)를 먼저 본다. 축약본 DB 는 150거래일뿐이지만
     파생 캘린더는 캐시 전 구간(282거래일)을 담고 있어, 전처리에 넘길 거래일 축이 더 길다.
+
+    `end` 를 주면 **그 거래일 이하**에서 최근 `limit` 개를 고른다. `window()` 가 상한을
+    걸 때 쓴다 — 상한 없이 최근 N일을 고르면 그 목록 자체가 이미 미래를 담는다.
     """
     if _postgres():
         found = krx_pg.available_dates(limit=limit)
         if found:
-            return found
+            return [d for d in found if not end or d <= end][:limit]
     else:
         init_db()
+        sql = "SELECT DISTINCT bas_dd FROM daily_price"
+        params: List = []
+        if end:
+            sql += " WHERE bas_dd <= ?"
+            params.append(end)
         with connect() as conn:
-            rows = conn.execute(
-                "SELECT DISTINCT bas_dd FROM daily_price ORDER BY bas_dd DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute(sql + " ORDER BY bas_dd DESC LIMIT ?",
+                                [*params, limit]).fetchall()
         if rows:
             return [r[0] for r in rows]
 
     # 파생 캘린더는 `YYYY-MM-DD` 오름차순이라 이 함수의 계약(`YYYYMMDD` 최근순)에 맞춰 돌려준다
     calendar = krx_bundle.trading_days(limit=limit)
     if calendar:
-        return [d.replace("-", "") for d in reversed(calendar)]
-    return krx_bundle.available_dates(limit=limit)
+        days = [d.replace("-", "") for d in reversed(calendar)]
+    else:
+        days = krx_bundle.available_dates(limit=limit)
+    return [d for d in days if not end or d <= end][:limit]
 
 
 def snapshot_tiered(bas_dd: str, market: Optional[str] = None) -> Tuple[List[Dict], str]:
@@ -509,20 +518,24 @@ def clear_live_cache() -> int:
     return dropped
 
 
-def series_tiered(code: str, days: int = 250,
-                  end: Optional[str] = None) -> Tuple[List[Dict], str]:
+def series_tiered(code: str, days: Optional[int] = 250, end: Optional[str] = None,
+                  start: Optional[str] = None) -> Tuple[List[Dict], str]:
     """`series()` 와 같되 **어느 층에서 나왔는지**를 함께 돌려준다 — `(행 목록, tier)`.
 
     출처를 응답에 싣는 호출자는 반드시 이쪽을 쓴다 (ADR-DS-0009 §5).
     종목 단위로 갈리므로, 저장소 전체 상태인 `tier()` 로는 알 수 없다 —
     원본이 차 있어도 **그 종목만** 없으면 번들로 내려간다.
+
+    `days=None` 이면 개수를 자르지 않는다. 라벨과 정리매매 판정은 **종목 이력의 양 끝**에
+    의존해서, 최근 250일만 떼어 오면 잘린 자리가 곧 "체결 단절" 로 보인다.
+    `start` 는 하한이다 (`bas_dd >= start`).
     """
     if _postgres():
         # 어댑터가 이미 오름차순으로 준다 (뒤집기까지 그쪽에서 끝낸다).
-        ordered = krx_pg.series(code, days=days, end=end)
+        ordered = krx_pg.series(code, days=days or 10_000, end=end)
         if ordered:
-            return ordered, "db"
-        return _series_fallback(code, days=days, end=end)
+            return [r for r in ordered if not start or r.get("date", "") >= to_iso(start)], "db"
+        return _series_fallback(code, days=days, end=end, start=start)
 
     init_db()
     sql = "SELECT * FROM daily_price WHERE code = ?"
@@ -530,35 +543,48 @@ def series_tiered(code: str, days: int = 250,
     if end:
         sql += " AND bas_dd <= ?"
         params.append(end)
+    if start:
+        sql += " AND bas_dd >= ?"
+        params.append(start)
     # 최근 것부터 days 개를 가져온 뒤 파이썬에서 뒤집는다 (차트는 왼쪽이 과거)
-    sql += " ORDER BY bas_dd DESC LIMIT ?"
-    params.append(days)
+    sql += " ORDER BY bas_dd DESC"
+    if days is not None:
+        sql += " LIMIT ?"
+        params.append(days)
 
     with connect() as conn:
         rows = conn.execute(sql, params).fetchall()
     if rows:
         return list(reversed(_rows_to_dicts(rows))), "db"
-    return _series_fallback(code, days=days, end=end)
+    return _series_fallback(code, days=days, end=end, start=start)
 
 
-def _series_fallback(code: str, days: int, end: Optional[str]) -> Tuple[List[Dict], str]:
+def _series_fallback(code: str, days: Optional[int], end: Optional[str],
+                     start: Optional[str] = None) -> Tuple[List[Dict], str]:
     """정본 저장소에 그 종목이 없을 때의 아랫단. **두 저장소가 이것을 함께 쓴다.**
 
     사다리를 한 벌만 두는 것이 뜻을 가진다 — 백엔드마다 폴백이 갈리면
     `STORE_BACKEND` 를 되돌리는 일이 "환경변수 한 줄"이 아니라 "두 동작 중 고르기"가 된다.
+
+    ⚠️ 축약본에는 `start` 손잡이가 없어 파이썬에서 자른다. 150거래일뿐이라 값이 싸다.
     """
     # 축약본도 내림차순으로 주므로 같은 방식으로 뒤집는다 (차트는 왼쪽이 과거)
-    fallback = list(reversed(_rows_to_dicts(krx_bundle.series(code, days=days, end=end))))
+    raw = krx_bundle.series(code, days=days or 10_000, end=end)
+    fallback = list(reversed(_rows_to_dicts(raw)))
+    if start:
+        floor = to_iso(start)
+        fallback = [r for r in fallback if r.get("date") and r["date"] >= floor]
     # 축약본에도 없으면 "번들에서 왔다" 고 말할 근거가 없다. 저장소가 서 있는 층을 그대로 밝힌다.
     return fallback, "bundle" if fallback else tier()
 
 
-def series(code: str, days: int = 250, end: Optional[str] = None) -> List[Dict]:
+def series(code: str, days: Optional[int] = 250, end: Optional[str] = None,
+           start: Optional[str] = None) -> List[Dict]:
     """종목 하나의 일봉 시계열 (날짜 오름차순).
 
     인덱스(idx_code_date) 덕분에 69만 행 중 해당 종목만 곧바로 찾아낸다.
     """
-    return series_tiered(code, days=days, end=end)[0]
+    return series_tiered(code, days=days, end=end, start=start)[0]
 
 
 def lookup_security(code_or_name: str) -> Optional[Dict]:
@@ -646,11 +672,18 @@ def closes_matrix(codes: Sequence[str], days: int = 250) -> Dict[str, List[int]]
 
 def window(days: int = 60,
            columns: Sequence[str] = ("code", "bas_dd", "close", "value", "volume"),
+           end: Optional[str] = None,
            ) -> List[Dict]:
     """최근 `days` 거래일치를 필요한 컬럼만 골라 한 번에 읽어 온다.
 
     스크리닝·팩터·효율적 투자선은 모두 "전 종목 × 최근 N일" 을 훑어야 한다.
     종목마다 따로 조회하면 2,700번 질의하게 되므로, 한 방에 읽어 파이썬에서 묶는다.
+
+    🔴 **`end` 가 없으면 `as_of` 로 감싸도 오늘까지 딸려 나온다.**
+    이 함수에는 하한만 있었다. 그래서 2020년 폴드를 학습하면서 불러도 2026년 행이
+    함께 나왔고, `supply/` 가 그 결과를 다시 자르지 않는 한 미래가 그대로 섞였다.
+    **예외는 나지 않는다 — 성능만 좋아진다.** 상한을 거는 데 드는 비용은 없다.
+    `bas_dd` 가 기본키의 첫 칸이라 범위 조건이 그대로 인덱스를 탄다.
 
     ⚠️ 정렬 기준이 성능을 좌우한다.
     `ORDER BY code, bas_dd` 로 쓰면 SQLite 가 `idx_code_date` 를 타면서 64만 건을 전부 훑고
@@ -664,23 +697,48 @@ def window(days: int = 60,
     """
     if _postgres():
         rows = krx_pg.window(days=days, columns=columns)
-        return rows if rows else krx_bundle.window(days=days, columns=columns)
+        rows = rows if rows else krx_bundle.window(days=days, columns=columns)
+        return _trim_to_end(rows, end, days)
 
     init_db()
     if _cache_is_empty():
-        return krx_bundle.window(days=days, columns=columns)
+        return _trim_to_end(krx_bundle.window(days=days, columns=columns), end, days)
 
-    dates = available_dates(limit=days)
+    dates = available_dates(limit=days, end=end)
     if not dates:
         return []
     floor = min(dates)                       # 가장 오래된 대상 거래일
 
     cols = ",".join(columns)
+    sql = f"SELECT {cols} FROM daily_price WHERE bas_dd >= ?"
+    params: List = [floor]
+    if end:
+        sql += " AND bas_dd <= ?"
+        params.append(end)
     with connect() as conn:
-        rows = conn.execute(
-            f"SELECT {cols} FROM daily_price WHERE bas_dd >= ? ORDER BY bas_dd", (floor,)
-        ).fetchall()
+        rows = conn.execute(sql + " ORDER BY bas_dd", params).fetchall()
     return [dict(r) for r in rows]
+
+
+def _trim_to_end(rows: List[Dict], end: Optional[str], days: int) -> List[Dict]:
+    """아랫단(축약본·Postgres)이 준 결과를 파이썬에서 상한까지 자른다.
+
+    그쪽 함수들에는 `end` 손잡이가 없다. 손잡이를 세 곳에 다는 대신 여기서 한 번
+    자르는 이유는, 두 아랫단이 **정본이 비었을 때만** 쓰이는 비상 경로라
+    자를 양이 애초에 작기 때문이다(축약본은 150거래일뿐이다).
+
+    ⚠️ 자르고 나면 거래일 수가 `days` 보다 적어질 수 있다. 그건 정상이다 —
+       상한 이전에 그만큼밖에 없다는 뜻이지 자료가 빠진 것이 아니다.
+    """
+    if not end or not rows:
+        return rows
+    kept = [r for r in rows if r.get("bas_dd") and r["bas_dd"] <= end]
+    if not kept:
+        return []
+    # 상한으로 자르면 앞쪽이 남으므로 최근 `days` 거래일만 다시 고른다.
+    최근 = sorted({r["bas_dd"] for r in kept}, reverse=True)[:days]
+    바닥 = min(최근)
+    return [r for r in kept if r["bas_dd"] >= 바닥]
 
 
 def stats() -> Dict:

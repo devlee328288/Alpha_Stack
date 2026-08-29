@@ -369,7 +369,7 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 | **호출 예산** 80% 경고·100% 정상종료 | [common/budget.py](common/budget.py) | 테스트 13개 통과 |
 | **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 23개 · 옛 이력 8,686건 이관 완료 |
 | **응답 원문 보존 + 재정규화** | [common/raw_store.py](common/raw_store.py) · [scripts/renormalize.py](scripts/renormalize.py) | 테스트 15개 · gzip 18.7~24.6% (실측) |
-| **`as_of` 정문** 미래 역류 차단 | [supply/](supply/) | 테스트 16개 · 경계를 테스트가 강제 |
+| **`as_of` 정문** 미래 역류 차단 | [supply/](supply/) 591줄 | 테스트 48개 · 예측 경로와 학습 경로를 **이름으로** 가름 |
 | **`robots.txt` 가드** 4xx 허용 / 5xx 차단 | [common/robots.py](common/robots.py) | 테스트 24개 · `protego==0.6.2` |
 | ★ **KOSPI200 시세** | 로컬 `data/krx_cache.db` (git 미추적) | **4,097거래일** · 2010-01-04~ |
 

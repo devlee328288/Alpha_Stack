@@ -35,7 +35,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Union
+from typing import Optional, Union
 
 from common.trading_calendar import KST
 
@@ -91,6 +91,44 @@ def known_at(bas_dd: str) -> datetime:
 def is_known(bas_dd: str, as_of: AsOf) -> bool:
     """`as_of` 시점에 그 거래일 자료를 알 수 있었는가."""
     return known_at(bas_dd) <= to_kst(as_of)
+
+
+def as_bas_dd(value: Optional[AsOf]) -> Optional[str]:
+    """날짜처럼 생긴 것을 **거래일 키(`YYYYMMDD`)** 하나로 맞춘다. `None` 은 그대로.
+
+    🔴 **왜 필요한가 — 문자열 비교가 조용히 뒤집힌다.**
+
+    거래일 경계를 정할 때 부르는 쪽이 준 `end` 와 `as_of` 가 만든 상한 중 **이른 쪽**을
+    골라야 한다. 그런데 둘을 문자열로 그냥 비교하면 표기가 다를 때 답이 뒤집힌다.
+
+        min('2026-08-21', '20260825') == '2026-08-21'
+
+    `'-'`(0x2D)가 `'0'`(0x30)보다 작아서 **하이픈이 든 쪽이 언제나 작다.** 그래서
+    `end='2026-08-21'` 처럼 ISO 로 주면 항상 그쪽이 이기고, 그 값이 `bas_dd <= ?` 에
+    들어가면 `'20260821' <= '2026-08-21'` 이 거짓이라 **결과가 0행**이 된다.
+    예외는 나지 않는다. 빈 표를 받은 쪽은 "그 구간에 자료가 없구나" 로 읽는다.
+
+    표기를 하나로 맞추면 그 실수 자체가 불가능해진다.
+
+    ⚠️ 여기서 **`as_of` 처럼 하루를 미루지 않는다.** 이 함수는 표기만 바꾼다.
+       "언제부터 알 수 있었나" 를 정하는 것은 `latest_known_day` 다. 둘을 섞으면
+       경계가 하루씩 어긋나는데 그 하루가 곧 누수다.
+    """
+    if value is None:
+        return None
+    if isinstance(value, str):
+        digits = value.replace("-", "").replace("/", "").replace(".", "").strip()
+        if len(digits) == 8 and digits.isdigit():
+            return digits
+        raise ValueError(
+            f"거래일로 읽을 수 없다: {value!r}\n"
+            "  쓸 수 있는 꼴: '20260821' · '2026-08-21'"
+        )
+    if isinstance(value, datetime):
+        return value.date().strftime("%Y%m%d")
+    if isinstance(value, date):
+        return value.strftime("%Y%m%d")
+    raise TypeError(f"거래일로 쓸 수 없는 값이다: {type(value).__name__}")
 
 
 def latest_known_day(as_of: AsOf) -> str:
