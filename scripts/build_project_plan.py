@@ -51,6 +51,7 @@ W_SCHEDULE = (Emu(660_000), Emu(940_000), Emu(880_000), Emu(940_000),
 W_ASSET = (Emu(1_700_000), Emu(560_000), Emu(3_140_675))
 W_MEASURED = (Emu(1_060_000), Emu(1_440_000), Emu(940_000), Emu(1_960_675))
 W_ROADMAP = (Emu(700_000), Emu(2_180_000), Emu(2_520_675))
+W_QFRS = (Emu(1_100_000), Emu(1_640_000), Emu(560_000), Emu(2_100_675))
 
 #: 본문 한글 글꼴. Word 가 eastAsia 를 따로 보기 때문에 둘 다 지정해야 한다.
 FONT_KO = "맑은 고딕"
@@ -406,22 +407,68 @@ SCHEDULE_ROWS = [
 
 ASSET_ROWS = [
     ["계층", "줄 수", "상태"],
-    ["ingest/ — 수집·적재", "7,229",
+    ["ingest/ — 수집·적재", "7,488",
      "동작 중. KRX 920만 행이 이 경로로 들어왔다"],
-    ["evaluation/ — 성과 검증", "732",
-     "동작 중. 모델 없이 단독으로 돈다. 테스트 52개"],
+    ["evaluation/ — 성과 검증", "772",
+     "동작 중. 모델 없이 단독으로 돈다. 테스트 55개"],
     ["supply/ — 시점정합 공급", "228",
      "동작 중. 미래 자료 접근을 테스트가 막는다"],
     ["common/ — 설정·경로·예산·robots", "2,348",
      "절반 동작. 나머지는 정리 대상"],
     ["timeseries/ — ARIMA·ADF·ACF", "2,063",
      "코드는 있으나 아직 호출처가 없다"],
-    ["scripts/ — 실행 CLI", "1,831", "동작 중 (수집·품질·실측 9종)"],
-    ["tests/", "2,800", "216개 · 8초"],
+    ["scripts/ — 실행 CLI", "2,523", "동작 중 (수집·품질·실측 10종)"],
+    ["tests/", "3,017", "216개 · 8초"],
     ["features/ — 피처", "35", "비어 있다. 2주에 만들 곳"],
     ["models/ — 모델", "34", "비어 있다. 2주에 만들 곳"],
     ["pipelines/ — 오케스트레이션", "0", "비어 있다. 2주에 만들 곳"],
 ]
+
+#: QFRS 준수 현황. 논문 서지는 QFRS_CITE 참조.
+#: ⚠️ 표준 표제는 **원문 그대로** 옮겼다. 원문이 미편집본이라 대소문자가
+#:    들쭉날쭉한데(QFRS-3·6 만 소문자 시작), 고쳐 쓰지 않고 그대로 둔다.
+QFRS_ROWS = [
+    ["기준", "논문이 요구하는 것", "우리 현황", "근거"],
+    ["QFRS-1\nDataset specification\nand data handling",
+     "출처·버전·기간 명시. 주식이면 상장폐지 종목 포함 여부와 처리 방법을\n"
+     "밝혀 생존편향을 통제할 것",
+     "충족",
+     "KRX OpenAPI · 2010-01-04~2026-08-25 · 920만 행\n중도 소멸 910종목 포함"],
+    ["QFRS-2\nLabeling\n(ground truth construction)",
+     "레이블 정의와 임계값을 명시. 아주 작은 등락을 맞히는 이진분류는\n"
+     "통계적으로만 맞고 경제적으로 무의미하다고 지적",
+     "충족",
+     "시가(t+1)→시가(t+6) 3분류\n밴드를 실측으로 정함 (지수 ±1.0% / 종목 ±2.0%)"],
+    ["QFRS-3\nfeature engineering\n(anti-leakage by design)",
+     "피처가 미래를 보지 않도록 설계 단계에서 차단할 것",
+     "충족",
+     "as_of 공급 계층. 기본값이 없어 빠뜨릴 수 없고\n경계를 테스트 16개가 막는다"],
+    ["QFRS-4\nScaling / Normalisation",
+     "스케일링을 전체 자료에 먼저 적용하면 누수. 학습구간에서 fit 하고\n"
+     "검증·테스트에 transform 만 할 것",
+     "미착수",
+     "피처 계층이 아직 비어 있다. 9/2~9/5 에 구현하며 지킨다"],
+    ["QFRS-5\nTrain/Validation/Test split",
+     "레이블이 h 기간 앞을 보면 창 사이에 최소 h 만큼 embargo",
+     "충족",
+     "워크포워드가 gap=label_horizon 을 강제.\n어기면 LeakageError 로 멈춘다"],
+    ["QFRS-6\nevaluation metrics\nand task types",
+     "주 지표로 MCC·PR-AUC·Balanced Accuracy·혼동행렬.\n"
+     "F1·ROC-AUC 는 보조",
+     "부분",
+     "기준선 3종 대비 보고는 있으나\nMCC 는 아직 없다 — 9/10 까지 추가"],
+    ["QFRS-7\nBacktest metrics\n(economic performance)",
+     "수수료·슬리피지·체결 규칙을 밝힌 경제적 백테스트.\n"
+     "필수(M) 항목이 하나라도 없으면 Fail",
+     "부분",
+     "거래비용 4수준은 있다. 회전율·체결 가정\n문서화는 9/11 까지"],
+]
+
+QFRS_CITE = (
+    "Khushi M. QFRS: quantitative finance reporting standards for "
+    "forecasting, evaluation and trading claims. Artif Intell Rev (2026). "
+    "https://doi.org/10.1007/s10462-026-11664-w"
+)
 
 MEASURED_ROWS = [
     ["무엇", "값", "구간", "왜 중요한가"],
@@ -528,18 +575,34 @@ def build_appendices(doc: Document) -> None:
                "가정 위에 있다. 큰 변동일이 예측하기 더 어렵다면 실제로 필요한 "
                "정확도는 더 높다.", size=9.0)
 
-    _heading(doc, "부록 F. 킥오프에서 정할 것")
+    _heading(doc, "부록 F. QFRS 준수 현황")
+    _para(doc, "2026년 8월 Artificial Intelligence Review 에 실린 QFRS 는 AI 기반 "
+               "금융 예측·트레이딩 연구가 지켜야 할 7개 보고 표준이다. 저자가 "
+               "Scopus 색인 논문 41편을 감사했더니 7개를 모두 충족한 논문이 "
+               "한 편도 없었다(평균 4.22개). 특히 경제적 백테스트는 87.8%가, "
+               "인과적 스케일링은 68.3%가 실패했다.", size=9.5)
+    _para(doc, "이 프로젝트의 논지가 “어떻게 검증했나”이므로 그 기준을 그대로 "
+               "가져와 우리 현황을 표로 놓는다. 지금 5개 충족·2개 부분이고, "
+               "부분 2개는 2주 안에 닫는다.", size=9.5)
+    _table(doc, QFRS_ROWS, W_QFRS, size=7.5)
+    _para(doc)
+    _para(doc, "출처: " + QFRS_CITE, size=8.5)
+    _para(doc, "※ 이 논문은 온라인 선공개(accepted manuscript) 상태라 권·호·"
+               "페이지가 아직 없다. 위 형식이 원문이 지정한 인용 방식이다. "
+               "Open Access(CC-BY)라 전문을 볼 수 있다.", size=8.5)
+
+    _heading(doc, "부록 G. 킥오프에서 정할 것")
     for item in OPEN_ITEMS:
         _para(doc, item, size=9.0)
 
-    _heading(doc, "부록 G. 3개 프로젝트 확장 로드맵")
+    _heading(doc, "부록 H. 3개 프로젝트 확장 로드맵")
     _para(doc, "세 차수의 주제가 모두 “개발 및 성과 검증”으로 끝난다. 매번 "
                "새로 만드는 것은 앞쪽이고 검증하는 방법은 같다. 1차에서 검증 "
                "엔진을 재사용 가능하게 분리하는 것이 6주 전체의 효율을 "
                "좌우한다.", size=9.5)
     _table(doc, ROADMAP_ROWS, W_ROADMAP, size=8.5)
 
-    _heading(doc, "부록 H. 아키텍처")
+    _heading(doc, "부록 I. 아키텍처")
     _para(doc, "자료는 반드시 시점정합 공급 계층을 지나야 한다. 이 문을 지나지 "
                "않는 조회는 테스트가 막는다. “그때 알 수 있었던 것”만 모델에 "
                "들어가게 하는 구조적 장치다.", size=9.5)
