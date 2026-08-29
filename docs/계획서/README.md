@@ -5,7 +5,8 @@
 
 | 버전 | 날짜 | 무엇이 담겼나 |
 |---|---|---|
-| [**version2.0**](version2.0/) ⭐ | 2026-08-29 | **팀이 꾸려지고 숫자가 실측으로 바뀌었다** — 팀명 `적층` → `Qurious` · 팀원 4명 확정 · 주제 선정 이유를 실측 수치로 · 목표 5 → 8(팀원 제안 3건) · 부록 A~F → A~I |
+| [**version2.1**](version2.1/) ⭐ | 2026-08-29 | **부록 I 의 그림이 사실과 반대로 읽히고 있었다** — [그림 2] 를 계층아키텍처(supply 문 하나)에서 시스템아키텍처(**문 둘**)로 교체 · 문이 둘인 이유 문단 추가 · `DIAGRAM_DIR` 을 아키텍처 v1.2 로 |
+| [version2.0](version2.0/) | 2026-08-29 | **팀이 꾸려지고 숫자가 실측으로 바뀌었다** — 팀명 `적층` → `Qurious` · 팀원 4명 확정 · 주제 선정 이유를 실측 수치로 · 목표 5 → 8(팀원 제안 3건) · 부록 A~F → A~I |
 | [version1.0](version1.0/) | 2026-08-24 | **강사님께 제출한 최초 계획서.** 팀원 모집 중(3명) · 팀명 `적층` · 프로젝트명 `AlphaStack` |
 
 ---
@@ -40,11 +41,30 @@ python scripts/build_project_plan.py
 ## 다음 버전을 팔 때
 
 ```bash
-mkdir docs/계획서/version2.1
-# scripts/build_project_plan.py 의 내용을 고치고
-python scripts/build_project_plan.py --out docs/계획서/version2.1/프로젝트계획서.docx
-# version2.1/변경사항.md 에 무엇이 왜 바뀌었는지 적는다
+# ① scripts/build_project_plan.py 의 내용을 고치고
+# ② 같은 파일의 OUT_DOCX 를 새 버전으로 올린다 (예: version2.2)
+python scripts/build_project_plan.py
+# ③ version2.2/변경사항.md 에 무엇이 왜 바뀌었는지 적는다
 python scripts/check_doc_links.py    # 상대 경로가 바뀌므로 반드시 돌린다
+```
+
+⚠️ **옛 버전의 docx 를 다시 굽지 마세요.** `.docx` 는 zip 이라 내용이 같아도
+타임스탬프 때문에 바이트가 달라지고, 그대로 커밋하면 이력에 수백 KB 짜리 blob 이
+쌓입니다. 산출물은 **새 버전 폴더에만** 만듭니다.
+
+### 무엇이 바뀌었는지 확인하는 법
+
+docx 는 `git diff` 가 안 읽히므로 본문을 뽑아 대조합니다.
+
+```python
+from docx import Document
+doc = Document("docs/계획서/version2.1/프로젝트계획서.docx")
+for p in doc.paragraphs:
+    if p.text.strip():
+        print(p.text)
+for t in doc.tables:
+    for row in t.rows:
+        print(" | ".join(c.text.strip() for c in row.cells))
 ```
 
 ### Major(+1.0) 인가 Minor(+0.1) 인가
