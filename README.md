@@ -364,7 +364,7 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 | **유니버스** KOSPI200+KOSDAQ150 350종목 | [data/universe_core.json](data/universe_core.json) | 2026-08-25 생성 |
 | **지수 수집·저장** (신규) | [ingest/store/krx_index.py](ingest/store/krx_index.py) | 테스트 15개 통과 |
 | **인증 재시도·차단기** (신규) | [ingest/clients/krx_data.py](ingest/clients/krx_data.py) | 테스트 8개 통과 |
-| **데이터 품질 검사** (신규) | [scripts/check_index_data.py](scripts/check_index_data.py) | 4,097거래일 전부 통과 |
+| **데이터 품질 게이트** (신규) | [scripts/check_data.py](scripts/check_data.py) · [common/corporate_actions.py](common/corporate_actions.py) | 시세 920만 행 + 지수 51종 · error 5종 전부 0 · 테스트 27개 |
 | **스키마 마이그레이션** `PRAGMA user_version` | [ingest/store/migrations.py](ingest/store/migrations.py) | 테스트 11개 통과 · v4 까지 |
 | **호출 예산** 80% 경고·100% 정상종료 | [common/budget.py](common/budget.py) | 테스트 13개 통과 |
 | **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 23개 · 옛 이력 8,686건 이관 완료 |
