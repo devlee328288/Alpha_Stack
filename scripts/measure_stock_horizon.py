@@ -23,6 +23,27 @@
 **이걸 틀려도 에러는 안 나고, 수익 크기가 부풀려져 손익분기가 낮게 나온다** —
 즉 우리가 이기기 쉬워 보이는 방향으로 틀린다.
 
+## 🔴 정리매매를 잘라 내지 않으면 상장폐지를 포함한 것이 독이 된다
+
+생존편향을 막으려고 소멸 종목 910개를 자료에 남겼는데, 그 때문에 **반대 방향의
+편향이 새로 생긴다.** 한국은 상장폐지가 확정되면 통상 7거래일간 정리매매를 하고
+그 구간에는 **가격제한폭이 적용되지 않는다.**
+
+이 저장소에서 실제로 세어 보면:
+
+    일간 -30.5% 이하(가격제한폭 밖) 행      1,224
+      그중 소멸 종목의 마지막 10거래일       1,197  (97.8%)
+    일간 -50% 이하 행                        637
+      그중 같은 구간                         625  (98.1%)
+    최저                                     -98.41%
+
+16년 자료의 극단 하락이 **사실상 전부 정리매매**다. 이걸 남겨 두면 모델은
+"5일에 -90%" 라는 초대형 신호를 배우고, 백테스트는 그것을 피하거나 반등을 사서
+거대한 가짜 수익을 만든다. 실제로는 유동성이 없어 그 가격에 체결되지 않는다.
+
+그래서 **소멸 종목의 마지막 `LIQUIDATION_DAYS` 거래일을 라벨·피처에서 뺀다.**
+`--keep-liquidation` 으로 남겨 두고 비교할 수 있다.
+
 ## 계산은 여기 없다
 
 손익분기·클래스 분포 계산은 `evaluation/horizon.py` 한 벌이다. 이 파일은 자료를 읽어
@@ -55,14 +76,25 @@ from evaluation.horizon import (
     trading_day_index,
 )
 
-#: 재 볼 왕복 거래비용. 출처는 `docs/시장조사/version2.0/시장조사.md` §3.
-#: ⚠️ 0.40% 는 스프레드를 얹은 **가정값**이다. 실측이 아니다.
+#: 재 볼 왕복 거래비용.
+#:
+#: 🔴 **지수와 종목에 같은 비용을 쓰면 안 된다.** 국내 상장 ETF 는 매도 시
+#:    증권거래세가 **면제**되고, 개별주는 2026년 기준 코스피 매도 0.20%
+#:    (거래세 0.05% + 농어촌특별세 0.15%)를 낸다. 처음에 양쪽에 0.23% 를
+#:    똑같이 적용해 "종목이 지수보다 유리하다" 는 결론을 냈는데, 비대칭을
+#:    반영하면 **부호가 뒤집힌다.**
+#: ⚠️ 스프레드를 얹은 값은 **가정**이다. 실측이 아니다.
 COSTS: List[Tuple[float, str]] = [
-    (0.0005, "ETF 왕복 (거래세 면제)"),
-    (0.0023, "개별주 거래세 2021~"),
-    (0.0030, "개별주 + 수수료"),
-    (0.0040, "개별주 + 스프레드 (가정)"),
+    (0.0006, "종목: 수수료만 (거래세 없다고 가정 — 하한)"),
+    (0.0028, "종목: 매도 거래세 0.20% + 수수료 (낙관)"),
+    (0.0033, "종목: + 스프레드 (보수)"),
+    (0.0043, "종목: + 넓은 스프레드 (현실)"),
 ]
+
+#: 정리매매 구간으로 볼 마지막 거래일 수. 한국은 상장폐지 확정 후 통상
+#: 7거래일간 정리매매를 하는데 **가격제한폭이 적용되지 않는다.**
+#: 넉넉히 10일을 잘라 낸다.
+LIQUIDATION_DAYS = 10
 
 #: 후보 밴드. 세 클래스가 전부 15~45% 에 드는 것을 고른다.
 DEFAULT_BANDS: List[float] = [0.010, 0.015, 0.020, 0.025, 0.030]
@@ -97,6 +129,56 @@ def iter_codes(con: sqlite3.Connection, market: str) -> Iterator[Tuple[str, List
         ]
 
 
+def delisted_codes(con: sqlite3.Connection) -> Dict[str, str]:
+    """중도 소멸 종목 → 마지막 거래일. 정리매매 구간을 잘라 낼 대상이다.
+
+    ⚠️ 아직 살아 있는 종목은 넣지 않는다. 현재 상장 종목의 최근 10일을 자르면
+       그건 정리매매가 아니라 **멀쩡한 자료를 버리는 것**이다.
+    """
+    rows = list(con.execute("SELECT code, MAX(bas_dd) FROM daily_price GROUP BY code"))
+    last_day = max(d for _, d in rows)
+    return {c: d for c, d in rows if d != last_day}
+
+
+def drop_liquidation(rows: List[Dict], days: int) -> List[Dict]:
+    """마지막 `days` 거래일을 버린다. 상장폐지 직전 정리매매 구간이다."""
+    return rows[:-days] if len(rows) > days else []
+
+
+def extreme_bars(con: sqlite3.Connection, days: int) -> Tuple[int, int, int, int, float]:
+    """가격제한폭 밖 급락이 정리매매 구간에 얼마나 몰려 있나.
+
+    한국 시장은 일간 등락이 ±30% 로 제한되는데 **정리매매 구간만 예외**다.
+    그래서 -30.5% 를 넘는 행은 거의 전부 그 구간이어야 정상이다. 이 비율이
+    낮다면 자료에 다른 문제가 있다는 뜻이다.
+
+    반환: `(-30.5% 이하 전체, 그중 정리매매, -50% 이하 전체, 그중 정리매매, 최저)`
+    """
+    # ⚠️ ROW_NUMBER 를 매긴 **뒤에** 급락 조건을 건다. 순서를 바꾸면 rn 이
+    #    "급락 행 중 몇 번째" 가 되어 버려서 "마지막 10거래일" 을 못 센다.
+    #    처음에 그렇게 짜서 98.4% 라는 그럴듯한 오답이 나왔다.
+    sql = f"""
+    WITH last AS (
+      SELECT code, MAX(bas_dd) AS lastd FROM daily_price GROUP BY code
+    ), all_ranked AS (
+      SELECT d.code, d.change_rate,
+             ROW_NUMBER() OVER (PARTITION BY d.code ORDER BY d.bas_dd DESC) AS rn,
+             (l.lastd <> (SELECT MAX(bas_dd) FROM daily_price)) AS gone
+      FROM daily_price d JOIN last l ON d.code = l.code
+    ), ranked AS (
+      SELECT * FROM all_ranked
+      WHERE change_rate IS NOT NULL AND change_rate <= -30.5
+    )
+    SELECT COUNT(*),
+           SUM(CASE WHEN gone AND rn <= {days} THEN 1 ELSE 0 END),
+           SUM(CASE WHEN change_rate <= -50 THEN 1 ELSE 0 END),
+           SUM(CASE WHEN change_rate <= -50 AND gone AND rn <= {days} THEN 1 ELSE 0 END),
+           MIN(change_rate)
+    FROM ranked
+    """
+    return con.execute(sql).fetchone()
+
+
 def survivorship(con: sqlite3.Connection) -> Tuple[int, int, Dict[str, int]]:
     """중도 소멸 종목 수. **전 구간** 기준이다 (자료의 성질이지 모델의 성질이 아니다).
 
@@ -116,6 +198,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--market", default="KOSPI", choices=["KOSPI", "KOSDAQ", "ALL"])
     ap.add_argument("--bands", type=float, nargs="+", default=DEFAULT_BANDS)
+    ap.add_argument("--keep-liquidation", action="store_true",
+                    help="정리매매 구간을 남긴다. 얼마나 부풀려지는지 비교할 때만.")
     args = ap.parse_args()
 
     con = sqlite3.connect(f"file:{krx_db_path()}?mode=ro", uri=True)
@@ -128,9 +212,20 @@ def main() -> int:
     장날 = split_dev([{"bas_dd": d} for d in market_days(con, args.market)])
     달력 = trading_day_index([r["bas_dd"] for r in 장날])
 
+    소멸 = {} if args.keep_liquidation else delisted_codes(con)
+    if 소멸:
+        print(f"   소멸 종목 {len(소멸):,}개의 마지막 {LIQUIDATION_DAYS}거래일을 "
+              f"정리매매로 보고 뺍니다.\n")
+    else:
+        print("   ⚠️ 정리매매 구간을 남긴 채 잽니다. 수익 크기가 부풀려집니다.\n")
+
     수익: List[float] = []
-    종목수 = 0
-    for _code, rows in iter_codes(con, args.market):
+    종목수 = 잘린행 = 0
+    for code, rows in iter_codes(con, args.market):
+        if code in 소멸:
+            before = len(rows)
+            rows = drop_liquidation(rows, LIQUIDATION_DAYS)
+            잘린행 += before - len(rows)
         개발 = split_dev(rows)
         if len(개발) < 7:
             continue
@@ -145,6 +240,8 @@ def main() -> int:
     print(f"표본(종목×날짜)  {len(수익):,}")
     print(f"종목 수          {종목수:,}")
     print(f"거래일 수        {len(달력):,}")
+    if 잘린행:
+        print(f"정리매매로 뺀 행 {잘린행:,}")
     print(f"E|5일수익|       {E * 100:.4f}%")
     print(f"중앙값|5일수익|  {median(abs(r) for r in 수익) * 100:.4f}%\n")
 
@@ -167,6 +264,15 @@ def main() -> int:
     print(f"  전체 종목        {전체:,}")
     print(f"  중도 소멸        {소멸:,}  ← 이 값이 0 이면 생존 편향이 들어와 있습니다")
     print("  연도별 소멸      " + " ".join(f"{y}:{n}" for y, n in sorted(연도별.items())))
+
+    n30, g30, n50, g50, worst = extreme_bars(con, LIQUIDATION_DAYS)
+    print("\n정리매매 편향  (상장폐지를 포함했기 때문에 새로 생긴 문제)")
+    print(f"  일간 -30.5% 이하 {n30:,}행  →  그중 정리매매 {g30:,} ({g30 / n30 * 100:.1f}%)")
+    print(f"  일간 -50%   이하 {n50:,}행  →  그중 정리매매 {g50:,} ({g50 / n50 * 100:.1f}%)")
+    print(f"  최저 {worst}%")
+    print("  ⚠️ 한국은 일간 등락이 ±30% 로 제한되는데 정리매매 구간만 예외입니다.")
+    print("     극단 하락이 거의 전부 그 구간에 몰려 있는 것이 정상입니다.")
+    print("     남겨 두면 모델이 '5일에 -90%' 를 배우고 백테스트가 가짜 수익을 냅니다.")
     return 0
 
 
