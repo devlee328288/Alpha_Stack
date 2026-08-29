@@ -1,0 +1,47 @@
+%% AlphaStack 계층 아키텍처 — supply/ 정문을 강조한다
+%% 굽기: mmdc -i 계층아키텍처.mmd -o 계층아키텍처.png -b white -s 2
+flowchart TD
+    EXT["외부 세계<br/>KRX · DART · ECOS · FRED · 뉴스 · 동영상"]
+
+    subgraph INTERNAL["ingest/ — internal · 소비 계층은 직접 부르지 않는다"]
+        CLI["clients/<br/>응답을 정규화한다"]
+        STORE["store/<br/>SQLite 하나 · 원문 bytes 보존"]
+    end
+
+    GATE{{"supply/ — as_of 정문<br/><br/>'그때 알 수 있었던' 행만 통과<br/>as_of 에 기본값이 없다 → 빠뜨리면 AsOfRequired"}}
+
+    FEAT["features/<br/>기술적 지표 → X, y"]
+    MODEL["models/<br/>LogReg · RF · XGBoost · LightGBM"]
+    EVAL["evaluation/<br/>워크포워드 gap 잠금 · MDD · Sharpe · 거래비용<br/>기준선 3종과 나란히"]
+    OUT[("결과 파일<br/>JSON · parquet")]
+    UI["Streamlit<br/>파일을 읽어 그린다 · 모델을 부르지 않는다"]
+
+    COMMON["common/<br/>설정 · 경로 · 자격증명 · 거래일 · 예산 · robots"]
+    TS["timeseries/<br/>ARIMA · ADF · ACF/PACF<br/>분류기와 겨루는 기준선"]
+
+    EXT -->|"urllib 표준 라이브러리만"| CLI
+    CLI --> STORE
+    STORE --> GATE
+    GATE -->|"as_of 통과분"| FEAT
+    FEAT -->|"X, y"| MODEL
+    MODEL -->|"positions, returns"| EVAL
+    GATE --> TS
+    TS -->|"기준선"| EVAL
+    EVAL --> OUT
+    OUT --> UI
+
+    COMMON -.->|"모든 층이 쓴다"| CLI
+    COMMON -.-> STORE
+    COMMON -.-> GATE
+
+    BAD["features · models · evaluation 이<br/>ingest 를 직접 import"]
+    BAD -.->|"테스트가 막는다<br/>test_supply_boundary.py"| STORE
+
+    classDef gate fill:#fff3cd,stroke:#b8860b,stroke-width:4px,color:#000
+    classDef internal fill:#f2f2f2,stroke:#888,color:#000
+    classDef star fill:#e8f4ff,stroke:#1f6feb,stroke-width:3px,color:#000
+    classDef bad fill:#ffe0e0,stroke:#c00,stroke-dasharray:5 5,color:#000
+    class GATE gate
+    class CLI,STORE internal
+    class EVAL star
+    class BAD bad
