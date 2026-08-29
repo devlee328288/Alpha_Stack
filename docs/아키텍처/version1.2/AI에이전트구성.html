@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Qurious AI 에이전트 구성 — 제안</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     AI 에이전트 구성 — **제안**. 아직 결정된 것이 아니다.
+     굽기: node scripts/render_html.mjs docs/아키텍처/version1.2/AI에이전트구성.html
+     ⚠️ 이 그림의 어느 칸도 아직 구현돼 있지 않다. 그 사실을 제목과 배지로 밝힌다.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --ink:      #10243f;
+    --ink-soft: #5b7290;
+    --line:     #d5deea;
+    --bg:       #f6f9fc;
+    --panel:    #ffffff;
+
+    --brand:    #1b4f9c;
+    --brand-bg: #eaf1fb;
+    --teal:     #0e8f84;
+    --teal-bg:  #e6f5f3;
+    --gate:     #b45309;
+    --gate-bg:  #fff5e6;
+    --plum:     #7c3aed;
+    --plum-bg:  #f3eeff;
+    --soft:     #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); }
+  .sheet {
+    width: 1680px; padding: 40px 44px 34px; background: var(--bg);
+    font-family: "Pretendard", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
+                 system-ui, sans-serif;
+    color: var(--ink); -webkit-font-smoothing: antialiased;
+    word-break: keep-all; line-break: strict;
+  }
+
+  .head { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 8px; }
+  .brand { font-size: 40px; font-weight: 800; letter-spacing: -1px; color: var(--brand); }
+  .brand em { font-style: normal; color: var(--teal); }
+  .title { font-size: 29px; font-weight: 750; letter-spacing: -0.6px;
+           display: flex; align-items: center; gap: 11px; }
+  .propose { font-size: 13px; font-weight: 750; color: var(--plum);
+             background: var(--plum-bg); border: 1px solid #ddd0fb;
+             border-radius: 999px; padding: 5px 14px; }
+  .sub { font-size: 14.5px; color: var(--ink-soft); padding-bottom: 4px; }
+  .warn { margin-left: auto; font-size: 12.5px; color: var(--gate);
+          background: var(--gate-bg); border: 1px solid #f0d7ac;
+          border-radius: 10px; padding: 8px 14px; line-height: 1.5; max-width: 400px; }
+
+  .why { background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+         padding: 13px 18px; margin: 16px 0 20px; display: flex; gap: 26px;
+         align-items: center; }
+  .why .k { font-size: 13px; font-weight: 750; color: var(--plum);
+            background: var(--plum-bg); border-radius: 8px; padding: 6px 13px;
+            white-space: nowrap; }
+  .why p { font-size: 13.2px; line-height: 1.6; }
+  .why b { font-weight: 750; }
+
+  /* ── 5단 흐름 ─────────────────────────────────────────── */
+  .flow { display: grid;
+          grid-template-columns: 250px 26px 268px 26px 1fr 26px 232px 26px 208px;
+          align-items: stretch; }
+  .col { background: var(--panel); border: 1px solid var(--line);
+         border-radius: 16px; padding: 14px 14px 15px; }
+  .col > h3 { font-size: 12.5px; font-weight: 750; color: #fff;
+              border-radius: 8px; padding: 5px 11px; margin-bottom: 12px;
+              display: inline-block; letter-spacing: -0.2px; }
+  .c1 > h3 { background: var(--brand); }
+  .c2 > h3 { background: var(--teal); }
+  .c3 { border-color: #cdbdf7; background: #fcfbff; }
+  .c3 > h3 { background: var(--plum); }
+  .c4 > h3 { background: var(--gate); }
+  .c5 > h3 { background: #475569; }
+
+  .conn { display: flex; align-items: center; justify-content: center;
+          color: var(--soft); font-size: 20px; }
+
+  .card { border: 1px dashed var(--soft); border-radius: 11px; padding: 9px 11px;
+          margin-bottom: 8px; background: #fff; }
+  .card:last-child { margin-bottom: 0; }
+  .card.have { border-style: solid; border-color: var(--line); }
+  .ct { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .ct b { font-size: 13.5px; font-weight: 750; letter-spacing: -0.2px; }
+  .bd { font-size: 10.2px; font-weight: 700; border-radius: 5px; padding: 2px 6px;
+        white-space: nowrap; }
+  .bd.have { background: var(--teal-bg); color: var(--teal); }
+  .bd.new  { background: var(--plum-bg); color: var(--plum); }
+  .cs { font-size: 11.4px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+
+  /* 에이전트 격자 */
+  .agrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .agent { border: 1px solid #cdbdf7; background: #fff; border-radius: 11px;
+           padding: 9px 11px; }
+  /* ⚠️ `.agent b` 로 쓰면 <i> 안에 강조로 넣은 <b> 까지 블록이 되어 문장이 세 토막으로
+     갈라진다("질문을 받고 / as_of 를 정한다 / . 자료는…"). 자식 선택자로 좁힌다. */
+  .agent > b { font-size: 13.2px; font-weight: 750; display: block; }
+  .agent i { font-style: normal; font-size: 11.2px; color: var(--ink-soft);
+             display: block; margin-top: 3px; line-height: 1.5; }
+  .agent i b { font-weight: 750; color: var(--ink); }
+  .agent .src { font-size: 10.5px; color: var(--plum); font-weight: 700;
+                margin-top: 5px; display: block; }
+  .lane { font-size: 11.2px; color: var(--ink-soft); text-align: center;
+          margin: 7px 0 6px; }
+  .lane b { color: var(--plum); font-weight: 700; }
+  .wide { border: 1px solid #cdbdf7; background: #fff; border-radius: 11px;
+          padding: 9px 11px; }
+
+  /* ── 아래 3칸 ─────────────────────────────────────────── */
+  .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+           margin-top: 18px; }
+  .rule { background: var(--panel); border: 1px solid var(--line);
+          border-left: 4px solid var(--plum); border-radius: 12px; padding: 12px 15px; }
+  .rule b { font-size: 13.2px; }
+  .rule p { font-size: 11.8px; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
+  .rule.r2 { border-left-color: var(--gate); }
+  .rule.r3 { border-left-color: #64748b; }
+
+  .foot { margin-top: 15px; display: flex; align-items: center; gap: 10px;
+          font-size: 11.6px; color: var(--ink-soft); }
+  .foot .dot { width: 4px; height: 4px; border-radius: 50%; background: #c3cedd; }
+  .foot .lg { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 20px; height: 0; border-top: 3px solid var(--line); }
+  .sw.d { border-top: 3px dashed var(--soft); }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="head">
+    <div class="brand">Qurious<em>.</em></div>
+    <div>
+      <div class="title">AI 에이전트 구성 <span class="propose">제안 · 킥오프 안건</span></div>
+      <div class="sub">수집한 자료를 <b>질문에 답하는 형태</b>로 쓰는 방법 — 2026-08-29</div>
+    </div>
+    <div class="warn">⚠️ <b>아직 결정된 것이 아닙니다.</b> 이 그림의 어느 칸도 구현돼 있지
+      않습니다. 팀과 교수님께 <b>제안</b>하려고 그린 것이고, 채택 여부는 킥오프에서 정합니다.</div>
+  </div>
+
+  <div class="why">
+    <div class="k">왜 제안하나</div>
+    <p>1차 산출물은 <b>“다음 5거래일 방향 3분류”</b> 숫자 하나입니다. 그런데 심사에서 늘
+      따라오는 질문은 <b>“왜 그렇게 봤나”</b> 입니다. 우리는 그 답의 재료를 이미 모으고
+      있습니다 — 시세·공시·통계·뉴스. 에이전트는 <b>새 자료를 만드는 것이 아니라</b>
+      이미 있는 자료를 근거로 엮어 그 질문에 답하게 하는 층입니다.</p>
+  </div>
+
+  <!-- ── 5단 흐름 ── -->
+  <div class="flow">
+
+    <!-- 1. 자료 -->
+    <div class="col c1">
+      <h3>자료 — 이미 있는 것</h3>
+      <div class="card have"><div class="ct"><b>KRX 시세·지수</b><span class="bd have">수집 완료</span></div>
+        <div class="cs">920만 행 · 3,677종목 · 4,097거래일</div></div>
+      <div class="card have"><div class="ct"><b>DART 공시·재무</b><span class="bd have">적재 예정</span></div>
+        <div class="cs">접수일이 known_at</div></div>
+      <div class="card have"><div class="ct"><b>통계 3종</b><span class="bd have">정규화 예정</span></div>
+        <div class="cs">ECOS · FRED · KOSIS</div></div>
+      <div class="card have"><div class="ct"><b>뉴스 · 동영상</b><span class="bd have">계획</span></div>
+        <div class="cs">제목·요약·발행시각 (본문 전문 저장 안 함)</div></div>
+      <div class="card have"><div class="ct"><b>모델 산출</b><span class="bd have">계획</span></div>
+        <div class="cs">3분류 확률 · 백테스트 성과</div></div>
+    </div>
+
+    <div class="conn">→</div>
+
+    <!-- 2. 저장·검색 -->
+    <div class="col c2">
+      <h3>저장 · 검색</h3>
+      <div class="card have"><div class="ct"><b>SQLite 하나</b><span class="bd have">서 있음</span></div>
+        <div class="cs">krx_cache.db — 시세·대장·예산·원문 bytes</div></div>
+      <div class="card"><div class="ct"><b>임베딩 색인</b><span class="bd new">새로 필요</span></div>
+        <div class="cs"><b>sqlite-vec</b> 또는 로컬 FAISS.<br>
+          별도 DB 서버를 세우지 않습니다 — “저장소는 SQLite 하나” 규약을 깨지 않으려는
+          선택입니다</div></div>
+      <div class="card"><div class="ct"><b>본문은 색인만</b><span class="bd new">약관 확인 필요</span></div>
+        <div class="cs">🔴 네이버 약관 7.3 ③ 이 “저장(캐시 포함)”을 금지합니다.
+          <b>법적 판단이라 단독 결론을 내지 않았습니다</b> — 킥오프 안건 ⑥</div></div>
+    </div>
+
+    <div class="conn">→</div>
+
+    <!-- 3. 에이전트 -->
+    <div class="col c3">
+      <h3>에이전트 파이프라인 — 전부 제안</h3>
+
+      <div class="agrid" style="grid-template-columns: 1fr 1fr;">
+        <div class="agent"><b>큐레이터</b>
+          <i>질문을 받고 <b>as_of 를 정한다</b>. 자료는 supply/ 정문으로만 꺼낸다</i>
+          <span class="src">supply.price_series(as_of=…)</span></div>
+        <div class="agent"><b>분류기</b>
+          <i>“지수 질문인가 · 종목 질문인가 · 거시 질문인가” 를 갈라 아래 넷 중 필요한
+            것만 깨운다</i>
+          <span class="src">불필요한 호출을 줄인다</span></div>
+      </div>
+
+      <div class="lane">↓ <b>필요한 것만 병렬로</b> ↓</div>
+
+      <div class="agrid">
+        <div class="agent"><b>퀀트</b>
+          <i>가격·거래량·지표. 모델의 3분류 확률과 그 근거 피처</i>
+          <span class="src">KRX · features/ · models/</span></div>
+        <div class="agent"><b>공시</b>
+          <i>그 시점까지 접수된 공시만. 접수일 이후에만 유효</i>
+          <span class="src">DART (known_at 강제)</span></div>
+        <div class="agent"><b>거시</b>
+          <i>금리·환율·물가. <b>그때 발표된 값</b>으로 (개정 전 vintage)</i>
+          <span class="src">ECOS · FRED · KOSIS</span></div>
+        <div class="agent"><b>여론</b>
+          <i>같은 기간 뉴스·동영상의 논조. 링크를 반드시 함께</i>
+          <span class="src">네이버 · YouTube</span></div>
+      </div>
+
+      <div class="lane">↓ <b>넷을 합친다</b> ↓</div>
+
+      <div class="agrid">
+        <div class="agent"><b>전략가</b>
+          <i>넷을 엮어 <b>서로 어긋나는 지점</b>을 먼저 드러낸다 — 숫자는 상승인데 공시가
+            악재인 경우처럼</i></div>
+        <div class="agent"><b>검증자</b>
+          <i>주장마다 <b>출처 행</b>이 붙어 있나. 없으면 그 문장을 버린다</i>
+          <span class="src">근거 없는 문장은 내보내지 않는다</span></div>
+      </div>
+    </div>
+
+    <div class="conn">→</div>
+
+    <!-- 4. 안전장치 -->
+    <div class="col c4">
+      <h3>안전장치</h3>
+      <div class="card"><div class="ct"><b>누수 가드</b><span class="bd new">제안</span></div>
+        <div class="cs">에이전트도 <b>as_of 정문</b>을 지난다. 문을 우회하면 지금처럼
+          테스트가 막는다</div></div>
+      <div class="card"><div class="ct"><b>출처 표기</b><span class="bd new">제안</span></div>
+        <div class="cs">문장마다 어느 행에서 나왔는지. 못 대면 그 문장을 지운다</div></div>
+      <div class="card"><div class="ct"><b>투자자문 아님</b><span class="bd new">필수</span></div>
+        <div class="cs">특정 종목 매수·매도 권유로 읽히지 않게 문구를 고정한다</div></div>
+      <div class="card"><div class="ct"><b>호출 예산</b><span class="bd have">이미 있음</span></div>
+        <div class="cs">call_budget 표를 그대로 쓴다 — LLM 호출도 같은 방식으로 센다</div></div>
+    </div>
+
+    <div class="conn">→</div>
+
+    <!-- 5. 화면 -->
+    <div class="col c5">
+      <h3>화면</h3>
+      <div class="card"><div class="ct"><b>Streamlit</b><span class="bd new">계획</span></div>
+        <div class="cs">숫자 옆에 <b>“왜 그렇게 봤나”</b>를 함께 보여 준다</div></div>
+      <div class="card"><div class="ct"><b>근거 펼치기</b><span class="bd new">제안</span></div>
+        <div class="cs">문장을 누르면 그 근거가 된 시세 행·공시·기사로 내려간다</div></div>
+      <div class="card"><div class="ct"><b>as_of 슬라이더</b><span class="bd new">제안</span></div>
+        <div class="cs">과거 어느 날로 되돌려 <b>그날의 답</b>을 그대로 재현한다.
+          누수가 없다는 것을 <b>눈으로</b> 보여 주는 장치</div></div>
+    </div>
+  </div>
+
+  <!-- ── 정직하게 적어 둘 것 ── -->
+  <div class="rules">
+    <div class="rule">
+      <b>이건 1차 목표가 아니다</b>
+      <p>1차는 <b>방향 예측과 검증</b>입니다. 에이전트는 그 위에 얹는 층이고, 1차가 먼저
+        서지 않으면 근거로 댈 숫자 자체가 없습니다. <b>순서를 바꾸면 둘 다 얕아집니다.</b></p>
+    </div>
+    <div class="rule r2">
+      <b>가장 큰 위험은 “그럴듯한 거짓말”이다</b>
+      <p>LLM 은 근거가 없어도 문장을 만듭니다. 그래서 검증자를 <b>선택이 아니라 통과 조건</b>
+        으로 두자는 것입니다 — 출처 행을 못 대는 문장은 화면에 못 나갑니다.</p>
+    </div>
+    <div class="rule r3">
+      <b>결정이 필요한 것 셋</b>
+      <p>① 이 층을 이번 프로젝트 범위에 넣을지 ② 넣는다면 어느 에이전트까지
+        ③ 뉴스 본문 저장에 대한 약관 판단(킥오프 안건 ⑥)</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span class="lg"><span class="sw"></span>이미 서 있는 것</span><span class="dot"></span>
+    <span class="lg"><span class="sw d"></span>새로 만들어야 하는 것</span><span class="dot"></span>
+    <span>as_of 는 에이전트에도 그대로 강제됩니다 — 그것이 이 제안을 남의 것과 다르게 만드는 유일한 부분입니다</span>
+  </div>
+
+</div>
+</body>
+</html>

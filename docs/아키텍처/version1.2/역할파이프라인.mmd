@@ -1,0 +1,38 @@
+%% 역할별 파이프라인 분리 — 팀원 제안 "역할별 AI Agent" 를 1차 범위로 정직하게 옮긴 것
+%% ⚠️ 1차에는 LLM 이 없다. 그래서 통상적 의미의 '에이전트' 가 아니라
+%%    역할별 워커와 오케스트레이션이다. 이름을 정확히 쓴다.
+%%    RAG · 에이전트 승격은 2·3차에서 한다 (점선 부분).
+%% 굽기: mmdc -i 역할파이프라인.mmd -o 역할파이프라인.png -b white -s 2
+flowchart LR
+    subgraph P1["1차 (2주) — LLM 없는 역할 분리 파이프라인"]
+        direction TB
+        W1["수집 워커<br/>KRX · DART · 뉴스<br/>예산·robots·원문보존<br/><b>이동원</b>"]
+        W2["정제·품질 워커<br/>거래일 대조 · 결측·이상치<br/>품질 리포트 + 종료코드<br/><b>이동원 · 신장환</b>"]
+        W3["피처 워커<br/>이동평균·RSI·MACD·볼린저<br/>변동성 · 시장 폭<br/><b>신장환</b>"]
+        W4["학습 워커<br/>폴드마다 학습·예측<br/>시도 횟수 계측<br/><b>오준영</b>"]
+        W5["검증 워커<br/>워크포워드 · 거래비용<br/>기준선 3종 · 부트스트랩<br/><b>강민석</b>"]
+        W6["화면 워커<br/>Streamlit<br/>파일을 읽어 그린다<br/><b>강민석</b>"]
+
+        W1 --> W2 --> W3 --> W4 --> W5 --> W6
+    end
+
+    ORCH["오케스트레이션<br/>pipelines/run_all.py<br/>config.yaml · 시드 고정 · dataset SHA"]
+    ORCH -.->|"순서와 재현을 책임진다"| W1
+    ORCH -.-> W4
+    ORCH -.-> W5
+
+    subgraph P23["2·3차 — 여기서 승격한다"]
+        direction TB
+        R1["RAG<br/>공시·뉴스 임베딩 검색"]
+        R2["LLM 에이전트<br/>도구 호출 · 자동 리서치"]
+    end
+
+    W2 -.->|"수집한 텍스트가 재료가 된다"| R1
+    W1 -.-> R2
+
+    classDef me fill:#e8f4ff,stroke:#1f6feb,stroke-width:2px,color:#000
+    classDef later fill:#f7f7f7,stroke:#999,stroke-dasharray:5 5,color:#333
+    classDef orch fill:#fff3cd,stroke:#b8860b,stroke-width:2px,color:#000
+    class W1,W2 me
+    class R1,R2 later
+    class ORCH orch
