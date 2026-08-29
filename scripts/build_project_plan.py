@@ -62,8 +62,13 @@ HEADER_FILL = "D9E2F3"
 #: 다이어그램. 없으면 건너뛴다 — mmdc 가 없어도 문서는 만들 수 있어야 한다.
 DIAGRAM_DIR = Path("docs/아키텍처/version1.1")
 
-BASE_DOCX = Path("docs/프로젝트계획서_적층_AlphaStack.docx")
-OUT_DOCX = Path("docs/프로젝트계획서_Qurious_v1.docx")
+#: 스타일 기반 = 강사님께 제출한 최초 계획서(v1.0). **내용이 아니라 글꼴·용지만**
+#: 물려받는다. 이 파일을 지우면 빌드가 멈춘다.
+BASE_DOCX = Path("docs/계획서/version1.0/프로젝트계획서.docx")
+
+#: 산출물. 버전 폴더가 곧 개정 이력이라 파일명에는 버전을 적지 않는다.
+#: 다음 버전을 팔 때는 `--out docs/계획서/version2.1/프로젝트계획서.docx` 로 준다.
+OUT_DOCX = Path("docs/계획서/version2.0/프로젝트계획서.docx")
 
 
 # ── docx 원시 조작 ─────────────────────────────────────────────────────────
