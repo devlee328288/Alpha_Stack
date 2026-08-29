@@ -117,6 +117,46 @@ def returns_5d_open(rows: List[Dict]) -> List[float]:
     return [rows[i + 6]["open"] / rows[i + 1]["open"] - 1.0 for i in range(len(rows) - 6)]
 
 
+def trading_day_index(all_days: Sequence[str]) -> Dict[str, int]:
+    """거래일 문자열을 0,1,2… 순번으로 바꾼 표.
+
+    시장 전체의 거래일 달력이다. 종목별 행에는 **구멍이 있다**(거래정지·상장 전·
+    상장폐지 후). 그래서 종목의 행 번호로 "5거래일 뒤"를 세면 안 되고,
+    이 달력의 순번으로 세야 한다.
+    """
+    return {d: i for i, d in enumerate(sorted(set(all_days)))}
+
+
+def returns_5d_open_gapless(
+    rows: List[Dict],
+    day_index: Dict[str, int],
+    horizon: int = 5,
+) -> List[float]:
+    """종목용 5거래일 · 시가(t+1)→시가(t+6). **구멍을 건너뛰지 않는다.**
+
+    🔴 **왜 `returns_5d_open` 을 그대로 쓰면 안 되나.** 그 함수는 행 번호로 센다.
+       지수는 휴장일 말고 구멍이 없어서 맞지만, **종목은 거래정지가 있다.**
+       3개월 정지된 종목이면 `rows[i+6]` 이 3개월 뒤 행이고, 그걸 "5일 수익률" 로
+       세면 수익 크기가 통째로 부풀려진다. **에러는 나지 않는다.**
+
+       실제로 이 저장소에는 중도 소멸 종목이 910개 있고(상장폐지·합병), 정지 구간을
+       가진 종목은 그보다 많다.
+
+    이 함수는 시장 거래일 달력(`day_index`)으로 거리를 재서, 진입일과 청산일이
+    **정확히 `horizon` 거래일** 떨어진 경우만 남긴다.
+    """
+    out: List[float] = []
+    for i in range(len(rows) - horizon - 1):
+        entry, exit_ = rows[i + 1], rows[i + 1 + horizon]
+        ei, xi = day_index.get(entry["bas_dd"]), day_index.get(exit_["bas_dd"])
+        if ei is None or xi is None or xi - ei != horizon:
+            continue
+        if not entry.get("open"):
+            continue
+        out.append(exit_["open"] / entry["open"] - 1.0)
+    return out
+
+
 def classify_3(returns: Sequence[float], band: float = NEUTRAL_BAND) -> Dict[str, int]:
     """±`band` 3분류 분포."""
     dist = {"상승": 0, "중립": 0, "하락": 0}
