@@ -62,6 +62,19 @@ dev = [
   "nbformat==5.11.1",
   "nbclient==0.11.0",
   "ipykernel==7.3.0",
+
+  # ── 팀원 데이터 주고받기 (`scripts/upload_to_hf.py`) ────────
+  # 데이터 파일은 PUBLIC 저장소에 커밋할 수 없다 — KRX 이용약관 제11조 ② 가 제3자
+  # 제공을 금지하고, 개발구간 전량은 parquet 으로도 142MB 다. 그래서 파일은
+  # HuggingFace private 데이터셋(`qurious-quant/alphastack-krx-dev`)에 두고
+  # 만드는 방법만 저장소에 남긴다.
+  #
+  # 배포본은 import 하지 않는다 — 반출·반입은 사람이 손으로 돌리는 일이다.
+  # `datasets` 는 넣지 않는다. parquet 은 pandas 로 읽으면 되고 그쪽이 훨씬 무겁다.
+  #
+  # 버전은 실측이다 — 2026-08-31 에 설치해 `__version__` 으로 확인하고 205.93MB 를
+  # 실제로 올려 봤다.
+  "huggingface_hub==1.29.0",
 ]
 
 [build-system]
