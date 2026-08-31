@@ -42,9 +42,26 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# ⚠️ 개발·검증에만 쓴다. 배포본이 import 하지 않는다.
 dev = [
   "pytest>=8.0",
   "ruff>=0.14",
+
+  # ── 설명용 노트북 (`notebooks/`) ──────────────────────────
+  # 왜 넣나 — 팀원 넷이 **데이터가 실제로 어떻게 생겼는지**를 코드와 함께 따라갈 수
+  # 있어야 한다. 수업 자료(`learning/09-finance-ml`)가 쓰는 형식이 이것이고,
+  # GitHub 웹이 `.ipynb` 를 그대로 렌더링해 주므로 받지 않고도 읽을 수 있다.
+  #
+  # 셋만 넣는다. `jupyterlab` 은 브라우저로 편집할 때만 필요한데, VS Code 와
+  # GitHub 웹으로 충분해서 무겁게 들이지 않는다 — 필요한 사람이 각자 깐다.
+  #   nbformat  노트북 파일을 만들고 읽는다
+  #   nbclient  실행해서 출력을 채운다 (빈 노트북은 내지 않는다)
+  #   ipykernel 그 실행이 쓰는 커널
+  #
+  # 버전은 추측이 아니라 실측이다 — 2026-08-31 에 실제로 설치해 `__version__` 으로 확인했다.
+  "nbformat==5.11.1",
+  "nbclient==0.11.0",
+  "ipykernel==7.3.0",
 ]
 
 [build-system]

@@ -2,15 +2,15 @@
 
 > **"맞히는 것보다 어려운 건, 맞혔다고 말해도 되는지 아는 것"**
 
-팀 **적층(積層)** 1차 프로젝트 · 2026-09-01(화) ~ 09-15(화) · 4인
+팀 **Qurious** 1차 프로젝트 · 2026-09-01(화) ~ 09-15(화) · 4인
 발표: koreaIT 노원 B강의실
 
 | | |
 |---|---|
 | **주제** | 주가지수 데이터 활용 머신러닝·딥러닝 |
 | **GitHub** | https://github.com/devlee328288/Alpha_Stack (PUBLIC) |
-| **GitLab** | https://gitlab.com/dev-dongwon05253/alpha_stack (미러 · main 만) |
-| **상태** | 🟡 수집 공통 규칙 완료 · 킥오프 대기 (9/1) |
+| **화면** | Streamlit · [Community Cloud](https://streamlit.io/cloud) 배포 예정 |
+| **상태** | 🟡 킥오프 완료 · 수집·검사 계층 가동 중 |
 
 ---
 
@@ -30,7 +30,7 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
 # 2) 검증 엔진이 살아 있는지 확인 (외부 연결·API 키 없이 돕니다)
 .venv/Scripts/python.exe -m pytest tests/ -q
-#    → 186 passed 가 나오면 성공입니다 (2026-08-26 기준)
+#    → 330 passed 가 나오면 성공입니다 (2026-08-31 기준)
 
 # 3) 코드 스타일 확인
 .venv/Scripts/python.exe -m ruff check evaluation/ supply/ tests/
@@ -38,6 +38,10 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 ```
 
 **API 키 없이도 여기까지 됩니다.** 실제 수집만 `.env` 가 필요합니다.
+
+> 📓 **자료가 실제로 어떻게 생겼는지** 보려면 [`notebooks/`](notebooks/) 를 보세요.
+> 마크다운 설명 + 코드 + 실행된 출력이 한 장에 있고, GitHub 웹이 그대로 렌더링하므로
+> 클론하지 않고 링크만 눌러도 읽힙니다.
 
 ```bash
 # 4) (선택) 자격증명 — 아직 안 해도 됩니다
@@ -101,7 +105,7 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 그래서 이 프로젝트는 "잘 맞히는 모델"보다 **"맞혔다고 말해도 되는지 판별하는 장치"** 를
 먼저 만든다.
 
-### 왜 검증 엔진을 따로 떼는가 — 팀 이름이 적층(積層)인 이유
+### 왜 검증 엔진을 따로 떼는가 — 세 차수가 같은 자를 쓴다
 
 세 차수의 주제가 이미 정해져 있다.
 
@@ -141,15 +145,18 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 
 ## Who — 누가 무엇을 맡는가
 
-**2026-08-26 확정 · 3인**입니다. 4번째 팀원은 미정입니다.
+**2026-08-29 킥오프에서 확정 · 4인**입니다.
 
 | 영역 | 담당 | 주 작업 위치 |
 |---|---|---|
-| 데이터 수집·저장·정제·전처리·마이닝 **전반의 기획·관리** | **이동원** | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) |
-| 백테스팅 · 성과지표 · **대시보드** | **강민석** | [evaluation/](evaluation/) · 화면 |
-| **크롤링 · ML** (크롤링은 이동원과 분담) | **신장환** | [ingest/clients/](ingest/clients/) · [features/](features/) · [models/](models/) |
+| **팀장** · 데이터 수집·저장·정제·전처리 전반의 기획·관리 | **이동원** | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) · [scripts/](scripts/) · [docs/](docs/) |
+| 모델 — 표 → 등락 방향 분류기 | **오준영** | [models/](models/) |
+| 백테스팅 · 성과지표 · **화면** | **강민석** | [evaluation/](evaluation/) · Streamlit 대시보드 |
+| 피처 · 품질 — 지표 계산 | **신장환** | [features/](features/) |
 
-> **팀장은 아직 정해지지 않았습니다** — [회의안건 A-1](docs/회의안건/2026-09-01-킥오프.md)에서 정합니다.
+> 파트 경계를 넘어야 할 때는 **먼저 담당자에게 묻고**, PR 본문에 왜 넘었는지 적고,
+> 관련 문서에도 남깁니다. 화면과 공용 파일(루트 README·`pyproject.toml`·`conftest.py`)은
+> 여러 사람이 함께 쓰므로 같은 절차를 따릅니다.
 
 ### 이 저장소를 만든 사람
 
@@ -167,7 +174,10 @@ common/       설정·경로·자격증명·거래일 계산. 아무것도 impor
   ↑
 ingest/       바깥 세상과 통신하고 시세를 저장한다
   ├ clients/  외부 API 9종 (KRX·DART·ECOS·FRED·yfinance…)
-  └ store/    수집한 것을 Postgres·SQLite 에 넣고 꺼낸다
+  └ store/    수집한 것을 SQLite 하나에 넣고 꺼낸다 (`data/krx_cache.db`)
+  ↑
+supply/       ★ 팀원이 자료를 꺼내는 **정문**. `as_of` 를 여기서 강제한다
+              밖에서 `ingest.store` 를 직접 import 하면 테스트가 실패한다
   ↑
 features/     시세 → 기술적 지표 → 학습 가능한 표
   ↑
@@ -175,7 +185,7 @@ models/       표 → 등락 방향 분류기 (RF·XGBoost·LightGBM)
   ↑
 evaluation/   ★ 예측 → 믿어도 되는가 (워크포워드·MDD·Sharpe·거래비용)
   ↑
-api/          위의 결과를 HTTP 로 내보낸다 (최소 계약)
+화면          Streamlit 대시보드 (Community Cloud 배포)
 
 timeseries/   ARIMA·ADF·ACF/PACF. numpy 로 손수 짠 시계열 도구 한 벌
               위 사슬과 나란히 선다 — 분류기와 겨룰 통계적 기준선
@@ -212,7 +222,8 @@ timeseries/   ARIMA·ADF·ACF/PACF. numpy 로 손수 짠 시계열 도구 한 �
 Python 3.12.13
 numpy 2.5.1 · pandas 3.0.5 · scipy 1.18.1
 scikit-learn 1.9.0 · LightGBM 4.7.0 · XGBoost 3.4.1 · joblib 1.5.3
-FastAPI 0.141.1 · uvicorn 0.52.0 · pydantic 2.13.4 · SQLAlchemy 2.0.52
+SQLAlchemy 2.0.52
+nbformat 5.11.1 · nbclient 0.11.0 · ipykernel 7.3.0   (dev — notebooks/)
 ```
 
 > ⚠️ numpy 2.5 / pandas 3.0 은 상당히 앞선 버전이라 ML 라이브러리와 ABI 가 어긋날
@@ -342,9 +353,17 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 
 ### 개선하고 싶은 것
 
-- `common/settings.py`(437줄)에 1차가 쓰지 않는 원본 설정이 섞여 있다 → [회의안건 C-1](docs/회의안건/2026-09-01-킥오프.md)
-- `ruff` 36건이 남아 있다 (전부 이관 코드의 한국어 주석 줄 길이)
-- `features/` · `models/` 는 아직 계약만 있고 구현이 없다
+숫자는 전부 **2026-08-31 실측**입니다.
+
+- `common/settings.py`(497줄)에 1차가 쓰지 않는 원본 설정이 섞여 있다 → [회의안건 C-1](docs/회의안건/2026-09-01-킥오프.md)
+- `ingest/store/krx_pg.py`(412줄)는 Postgres 경로라 1차에서 안 켠다. **지우지는 않는다** —
+  `krx_store.py` 가 `krx_pg.CODE_PATTERN` 을 Postgres 분기 **밖에서** 쓰고 있어,
+  지우면 한글 종목명 검색이 조용히 죽는다
+- `ruff` 33건이 남아 있다 (전부 이관 코드의 한국어 주석 줄 길이). 손대는 파일만 정리한다
+- `models/`(34줄)는 아직 계약만 있고 구현이 없다. `features/` 는 **564줄**로 채워졌다
+  (지표 3종 — RSI·MACD·거래량·변동성)
+- `api/`(28줄)는 빈 `__init__.py` 하나다. 화면을 Streamlit 으로 정해 **FastAPI 는 넣지
+  않기로** 했는데 `pyproject.toml` 에는 fastapi·uvicorn·pydantic 이 아직 핀까지 박혀 있다
 
 ---
 
@@ -364,10 +383,10 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 | **유니버스** KOSPI200+KOSDAQ150 350종목 | [data/universe_core.json](data/universe_core.json) | 2026-08-25 생성 |
 | **지수 수집·저장** (신규) | [ingest/store/krx_index.py](ingest/store/krx_index.py) | 테스트 15개 통과 |
 | **인증 재시도·차단기** (신규) | [ingest/clients/krx_data.py](ingest/clients/krx_data.py) | 테스트 8개 통과 |
-| **데이터 품질 게이트** (신규) | [scripts/check_data.py](scripts/check_data.py) · [common/corporate_actions.py](common/corporate_actions.py) | 시세 920만 행 + 지수 51종 · error 5종 전부 0 · 테스트 27개 |
+| **데이터 품질 게이트** | [scripts/check_data.py](scripts/check_data.py) · [common/corporate_actions.py](common/corporate_actions.py) | 시세 920만 행 + 지수 51종 · error 5종 전부 0 · 테스트 17개 · 1분 48초 |
 | **스키마 마이그레이션** `PRAGMA user_version` | [ingest/store/migrations.py](ingest/store/migrations.py) | 테스트 11개 통과 · v4 까지 |
 | **호출 예산** 80% 경고·100% 정상종료 | [common/budget.py](common/budget.py) | 테스트 13개 통과 |
-| **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 23개 · 옛 이력 8,686건 이관 완료 |
+| **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 24개 · 8,686줄 (시장별) |
 | **응답 원문 보존 + 재정규화** | [common/raw_store.py](common/raw_store.py) · [scripts/renormalize.py](scripts/renormalize.py) | 테스트 15개 · gzip 18.7~24.6% (실측) |
 | **`as_of` 정문** 미래 역류 차단 | [supply/](supply/) 591줄 | 테스트 48개 · 예측 경로와 학습 경로를 **이름으로** 가름 |
 | **`robots.txt` 가드** 4xx 허용 / 5xx 차단 | [common/robots.py](common/robots.py) | 테스트 24개 · `protego==0.6.2` |
