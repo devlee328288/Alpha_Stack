@@ -20,10 +20,16 @@ LINK = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 # 검사 대상. 코드 안 docstring 은 보지 않는다 (md 링크 문법이 아니다)
 TARGETS = ["README.md", "AGENTS.md"]
 
+# 통째로 훑는 폴더. `notebooks/` 도 본다 — 폴더가 단계별로 나뉘어 있어 README 끼리
+# 상대 경로로 엮이는데, 그게 깨져도 아무도 모르는 자리였다.
+TREES = ["docs", "notebooks"]
+
 
 def 검사할_파일() -> list:
     out = [ROOT / t for t in TARGETS if (ROOT / t).exists()]
-    out += sorted((ROOT / "docs").rglob("*.md"))
+    for tree in TREES:
+        if (ROOT / tree).is_dir():
+            out += sorted((ROOT / tree).rglob("*.md"))
     return out
 
 

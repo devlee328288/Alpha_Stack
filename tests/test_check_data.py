@@ -170,6 +170,41 @@ def test_거래정지_표시행은_OHLC_위반이_아니다(깨끗한DB):
     assert checks["ohlc_inversions"].count == 0
     assert checks["zero_ohlc_rows"].count == 1
     assert not checks["ohlc_inversions"].failed
+    # 거래량이 0 이면 정상적인 정지행이다 — 새 경고에 걸리면 안 된다
+    assert checks["halted_but_traded"].count == 0
+
+
+def test_정지_표시행인데_체결이_있으면_따로_센다(깨끗한DB):
+    """검사의 구멍이었다. `if halted: … elif` 라서 정지행은 대소 검사를 건너뛰는데,
+
+    이 행들은 고가가 0 이면서 종가가 양수라 검사를 받으면 전부 걸린다.
+    실제 자료에 125행(2010-02-12~2025-03-21 · 97종목)이 이 상태로 숨어 있었다.
+    """
+    _고친다(깨끗한DB,
+            "UPDATE daily_price SET open=0, high=0, low=0, volume=1015, close=1126 "
+            "WHERE bas_dd = ? AND code = ?", (DAYS[5], CODES[0]))
+
+    checks = _검사(깨끗한DB)
+
+    assert checks["halted_but_traded"].count == 1
+    # 자료 오류가 아니다 — 체결이 실재하므로 게이트를 세우지 않는다
+    assert not checks["halted_but_traded"].failed
+    # 정지행으로도 여전히 세지만, "정지 중이라 체결이 없다" 는 전제와는 갈라 둔다
+    assert checks["zero_ohlc_rows"].count == 1
+    assert checks["ohlc_inversions"].count == 0
+
+
+def test_구멍_행의_표본에_체결이_남는다(깨끗한DB):
+    """숫자만 있으면 왜 그런지 아무도 못 쫓아간다. 종가와 거래량을 함께 남긴다."""
+    _고친다(깨끗한DB,
+            "UPDATE daily_price SET open=0, high=0, low=0, volume=1015, close=1126 "
+            "WHERE bas_dd = ? AND code = ?", (DAYS[5], CODES[0]))
+
+    표본 = _검사(깨끗한DB)["halted_but_traded"].samples
+
+    assert 표본[0]["종가"] == 1126
+    assert 표본[0]["거래량"] == 1015
+    assert 표본[0]["row"] == f"{DAYS[5]}/{CODES[0]}"
 
 
 def test_등락률이_전일대비와_어긋나면_잡는다(깨끗한DB):

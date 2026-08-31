@@ -28,6 +28,7 @@ from common.paths import krx_db_path  # DB 경로 — 유일한 정의 (순환 i
 from common.trading_calendar import to_iso, today_kst, trading_days  # 거래일 계산 (공통 유틸)
 from ingest.clients import krx_data as api  # KRX 호출·정규화 (외부 통신 담당)
 from ingest.store import (
+    collect_log,  # 수집 대장 — 무엇을 언제 받았고 무엇이 실패했나
     krx_bundle,  # 배포용 축약본 (원본이 없을 때의 대타)
     krx_pg,  # Postgres 읽기 어댑터 (전환 S4 · ADR-DS-0015)
 )
@@ -46,6 +47,23 @@ DB_PATH = krx_db_path()
 
 # 수집 대상 시장. KRX 는 시장마다 API 가 따로라 각각 호출해야 한다.
 MARKETS = ("KOSPI", "KOSDAQ")
+
+# 수집 대장에 남길 출처 이름. 지수 쪽(`krx_index`)과 갈라 둔다 — 같은 날짜라도
+# "지수는 받았고 종목은 안 받은" 상태가 실재하므로 한 이름으로 묶으면 서로를 지운다.
+COLLECT_SOURCE = "krx_stock"
+
+
+def _target(bas_dd: str, market: str) -> str:
+    """대장의 대상 이름. 지수 쪽과 **같은 규칙**이다 (`KOSPI/20260826`).
+
+    ⚠️ 시장을 붙이는 이유는 KRX 호출이 시장마다 따로이기 때문이다. 한 줄이 한 콜에
+       대응해야 예산(하루 10,000회)과 대장이 어긋나지 않는다.
+
+    ⚠️ 옛 `fetch_log` 에는 시장 칸이 없어서 대장을 처음 옮길 때 날짜만 들어갔다
+       (`20260826`). 그 줄들은 `rebuild_collect_log()` 가 `daily_price` 를 실제로 세어
+       시장별로 다시 깐다 — 없는 값을 지어내지 않는다.
+    """
+    return f"{market}/{bas_dd}"
 
 # DB 에 저장하는 컬럼 순서 (INSERT 와 SELECT 에서 함께 쓴다)
 COLUMNS = ("bas_dd", "code", "name", "market", "sector",
@@ -129,6 +147,9 @@ def init_db() -> None:
     """표와 인덱스를 만든다. 이미 있으면 아무 일도 하지 않는다."""
     with _write_lock, connect() as conn:
         conn.executescript(SCHEMA)
+    # 수집 대장은 이 파일의 SCHEMA 가 아니라 마이그레이션이 만든다 — 이미 900만 행이
+    # 든 DB 에 칸을 얹으려면 버전 관리가 필요하고, DDL 을 두 곳에 두면 언젠가 갈라진다.
+    collect_log._ensure_schema(DB_PATH)
 
 
 # ==================================================
@@ -156,12 +177,39 @@ def fetched_dates() -> set:
 
 
 def _save(bas_dd: str, items: List[Dict]) -> int:
-    """정규화된 한 날짜치를 DB 에 저장하고 저장 건수를 돌려준다."""
+    """정규화된 한 날짜치를 DB 에 저장하고 저장 건수를 돌려준다.
+
+    ## 대장을 두 곳에 쓰고, 읽는 곳은 하나다
+
+    `fetch_log` 와 수집 대장(`collect_log`) 둘 다에 남긴다.
+
+    - **`fetch_log` 는 계속 쓴다.** 900만 행 백필이 이 표 위에서 돌았고
+      `fetched_dates()` 가 아직 여기를 보고 "이미 받은 날짜"를 판단한다. 지우면
+      16년치를 처음부터 다시 받는다.
+    - **화면과 리포트가 읽는 것은 `collect_log` 하나다.** 여기를 안 쓰면 수집 현황의
+      "마지막 성공 시각"이 대장을 처음 옮긴 날에 얼어붙는다 — 매일 받고 있는데도
+      화면은 8월 26일이라고 말하게 된다. 실제로 그러고 있었다.
+
+    ⚠️ 대장은 **같은 트랜잭션 안에서** 쓴다. 따로 커밋하면 그 사이에 죽었을 때
+       "시세는 저장됐는데 대장에는 없는" 어긋난 상태가 남는다.
+
+    ⚠️ 시장별로 한 줄씩 남긴다. KRX 호출이 시장마다 따로라 한 줄이 한 콜에 대응해야
+       예산과 대장이 맞아떨어진다. 행이 0인 시장은 `empty` 로 — 휴장일은 **영원히
+       0행**이라 실패로 적으면 배치를 돌릴 때마다 같은 날짜에 호출을 태운다.
+    """
     rows = [
         tuple([bas_dd] + [item.get(col) for col in COLUMNS[1:]])
         for item in items
     ]
     placeholders = ",".join("?" * len(COLUMNS))
+
+    # 시장별 건수를 센다. `MARKETS` 를 기준으로 도는 것이 요점이다 — `items` 에 있는
+    # 시장만 세면 한쪽이 0행으로 온 날에 그 시장이 대장에서 통째로 빠진다.
+    per_market = {market: 0 for market in MARKETS}
+    for item in items:
+        market = item.get("market")
+        if market in per_market:
+            per_market[market] += 1
 
     # 쓰기는 한 번에 하나씩 — 6개 스레드가 동시에 INSERT 하면 잠금 충돌이 난다
     with _write_lock, connect() as conn:
@@ -174,6 +222,13 @@ def _save(bas_dd: str, items: List[Dict]) -> int:
             "INSERT OR REPLACE INTO fetch_log (bas_dd, rows, fetched_at) VALUES (?,?,?)",
             (bas_dd, len(rows), datetime.now().isoformat(timespec="seconds")),
         )
+        for market, count in per_market.items():
+            if count:
+                collect_log.mark_ok(COLLECT_SOURCE, _target(bas_dd, market),
+                                    rows=count, conn=conn)
+            else:
+                collect_log.mark_empty(COLLECT_SOURCE, _target(bas_dd, market),
+                                       note="0행 — 휴장일로 본다.", conn=conn)
     return len(rows)
 
 
@@ -235,11 +290,40 @@ def rows_for(bas_dd: str, market: str) -> Dict[str, Dict]:
 
 
 def fetch_date(bas_dd: str) -> int:
-    """한 거래일을 시장별로 받아 DB 에 저장한다. 이미 받은 날짜면 0 을 돌려준다."""
+    """한 거래일을 시장별로 받아 DB 에 저장한다. 이미 받은 날짜면 0 을 돌려준다.
+
+    ⚠️ 저장은 **날짜 단위로 한 번에** 한다. 시장 하나가 실패하면 아무것도 쓰지 않고
+       예외를 올린다. 반쪽만 저장하면 `fetch_log.rows` 가 절반으로 굳는데,
+       `fetched_dates()` 는 `rows > 0` 만 보므로 **재수집이 일어나지 않아 아무도
+       눈치채지 못한다.**
+
+    실패한 시장은 그 자리에서 대장에 남긴다 — 어느 시장이 왜 실패했는지는 예외가
+    올라가고 나면 알 수 없다.
+    """
     items: List[Dict] = []
     for market in MARKETS:
-        items.extend(api.fetch_snapshot(bas_dd, market))
-    return _save(bas_dd, items)
+        try:
+            items.extend(api.fetch_snapshot(bas_dd, market))
+        except api.KrxQuotaExhausted as error:
+            # **실패가 아니다.** 예산이 마른 것은 이 날짜의 잘못이 아니므로 재시도
+            # 횟수를 먹이면 안 된다 — 한도가 세 번 마르는 동안 멀쩡한 날짜가 영영 버려진다.
+            collect_log.mark_quota_exhausted(COLLECT_SOURCE, _target(bas_dd, market),
+                                             note=str(error), db_path=DB_PATH)
+            raise
+        except Exception as error:
+            collect_log.mark_error(COLLECT_SOURCE, _target(bas_dd, market),
+                                   note=str(error), db_path=DB_PATH)
+            raise
+
+    try:
+        return _save(bas_dd, items)
+    except Exception as error:
+        # 받기는 다 받았는데 쓰다가 죽었다. 트랜잭션이 통째로 롤백됐으므로 **두 시장 다**
+        # 실패다 — 여기서 안 남기면 "받아왔는데 대장에는 흔적이 없는" 날짜가 생긴다.
+        for market in MARKETS:
+            collect_log.mark_error(COLLECT_SOURCE, _target(bas_dd, market),
+                                   note=f"저장 실패: {error}", db_path=DB_PATH)
+        raise
 
 
 def sync(days: int = 250, workers: int = 6, end: Optional[str] = None,
@@ -284,6 +368,90 @@ def sync(days: int = 250, workers: int = 6, end: Optional[str] = None,
                 progress(done, len(todo), bas_dd, rows, error)
 
     return result
+
+
+def rebuild_collect_log() -> Dict[str, int]:
+    """옛 대장이 남긴 **날짜만 있는 줄**을 시장별로 다시 깐다. 한 번만 돌리면 된다.
+
+    ## 왜 필요한가
+
+    대장을 처음 옮긴 `collect_log.import_legacy()` 는 `fetch_log` 를 읽는데, 그 표에는
+    **시장 칸이 없다.** 그래서 종목 쪽 4,343줄이 `20260826` 처럼 날짜만 들고 있다.
+    반면 지수 쪽은 `KOSPI/20260826` 이다. 한 표 안에 두 규칙이 사는 셈이라, 새 수집이
+    시장별로 쓰기 시작하면 같은 날짜가 두 벌로 갈라진다.
+
+    ## 없는 값을 지어내지 않는다
+
+    시장별 건수는 `daily_price` 를 **실제로 세어서** 얻는다(실측 2026-08-31 기준
+    KOSPI 3,774,002행 · KOSDAQ 5,435,810행, 두 시장 모두 4,097거래일).
+    시각만은 `fetch_log.fetched_at` 을 날짜 단위로 그대로 물려준다 — 두 시장을 한
+    번의 `fetch_date()` 에서 잇달아 받았으므로 사실에 어긋나지 않는다.
+
+    ⚠️ `fetch_log` 는 **읽기만 한다.** 900만 행 백필이 그 위에서 돌았고
+       `fetched_dates()` 가 아직 거기를 본다.
+
+    ⚠️ 이미 시장별로 들어 있는 줄은 **건드리지 않는다.** 새 수집이 남긴 최신 상태를
+       옛 값으로 덮으면 방금 고친 실패가 되살아난다. 그래서 여러 번 돌려도 안전하다.
+    """
+    init_db()
+
+    with connect() as conn:
+        # 시장별 실제 건수. 인덱스가 (code, bas_dd) 라 이 집계는 전체를 훑는다 —
+        # 한 번만 돌리는 함수라 감수한다.
+        counted = conn.execute(
+            "SELECT bas_dd, market, COUNT(*) FROM daily_price "
+            "WHERE market IS NOT NULL GROUP BY bas_dd, market"
+        ).fetchall()
+        # 시각은 옛 대장이 쥐고 있다. 휴장일(rows=0)도 여기에만 있다.
+        fetched = conn.execute("SELECT bas_dd, rows, fetched_at FROM fetch_log").fetchall()
+
+    counts: Dict[Tuple[str, str], int] = {(row[0], row[1]): row[2] for row in counted}
+    note = "fetch_log · daily_price 에서 시장별로 다시 깔았음"
+
+    payload = []
+    # 옛 대장의 `rows` 는 두 시장 합계라 쓰지 않는다 — 시장별 건수는 `daily_price` 를
+    # 실제로 센 `counts` 에서 온다. 여기서 필요한 것은 날짜와 **시각**뿐이다.
+    for bas_dd, _, fetched_at in fetched:
+        for market in MARKETS:
+            count = counts.get((bas_dd, market), 0)
+            # 행이 있었으면 받은 것, 0이면 휴장일. 옛 표에는 이 둘밖에 없다 —
+            # 실패는 애초에 기록되지 않았다(그래서 새 대장이 필요했다).
+            status = collect_log.OK if count else collect_log.EMPTY
+            payload.append((COLLECT_SOURCE, _target(bas_dd, market), status, count,
+                            fetched_at, fetched_at, None, note, 0))
+
+    params = (COLLECT_SOURCE,)
+    with write_lock:
+        own = collect_log._connect(DB_PATH)
+        try:
+            own.execute("BEGIN IMMEDIATE")
+            try:
+                before = own.execute(
+                    "SELECT COUNT(*) FROM collect_log WHERE source=?", params
+                ).fetchone()[0]
+                # 슬래시가 없는 줄 = 옛 날짜 전용 형식. 시장별 줄은 남긴다.
+                removed = own.execute(
+                    "DELETE FROM collect_log WHERE source=? AND target NOT LIKE '%/%'",
+                    params,
+                ).rowcount
+                # OR IGNORE — 이미 시장별로 있는 대상은 그대로 둔다.
+                own.executemany(
+                    "INSERT OR IGNORE INTO collect_log "
+                    "(source, target, status, rows, last_success_at, last_attempted_at,"
+                    " cursor, note, attempts) VALUES (?,?,?,?,?,?,?,?,?)",
+                    payload,
+                )
+                after = own.execute(
+                    "SELECT COUNT(*) FROM collect_log WHERE source=?", params
+                ).fetchone()[0]
+                own.execute("COMMIT")
+            except Exception:
+                own.execute("ROLLBACK")
+                raise
+        finally:
+            own.close()
+
+    return {"before": before, "removed": removed, "built": len(payload), "after": after}
 
 
 # ==================================================
