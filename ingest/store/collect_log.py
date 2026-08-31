@@ -412,14 +412,23 @@ def stuck(source: Optional[str] = None, *,
 #:
 #: 종목 쪽 `fetch_log` 는 시장 칸이 없다. 날짜 하나로 KOSPI·KOSDAQ 을 함께 받아 왔기
 #: 때문이다. 지수 쪽 `index_fetch_log` 는 시장별로 따로 받으므로 칸이 있다.
+# 옮겨 올 옛 표. (표 이름, 출처 이름, 시장 칸이 있나)
+#
+# ⚠️ **종목 시세(`fetch_log`)는 여기 없다.** 그 표에는 시장 칸이 없어서 옮기면 대상이
+#    `20260826` 처럼 날짜만 남는데, 지수 쪽은 `KOSPI/20260826` 이다. 한 표 안에 두
+#    규칙이 살면 같은 날짜가 두 벌로 갈라진다. 시세는 `daily_price` 를 실제로 세어
+#    시장별로 까는 `krx_store.rebuild_collect_log()` 가 맡는다 — 시장별 건수를
+#    지어내지 않으려면 옛 대장이 아니라 시세 표를 봐야 한다.
 _LEGACY_TABLES = (
-    ("fetch_log", "krx_stock", False),
     ("index_fetch_log", "krx_index", True),
 )
 
 
 def import_legacy(*, db_path: Optional[Path] = None) -> Dict[str, int]:
-    """옛 수집 대장(`fetch_log`·`index_fetch_log`)의 이력을 이 표로 옮겨 온다.
+    """옛 수집 대장(`index_fetch_log`)의 이력을 이 표로 옮겨 온다.
+
+    ⚠️ **종목 시세는 이 함수가 옮기지 않는다** — `krx_store.rebuild_collect_log()` 다.
+       까닭은 `_LEGACY_TABLES` 주석에 적어 두었다.
 
     **왜 필요한가.** 이 표만 보고 "받아야 하는가"를 판단하기 시작하면, 옮기기 전까지는
     이미 받은 4,343 거래일이 전부 미수집으로 보인다. 그대로 배치를 돌리면 16년치를

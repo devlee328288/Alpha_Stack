@@ -289,13 +289,24 @@ def test_옛_이력을_넘겨받는다(db):
 
     옮긴수 = cl.import_legacy(db_path=db)
 
-    assert 옮긴수 == {"krx_stock": 2, "krx_index": 1}
-    assert cl.should_collect("krx_stock", "20260824", db_path=db) is False
-    assert cl.entry("krx_stock", "20260824", db_path=db)["rows"] == 2700
-    # 0행은 실패가 아니라 휴장일로 넘어와야 한다
-    assert cl.entry("krx_stock", "20260815", db_path=db)["status"] == cl.EMPTY
+    assert 옮긴수 == {"krx_index": 1}
     # 지수는 시장이 대상 이름에 들어간다
+    assert cl.should_collect("krx_index", "KOSPI/20260824", db_path=db) is False
     assert cl.entry("krx_index", "KOSPI/20260824", db_path=db)["rows"] == 51
+
+
+def test_종목_시세는_이_함수가_옮기지_않는다(db):
+    """옛 `fetch_log` 에는 시장 칸이 없다. 여기서 옮기면 대상이 `20260824` 로 남아
+
+    지수 쪽 `KOSPI/20260824` 와 규칙이 갈린다. 시세는 `daily_price` 를 실제로 세는
+    `krx_store.rebuild_collect_log()` 가 맡는다.
+    """
+    _옛표_만들기(db)
+
+    cl.import_legacy(db_path=db)
+
+    assert "krx_stock" not in cl.summary(db_path=db)
+    assert cl.entry("krx_stock", "20260824", db_path=db) is None
 
 
 def test_넘겨받기를_두_번_해도_안전하다(db):
@@ -303,19 +314,19 @@ def test_넘겨받기를_두_번_해도_안전하다(db):
     cl.import_legacy(db_path=db)
     cl.import_legacy(db_path=db)
 
-    assert cl.summary("krx_stock", db_path=db)["krx_stock"]["targets"] == 2
+    assert cl.summary("krx_index", db_path=db)["krx_index"]["targets"] == 1
 
 
 def test_넘겨받기가_새_상태를_덮지_않는다(db):
     """방금 고친 실패가 옛 값으로 되살아나면 안 된다."""
     _옛표_만들기(db)
-    cl.mark_error("krx_stock", "20260824", note="다시 받아야 한다", db_path=db)
+    cl.mark_error("krx_index", "KOSPI/20260824", note="다시 받아야 한다", db_path=db)
 
     cl.import_legacy(db_path=db)
 
-    assert cl.entry("krx_stock", "20260824", db_path=db)["status"] == cl.ERROR
+    assert cl.entry("krx_index", "KOSPI/20260824", db_path=db)["status"] == cl.ERROR
 
 
 def test_옛_표가_없어도_넘어간다(db):
     """새로 clone 한 사람의 DB 에는 옛 표가 아예 없다."""
-    assert cl.import_legacy(db_path=db) == {"krx_stock": 0, "krx_index": 0}
+    assert cl.import_legacy(db_path=db) == {"krx_index": 0}

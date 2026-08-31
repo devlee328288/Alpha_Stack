@@ -108,8 +108,39 @@ SAMPLE_LIMIT = 20
 #: ⚠️ 실측으로는 920만 행 전부가 0.02%p 안에 들어온다. 여유가 아니라 확인된 사실이다.
 RATE_TOLERANCE = 0.02
 
+#: 읽기 캐시(MB). 검사는 920만 행을 통째로 훑는 **배치**라 일반 앱과 기준이 다르다.
+#:
+#: SQLite 기본은 2MB 다. 그 상태로는 `idx_code_date` 를 타며 12칸을 읽느라 행마다
+#: 테이블 페이지에 임의 접근하는데, 1,578MB DB 의 페이지가 계속 밀려난다.
+#: 실측(2026-08-31 · 전 종목 순회 3회):
+#:
+#:     기본 2MB      135.7 / 124.5 / 153.3초
+#:     64MB           94.6 / 116.0초        ← 일반 앱에서 가장 흔한 값
+#:     mmap 512MB    116.0초                 ← 이쪽은 별 도움이 안 됐다
+#:     1GB            39.3 / 54.1 / 61.8초   ← 2.3~3.4배
+#:
+#: 일반 앱의 관행값(64MB)은 1.5GB DB 에 턱없이 모자란다. 반면 *"I/O 집약 작업에는
+#: 캐시를 기본의 100~1,000배까지 일시적으로 올린다"* 가 이 PRAGMA 의 흔한 용법이고,
+#: 1GB 는 기본의 500배로 그 범위 안이다.
+#:
+#: ⚠️ 상한이지 선할당이 아니다 — SQLite 는 필요한 만큼만 조금씩 잡는다.
+#: ⚠️ 이 값은 **로컬 배치 스크립트에만** 쓴다. 화면(Streamlit Cloud, 메모리 약 1GB)은
+#:    이 경로를 타지 않는다.
+BATCH_CACHE_MB = 1024
+
 ERROR = "error"
 WARN = "warn"
+
+
+def open_readonly(db: Path) -> sqlite3.Connection:
+    """검사 전용 읽기 연결.
+
+    ⚠️ **읽기 전용으로 연다.** 그냥 열면 검사가 쓰기 주체가 되고, 수집이 도는 중에
+       열면 잠금을 다툰다. 검사는 자료를 보기만 해야 한다.
+    """
+    conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    conn.execute("PRAGMA cache_size = -%d" % (BATCH_CACHE_MB * 1024))
+    return conn
 
 
 @dataclass
@@ -225,8 +256,8 @@ def check_stock(con: sqlite3.Connection) -> List[Check]:
         "SELECT code FROM daily_price WHERE bas_dd = ?", (calendar[-1],))}
 
     tally = dict.fromkeys(
-        ("malformed", "zero_ohlc", "inversion", "rate_mismatch", "liquidation",
-         "capital_change", "basis_adjusted", "first_listing", "explained",
+        ("malformed", "zero_ohlc", "halted_but_traded", "inversion", "rate_mismatch",
+         "liquidation", "capital_change", "basis_adjusted", "first_listing", "explained",
          "unexplained"), 0)
     samples: Dict[str, List] = {k: [] for k in tally}
     rows_total = codes_total = 0
@@ -265,6 +296,9 @@ def check_stock(con: sqlite3.Connection) -> List[Check]:
         Check("zero_ohlc_rows", WARN, tally["zero_ohlc"],
               "거래정지 표시행 (open=high=low=0). 자료 오류가 아니다",
               samples["zero_ohlc"]),
+        Check("halted_but_traded", WARN, tally["halted_but_traded"],
+              "정지 표시행인데 체결이 있다 — 시·고·저만 0 이라 대소 검사를 못 받는다",
+              samples["halted_but_traded"]),
         Check("liquidation_rows", WARN, tally["liquidation"],
               "정리매매 — 체결이 끊기기 직전 10체결일. 학습에서 뺀다",
               samples["liquidation"]),
@@ -297,6 +331,17 @@ def _tally_stock_row(code: str, row: Dict, prev: Optional[Dict], flag: RowFlags,
     if halted:
         tally["zero_ohlc"] += 1
         keep("zero_ohlc", ident)
+        # 정지 표시행인데 **체결이 있다.** 여기가 검사의 구멍이었다 — `elif` 라서
+        # 정지행은 대소 검사를 통째로 건너뛰는데, 이 행들은 고가가 0 이면서 종가는
+        # 양수라 검사를 받으면 전부 걸린다(실측 125행 전부 · 2026-08-31).
+        #
+        # 거래량과 거래대금이 실재하고 대체로 종가 × 거래량과 맞는다 — 체결이
+        # 정말 있었고 시·고·저만 안 온 것이다. 그래서 **자료 오류가 아니라 경고**다.
+        # 다만 정지행으로 세면 "정지 중이라 체결이 없다" 는 전제가 깨지므로 따로 센다.
+        if row["volume"]:
+            tally["halted_but_traded"] += 1
+            keep("halted_but_traded",
+                 {"row": ident, "종가": row["close"], "거래량": row["volume"]})
     elif None not in (row["open"], row["high"], row["low"], row["close"]) and not (
         row["low"] <= min(row["open"], row["close"])
         and max(row["open"], row["close"]) <= row["high"]
@@ -508,7 +553,7 @@ def main() -> int:
         print("   할 일: python scripts/fetch_krx.py 로 먼저 채우세요.")
         return 1
 
-    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    con = open_readonly(db)
     sections: Dict[str, List[Check]] = {}
 
     if args.only != "index":

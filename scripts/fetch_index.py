@@ -139,11 +139,16 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.import_legacy:
-        from ingest.store import collect_log
+        from ingest.store import collect_log, krx_store
         # 옮기지 않으면 이미 받은 거래일이 전부 미수집으로 보여 16년치를 다시 받는다.
         옮김 = collect_log.import_legacy()
         for source, count in sorted(옮김.items()):
             print(f"  {source}: {human(count)}건 확인")
+        # 종목 시세는 옛 표에 시장 칸이 없어 따로 깐다. `daily_price` 를 실제로 세어
+        # `KOSPI/20260826` 형태로 만든다 — 지수 쪽과 같은 규칙이라야 화면이 한 벌로 읽는다.
+        결과 = krx_store.rebuild_collect_log()
+        print(f"  krx_stock: {human(결과['built'])}건 확인 "
+              f"(옛 날짜 전용 줄 {human(결과['removed'])}건 정리)")
         print_collect_log()
         return 0
 
