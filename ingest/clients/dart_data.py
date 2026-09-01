@@ -528,28 +528,112 @@ def fetch_corp_code_rows(*, keep_raw: bool = False) -> List[Dict[str, str]]:
 # ==================================================
 # 2. 재무제표
 # ==================================================
-def _normalize_account(row: Dict) -> Dict:
-    """재무제표 한 줄을 숫자 타입으로 정규화한다.
+def _normalize_account(row: Dict, *, fs_div: str = "", rcept_dt: str = "") -> Dict:
+    """재무제표 한 줄을 숫자 타입으로 정규화한다. **이름은 DART 원본 그대로 둔다.**
 
     DART 는 당기·전기·전전기 3개 기간을 한 줄에 나란히 준다. 이름(`thstrm_nm`)이
     `"제 56 기"` 라 그대로는 연도를 알 수 없으므로 값과 함께 그대로 실어 보낸다.
+
+    🔴 왜 이름을 안 바꾸나 (이슈 #43)
+    ---------------------------------
+    처음에는 `thstrm_amount` 를 `this_amount` 로 바꿔 내보냈다. 그런데 반입 규격
+    `ingest/inbox/schemas/financial.json` 은 **DART 원본 이름**으로 서 있어서, 우리가
+    만든 파일이 반입될 때 **금액 칸이 전부 `extras` 로 밀렸다.** `thstrm_amount` 는
+    `required` 가 아니라 **예외도 안 났다** — 금액 없는 행이 조용히 합격했다.
+
+    이름을 되돌린 근거는 실측이다. `this_amount`·`statements` 를 쓰는 곳을 확장자
+    제한 없이 전수로 훑었더니 **이 파일 안 11줄이 전부**였다 (외부 소비자 0건).
+    관례도 같은 쪽이다 — dbt 는 "rename and recast in **staging**, not in source",
+    메달리온 bronze 는 "원본 형식 그대로" 다. 수집 계층은 이름을 바꾸지 않는다.
+
+    🔴 그리고 이름만 고쳐서는 하나도 안 통과했다
+    -------------------------------------------
+    삼성전자 2023 연결 176행으로 실제 반입을 태워 보니, 이름을 고친 뒤에도
+    **176행 전부가 격리**됐다. `bsns_year`·`reprt_code`·`fs_div` 가 `required` 인데
+    없었기 때문이다. 원인은 이 함수가 **DART 가 매 행에 실어 주는 식별 칸 4개를
+    버리고 있었다**는 것이다.
+
+        DART 원본 17칸 중 우리가 버리던 것: bsns_year · corp_code · reprt_code · rcept_no
+        (실측: 176/176 행 전부에 실려 온다)
+
+    그래서 그 넷을 되살리고, 응답에 **없는** `fs_div`·`rcept_dt` 는 부르는 쪽이
+    키워드로 넣어 준다. 이 둘까지 채우면 176행이 **176/0 으로 전량 합격**한다.
+
+    `fs_div` 는 요청 파라미터라 응답에 없고, `rcept_dt` 는 공시목록(`list.json`)에만 있다.
+    `rcept_dt` 가 특히 중요하다 — 규격이 시점 기준으로 못박은 칸이고, 이것이 없으면
+    `has_time_anchor` 같은 error 규칙이 **아예 돌지 않는다.**
     """
     return {
+        # 식별 — DART 가 매 행에 실어 준다. 버리면 규격의 required 를 못 채운다
+        "corp_code": (row.get("corp_code") or "").strip(),
+        "bsns_year": _number(row.get("bsns_year")),
+        "reprt_code": (row.get("reprt_code") or "").strip(),
+        "rcept_no": (row.get("rcept_no") or "").strip(),
+        # 응답에 없어 부르는 쪽이 채워 준다
+        "fs_div": fs_div,
+        "rcept_dt": rcept_dt,
+        # 계정
         "sj_div": row.get("sj_div", ""),
-        "sj_name": STATEMENT_NAMES.get(row.get("sj_div", ""), row.get("sj_nm", "")),
+        "sj_nm": STATEMENT_NAMES.get(row.get("sj_div", ""), row.get("sj_nm", "")),
         "account_id": row.get("account_id", ""),
         "account_nm": (row.get("account_nm") or "").strip(),
         "account_detail": (row.get("account_detail") or "").strip(),
         "ord": _number(row.get("ord")),
         "currency": row.get("currency", "KRW"),
-        # 당기 · 전기 · 전전기
-        "this_name": (row.get("thstrm_nm") or "").strip(),
-        "this_amount": _number(row.get("thstrm_amount")),
-        "prev_name": (row.get("frmtrm_nm") or "").strip(),
-        "prev_amount": _number(row.get("frmtrm_amount")),
-        "prev2_name": (row.get("bfefrmtrm_nm") or "").strip(),
-        "prev2_amount": _number(row.get("bfefrmtrm_amount")),
+        # 당기 · 전기 · 전전기 — 이름은 DART 원본 그대로다
+        "thstrm_nm": (row.get("thstrm_nm") or "").strip(),
+        "thstrm_amount": _number(row.get("thstrm_amount")),
+        "frmtrm_nm": (row.get("frmtrm_nm") or "").strip(),
+        "frmtrm_amount": _number(row.get("frmtrm_amount")),
+        "bfefrmtrm_nm": (row.get("bfefrmtrm_nm") or "").strip(),
+        "bfefrmtrm_amount": _number(row.get("bfefrmtrm_amount")),
     }
+
+
+def _receipt_date(corp_code: str, rcept_no: str) -> str:
+    """접수번호로 **공시 접수일**(`rcept_dt`, YYYYMMDD)을 되찾는다. 못 찾으면 빈 문자열.
+
+    재무제표 응답(`fnlttSinglAcntAll`)에는 접수일이 없고 접수번호만 있다. 그런데
+    반입 규격이 시점 기준으로 못박은 칸이 바로 접수일이라, 이것이 없으면
+    `has_time_anchor` 같은 error 규칙이 **아예 돌지 않는다.**
+
+    🔴 **접수번호 앞 8자리를 잘라 쓰지 않는다.** 정기공시 4,800건 실측에서 3건(0.062%)이
+       어긋났고 그중 둘은 접수일을 **3일 앞당겨** 읽는다. 틀리는 방향이 전부 우리에게
+       유리한 쪽이면 잡음이 아니라 **편향**이고, 예외는 나지 않는다.
+       앞 8자리는 **조회 구간을 잡는 데만** 쓴다 — 구간은 넉넉해도 값이 틀리지 않는다.
+
+    접수일은 불변이라 캐시가 영구히 유효하다. 같은 보고서를 다시 물어도 호출이 없다.
+    실패해도 예외를 올리지 않는다 — 접수일을 못 찾은 것이 수집 전체를 멈출 일은 아니고,
+    빈 값이면 반입 쪽이 `has_time_anchor` 로 격리해 **조용히 넘어가지 않는다.**
+    """
+    if not corp_code or not rcept_no or len(rcept_no) < 8 or not rcept_no[:8].isdigit():
+        return ""
+    return _cached(("rcept_dt", corp_code, rcept_no),
+                   lambda: _receipt_date_uncached(corp_code, rcept_no))
+
+
+def _receipt_date_uncached(corp_code: str, rcept_no: str) -> str:
+    try:
+        기준 = datetime.strptime(rcept_no[:8], "%Y%m%d")
+    except ValueError:
+        return ""
+
+    # ±10일. 앞 8자리가 최대 3일까지 어긋나므로 그보다 넉넉하게 잡는다.
+    span = {
+        "corp_code": corp_code,
+        "bgn_de": (기준 - timedelta(days=10)).strftime("%Y%m%d"),
+        "end_de": (기준 + timedelta(days=10)).strftime("%Y%m%d"),
+        "page_count": "100",
+    }
+    try:
+        payload = _call("list.json", span)
+    except DartError:
+        return ""            # 접수일을 못 찾는 것으로 수집을 멈추지 않는다
+
+    for item in payload.get("list") or []:
+        if (item.get("rcept_no") or "").strip() == rcept_no:
+            return (item.get("rcept_dt") or "").strip()
+    return ""
 
 
 def _pick_accounts(rows: List[Dict]) -> Tuple[Dict[str, Dict], List[Dict]]:
@@ -602,11 +686,13 @@ def _pick_accounts(rows: List[Dict]) -> Tuple[Dict[str, Dict], List[Dict]]:
             found[spec["key"]] = {
                 "key": spec["key"],
                 "label": spec["label"],
-                "value": hit["this_amount"],
-                "prev": hit["prev_amount"],
-                "prev2": hit["prev2_amount"],
-                "period": hit["this_name"],
-                "prev_period": hit["prev_name"],
+                # 바깥으로 내보내는 이름(value·prev·period)은 그대로 둔다 —
+                # 화면·리포트가 쓰는 계약이고, 바뀐 것은 안쪽 원본 줄의 이름뿐이다
+                "value": hit["thstrm_amount"],
+                "prev": hit["frmtrm_amount"],
+                "prev2": hit["bfefrmtrm_amount"],
+                "period": hit["thstrm_nm"],
+                "prev_period": hit["frmtrm_nm"],
                 "currency": hit["currency"],
                 "sj_div": hit["sj_div"],
                 "account_id": hit["account_id"],
@@ -683,14 +769,26 @@ def _fetch_financials_uncached(corp_code: str, corp_name: str, year: int,
             "corp_code": corp_code, "corp_name": corp_name,
             "bsns_year": year, "reprt_code": reprt, "reprt_name": REPORT_CODES[reprt],
             "fs_div": used_fs, "fs_div_name": FS_DIVS[used_fs],
-            "currency": "KRW", "rcept_no": "",
+            "currency": "KRW", "rcept_no": "", "rcept_dt": "",
             "accounts": {}, "missing": [], "statements": {}, "count": 0,
             "gaps": gaps, "empty": True,
             "fetched_at": _now_kst(),
             "elapsed_ms": int((time.monotonic() - started) * 1000),
         }
 
-    rows = [_normalize_account(r) for r in raw_rows]
+    # 응답에 없는 두 칸을 여기서 채운다 — fs_div 는 요청 파라미터라 응답에 없고,
+    # rcept_dt 는 공시목록에만 있다. 둘 다 반입 규격이 required 로 요구하는 칸이다.
+    rcept_no = (raw_rows[0].get("rcept_no") or "").strip()
+    rcept_dt = _receipt_date(corp_code, rcept_no)
+    if not rcept_dt:
+        gaps.append({
+            "code": "G-DATA",
+            "message": "공시 접수일을 되찾지 못했습니다.",
+            "detail": "이 숫자를 세상이 알게 된 날을 모르면 시점 기준으로 쓸 수 없습니다. "
+                      "반입에 태우면 has_time_anchor 로 격리됩니다 — 조용히 넘어가지 않습니다.",
+        })
+
+    rows = [_normalize_account(r, fs_div=used_fs, rcept_dt=rcept_dt) for r in raw_rows]
     accounts, missing = _pick_accounts(rows)
 
     # 금융업인지 먼저 가른다. 없는 계정을 두고 "빠졌다" 고 할지 "원래 없다" 고 할지가 갈린다.
@@ -732,7 +830,8 @@ def _fetch_financials_uncached(corp_code: str, corp_name: str, year: int,
         "fs_div": used_fs,
         "fs_div_name": FS_DIVS[used_fs],
         "currency": rows[0]["currency"] if rows else "KRW",
-        "rcept_no": raw_rows[0].get("rcept_no", ""),      # 공시 원문 링크에 쓴다
+        "rcept_no": rcept_no,                # 공시 원문 링크에 쓴다
+        "rcept_dt": rcept_dt,                # 🔴 이 숫자를 세상이 알게 된 날. 시점 기준이다
         "accounts": accounts,
         "missing": missing,
         "statements": statements,
