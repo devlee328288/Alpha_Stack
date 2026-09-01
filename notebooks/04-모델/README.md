@@ -22,3 +22,7 @@
 숫자는 KOSPI200 개발구간 720개 OOS 표본의 실측값입니다. Accuracy만 보면 XGBoost가
 가장 높고, 세 클래스를 같은 비중으로 보는 Macro F1과 하락 Recall은 RandomForest가
 가장 높습니다. 네 모델 모두 최빈 클래스 기준선 Accuracy 0.4250을 넘지 못했습니다.
+
+표·클래스별 Recall·혼동행렬을 한눈에 보는 해석은
+[`05.모델비교.md`](실험/조합A_rsi14_bb_bandwidth_hv20_vol_ratio20/05.모델비교.md)에
+정리했습니다.
