@@ -207,3 +207,54 @@ def bollinger_bands(
         "lower": lower,
         "bandwidth": bandwidth,
     }
+
+
+def percent_b(prices: Sequence, window: int = 20, num_std: float = 2.0) -> np.ndarray:
+    """%B — 볼린저밴드 **안에서 가격의 위치**. `bandwidth`(밴드의 폭)와는 다른 것을 잰다.
+
+        %B_t = (close_t - lower_t) / (upper_t - lower_t)
+
+    1에 가까우면 상단선 근접(과열·상승 강도), 0에 가까우면 하단선 근접(과매도·하락
+    강도). 급등락으로 밴드를 뚫고 나가면 0~1 범위를 벗어날 수 있다 — 그것도 정보다
+    (밴드 폭 대비 얼마나 세게 뚫었는지).
+    """
+    x = _to_array(prices)
+    bands = bollinger_bands(x, window=window, num_std=num_std)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        width = bands["upper"] - bands["lower"]
+        result = np.where(width > 0, (x - bands["lower"]) / width, np.nan)
+    return result
+
+
+def sma_gap(prices: Sequence, short: int, long: int) -> np.ndarray:
+    """단기·장기 단순이동평균의 상대적 차이 — `(sma_short / sma_long) - 1`.
+
+    이동평균 값 자체(레벨)는 종목의 가격 수준에 종속적이라 그대로 피처로 쓰면
+    안 되지만(종목마다 스케일이 다르다), 두 이동평균의 **비율**은 가격 수준과
+    무관한 추세 신호다. 양수면 단기 평균이 장기 평균 위(상승 추세), 음수면 아래
+    (하락 추세).
+    """
+    x = _to_array(prices)
+    sma_short = sma(x, short)
+    sma_long = sma(x, long)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(sma_long != 0, sma_short / sma_long - 1.0, np.nan)
+    return result
+
+
+def macd_hist_ratio(
+    prices: Sequence,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> np.ndarray:
+    """MACD 히스토그램을 종가로 정규화한 값 — `hist / close`.
+
+    `macd().hist` 는 가격 단위(원)라 종목마다·시기마다 스케일이 다르다. 종가로
+    나누면 그 스케일이 지워져서 종목·시점 간에도 비교 가능한 비율이 된다.
+    """
+    x = _to_array(prices)
+    hist = macd(x, fast=fast, slow=slow, signal=signal)["hist"]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(x != 0, hist / x, np.nan)
+    return result
