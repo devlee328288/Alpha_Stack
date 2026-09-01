@@ -46,14 +46,13 @@ PK 를 곧장 탄다. 실측 (2026-08-25 · 005930 · 250행):
 
 from __future__ import annotations
 
-import re
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Sequence
 
 from sqlalchemy import text
 
-from common import db
+from common import codes, db
 
 # `krx_store.snapshot()`/`series()` 가 돌려주는 키와 **순서**. `SELECT *` 를 쓰던 자리라
 # 컬럼을 명시하지 않으면 키 집합이 조용히 달라진다.
@@ -81,11 +80,14 @@ WINDOW_COLUMNS: Dict[str, str] = {
     "listed_shares": "o.listed_shares",
 }
 
-# 국내 종목코드는 6자리 숫자다. 코드 검색과 이름 검색은 질의가 아예 달라 먼저 가른다.
-# ⚠️ **정의는 여기 하나다.** `krx_store.lookup_security()` 가 이 값을 그대로 쓴다.
+# 코드 검색과 이름 검색은 질의가 아예 달라 먼저 가른다. 여기서 하는 일은 검증이 아니라
+# **갈래 고르기**이므로 넓게 잡는다 — 한글 종목명과만 구분되면 되고, 못 찾으면 `None` 이다.
+# ⚠️ 예전에는 `^\d{6}$` 였다. 그래서 `0009K0`(에임드바이오)·`0126Z0`(삼성에피스홀딩스)처럼
+#    5·6번째 자리에 영문이 있는 84종이 코드 분기를 못 타고 이름 검색으로 새어, 예외도 로그도
+#    없이 *"그런 종목 없음"* 으로 위장했다. 그 둘은 350종 핵심 유니버스 안에 있다.
+# ⚠️ **정의는 `common/codes.py` 하나다.** `krx_store.lookup_security()` 도 이 값을 그대로 쓴다.
 #    두 벌로 두면 한쪽만 고쳐진 채 오래 간다 — 이 레포가 갱신 사슬에서 이미 겪은 고장이다.
-#    `krx_store` 가 `krx_pg` 를 import 하는 방향이라(반대는 순환) 낮은 쪽인 이곳이 자리다.
-CODE_PATTERN = re.compile(r"^\d{6}$")
+CODE_PATTERN = codes.CODE_LIKE_PATTERN
 
 # 종목 속성은 `securities` 에, 시세는 `ohlcv` 에 있다. 둘을 잇는 조각을 한 곳에 둔다.
 _JOIN = "ohlcv o JOIN securities s ON s.security_id = o.security_id AND NOT s.is_delisted"
@@ -370,7 +372,11 @@ def lookup_security(code_or_name: str) -> Optional[Dict]:
     if not needle:
         return None
 
-    if CODE_PATTERN.fullmatch(needle):
+    # ⚠️ 코드 판정은 대문자로 올려서 하고, **찾을 때도 올린 값을 넘긴다.** 우리 `code` 는
+    #    전부 대문자라 `0009k0` 을 그대로 넘기면 0행이 나온다. 반대로 이름 검색은 원본을
+    #    쓴다 — 'iM금융지주' 처럼 소문자가 뜻을 갖는 종목명이 있어 올리면 못 찾는다.
+    if codes.looks_like_code(needle):
+        needle = needle.upper()
         rows = _fetch(
             "SELECT code, name, market FROM securities "
             "WHERE code = :code AND NOT is_delisted LIMIT 1",

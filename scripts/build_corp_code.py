@@ -33,7 +33,7 @@ from typing import Dict, List, Tuple
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from common import budget  # noqa: E402  (경로를 세운 뒤에 import 한다)
+from common import budget, codes  # noqa: E402  (경로를 세운 뒤에 import 한다)
 from ingest.clients import dart_data  # noqa: E402
 
 KST = timezone(timedelta(hours=9))
@@ -97,12 +97,16 @@ def build_map(rows: List[Dict[str, str]]) -> Tuple[Dict[str, Dict[str, str]], in
 
 
 def odd_codes(mapping: Dict[str, Dict[str, str]]) -> List[str]:
-    """여섯 자리 숫자가 아닌 종목코드를 골라낸다.
+    """우리가 아는 종목코드 형식이 아닌 것을 골라낸다.
 
     버리지 않고 **보고만** 한다. DART 가 우리가 모르는 형식을 내려주기 시작했을 때
     조용히 사라지는 것보다 눈에 띄는 편이 낫다.
+
+    ⚠️ 예전에는 `len(c) == 6 and c.isdigit()` 이었다. 그래서 5·6번째 자리에 영문이 있는
+    정상 종목 84종을 매 실행마다 "이상한 코드" 로 찍었다. 정말로 새 형식이 들어온 날
+    그 경고가 소음에 묻히는 것 — 이 함수가 막으려던 바로 그 실패다.
     """
-    return sorted(c for c in mapping if not (len(c) == 6 and c.isdigit()))
+    return sorted(c for c in mapping if not codes.is_stock_code(c))
 
 
 def write_json(path: Path, payload: Dict) -> None:
@@ -159,7 +163,7 @@ def main() -> int:
 
     strange = odd_codes(listed_map)
     if strange:
-        print(f"  ⚠️ 여섯 자리 숫자가 아닌 종목코드 {len(strange)} 건: {strange[:5]}")
+        print(f"  ⚠️ 우리가 아는 형식이 아닌 종목코드 {len(strange)} 건: {strange[:5]}")
 
     if not listed_map:
         print("❌ 상장사가 한 건도 없습니다. 응답 형식이 바뀌었을 수 있습니다.")

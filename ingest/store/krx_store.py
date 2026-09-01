@@ -23,7 +23,7 @@ from contextlib import contextmanager  # 직접 만드는 with 블록
 from datetime import datetime, timedelta
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from common import settings  # STORE_BACKEND — 어느 저장소에서 읽나 (ADR-DS-0015)
+from common import codes, settings  # 종목코드 형식 · STORE_BACKEND (ADR-DS-0015)
 from common.paths import krx_db_path  # DB 경로 — 유일한 정의 (순환 import 회피)
 from common.trading_calendar import to_iso, today_kst, trading_days  # 거래일 계산 (공통 유틸)
 from ingest.clients import krx_data as api  # KRX 호출·정규화 (외부 통신 담당)
@@ -786,10 +786,13 @@ def lookup_security(code_or_name: str) -> Optional[Dict]:
 
     init_db()
     with connect() as conn:
-        if krx_pg.CODE_PATTERN.fullmatch(needle):
+        # ⚠️ 코드 판정은 대문자로 올려서 하고 찾을 때도 올린 값을 넘긴다. 우리 `code` 는
+        #    전부 대문자라 `0009k0` 을 그대로 넘기면 0행이다. 이름 검색은 원본을 쓴다.
+        #    (`krx_pg.lookup_security()` 와 **같은 답**을 내야 한다 — 그게 이 함수의 계약이다.)
+        if codes.looks_like_code(needle):
             row = conn.execute(
                 "SELECT code, name, market FROM daily_price WHERE code = ? "
-                "ORDER BY bas_dd DESC LIMIT 1", (needle,)).fetchone()
+                "ORDER BY bas_dd DESC LIMIT 1", (needle.upper(),)).fetchone()
         else:
             # 이름 검색 — 정확히 일치하는 것을 먼저 찾고, 없으면 앞부분이 같은 종목을 쓴다.
             row = conn.execute(
