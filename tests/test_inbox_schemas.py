@@ -199,10 +199,21 @@ def test_error_규칙이_우리_자료를_격리하지_않는다(name: str, tabl
         )
 
 
+#: 아래 기대값을 실측한 날. **이 날까지만 세야 값이 고정된다.**
+#: 상한을 안 두면 시세를 하루 받을 때마다 이 테스트가 깨진다 — 실제로 2026-09-01 에
+#: 4거래일(20260826~20260831)을 받자 zero_ohlc 가 283,468 → 283,983 으로 515 늘어
+#: 깨졌다. 증가분은 그 4일의 몫(134·131·128·122)과 정확히 일치했고 규칙은 멀쩡했다.
+#: 규칙이 멀쩡한데 빨간불이 켜지면 팀은 규칙을 고치지 않고 테스트를 끈다.
+MEASURED_THROUGH = "20260825"
+
+
 def test_warn_규칙이_아는_사실을_그대로_센다():
     """실측으로 확인된 건수가 규칙으로도 같게 나오는지 본다.
 
     통과만 보고는 규칙이 도는지 알 수 없다. 값이 맞아야 뜻대로 읽힌 것이다.
+
+    ⚠️ `MEASURED_THROUGH` 까지만 센다. 새로 받은 날은 이 검사의 대상이 아니다 —
+       여기서 보는 것은 *규칙이 뜻대로 읽히는가*이지 *자료가 얼마나 쌓였는가*가 아니다.
     """
     db = ROOT / "data" / "krx_cache.db"
     if not db.exists():
@@ -210,10 +221,16 @@ def test_warn_규칙이_아는_사실을_그대로_센다():
 
     spec = load("ohlcv_stock")
     with sqlite3.connect(db) as con:
-        frame = pd.read_sql("SELECT * FROM daily_price", con)
+        frame = pd.read_sql("SELECT * FROM daily_price WHERE bas_dd <= ?",
+                            con, params=(MEASURED_THROUGH,))
+
+    if frame.empty:
+        pytest.skip(f"{MEASURED_THROUGH} 이전 자료가 없다")
 
     expected = {"zero_ohlc": 283_468, "zero_ohlc_but_traded": 125}
     rules = {r["id"]: r for r in spec["x-alphastack"]["rowRules"]}
     for rule_id, count in expected.items():
         result = evaluate_rule(rules[rule_id]["expr"], frame)
-        assert int((~result).sum()) == count, f"{rule_id} 이 {count:,} 행을 세야 한다"
+        assert int((~result).sum()) == count, (
+            f"{rule_id} 이 {MEASURED_THROUGH} 까지에서 {count:,} 행을 세야 한다"
+        )
