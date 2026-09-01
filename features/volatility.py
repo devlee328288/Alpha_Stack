@@ -78,6 +78,10 @@ def true_range(high: Sequence, low: Sequence, close: Sequence) -> np.ndarray:
     c = _to_array(close)
     if not (h.size == lo.size == c.size):
         raise ValueError("high·low·close 의 길이가 다르다")
+    # 고가가 저가보다 낮은 행은 시장에 존재하지 않는다 — 인자 순서가 바뀌었을 때
+    # 조용히 그럴듯한 값을 내지 않도록 값으로 잡는다(#19). NaN 은 비교가 늘 False라 통과한다.
+    if np.any(lo > h):
+        raise ValueError("low 가 high 보다 큰 행이 있다 — 인자 순서가 바뀌었을 수 있다")
 
     n = h.size
     out = np.full(n, np.nan)
@@ -180,6 +184,12 @@ def parkinson_volatility(
     cumulative = np.concatenate(([0.0], np.nancumsum(sq_log_range)))
     sums = cumulative[window:] - cumulative[:-window]
     variance = sums / (4.0 * np.log(2.0) * window)
+
+    # 창 안에 결측(또는 고가·저가가 0 이하라 nan 처리된 행)이 하나라도 있으면
+    # 그 창은 통째로 nan (#18) — `indicators.sma` 와 같은 이유.
+    nan_cumulative = np.concatenate(([0], np.cumsum(np.isnan(sq_log_range))))
+    nan_counts = nan_cumulative[window:] - nan_cumulative[:-window]
+    variance = np.where(nan_counts > 0, np.nan, variance)
 
     with np.errstate(invalid="ignore"):
         vol = np.sqrt(variance)

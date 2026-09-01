@@ -43,7 +43,14 @@ def volume_sma(volumes: Sequence, window: int) -> np.ndarray:
 
     cumulative = np.concatenate(([0.0], np.nancumsum(x)))
     sums = cumulative[window:] - cumulative[:-window]
-    out[window - 1:] = sums / window
+
+    # 창 안에 결측이 하나라도 있으면 그 창은 통째로 nan (#18) — `indicators.sma`
+    # 와 같은 이유. `volume_ratio` 가 이 함수를 분모로 쓰므로 여기서 막아야
+    # 거래량이 조용히 부풀려지는 걸 함께 막는다.
+    nan_cumulative = np.concatenate(([0], np.cumsum(np.isnan(x))))
+    nan_counts = nan_cumulative[window:] - nan_cumulative[:-window]
+
+    out[window - 1:] = np.where(nan_counts > 0, np.nan, sums / window)
     return out
 
 
