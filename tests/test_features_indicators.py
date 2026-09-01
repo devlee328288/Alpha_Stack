@@ -177,6 +177,87 @@ def test_bollinger_shift_검사():
         _assert_allclose(after[key][:-1], list(before[key][:-1]))
 
 
+# ── %B (볼린저밴드 내 가격 위치) ───────────────────────────────────────────
+
+def test_percent_b_10행_손계산():
+    """window=3, num_std=2 — `test_bollinger_10행_손계산` 의 upper/lower 를 그대로
+    가져와 `(close - lower) / (upper - lower)` 로 위치를 잰다.
+
+    `bandwidth` 는 밴드가 "얼마나 넓은가"를 재고, %B 는 그 폭 안에서 가격이
+    "어디에 있는가"를 잰다 — 둘은 다른 정보다. t=9(price=13, 상단 근접)는 1에
+    가깝고, t=5(price=9, 하단 근접)는 0에 가깝다.
+
+        t=2: (12-9)/(13-9) = 3/4 = 0.75
+        t=5: (9-8)/(12-8) = 1/4 = 0.25
+        t=9: (13-10)/(14-10) = 3/4 = 0.75
+    """
+    upper = [None, None, 13.0, 12.488033871712584, 13.0, 12.0,
+             10.821367205045917, 12.0, 13.0, 14.0]
+    lower = [None, None, 9.0, 10.178632794954083, 9.0, 8.0,
+             8.511966128287416, 8.0, 9.0, 10.0]
+    expected = [
+        None if up is None else (p - lo) / (up - lo)
+        for p, up, lo in zip(PRICES, upper, lower, strict=True)
+    ]
+    _assert_allclose(indicators.percent_b(PRICES, window=3, num_std=2.0), expected)
+
+
+def test_percent_b_shift_검사():
+    changed = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    before = indicators.percent_b(PRICES, window=3, num_std=2.0)
+    after = indicators.percent_b(changed, window=3, num_std=2.0)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+# ── sma_gap (이동평균 격차) ─────────────────────────────────────────────
+
+def test_sma_gap_10행_손계산():
+    """short=2, long=3. `sma(2)` 는 손으로 직접 센다 — [nan, 10.5, 11.5, 11.5,
+    10.5, 9.5, 9.5, 10.5, 11.5, 12.5]. `sma(3)` 은 `test_sma_10행_손계산` 과 같다.
+
+        t=2: 11.5/11.0 - 1 = 0.5/11
+        t=5: 9.5/10.0 - 1 = -0.05
+    두 이동평균 다 유효해야 하므로 t=0,1 은 nan(장기창이 아직 안 찼다).
+    """
+    sma3 = [None, None, 11.0, 34 / 3, 11.0, 10.0, 29 / 3, 10.0, 11.0, 12.0]
+    sma2 = [None, 10.5, 11.5, 11.5, 10.5, 9.5, 9.5, 10.5, 11.5, 12.5]
+    expected = [
+        None if (a is None or b is None) else a / b - 1.0
+        for a, b in zip(sma2, sma3, strict=True)
+    ]
+    _assert_allclose(indicators.sma_gap(PRICES, short=2, long=3), expected)
+
+
+def test_sma_gap_shift_검사():
+    changed = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    before = indicators.sma_gap(PRICES, short=2, long=3)
+    after = indicators.sma_gap(changed, short=2, long=3)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+# ── macd_hist_ratio (MACD 히스토그램 정규화) ────────────────────────────
+
+def test_macd_hist_ratio_10행_손계산():
+    """fast=2, slow=3, signal=2 — `test_macd_10행_손계산` 의 `hist` 를 종가로 나눈다."""
+    hist = [None, None, None, -0.08179012345679013, -0.10313786008230452,
+            -0.08397633744855967, 0.05443387059899406, 0.09509911789361378,
+            0.08209078741807652, 0.0565304146238717]
+    expected = [
+        None if h is None else h / p
+        for h, p in zip(hist, PRICES, strict=True)
+    ]
+    _assert_allclose(
+        indicators.macd_hist_ratio(PRICES, fast=2, slow=3, signal=2), expected
+    )
+
+
+def test_macd_hist_ratio_shift_검사():
+    changed = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    before = indicators.macd_hist_ratio(PRICES, fast=2, slow=3, signal=2)
+    after = indicators.macd_hist_ratio(changed, fast=2, slow=3, signal=2)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
 # ── 길이 계약 ────────────────────────────────────────────────────────────
 
 def test_모든_지표는_입력과_같은_길이를_돌려준다():
@@ -189,3 +270,6 @@ def test_모든_지표는_입력과_같은_길이를_돌려준다():
     assert all(len(v) == n for v in macd_out.values())
     bb_out = indicators.bollinger_bands(PRICES, window=3, num_std=2.0)
     assert all(len(v) == n for v in bb_out.values())
+    assert len(indicators.percent_b(PRICES, window=3, num_std=2.0)) == n
+    assert len(indicators.sma_gap(PRICES, short=2, long=3)) == n
+    assert len(indicators.macd_hist_ratio(PRICES, fast=2, slow=3, signal=2)) == n

@@ -75,6 +75,11 @@ dev = [
   # 버전은 실측이다 — 2026-08-31 에 설치해 `__version__` 으로 확인하고 205.93MB 를
   # 실제로 올려 봤다.
   "huggingface_hub==1.29.0",
+
+  # ── 모델 실험 결과 시각화 (`notebooks/04-모델/`) ─────────────
+  # 2026-09-01 에 현재 Python·NumPy 조합에서 실제 설치와 import 를 확인했다.
+  "matplotlib==3.11.1",
+  "seaborn==0.13.2",
 ]
 
 [build-system]
