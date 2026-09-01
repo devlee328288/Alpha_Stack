@@ -4,7 +4,10 @@
 > **질문** 오준영 (모델 파트) — "조합 A·B 가 둘 다 기준선 아래고 하락을 못 맞힙니다.
 > 기준과 가설이 적절한지, 어떤 피처를 쓰면 좋을지 검토 부탁드립니다"
 > **관련** [ADR-AS-0002 예측대상과 레이블](../../decisions/0002-예측대상과-레이블.md) ·
-> [ADR-AS-0004 사전등록](../../decisions/0004-사전등록.md) · 이슈 #33
+> [ADR-AS-0004 사전등록](../../decisions/0004-사전등록.md) ·
+> **이슈** [#37](https://github.com/devlee328288/Alpha_Stack/issues/37) (준영님 질문 · 이 문서의 요약을 댓글로) ·
+> [#38](https://github.com/devlee328288/Alpha_Stack/issues/38) (수익률 계열 누락) ·
+> [#33](https://github.com/devlee328288/Alpha_Stack/issues/33) (평가 지표)
 > **재현 노트북** [`notebooks/06-검토·발견/01.X조합-피처선정-검토.ipynb`](../../../notebooks/06-검토·발견/01.X조합-피처선정-검토.ipynb)
 
 ---
@@ -453,7 +456,7 @@ bb_pctb       = (close - bb_lower) / (bb_upper - bb_lower)  # %B — rsi_14 와 
 | 축 | 지금 | 늘릴 수 있는 것 | 담당 |
 |---|---|---|---|
 | 가격·거래량 | 22개 (한 계열) | — | 신장환 |
-| **수익률 계열** | **없음** 🔴 | 1일·5일·20일 수익률. 수업 자료가 쓴 형태 | 신장환 (별도 이슈) |
+| **수익률 계열** | **없음** 🔴 | 1일·5일·20일 수익률. 수업 자료가 쓴 형태 | 신장환 ([#38](https://github.com/devlee328288/Alpha_Stack/issues/38)) |
 | 수급 | 없음 | 투자자별 매매동향 (개인·외국인·기관) | 이동원 (3차) |
 | 거시 | 없음 | 금리·환율·미국 지수 전일 종가 | 이동원 (3차) |
 | 공시 | 없음 | DART | 이동원 (3차) |
@@ -463,7 +466,8 @@ bb_pctb       = (close - bb_lower) / (bb_upper - bb_lower)  # %B — rsi_14 와 
 > `['MA5_MA20_Diff', 'Daily_Return', '5Day_Return', 'Volatility_20', 'RSI14',
 > 'MACD', 'MACD_Hist', 'HL_Percent', ...]` 입니다 — **`Daily_Return`·`5Day_Return`
 > 이 들어 있습니다.** 이동평균 차이(`MA5_MA20_Diff`)를 쓴 것은 준영님과 같고,
-> 거기에 **수익률을 따로 넣은 것**이 다릅니다. 피처 파트에 요청드렸습니다(별도 이슈).
+> 거기에 **수익률을 따로 넣은 것**이 다릅니다. 피처 파트에 요청드렸습니다
+> ([#38](https://github.com/devlee328288/Alpha_Stack/issues/38)).
 
 ### ④ 시도 횟수를 장부에 적습니다
 
