@@ -379,7 +379,6 @@ def test_계약4_워밍업_길이가_실측과_같다(저장소, 이름, 워밍�
         )
 
 
-@pytest.mark.xfail(strict=True, reason="이슈 #18 — 창 안의 결측을 0 으로 세고 나눈다")
 def test_계약4_결측이_섞이면_그_창은_NaN이어야_한다(저장소):
     """🔴 지금은 **오염된 숫자**가 나온다. NaN 이 아니라 그럴듯한 값이라 더 위험하다.
 
@@ -447,27 +446,14 @@ def test_계약5_빈_표에도_칸이_남는다(저장소):
         assert 칸 in 빈_종목.columns, f"빈 종목 표에 {칸} 칸이 없다"
 
 
-@pytest.mark.parametrize("이름", [n for n in 이름들 if n != "rsi"])
+@pytest.mark.parametrize("이름", 이름들)
 def test_계약5_빈_표를_넣으면_빈_결과가_나온다(저장소, 이름):
-    """13개는 지킨다. `rsi` 만 어긋나서 아래 xfail 로 따로 뒀다."""
+    """14개 전부 지킨다. `rsi` 는 이슈 #17 로 길이 1 을 돌려주던 것을 고쳤다."""
     호출 = 함수표[이름]
     빈 = supply.index_series(지수명, as_of="1990-01-01")
 
     for arr in _배열들(호출(_칸(빈))):
         assert len(arr) == 0, f"{이름}: 0행을 넣었는데 {len(arr)}개가 나왔다"
-
-
-@pytest.mark.xfail(strict=True, reason="이슈 #17 — rsi 가 빈 입력에 길이 1 을 돌려준다")
-def test_계약5_빈_표에_rsi도_빈_결과여야_한다(저장소):
-    """🔴 `supply` 는 빈 표를 **정상적으로** 낸다 — 상장 전 구간, 아직 모르는 `as_of`.
-
-    그때 다른 13개는 길이 0 을 주는데 `rsi` 만 길이 1(NaN)을 준다. 두 값을 나란히
-    `pd.DataFrame` 에 담으면 **길이가 안 맞아 터지거나**, 한쪽이 브로드캐스트되어
-    있지도 않은 행이 하나 생긴다.
-    """
-    빈 = supply.index_series(지수명, as_of="1990-01-01")
-
-    assert len(indicators.rsi(빈["close"], window=14)) == 0
 
 
 # ── ⑥ 호출 방식 ───────────────────────────────────────────────────────────
@@ -489,7 +475,6 @@ def test_계약6_as_of를_아예_빼면_터진다(저장소):
         supply.price_series(종목코드)                # type: ignore[call-arg]
 
 
-@pytest.mark.xfail(strict=True, reason="이슈 #19 — true_range 인자 순서를 검증하지 않는다")
 def test_계약6_고가와_저가를_바꿔_넣으면_알아차린다(저장소):
     """🔴 `true_range(high, low, close)` 를 `(low, high, close)` 로 부르면 **조용히**
     다른 값이 나온다. 실측(코스피 200 4,093행) 평균 6.06 → 5.30.

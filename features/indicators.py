@@ -58,7 +58,14 @@ def sma(prices: Sequence, window: int) -> np.ndarray:
 
     cumulative = np.concatenate(([0.0], np.nancumsum(x)))
     sums = cumulative[window:] - cumulative[:-window]
-    out[window - 1:] = sums / window
+
+    # 창 안에 결측이 하나라도 있으면 그 창은 통째로 nan — "모르는 값이 섞인 평균은
+    # 평균이 아니다" (#18). 여기서 안 막으면 nancumsum 이 결측을 0으로 세고도
+    # window로 나눠서, 조용히 낮게 부풀린(왜곡된) 값을 낸다.
+    nan_cumulative = np.concatenate(([0], np.cumsum(np.isnan(x))))
+    nan_counts = nan_cumulative[window:] - nan_cumulative[:-window]
+
+    out[window - 1:] = np.where(nan_counts > 0, np.nan, sums / window)
     return out
 
 
@@ -115,6 +122,12 @@ def rsi(prices: Sequence, window: int = 14) -> np.ndarray:
     """
     x = _to_array(prices)
     window = max(1, int(window))
+
+    if x.size == 0:
+        # 다른 13개 함수와 같은 규약 — 빈 입력엔 빈 배열. `supply`가 수집 시작일 이전
+        # 조회를 빈 표로 돌려주므로(예외가 아니라 정상값), 여기서 길이가 어긋나면
+        # 안 터지고 조용히 한 칸 밀린 값이 붙는다 (#17).
+        return np.array([], dtype=float)
 
     delta = np.diff(x)  # 길이 x.size-1, 하루 전 대비 변화 — 과거만 본다 (0번째 행은 델타 없음)
     gain = np.where(delta > 0.0, delta, 0.0)
