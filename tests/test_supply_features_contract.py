@@ -55,7 +55,7 @@ import pandas as pd
 import pytest
 
 import supply
-from features import indicators, volatility, volume
+from features import indicators, returns, volatility, volume
 from ingest.store import krx_index, krx_store
 
 지수명 = "코스피 200"
@@ -139,10 +139,12 @@ def 저장소(tmp_path, monkeypatch):
     return db
 
 
-# ── 검사 대상 — features 의 공개 함수 14개 전부 ────────────────────────────
+# ── 검사 대상 — features 의 공개 함수 18개 전부 ────────────────────────────
 #
-# ⚠️ **14개다.** `features/` 에 def 는 19개지만 5개(`_to_array` 3벌 · `_ewm_mean` ·
-#    `_wilder_smooth`)는 밑줄로 시작하는 내부 헬퍼다. 계약은 밖에서 부르는 것에만 선다.
+# ⚠️ **18개다** (2026-09-01, #38 로 `percent_b`·`sma_gap`·`macd_hist_ratio`·
+#    `n_day_return` 4개 추가 — 14 + 4). `features/` 에 def 는 더 있지만 밑줄로
+#    시작하는 내부 헬퍼(`_to_array` 4벌 · `_ewm_mean` · `_wilder_smooth`)는 계약이
+#    안 선다 — 계약은 밖에서 부르는 것에만 선다.
 #    `test_공개함수를_하나도_빠뜨리지_않았다` 가 이 수를 실제 모듈과 맞춰 본다.
 #
 # 워밍업 은 "앞에서 몇 개가 NaN 이어야 하는가" 다. 창 크기와 다른 값이 섞여 있는데
@@ -170,6 +172,10 @@ CALLS: List[호출] = [
     ("obv",                   lambda d: volume.obv(d["close"], d["volume"]), 0),
     ("vwap",                  lambda d: volume.vwap(d["close"], d["volume"], window=20), 19),
     ("volume_roc",            lambda d: volume.volume_roc(d["volume"], window=5), 5),
+    ("percent_b",             lambda d: indicators.percent_b(d["close"], window=20), 19),
+    ("sma_gap",               lambda d: indicators.sma_gap(d["close"], short=5, long=20), 19),
+    ("macd_hist_ratio",       lambda d: indicators.macd_hist_ratio(d["close"]), 33),
+    ("n_day_return",          lambda d: returns.n_day_return(d["close"], window=5), 5),
 ]
 
 이름들 = [name for name, _, _ in CALLS]
@@ -217,7 +223,7 @@ def test_공개함수를_하나도_빠뜨리지_않았다():
     import inspect
 
     실제: List[str] = []
-    for 모듈 in (indicators, volatility, volume):
+    for 모듈 in (indicators, volatility, volume, returns):
         for 이름, 대상 in inspect.getmembers(모듈, inspect.isfunction):
             # 다른 모듈에서 import 해 온 것은 그 모듈의 계약이 아니다
             if 대상.__module__ == 모듈.__name__ and not 이름.startswith("_"):
