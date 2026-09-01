@@ -1,0 +1,523 @@
+{
+  "name": "macro",
+  "title": "거시 지표 (ECOS·FRED·KOSIS)",
+  "description": "금리·물가·환율·생산 같은 거시 통계. 세 출처(한국은행 ECOS · 미 연준 FRED · 통계청 KOSIS)의 응답 모양이 서로 다르지만 한 규격으로 합친다 — 셋 다 결국 '어느 계열의 · 어느 기간의 · 값 하나' 이고, 따로 두면 같은 미래참조 규칙을 세 번 쓰게 되어 세 번 다 틀릴 기회가 생긴다. ⚠️ 이 규격의 핵심은 값이 아니라 **참조기간과 발표일이 다르다**는 사실이다.",
+  "fields": [
+    {
+      "name": "source",
+      "type": "string",
+      "title": "출처",
+      "description": "어느 기관에서 왔는지. 지연 추정이 출처마다 다르므로 이 칸이 없으면 known_from 을 채울 수 없다.",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "ECOS",
+          "FRED",
+          "KOSIS"
+        ]
+      }
+    },
+    {
+      "name": "series_id",
+      "type": "string",
+      "title": "계열코드",
+      "description": "그 출처 안에서 계열을 가리키는 코드. FRED 는 한 칸(CPIAUCSL)이지만 ECOS·KOSIS 는 통계표+항목이 나뉘어 온다 — 그때는 breakdown 과 함께 열쇠를 이룬다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "series_name",
+      "type": "string",
+      "title": "계열명"
+    },
+    {
+      "name": "breakdown",
+      "type": "string",
+      "title": "분류축",
+      "description": "지역·성별·연령 같은 세부 분류. ⚠️ **열쇠의 일부다.** 처음에는 series_id 에 조립해 넣으려 했는데, 여러 컬럼을 이어 붙이는 cleaner 가 없어서 실제로는 조립되지 않은 채 열쇠 밖으로 빠졌다 — 그러면 같은 통계표의 서울·부산이 한 계열로 뭉개진다. 조립 대신 열쇠에 넣는 쪽을 택했다. 조립은 되돌릴 수 없지만 열쇠는 나중에 합칠 수 있다."
+    },
+    {
+      "name": "freq",
+      "type": "string",
+      "title": "주기",
+      "description": "D 일 · W 주 · M 월 · Q 분기 · H 반기 · A 연.",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "D",
+          "W",
+          "M",
+          "Q",
+          "H",
+          "A"
+        ]
+      }
+    },
+    {
+      "name": "period",
+      "type": "string",
+      "title": "기간코드",
+      "description": "출처가 준 표기 그대로(20260801 · 2026-08 · 2026Q3). 형식이 제각각이라 판정에는 쓰지 않고 아래 period_start·period_end 로 옮겨 쓴다. 원본을 남기는 이유는 옮기는 과정이 틀렸을 때 되짚기 위해서다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "period_start",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "참조기간 시작일",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "period_end",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "참조기간 종료일",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "value",
+      "type": "number",
+      "title": "값"
+    },
+    {
+      "name": "unit",
+      "type": "string",
+      "title": "단위"
+    },
+    {
+      "name": "release_date",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "실제 발표일",
+      "description": "출처가 이 값을 실제로 공표한 날. 있으면 known_from 의 근거로 이것을 먼저 쓴다 — 추정보다 언제나 낫다."
+    },
+    {
+      "name": "known_from",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "사용 가능일",
+      "description": "🔴 이 날부터 이 값을 알 수 있었다. **미래참조를 막는 유일한 방어선**이고, 그래서 필수다. 비어 있으면 검사기가 아래 규칙으로 채운 뒤 검사한다 — 채우지 못하면 격리한다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "known_from_basis",
+      "type": "string",
+      "title": "사용 가능일 근거",
+      "description": "known_from 을 무엇으로 정했는지. `release` 는 출처가 준 발표일, `estimate` 는 우리 지연표로 추정한 값이다. 이 칸이 있어야 나중에 '추정으로 채운 행만 빼고 다시 돌려 보기' 가 된다 — 추정이 틀렸을 때 무엇이 오염됐는지 알 방법이 이것뿐이다.",
+      "constraints": {
+        "enum": [
+          "release",
+          "estimate"
+        ]
+      }
+    }
+  ],
+  "primaryKey": [
+    "source",
+    "series_id",
+    "breakdown",
+    "period_start"
+  ],
+  "missingValues": [
+    "",
+    "-",
+    "NA",
+    "N/A",
+    "N.A.",
+    "None",
+    "null",
+    "nan",
+    "NaN",
+    "#N/A",
+    "."
+  ],
+  "x-alphastack": {
+    "version": "1.1",
+    "target": {
+      "compareWith": null,
+      "description": "대조할 표가 아직 없다. ⚠️ 그리고 지금은 수집도 못 한다 — common/budget.py 의 LIMITS 에 dart·krx·naver_search·youtube·youtube_search 다섯뿐이고 **ecos·fred·kosis 는 항목조차 없어 try_spend 를 부르면 UnknownSource 로 터진다.** 이 규격을 세우는 것과 별개로 그 세 줄을 넣어야 수집이 시작된다."
+    },
+    "aliases": {
+      "source": [
+        "출처",
+        "기관",
+        "제공기관",
+        "provider",
+        "org",
+        "ORG_NM",
+        "기관명",
+        "api",
+        "API"
+      ],
+      "series_id": [
+        "지표코드",
+        "계열코드",
+        "시리즈코드",
+        "series",
+        "seriesId",
+        "indicator_id",
+        "지표ID",
+        "STAT_CODE",
+        "stat_code",
+        "ITM_ID",
+        "itmId",
+        "항목코드"
+      ],
+      "series_name": [
+        "지표명",
+        "계열명",
+        "항목명",
+        "통계명",
+        "통계표명",
+        "STAT_NAME",
+        "ITM_NM",
+        "STAT_NM",
+        "지표이름"
+      ],
+      "breakdown": [
+        "분류",
+        "분류축",
+        "세분류",
+        "항목분류",
+        "group_label",
+        "C1_NM",
+        "C2_NM",
+        "지역",
+        "성별",
+        "연령"
+      ],
+      "freq": [
+        "주기",
+        "빈도",
+        "발표주기",
+        "frequency",
+        "frequency_short",
+        "CYCLE",
+        "PRD_SE",
+        "prdSe",
+        "주기구분",
+        "cycle_name"
+      ],
+      "period": [
+        "기간",
+        "시점",
+        "기간코드",
+        "시점코드",
+        "PRD_DE",
+        "prd_de",
+        "TIME",
+        "obs_period"
+      ],
+      "period_start": [
+        "기준일",
+        "시작일",
+        "기간시작",
+        "참조기간시작",
+        "start_date",
+        "observation_date",
+        "STRT_PRD_DE"
+      ],
+      "period_end": [
+        "종료일",
+        "기간종료",
+        "참조기간종료",
+        "end_date",
+        "END_PRD_DE",
+        "마감일"
+      ],
+      "value": [
+        "값",
+        "수치",
+        "지표값",
+        "관측치",
+        "VALUE",
+        "DATA_VALUE",
+        "obs_value",
+        "observation_value",
+        "수치값"
+      ],
+      "unit": [
+        "단위명",
+        "UNIT_NAME",
+        "UNIT_NM",
+        "units",
+        "units_short",
+        "unit_name"
+      ],
+      "release_date": [
+        "발표일",
+        "공표일",
+        "공표일자",
+        "발표일자",
+        "released",
+        "realtime_start",
+        "publish_date",
+        "announce_date"
+      ],
+      "known_from": [
+        "사용가능일",
+        "가용일",
+        "available_from",
+        "usable_from",
+        "knowable_from"
+      ]
+    },
+    "ambiguousNames": {
+      "코드": {
+        "candidates": [
+          "series_id",
+          "breakdown"
+        ],
+        "note": "통계표 코드인지 분류 코드인지 이름만으로는 모른다. 보고한다."
+      },
+      "단위": {
+        "candidates": [
+          "unit",
+          "freq"
+        ],
+        "note": "'단위' 가 값의 단위(억원)일 수도 시간 단위(월)일 수도 있다. 보고한다."
+      },
+      "date": {
+        "candidates": [
+          "period_start",
+          "release_date"
+        ],
+        "note": "참조기간인지 발표일인지가 이 규격의 전부다. 이 둘을 뒤바꾸면 미래참조가 그대로 들어온다. 절대 추측하지 않는다."
+      },
+      "날짜": {
+        "candidates": [
+          "period_start",
+          "release_date"
+        ],
+        "note": "위와 같다."
+      },
+      "일자": {
+        "candidates": [
+          "period_start",
+          "release_date"
+        ],
+        "note": "위와 같다."
+      },
+      "TBL_ID": {
+        "candidates": [
+          "series_id"
+        ],
+        "note": "KOSIS 통계표 ID. 항목코드(ITM_ID)와 함께 와야 계열이 정해지므로 이것만으로 series_id 를 삼으면 여러 항목이 한 계열로 뭉개진다. 보고하고 사람이 정한다."
+      },
+      "as_of": {
+        "candidates": [
+          "known_from"
+        ],
+        "note": "이 저장소에서 as_of 는 '조회 시점' 이라는 다른 뜻으로 이미 쓰인다(supply 계층). 같은 이름을 다른 뜻으로 매핑하면 나중에 반드시 헷갈린다. 보고한다."
+      }
+    },
+    "aliasInvariant": "한 이름은 한 필드에만 속한다. 검사기는 규격을 읽을 때 이 불변식을 먼저 확인하고, 깨져 있으면 자료가 아니라 규격이 틀렸다고 보고한다.",
+    "cleaners": {
+      "source": [
+        "strip",
+        "upper",
+        "map_source"
+      ],
+      "series_id": [
+        "strip",
+        "upper"
+      ],
+      "series_name": [
+        "strip",
+        "collapse_space"
+      ],
+      "breakdown": [
+        "strip",
+        "collapse_space"
+      ],
+      "freq": [
+        "strip",
+        "upper",
+        "map_freq"
+      ],
+      "period": [
+        "strip",
+        "upper"
+      ],
+      "period_start": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "period_end": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "value": [
+        "strip",
+        "strip_comma",
+        "strip_percent",
+        "to_float"
+      ],
+      "unit": [
+        "strip"
+      ],
+      "release_date": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "known_from": [
+        "strip",
+        "to_yyyymmdd"
+      ]
+    },
+    "cleanerNotes": {
+      "map_source": "ecos·한국은행·BOK → ECOS, fred·연준·FRB → FRED, kosis·통계청·KOSTAT → KOSIS.",
+      "map_freq": "일·daily·DD → D, 주·weekly → W, 월·monthly·MM → M, 분기·quarterly·QQ → Q, 반기·half → H, 년·연·annual·YY → A.",
+      "missingValues에_점(.)이_있는_이유": "FRED 는 결측을 마침표 하나로 준다. 이 목록에 없으면 to_float 가 실패하거나 0 으로 읽힌다."
+    },
+    "rowRules": [
+      {
+        "id": "period_span_order",
+        "expr": "period_start is null or period_end is null or period_start <= period_end",
+        "severity": "error",
+        "note": "참조기간의 시작이 끝보다 늦다. 두 칸이 뒤바뀐 것이다."
+      },
+      {
+        "id": "period_not_future",
+        "expr": "period_start is null or period_start <= today",
+        "severity": "error",
+        "note": "아직 오지 않은 기간의 값. 예측치를 실측처럼 담았거나 날짜 파싱이 틀린 것이다."
+      },
+      {
+        "id": "daily_is_one_day",
+        "expr": "freq != 'D' or period_start is null or period_end is null or period_start == period_end",
+        "severity": "error",
+        "note": "일간 지표인데 참조기간이 하루가 아니다. 주기 표기가 틀렸거나 기간을 잘못 폈다."
+      },
+      {
+        "id": "monthly_starts_on_first",
+        "expr": "freq != 'M' or period_start is null or day(period_start) == 1",
+        "severity": "error",
+        "note": "월간 지표의 참조기간은 그 달 1일에서 시작한다. 15일 같은 값이 오면 기간이 아니라 발표일을 담았을 가능성이 크다 — 그것이 바로 이 규격이 막으려는 뒤바뀜이다."
+      },
+      {
+        "id": "quarterly_starts_on_quarter",
+        "expr": "freq != 'Q' or period_start is null or (day(period_start) == 1 and (month(period_start) == 1 or month(period_start) == 4 or month(period_start) == 7 or month(period_start) == 10))",
+        "severity": "error",
+        "note": "분기 지표의 참조기간은 1·4·7·10월 1일에서 시작한다."
+      },
+      {
+        "id": "quarter_code_shape",
+        "expr": "freq != 'Q' or period is null or matches(period, '^[0-9]{4}(Q[1-4]|[1-4])$') or matches(period, '^[0-9]{8}$')",
+        "severity": "warn",
+        "note": "분기 기간코드가 낯선 모양이다. 출처마다 2026Q3 · 20263 · 20260701 로 달라서 격리하지 않고 표시만 한다."
+      },
+      {
+        "id": "release_after_period_end",
+        "expr": "release_date is null or period_end is null or release_date >= period_end",
+        "severity": "error",
+        "note": "참조기간이 끝나기도 전에 발표했다는 뜻이 된다. 속보치라도 기간이 끝난 뒤에 나온다."
+      },
+      {
+        "id": "release_not_future",
+        "expr": "release_date is null or release_date <= today",
+        "severity": "error",
+        "note": "아직 오지 않은 발표일."
+      },
+      {
+        "id": "known_from_present",
+        "expr": "known_from is not null",
+        "severity": "error",
+        "note": "🔴 **이 규칙이 없으면 나머지 미래참조 규칙이 전부 무력해진다.** 아래 규칙들은 모두 `known_from is null or …` 꼴이라, known_from 이 비어 있는 행은 규칙 열두 개를 하나도 어기지 않고 통과한다. '비어 있으면 채운다' 를 산문으로만 적어 두면 채우는 사람이 없을 때 조용히 뚫린다. 검사기는 release_date 나 지연표로 채운 **뒤에** 이 규칙을 돌리고, 그래도 비면 격리한다."
+      },
+      {
+        "id": "known_from_after_period_end",
+        "expr": "known_from is null or period_end is null or known_from >= period_end",
+        "severity": "error",
+        "note": "참조기간이 끝나기 전부터 그 값을 알았다는 뜻이 된다. 거시 지표에서 가장 흔한 미래참조다."
+      },
+      {
+        "id": "known_from_not_before_release",
+        "expr": "known_from is null or release_date is null or known_from >= release_date",
+        "severity": "error",
+        "note": "발표되기 전부터 알았다는 뜻이 된다. 추정 지연이 실제 발표일보다 이를 때 여기서 걸린다 — 이 규칙이 지연표의 오차를 잡아 주는 안전망이다."
+      },
+      {
+        "id": "known_from_basis_present",
+        "expr": "known_from is null or known_from_basis is not null",
+        "severity": "warn",
+        "note": "known_from 이 있는데 그 근거가 없다. 나중에 '추정으로 채운 행만 빼고 다시 돌려 보기' 를 못 하게 된다."
+      },
+      {
+        "id": "known_from_not_future",
+        "expr": "known_from is null or known_from <= today",
+        "severity": "warn",
+        "note": "아직 쓸 수 없는 값. 틀린 것은 아니고 지금은 못 쓴다는 표시다."
+      },
+      {
+        "id": "value_present",
+        "expr": "value is not null",
+        "severity": "warn",
+        "note": "값이 없는 관측. 출처가 결측을 그렇게 주기도 해서 격리하지 않는다."
+      }
+    ],
+    "lookahead": {
+      "field": "known_from",
+      "priority": [
+        "release_date",
+        "delayFromPeriodStart"
+      ],
+      "rule": "release_date 가 있고 release_after_period_end·release_not_future 를 통과하면 known_from = release_date 로 두고 known_from_basis = 'release'. 없으면 period_start + delayFromPeriodStart[source][freq] 로 채우고 basis = 'estimate'.",
+      "anchor": "period_start",
+      "anchorReason": "지연을 period_end 가 아니라 period_start 에 더한다. 2026년 7월 CPI 는 period_start 2026-07-01 기준으로 재야 실제 공표 시점과 맞는다. 같은 일수를 period_end(07-31)에 더하면 한 달을 통째로 더 기다리게 되어, 누설은 없지만 쓸 수 있는 자료를 버린다.",
+      "delayFromPeriodStart": {
+        "ECOS": {
+          "D": 1,
+          "W": 8,
+          "M": 32,
+          "Q": 115,
+          "H": 210,
+          "A": 545
+        },
+        "KOSIS": {
+          "D": 1,
+          "W": 8,
+          "M": 32,
+          "Q": 115,
+          "H": 210,
+          "A": 545
+        },
+        "FRED": {
+          "D": 1,
+          "W": 8,
+          "M": 45,
+          "Q": 130,
+          "H": 225,
+          "A": 560
+        }
+      },
+      "왜_출처마다_다른가": "🔴 처음에는 주기 하나로만 골랐다(월 32일·분기 115일). 그런데 그 숫자는 **한국 공표 관행**에 맞춘 것이다 — 통계청 CPI 는 익월 2일경, 한은 GDP 속보는 분기말+25일경이다. 미국은 늦다: 미 CPI 는 익월 11~13일, GDP 속보는 분기말 한 달 뒤다. 2026년 7월 미 CPI 에 32일을 쓰면 known_from 이 2026-08-02 가 되는데 실제 공표는 8월 11~13일이라 **9~11일을 미리 보게 된다.** 지연표를 (출처, 주기)로 나눈 이유가 이것이다. FRED 쪽 숫자(월 45·분기 130)는 미국 공표 관행에 여유를 얹은 값이다.",
+      "⚠️_남은_위험": "FRED 계열마다 공표 일정이 다르고 우리는 그 달력을 계열 단위로 확인하지 못했다. 45일보다 늦게 나오는 월간 계열이 있으면 그만큼 샌다. 세 겹으로 막는다 — ① known_from_not_before_release 가 release_date 가 있는 행에서 오차를 잡고, ② known_from_basis='estimate' 로 추정 행에 표를 달아 나중에 빼고 다시 돌려 볼 수 있게 하고, ③ FRED 계열을 새로 들일 때는 그 계열의 실제 공표 일정을 확인해 여기 적는다. **이것은 해결된 문제가 아니라 관리 중인 위험이다.**",
+      "dailyNote": "일간 지표(환율·금리)는 지연 성격이 다르다 — 참조기간과 발표 사이에 몇 주가 아니라 몇 시간이 놓인다. 그래도 0 이 아니라 1 로 잡는다. FRED 일간 계열은 미국 장 마감 뒤 확정되므로 KST 로는 다음 날 아침에야 알 수 있고, DGS10 의 8월 3일 값을 8월 3일 국내 종가와 같은 행에 놓으면 그날 저녁 미국에서 정해질 값을 낮에 쓰는 셈이다. ECOS 매매기준율은 당일 오전 고시라 0 도 가능하지만, 출처마다 다른 숫자를 두면 언젠가 잘못 붙는다. 하루로 통일하고 손해는 하루치 지연으로 감수한다.",
+      "합의된_값과_추정한_값": {
+        "합의": {
+          "ECOS·KOSIS M": 32,
+          "ECOS·KOSIS Q": 115
+        },
+        "추정": {
+          "D": 1,
+          "W": 8,
+          "H": 210,
+          "A": 545,
+          "FRED M": 45,
+          "FRED Q": 130
+        },
+        "note": "합의된 것은 월 32일·분기 115일 둘뿐이다. 나머지는 같은 원칙(항상 진실보다 늦은 쪽)으로 늘려 잡은 값이고, 팀이 확인한 숫자가 아니다. 확인된 것처럼 인용하지 않는다."
+      }
+    }
+  }
+}

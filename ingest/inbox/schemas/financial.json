@@ -1,0 +1,522 @@
+{
+  "name": "financial",
+  "title": "재무·공시 (DART 재무제표)",
+  "description": "상장사 재무제표 계정 한 줄씩. DART 단일회사 전체계정(fnlttSinglAcntAll.json)의 응답 구조를 따른다. ⚠️ 이 규격에서 가장 중요한 것은 금액이 아니라 **공시 접수일(rcept_dt)** 이다 — 결산기와 세상이 그 숫자를 알게 된 날이 석 달까지 벌어지기 때문이다.",
+  "fields": [
+    {
+      "name": "corp_code",
+      "type": "string",
+      "title": "DART 고유번호",
+      "description": "여덟 자리. DART 는 종목코드가 아니라 이것으로만 회사를 받는다. 없으면 stock_code 로 되찾을 수 있다 — `python scripts/build_corp_code.py` 가 `data/corp_code.json` 을 만들어 준다. required 로 걸지 않은 이유가 여기 있다: 손으로 모은 표에는 대개 종목코드만 있고, 고유번호를 필수로 두면 정문에서 전량 거부하게 된다.",
+      "constraints": {
+        "pattern": "^[0-9]{8}$"
+      }
+    },
+    {
+      "name": "stock_code",
+      "type": "string",
+      "title": "종목코드",
+      "description": "여섯 자리. 비상장 법인은 이 칸이 비어 있다.",
+      "constraints": {
+        "pattern": "^[0-9]{6}$"
+      }
+    },
+    {
+      "name": "corp_name",
+      "type": "string",
+      "title": "회사명"
+    },
+    {
+      "name": "bsns_year",
+      "type": "integer",
+      "title": "사업연도",
+      "description": "⚠️ 이 칸은 **결산기**이지 알게 된 날이 아니다. 시계열 인덱스로 쓰면 안 된다.",
+      "constraints": {
+        "required": true,
+        "minimum": 1990,
+        "maximum": 2100
+      }
+    },
+    {
+      "name": "reprt_code",
+      "type": "string",
+      "title": "보고서 코드",
+      "description": "11011 사업보고서 · 11012 반기보고서 · 11013 1분기 · 11014 3분기. DART 가 이 넷만 받고 우리 코드도 그 밖의 값을 422 로 거부한다.",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "11011",
+          "11012",
+          "11013",
+          "11014"
+        ]
+      }
+    },
+    {
+      "name": "fs_div",
+      "type": "string",
+      "title": "연결/별도 구분",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "CFS",
+          "OFS"
+        ]
+      }
+    },
+    {
+      "name": "sj_div",
+      "type": "string",
+      "title": "재무제표 구분",
+      "description": "BS 재무상태표 · IS 손익계산서 · CIS 포괄손익계산서 · CF 현금흐름표 · SCE 자본변동표. ⚠️ 계정을 찾을 때 account_id 만 보면 안 되고 이 칸을 함께 못박아야 한다 — SCE 에는 같은 account_id 가 여러 번 나온다(삼성전자 2024 연결에서 ifrs-full_Equity 가 7번). 이걸 놓치면 자본총계 402조 대신 자본금 10조가 잡힌다.",
+      "constraints": {
+        "required": true,
+        "enum": [
+          "BS",
+          "IS",
+          "CIS",
+          "CF",
+          "SCE"
+        ]
+      }
+    },
+    {
+      "name": "account_id",
+      "type": "string",
+      "title": "표준계정 ID",
+      "description": "IFRS 표준 ID. 비어 있을 수 있어 열쇠로 쓰지 않는다 — 표준 ID 를 안 채운 회사가 있어 우리 코드도 account_nm 사전 매칭을 대비책으로 둔다."
+    },
+    {
+      "name": "account_nm",
+      "type": "string",
+      "title": "계정명",
+      "description": "회사마다 다르다. 제조업은 '매출액', 금융·서비스업은 '영업수익'·'수익(매출액)' 을 쓴다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "account_detail",
+      "type": "string",
+      "title": "계정상세"
+    },
+    {
+      "name": "ord",
+      "type": "integer",
+      "title": "계정 정렬순서"
+    },
+    {
+      "name": "currency",
+      "type": "string",
+      "title": "통화",
+      "description": "대개 KRW. 다른 통화가 오면 금액을 그대로 비교하면 안 된다."
+    },
+    {
+      "name": "thstrm_nm",
+      "type": "string",
+      "title": "당기 기수",
+      "description": "'제 56 기' 처럼 온다. ⚠️ **연도를 뽑을 수 없다** — 회사마다 창립연도가 달라 기수와 연도의 관계가 제각각이다. 시점 판단에 절대 쓰지 않는다."
+    },
+    {
+      "name": "thstrm_amount",
+      "type": "number",
+      "title": "당기 금액"
+    },
+    {
+      "name": "frmtrm_amount",
+      "type": "number",
+      "title": "전기 금액"
+    },
+    {
+      "name": "bfefrmtrm_amount",
+      "type": "number",
+      "title": "전전기 금액"
+    },
+    {
+      "name": "rcept_no",
+      "type": "string",
+      "title": "접수번호",
+      "description": "열네 자리. 앞 여덟 자리가 접수일이다. rcept_dt 가 없을 때 되찾는 실마리가 되지만 **그대로 잘라 쓰지는 않는다** — 아래 lookahead 를 보라.",
+      "constraints": {
+        "pattern": "^[0-9]{14}$"
+      }
+    },
+    {
+      "name": "rcept_dt",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "공시 접수일",
+      "description": "🔴 **이 숫자를 세상이 알게 된 날.** 이 규격의 시점 기준이 이 칸이고 다른 어떤 칸도 대신할 수 없다. 저장은 YYYYMMDD 여덟 자리 문자열로 통일한다 — 어떤 곳은 날짜로, 어떤 곳은 문자열로 다루면 규칙이 도는 곳과 안 도는 곳이 갈린다."
+    },
+    {
+      "name": "report_nm",
+      "type": "string",
+      "title": "보고서명"
+    },
+    {
+      "name": "rm",
+      "type": "string",
+      "title": "비고"
+    }
+  ],
+  "primaryKey": [
+    "corp_code",
+    "bsns_year",
+    "reprt_code",
+    "fs_div",
+    "sj_div",
+    "account_nm",
+    "ord"
+  ],
+  "missingValues": [
+    "",
+    "-",
+    "NA",
+    "N/A",
+    "N.A.",
+    "None",
+    "null",
+    "nan",
+    "NaN",
+    "#N/A"
+  ],
+  "x-alphastack": {
+    "version": "1.1",
+    "target": {
+      "compareWith": null,
+      "description": "대조할 표가 아직 없다. 재무 적재 표는 이 규격이 선 뒤에 만든다."
+    },
+    "fileMeta": {
+      "fields": [
+        "corp_code",
+        "stock_code",
+        "corp_name",
+        "bsns_year",
+        "reprt_code",
+        "fs_div",
+        "rcept_no",
+        "rcept_dt"
+      ],
+      "note": "⚠️ 이 칸들은 **행마다 없을 수 있다.** DART 응답은 한 번 요청에 한 회사·한 기간이라 이 값들이 응답 최상위에 한 번만 붙고 계정 줄에는 안 실린다 — 우리 `dart_data._normalize_account` 도 계정 줄에 sj_div·account_nm·금액만 담는다. 그래서 이 값들을 행에 있다고 전제하면 우리 자신이 만든 파일이 전량 격리된다. 검사기는 (1) 같은 이름의 컬럼이 있으면 그것을 쓰고, (2) 없으면 파일 옆의 `<파일명>.meta.json` 또는 파일 첫머리 주석에서 읽어 **모든 행에 같은 값으로 펼친 뒤** 검사한다. 둘 다 없으면 그때 시점을 모르는 파일로 보고 파일째 되돌린다 — 행별 격리가 아니라 파일 거절인 이유는, 시점이 없으면 그 파일의 모든 행이 똑같이 못 쓰기 때문이다."
+    },
+    "aliases": {
+      "corp_code": [
+        "고유번호",
+        "법인고유번호",
+        "DART고유번호",
+        "dart_code",
+        "corpCode",
+        "corp_cd"
+      ],
+      "stock_code": [
+        "종목코드",
+        "단축코드",
+        "코드",
+        "종목번호",
+        "ticker",
+        "symbol",
+        "stockCode",
+        "ISU_SRT_CD"
+      ],
+      "corp_name": [
+        "회사명",
+        "법인명",
+        "기업명",
+        "corpName",
+        "company",
+        "company_name"
+      ],
+      "bsns_year": [
+        "사업연도",
+        "회계연도",
+        "결산연도",
+        "연도",
+        "year",
+        "fiscal_year",
+        "bsnsYear"
+      ],
+      "reprt_code": [
+        "보고서코드",
+        "보고서구분",
+        "reprtCode",
+        "report_code"
+      ],
+      "fs_div": [
+        "개별연결구분",
+        "연결구분",
+        "재무제표종류",
+        "fsDiv",
+        "fs_type"
+      ],
+      "sj_div": [
+        "재무제표구분",
+        "재무제표",
+        "sjDiv",
+        "statement_div",
+        "sj"
+      ],
+      "account_id": [
+        "계정ID",
+        "표준계정ID",
+        "accountId",
+        "account_code"
+      ],
+      "account_nm": [
+        "계정명",
+        "계정과목",
+        "항목",
+        "과목",
+        "accountNm",
+        "account_name"
+      ],
+      "account_detail": [
+        "계정상세",
+        "계정상세명",
+        "accountDetail"
+      ],
+      "ord": [
+        "정렬순서",
+        "순번",
+        "order",
+        "seq"
+      ],
+      "currency": [
+        "통화",
+        "화폐단위",
+        "curr"
+      ],
+      "thstrm_nm": [
+        "당기명",
+        "당기기수",
+        "기수",
+        "thstrmNm"
+      ],
+      "thstrm_amount": [
+        "당기",
+        "당기금액",
+        "당기말",
+        "thstrmAmount",
+        "amount"
+      ],
+      "frmtrm_amount": [
+        "전기",
+        "전기금액",
+        "전기말",
+        "frmtrmAmount"
+      ],
+      "bfefrmtrm_amount": [
+        "전전기",
+        "전전기금액",
+        "전전기말",
+        "bfefrmtrmAmount"
+      ],
+      "rcept_no": [
+        "접수번호",
+        "공시번호",
+        "rceptNo",
+        "receipt_no"
+      ],
+      "rcept_dt": [
+        "접수일",
+        "접수일자",
+        "공시일",
+        "공시일자",
+        "제출일",
+        "rceptDt",
+        "receipt_date",
+        "disclosure_date"
+      ],
+      "report_nm": [
+        "보고서명",
+        "공시제목",
+        "reportNm",
+        "report_name"
+      ],
+      "rm": [
+        "비고",
+        "remark",
+        "note"
+      ]
+    },
+    "ambiguousNames": {
+      "단위": {
+        "candidates": [
+          "currency"
+        ],
+        "note": "'단위' 는 통화(원·달러)일 수도 자릿수(백만원·천원)일 수도 있다. 자릿수라면 금액을 그대로 읽으면 1,000배 틀린다. 자동 매핑하지 않고 보고한다."
+      }
+    },
+    "aliasInvariant": "한 이름은 한 필드에만 속한다. 처음에는 '당기' 가 thstrm_nm 과 thstrm_amount 양쪽에 들어 있었는데, 국내 재무표에서 아주 흔한 머리말이라 어느 쪽으로 보낼지 정할 근거가 없었다 — 하나는 문자열('제 56 기') 다른 하나는 숫자라 어디로 가든 뒤에서 조용히 깨진다. 사람이 '당기' 라고 쓴 열은 거의 항상 금액이므로 thstrm_amount 에만 남겼다. 검사기는 규격을 읽을 때 이 불변식을 먼저 확인하고, 깨져 있으면 자료가 아니라 **규격이 틀렸다고** 보고한다.",
+    "cleaners": {
+      "corp_code": [
+        "strip",
+        "zfill8"
+      ],
+      "stock_code": [
+        "strip",
+        "drop_suffix_ks_kq",
+        "zfill6"
+      ],
+      "corp_name": [
+        "strip",
+        "collapse_space"
+      ],
+      "bsns_year": [
+        "strip",
+        "to_int"
+      ],
+      "reprt_code": [
+        "strip"
+      ],
+      "fs_div": [
+        "strip",
+        "upper"
+      ],
+      "sj_div": [
+        "strip",
+        "upper"
+      ],
+      "account_id": [
+        "strip"
+      ],
+      "account_nm": [
+        "strip",
+        "collapse_space"
+      ],
+      "account_detail": [
+        "strip",
+        "collapse_space"
+      ],
+      "ord": [
+        "strip",
+        "to_int"
+      ],
+      "currency": [
+        "strip",
+        "upper"
+      ],
+      "thstrm_nm": [
+        "strip",
+        "collapse_space"
+      ],
+      "thstrm_amount": [
+        "strip",
+        "strip_comma",
+        "paren_to_negative",
+        "to_float"
+      ],
+      "frmtrm_amount": [
+        "strip",
+        "strip_comma",
+        "paren_to_negative",
+        "to_float"
+      ],
+      "bfefrmtrm_amount": [
+        "strip",
+        "strip_comma",
+        "paren_to_negative",
+        "to_float"
+      ],
+      "rcept_no": [
+        "strip"
+      ],
+      "rcept_dt": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "report_nm": [
+        "strip",
+        "collapse_space"
+      ],
+      "rm": [
+        "strip"
+      ]
+    },
+    "cleanerNotes": {
+      "paren_to_negative": "회계 표기에서 (1,234) 는 −1,234 다. 괄호를 떼기만 하면 부호가 뒤집혀 손실이 이익이 된다. 이 cleaner 는 재무 규격에서 새로 만든 것이다.",
+      "zfill8": "고유번호는 앞자리가 0 인 것이 많고(00126380) 엑셀이 그 0 을 지운다. 종목코드의 zfill6 과 같은 이유다."
+    },
+    "rowRules": [
+      {
+        "id": "has_time_anchor",
+        "expr": "rcept_dt is not null or rcept_no is not null",
+        "severity": "error",
+        "note": "🔴 접수일도 접수번호도 없으면 이 숫자를 언제부터 알 수 있었는지 되찾을 방법이 없다. 그런 행을 학습에 넣으면 결산기에 값을 붙이게 되고, 석 달치 미래를 넣고도 예외는 나지 않고 성능만 좋아진다 — 이 프로젝트에서 가장 조용한 오류다. ⚠️ 이 규칙은 fileMeta 를 펼친 **뒤에** 돈다. 순서를 바꾸면 우리 자신이 만든 파일이 전량 격리된다."
+      },
+      {
+        "id": "corp_or_stock_code",
+        "expr": "corp_code is not null or stock_code is not null",
+        "severity": "error",
+        "note": "어느 회사 것인지 알 수 없는 행. 둘 중 하나만 있으면 나머지는 data/corp_code.json 으로 되찾을 수 있다."
+      },
+      {
+        "id": "rcept_dt_not_future",
+        "expr": "rcept_dt is null or rcept_dt <= today",
+        "severity": "error",
+        "note": "오늘보다 뒤인 접수일. 미래 자료이거나 날짜 파싱이 틀린 것이다."
+      },
+      {
+        "id": "rcept_dt_after_period",
+        "expr": "rcept_dt is null or year(rcept_dt) >= bsns_year",
+        "severity": "error",
+        "note": "결산연도보다 앞서 접수된 보고서는 있을 수 없다. ⚠️ `year()` 를 쓰는 이유는 rcept_dt 를 YYYYMMDD **문자열**로 못박았기 때문이다 — 처음에는 `.dt.year` 로 썼는데 문자열 컬럼에서 AttributeError 로 죽었고, 같은 칸을 어떤 규칙은 날짜로 어떤 규칙은 문자열로 전제하면 어느 쪽으로 정해도 나머지가 깨진다."
+      },
+      {
+        "id": "annual_after_year_end",
+        "expr": "reprt_code != '11011' or rcept_dt is null or year(rcept_dt) > bsns_year",
+        "severity": "warn",
+        "note": "사업보고서는 결산연도가 끝난 **다음 해**에 나온다. 같은 해에 접수됐다면 결산연도를 잘못 적었을 가능성이 크다."
+      },
+      {
+        "id": "rcept_no_starts_with_dt",
+        "expr": "rcept_dt is null or rcept_no is null or starts_with(rcept_no, rcept_dt)",
+        "severity": "warn",
+        "note": "접수번호 앞 여덟 자리는 접수일이다. 어긋나면 두 칸 중 하나가 다른 공시의 것이다. ⚠️ 경고인 이유는 실측에서 정기공시 4,800건 중 3건(0.062%)이 실제로 어긋났기 때문이다 — 드물지만 0 이 아니라서, 격리하면 멀쩡한 행을 버린다."
+      },
+      {
+        "id": "assets_not_negative",
+        "expr": "account_nm != '자산총계' or thstrm_amount is null or thstrm_amount >= 0",
+        "severity": "error",
+        "note": "자산총계가 음수인 회사는 없다. 음수라면 괄호 표기를 부호로 잘못 읽었거나(paren_to_negative 가 두 번 돌았거나) 계정이 뒤바뀐 것이다."
+      },
+      {
+        "id": "amount_present",
+        "expr": "thstrm_amount is not null",
+        "severity": "warn",
+        "note": "당기 금액이 없는 계정 줄. 해당 없음으로 비워 두는 회사가 있어 격리하지 않는다."
+      },
+      {
+        "id": "currency_krw",
+        "expr": "currency is null or currency == 'KRW'",
+        "severity": "warn",
+        "note": "원화가 아닌 금액. 버리지 않지만 다른 회사와 그대로 비교하면 안 된다는 표시다."
+      },
+      {
+        "id": "sce_key_not_unique",
+        "expr": "sj_div != 'SCE'",
+        "severity": "warn",
+        "note": "자본변동표 줄. 열쇠(계정명+순서)가 유일하지 않을 수 있다 — 자본금·이익잉여금·비지배지분 열마다 같은 계정이 반복된다. 버리지 않고 '이 줄들은 열쇠로 세지 말라'는 표시로 남긴다."
+      }
+    ],
+    "lookahead": {
+      "why": "재무는 결산기와 공시일이 다르다. 2020년 4분기 실적은 2021년 3월에 세상에 나온다. 결산기에 값을 붙이면 석 달치 미래를 학습에 넣고도 예외가 나지 않고 성능만 좋아진다.",
+      "timeField": "rcept_dt",
+      "effectiveFrom": "next_business_day(rcept_dt)",
+      "effectiveFromNote": "rcept_dt 에는 시각이 없다. 장중 접수인지 장 마감 뒤인지 알 수 없으므로 당일 사용은 근거가 없다. 접수일 다음 거래일부터 유효로 잡는다. 거래일 판정은 daily_price 의 bas_dd 실측 집합으로 한다 — 주말 규칙만으로는 개발구간에서 162일이 어긋난다.",
+      "forbiddenAsTimeField": [
+        "bsns_year",
+        "reprt_code",
+        "thstrm_nm"
+      ],
+      "forbiddenNote": "이 셋은 결산기를 가리킬 뿐 알게 된 날이 아니다. thstrm_nm 은 '제 56 기' 라 연도조차 뽑을 수 없다. 셋 중 무엇으로도 시계열 인덱스를 만들면 안 된다.",
+      "rule": "as_of 날짜 D 로 조회할 때, `rcept_dt` 가 비었거나 `next_business_day(rcept_dt) > D` 인 행은 **행째 보이지 않는다.**",
+      "왜_열가리기가_아니라_행거르기인가": "🔴 처음에는 금액 칸만 가리고 식별 칸(corp_code·bsns_year·reprt_code·fs_div)은 남기려 했다. '회사가 존재한다는 사실은 그 전에도 알 수 있었다' 는 이유였는데, 그 논거는 corp_code 에만 성립한다. bsns_year·reprt_code 가 남으면 as_of D 에서 **'이 회사가 FY2023 사업보고서를 낼 것이다' 라는 제출 사실 자체**를 읽을 수 있고, rcept_dt 가 남으면 **언제 낼지**까지 읽힌다. 미제출·지연 제출은 감사의견 거절·관리종목 지정과 직결되는 강한 신호라 그대로 학습에 샌다. fs_div·sj_div 도 마찬가지다 — 그 회사가 연결재무제표를 쓴다는 사실 역시 보고서가 나오기 전에는 확정된 것이 아니다. 그래서 열을 가리는 대신 행을 지운다. 행이 없으면 셀 것도 없다.",
+      "onMissingTimeField": {
+        "step1_enrich": "rcept_no 가 있으면 DART list.json 으로 rcept_no→rcept_dt 맵을 만들어 채운다. 접수일은 불변이라 이 맵은 영구 캐시할 수 있고 재수집 비용이 0 이다.",
+        "step2_quarantine": "보강 뒤에도 비면 has_time_anchor 로 격리한다.",
+        "rejected_slice": "⚠️ rcept_no 앞 여덟 자리를 그냥 잘라 쓰지 않는다. 정기공시 4,800건 실측에서 3건(0.062%)이 어긋났고 그중 둘은 접수일을 **3일 앞당겨** 읽는다. 틀리는 방향이 전부 우리에게 유리한 쪽이면 잡음이 아니라 편향이고, 예외는 나지 않는다.",
+        "rejected_deadline": "법정 제출기한(사업보고서 결산 후 90일, 분기·반기 45일)으로 추정하지도 않는다. ⚠️ 이 기한 숫자 자체를 이 팀이 원문으로 확인하지 못했고, 확인한다 해도 추정은 실제 접수일보다 이를 수 있어 같은 방향으로 편향된다."
+      }
+    }
+  }
+}
