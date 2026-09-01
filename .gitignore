@@ -76,6 +76,11 @@ data/inbox/*
 #    .zip·.xml 이 많아 이 두 줄이 없으면 **PUBLIC 저장소로 그대로 샌다.**
 data/manual/*
 !data/manual/README.md
+# 종류 폴더의 README 도 살린다 — 자료를 어디로 옮겼는지가 거기 적혀 있다.
+# 2026-09-01 에 재무 TSV 7.5GB 를 parquet 443MB 로 묶고 HF 로 보낸 뒤 원본을 지웠는데,
+# 그 사실이 로컬에만 있으면 저장소만 보는 사람은 폴더가 왜 비었는지 알 수 없다.
+!data/manual/*/
+!data/manual/*/README.md
 
 # 📤 팀원에게 건네주려고 내보낸 파일이 놓이는 자리
 # 반입과 같은 이유로 올리지 않는다 — 여기 들어가는 것은 개발구간 시세 599만 행이고
