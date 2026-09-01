@@ -33,6 +33,8 @@ from typing import Dict, List, Optional, Tuple
 
 import yfinance as yf
 
+from common import codes  # 종목코드 형식 — 5·6번째 자리에 영문이 온다
+
 # 당일 가격 지표 5종. 이름과 순서를 여기서 정하고 화면·스크립트가 그대로 따라 쓴다.
 # (원본 예제의 categories 와 같은 순서 — 전일종가 → 시가 → 저가 → 고가 → 현재가)
 PRICE_FIELDS: Tuple[Tuple[str, str, str], ...] = (
@@ -169,12 +171,20 @@ def normalize_ticker(ticker: str) -> str:
     """티커를 야후 표기로 다듬는다.
 
     - 앞뒤 공백 제거 · 대문자 (`005930.ks` → `005930.KS`)
-    - 숫자 6자리만 주면 한국거래소 종목으로 보고 `.KS` 를 붙인다 (`005930` → `005930.KS`)
+    - 우리 종목코드 형식이면 한국거래소 종목으로 보고 `.KS` 를 붙인다 (`005930` → `005930.KS`)
+
+    ⚠️ 예전에는 `code.isdigit() and len(code) == 6` 이었다. 그래서 `0009K0`(에임드바이오)처럼
+    5·6번째 자리에 영문이 있는 84종은 접미사 없이 야후로 넘어가 존재하지 않는 티커가 됐고,
+    가격이 0 이 아니라 **조회 자체가 404** 로 실패했다.
+
+    ⚠️ `.KS` 는 유가증권시장 접미사다. 코스닥은 `.KQ`, 코넥스는 `.KN` 인데 여기서는 시장을
+    알 방법이 없어 전부 `.KS` 로 보낸다 — 코스닥 종목은 여전히 빗나간다. 이건 코드 형식과
+    다른 축의 결함이라 따로 고친다 (시장 구분을 인자로 받거나 유니버스에서 찾아야 한다).
     """
     code = (ticker or "").strip().upper()
     if not code:
         raise YahooError("티커를 입력해 주세요. (예: 005930.KS · AAPL)", status=422)
-    if code.isdigit() and len(code) == 6:
+    if codes.is_stock_code(code):
         return f"{code}.KS"
     return code
 

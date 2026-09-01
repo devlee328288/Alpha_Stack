@@ -74,7 +74,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-from common import secrets
+from common import codes, secrets
 
 # 이 파일은 <루트>/ingest/clients/ 안에 있으므로 parents[2] 가 프로젝트 루트다.
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -216,9 +216,13 @@ ESSENTIAL_KEYS = ("revenue", "operating_income", "net_income", "assets", "equity
 # 실제로 KB금융 2024 연결(390계정)은 이 셋이 전부 없지만 재무제표는 완전하다.
 FINANCIAL_SECTOR_ABSENT = ("current_assets", "inventories", "revenue")
 
-# 8자리 고유번호 · 6자리 종목코드 형식
+# DART 고유번호는 진짜로 8자리 숫자다 (종목코드와 다른 체계다).
 CORP_CODE_PATTERN = re.compile(r"^\d{8}$")
-STOCK_CODE_PATTERN = re.compile(r"^\d{6}$")
+
+# 종목코드는 여섯 자리 **숫자가 아니다** — 5·6번째 자리에 영문이 온다. 정의는 `common/codes.py`.
+# ⚠️ 지금 이 상수를 쓰는 곳은 없다. 그래도 `^\d{6}$` 로 두면 다음 사람이 무심코 집어 쓰는
+#    순간 84종이 되돌아오므로 여기서 바로잡아 둔다. DART 3차에서 곧 손댈 자리다.
+STOCK_CODE_PATTERN = codes.STOCK_CODE_PATTERN
 
 # 응답 캐시. {(종류, 인자...): (저장시각, 값)}
 _cache: Dict[Tuple, Tuple[float, dict]] = {}

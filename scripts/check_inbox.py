@@ -44,31 +44,66 @@ from ingest.inbox.engine import (  # noqa: E402
     read_table,
 )
 
-#: 팀원이 올리는 자리. 로컬은 종류별 폴더, HF 는 사람별 폴더다.
+#: 로컬에서 훑는 자리 **둘**. 축이 다르다 — 누가 가져온 것인지가 갈린다.
+#:   data/inbox/   팀원 3명이 HuggingFace 로 보낸 것
+#:   data/manual/  팀장이 사이트에서 손으로 받아 온 것
+#: 한 폴더에 섞여 있으면 값이 우리 것과 다를 때 누구에게 물어야 하는지 알 수 없다.
 LOCAL_ROOT = Path("data/inbox")
+MANUAL_ROOT = Path("data/manual")
+LOCAL_ROOTS = (LOCAL_ROOT, MANUAL_ROOT)
+
 HF_REPO = "qurious-quant/alphastack-krx-dev"
 HF_PREFIX = "inbox/"
 
 #: 검사 대상 확장자. 그 밖의 파일(README·메모)은 조용히 건너뛴다.
-DATA_SUFFIXES = {".csv", ".tsv", ".xlsx", ".xls", ".parquet"}
+#: ⚠️ `.json` 은 직접 수집 때문에 넣었다 — ECOS·FRED·DART 화면 다운로드가 전부 JSON 이라,
+#:    없으면 파일을 넣고 검사를 돌려도 **아무 말 없이 0건**이 나온다.
+#: ⚠️ `.zip` 은 넣지 않는다. 풀어서 넣어야 무엇이 들었는지 사람이 보고 판단한다.
+DATA_SUFFIXES = {".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json"}
 
 
 # ==================================================
 # 1. 찾기
 # ==================================================
-def find_local(root: Path = LOCAL_ROOT) -> List[dict]:
-    """`data/inbox/<종류>/` 아래의 자료 파일을 모은다."""
-    found: List[dict] = []
-    if not root.exists():
-        return found
+def find_local(root=None) -> List[dict]:
+    """로컬의 `<뿌리>/<종류>/` 아래 자료 파일을 모은다.
 
+    뿌리를 안 주면 `data/inbox/` 와 `data/manual/` 둘 다 훑는다. 하나만 보고 싶으면
+    경로를 하나 주면 된다 (테스트가 그렇게 쓴다).
+
+    ⚠️ **HF 캐시를 건너뛴다.** `--cache-dir` 기본값이 `data/inbox/_hf` 라 스캔 뿌리
+    안에 있고, `rglob` 이 그것까지 훑으면 같은 파일이 로컬로 한 번 더 잡힌다.
+    """
+    if root is None:
+        roots = LOCAL_ROOTS
+    elif isinstance(root, (str, Path)):
+        roots = (Path(root),)
+    else:
+        roots = tuple(root)
+
+    found: List[dict] = []
     kinds = set(available_kinds())
-    for path in sorted(root.rglob("*")):
-        if not path.is_file() or path.suffix.lower() not in DATA_SUFFIXES:
+
+    for base in roots:
+        if not base.exists():
             continue
-        # 경로 어딘가에 종류 이름이 있으면 그것을 쓴다. 명시가 추측보다 언제나 낫다.
-        kind = next((part for part in path.parts if part in kinds), None)
-        found.append({"path": path, "kind": kind, "origin": "local", "contributor": None})
+        for path in sorted(base.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in DATA_SUFFIXES:
+                continue
+            # 밑줄로 시작하는 폴더는 우리가 만든 작업 공간이다 (`_hf` 캐시 등).
+            if any(part.startswith("_") for part in path.parts):
+                continue
+            # 경로 어딘가에 종류 이름이 있으면 그것을 쓴다. 명시가 추측보다 언제나 낫다.
+            kind = next((part for part in path.parts if part in kinds), None)
+            # 어느 뿌리에서 왔는지를 기여자 칸에 남긴다 — origin 은 CHECK 제약이 걸려 있어
+            # 'manual' 을 넣으려면 마이그레이션이 필요한데, 그만한 값은 아직 없다.
+            manual = base == MANUAL_ROOT
+            found.append({
+                "path": path,
+                "kind": kind,
+                "origin": "local",
+                "contributor": "직접수집" if manual else None,
+            })
     return found
 
 
