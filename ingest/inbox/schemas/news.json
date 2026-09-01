@@ -1,0 +1,382 @@
+{
+  "name": "news",
+  "title": "뉴스 (제목·요약·링크)",
+  "description": "종목·산업·시장에 관한 기사 목록. 시세와 달리 우리 DB 에 대조할 표가 아직 없어서, 이 규격은 '무엇을 받을 것인가'를 먼저 정하는 쪽이다. ⚠️ 본문은 받지 않는다 — 기사 본문은 언론사 저작물이고 이 저장소는 PUBLIC 이다. 받는 것은 제목·요약(발췌)·링크까지다.",
+  "fields": [
+    {
+      "name": "pub_dt",
+      "type": "datetime",
+      "title": "발행 시각",
+      "description": "기사가 나온 시각. **날짜가 아니라 시각까지** 필요하다 — 같은 날 기사라도 08:30 전후로 쓸 수 있는 거래일이 하루 갈리기 때문이다. 시간대를 읽어 KST 로 옮긴다. +0900 이라고 가정하지 않는다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "eff_dd",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "유효 거래일",
+      "description": "이 기사를 처음 반영할 수 있는 거래일. 비어 있으면 검사기가 아래 배정규칙으로 채운다. 팀원이 직접 채워 온 경우에는 채운 값이 규칙과 맞는지 검사한다 — 채워 온 값을 그대로 믿으면 미래참조가 규칙을 우회한다."
+    },
+    {
+      "name": "title",
+      "type": "string",
+      "title": "제목",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "summary",
+      "type": "string",
+      "title": "요약",
+      "description": "검색 API 가 주는 짧은 발췌. ⚠️ 기사 본문을 여기 담지 않는다. 길이로 잡는 규칙(summary_is_snippet)이 있지만 그것은 마지막 그물이고, 1차 방어는 아래 rejectedNames 다."
+    },
+    {
+      "name": "link",
+      "type": "string",
+      "title": "링크",
+      "description": "기사 주소. 중복 제거의 열쇠이자, 본문을 저장하지 않는 대신 원문을 가리키는 유일한 수단이다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "orig_link",
+      "type": "string",
+      "title": "원문 링크",
+      "description": "언론사 자체 주소. 포털 링크는 사라지는 일이 있어 둘 다 있으면 둘 다 남긴다."
+    },
+    {
+      "name": "press",
+      "type": "string",
+      "title": "언론사"
+    },
+    {
+      "name": "query",
+      "type": "string",
+      "title": "검색어",
+      "description": "어떤 검색어로 이 기사를 얻었는지. 같은 기사가 여러 검색어에 걸리므로 중복 제거 전에 이 칸이 필요하고, 검색어별 편향을 나중에 되짚을 때도 쓴다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "sector",
+      "type": "string",
+      "title": "산업(섹터)"
+    },
+    {
+      "name": "code",
+      "type": "string",
+      "title": "종목코드",
+      "description": "여섯 자리 숫자. 시장 전체 기사에는 없다.",
+      "constraints": {
+        "pattern": "^[0-9]{6}$"
+      }
+    },
+    {
+      "name": "collected_at",
+      "type": "datetime",
+      "title": "수집 시각",
+      "description": "우리가 받은 시각. ⚠️ 이것은 known_at 이 **아니다** — 나중에 한 번에 받아 온 분량이 전부 '오늘에야 알 수 있었던 것'이 되어 통째로 못 쓰게 된다. 뉴스의 known_at 은 pub_dt 다."
+    }
+  ],
+  "primaryKey": [
+    "link"
+  ],
+  "missingValues": [
+    "",
+    "-",
+    "NA",
+    "N/A",
+    "N.A.",
+    "None",
+    "null",
+    "nan",
+    "NaN",
+    "#N/A"
+  ],
+  "x-alphastack": {
+    "version": "1.1",
+    "target": {
+      "compareWith": null,
+      "description": "대조할 표가 아직 없다. 뉴스 적재 표는 이 규격이 선 뒤에 만든다."
+    },
+    "aliases": {
+      "pub_dt": [
+        "pubDate",
+        "pub_date",
+        "발행시각",
+        "발행일시",
+        "발행일",
+        "게시일",
+        "게시시각",
+        "작성일",
+        "작성시각",
+        "published_at",
+        "publishedAt",
+        "datetime",
+        "기사일시"
+      ],
+      "eff_dd": [
+        "유효거래일",
+        "유효일",
+        "반영일",
+        "반영거래일",
+        "배정거래일",
+        "eff_date",
+        "effective_date",
+        "trade_date",
+        "bas_dd"
+      ],
+      "title": [
+        "제목",
+        "기사제목",
+        "헤드라인",
+        "headline",
+        "Title",
+        "TITLE",
+        "news_title",
+        "subject"
+      ],
+      "summary": [
+        "description",
+        "요약",
+        "본문요약",
+        "발췌",
+        "설명",
+        "snippet",
+        "desc"
+      ],
+      "link": [
+        "링크",
+        "주소",
+        "URL",
+        "url",
+        "기사링크",
+        "네이버링크",
+        "naver_link",
+        "news_url",
+        "href"
+      ],
+      "orig_link": [
+        "originallink",
+        "original_link",
+        "원문링크",
+        "원문주소",
+        "언론사링크",
+        "source_url",
+        "origin_url"
+      ],
+      "press": [
+        "언론사",
+        "매체",
+        "매체명",
+        "출처",
+        "신문사",
+        "publisher",
+        "source",
+        "media",
+        "press_name"
+      ],
+      "query": [
+        "검색어",
+        "질의",
+        "키워드",
+        "쿼리",
+        "keyword",
+        "search_query",
+        "q",
+        "term"
+      ],
+      "sector": [
+        "산업",
+        "섹터",
+        "업종",
+        "산업분류",
+        "industry",
+        "Sector",
+        "SECTOR",
+        "sector_name",
+        "업종명"
+      ],
+      "code": [
+        "종목코드",
+        "단축코드",
+        "코드",
+        "종목번호",
+        "ticker",
+        "symbol",
+        "stock_code",
+        "ISU_SRT_CD"
+      ],
+      "collected_at": [
+        "수집시각",
+        "수집일시",
+        "수집일",
+        "적재시각",
+        "fetched_at",
+        "collected",
+        "crawled_at",
+        "ingested_at",
+        "created_at"
+      ]
+    },
+    "rejectedNames": {
+      "content": "기사 본문",
+      "body": "기사 본문",
+      "내용": "기사 본문",
+      "본문": "기사 본문",
+      "article": "기사 본문",
+      "full_text": "기사 본문",
+      "_note": "⚠️ 이 이름을 가진 컬럼이 있으면 **행이 아니라 파일째** 되돌린다. 처음에는 이 이름들을 summary 의 별칭에 넣어 두었는데, 그러면 '본문 칸을 안 만들어서 못 들어온다' 는 방어가 별칭 한 줄로 뚫린다 — 팀원이 본문을 content 컬럼에 담아 오면 자동으로 summary 에 매핑되고, 길이 규칙에 걸려 격리되더라도 격리는 곧 inbox_quarantine 에 **저장**이라 본문이 우리 DB 에 내려앉는다. 저작권 방어는 격리가 아니라 반입 거절이어야 한다. 파일을 돌려보내면서 '요약 칸만 남기고 다시 보내 주세요' 를 함께 알린다."
+    },
+    "cleaners": {
+      "pub_dt": [
+        "strip",
+        "rfc1123_to_kst"
+      ],
+      "eff_dd": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "title": [
+        "strip_html_tags",
+        "unescape_html",
+        "collapse_space",
+        "strip"
+      ],
+      "summary": [
+        "strip_html_tags",
+        "unescape_html",
+        "collapse_space",
+        "strip"
+      ],
+      "link": [
+        "strip",
+        "unescape_html",
+        "drop_tracking_params"
+      ],
+      "orig_link": [
+        "strip",
+        "unescape_html",
+        "drop_tracking_params"
+      ],
+      "press": [
+        "strip",
+        "collapse_space"
+      ],
+      "query": [
+        "strip",
+        "collapse_space"
+      ],
+      "sector": [
+        "strip",
+        "collapse_space"
+      ],
+      "code": [
+        "strip",
+        "drop_suffix_ks_kq",
+        "zfill6"
+      ],
+      "collected_at": [
+        "strip",
+        "to_kst_iso"
+      ]
+    },
+    "rowRules": [
+      {
+        "id": "eff_dd_same_day_needs_premarket",
+        "expr": "eff_dd is null or pub_dt is null or eff_dd > date(pub_dt) or (time(pub_dt) != '000000' and time(pub_dt) < '083000')",
+        "severity": "error",
+        "note": "🔴 **이 규격에서 가장 중요한 규칙이다.** 유효 거래일이 발행일과 같은 날이면 발행 시각이 그날 08:30(시가 단일가 호가접수 시작) 이전이어야 한다. 장중 14:00 기사를 그날 시가에 붙이면 이미 결정된 09:00 가격을 뒤늦게 보고 산 셈이고, 그 누수는 성능을 올려 주기 때문에 눈에 띄지 않는다. ⚠️ `time(pub_dt) != '000000'` 가 핵심이다 — 이 가드가 없으면 00:00 이 08:30 보다 작으니 통과해 버린다. 날짜만 있는 자료를 0시로 채운 행이 바로 그 경우이고, 그런 행에 '장 시작 전 기사' 자격을 줄 근거가 없다."
+      },
+      {
+        "id": "midnight_cannot_be_same_day",
+        "expr": "eff_dd is null or pub_dt is null or eff_dd > date(pub_dt) or time(pub_dt) != '000000'",
+        "severity": "error",
+        "note": "위 규칙의 짝이다. 시각이 정확히 0시인데 유효 거래일이 발행일과 같은 행을 따로 잡는다. 규칙을 둘로 나눈 이유는 보고서에서 원인이 갈리기 때문이다 — 하나는 '장중 기사를 당일에 붙였다', 이것은 '시각을 모르는 기사를 당일에 붙였다' 다. 둘은 고치는 방법이 다르다."
+      },
+      {
+        "id": "eff_dd_not_before_pub",
+        "expr": "eff_dd is null or pub_dt is null or eff_dd >= date(pub_dt)",
+        "severity": "error",
+        "note": "유효 거래일이 발행일보다 앞선다는 것은 기사가 나오기 전에 그 기사를 썼다는 뜻이다. 배정 계산이 틀렸거나 두 칸이 뒤바뀐 것이고, 어느 쪽이든 미래를 본다."
+      },
+      {
+        "id": "pub_dt_not_future",
+        "expr": "pub_dt is null or pub_dt <= now",
+        "severity": "error",
+        "note": "지금보다 뒤인 발행 시각. 시간대를 잘못 붙였거나(UTC 를 KST 로 오인) 파싱이 틀린 것이다. 오늘이 아니라 '지금'과 비교하는 이유는 뉴스가 시각까지 있는 자료여서다 — 날짜로만 비교하면 오늘 밤 22시로 찍힌 미래 기사를 통과시킨다."
+      },
+      {
+        "id": "pub_dt_has_time",
+        "expr": "pub_dt is null or time(pub_dt) != '000000'",
+        "severity": "warn",
+        "note": "발행 시각이 정확히 0시인 행. 진짜 자정 기사일 수도 있지만 날짜만 있는 자료를 0시로 채운 것일 가능성이 훨씬 크다. 격리하지 않는 이유는 그 기사가 쓸모없는 게 아니라 **하루 늦게 쓸 수 있을 뿐**이기 때문이다 — 배정할 때 다음 거래일로 밀면 된다. 위험한 조합(0시 + 당일 배정)은 midnight_cannot_be_same_day 가 error 로 잡는다."
+      },
+      {
+        "id": "summary_is_snippet",
+        "expr": "summary is null or len(summary) <= 500",
+        "severity": "error",
+        "note": "요약 칸에 본문 전문이 들어온 것을 길이로 잡는다. ⚠️ 이것은 저작권 방어의 **마지막 그물**이지 1차 방어가 아니다 — 1차는 rejectedNames 의 파일째 거절이다. 500자는 공식 상한이 아니라 우리가 정한 임계이고, 정상 요약이 걸리기 시작하면 올린다."
+      },
+      {
+        "id": "title_not_empty",
+        "expr": "title is not null and title != ''",
+        "severity": "error",
+        "note": "정제 뒤 제목이 빈 문자열이 된 행. required 검사는 원래 비어 있던 것만 잡고, **태그를 걷어냈더니 아무것도 남지 않은 경우**는 못 잡는다. 제목이 없으면 뉴스로서 쓸 수 있는 것이 링크뿐이다."
+      },
+      {
+        "id": "link_is_http",
+        "expr": "link is null or starts_with(link, 'http')",
+        "severity": "error",
+        "note": "링크가 주소 꼴이 아닌 행. 링크는 중복 제거의 열쇠이자 원문을 가리키는 유일한 수단이라, 망가진 링크는 그 두 역할을 다 못 한다. 널은 required 검사가 따로 잡으므로 여기서는 건너뛴다."
+      },
+      {
+        "id": "no_highlight_tag_left",
+        "expr": "(title is null or not contains(title, '<b>')) and (summary is null or not contains(summary, '<b>'))",
+        "severity": "warn",
+        "note": "정제가 제대로 돌았는지 스스로 확인하는 검사다. 네이버 검색은 검색어를 <b> 로 감싸 준다. 규칙대로면 절대 걸리지 않아야 하고, 걸린다면 자료가 이상한 게 아니라 **우리 cleaner 가 안 돈 것**이다. 통과하는 검사는 통과만 보고는 믿을 수 없어서 이 자리에 남긴다."
+      },
+      {
+        "id": "code_or_sector_present",
+        "expr": "code is not null or sector is not null",
+        "severity": "warn",
+        "note": "종목에도 산업에도 붙지 않은 기사. 격리하지 않는 이유는 1차 예측 대상이 KOSPI200 **지수**여서 어디에도 안 붙은 기사도 시장 전체 감성으로 쓸 자리가 있기 때문이다. 다만 수집기가 검색어와 결과의 연결을 잃어버린 흔적일 수도 있어 표시한다."
+      },
+      {
+        "id": "eff_dd_is_weekday",
+        "expr": "eff_dd is null or eff_dd is weekday",
+        "severity": "warn",
+        "note": "유효 거래일이 토·일로 계산된 행. 시세 규격과 마찬가지로 주말만 본다 — 공휴일 162일(개발구간 기준)은 여기서 못 가린다. 정확한 배정은 적재 뒤 daily_price 의 실제 거래일 집합으로 다시 맞춘다."
+      }
+    ],
+    "lookahead": {
+      "knownAtField": "pub_dt",
+      "knownAtRule": "뉴스의 known_at 은 발행 시각 그 자체다. 수집 시각(collected_at)이 아니다.",
+      "cutoffKST": "083000",
+      "sessionKST": {
+        "시가단일가_호가접수": "0830~0900",
+        "시가_결정": "0900",
+        "장마감": "1530"
+      },
+      "왜_0900이_아니라_0830인가": "08:45 기사로 09:00 시가에 주문을 넣는 것은 형식적으로 가능하다. 그러나 ① 단일가 호가는 08:30 부터 쌓이고 예상체결가가 이미 움직인 뒤이며, ② 우리 파이프라인은 일 1회 배치이지 분 단위 반응 시스템이 아니다. 그래서 08:30 을 경계로 잡는다. 이 선택은 신호를 조금 버리는 대신 **항상 진실보다 늦은 쪽으로만 틀린다** — 시세 known_at 을 하루 통째로 미룬 것과 같은 원칙이다. 앞당기는 방향이 곧 누수 방향이라 09:00 으로 옮기려면 실측이 먼저다.",
+      "배정규칙": [
+        "① pub_dt 를 KST 로 옮긴다. 오프셋을 읽어 변환하지, +0900 이라고 가정하지 않는다.",
+        "② 발행한 날 D 가 거래일이고 발행 시각이 08:30 미만이면 → eff_dd = D.",
+        "③ D 가 거래일인데 발행 시각이 08:30 이상이면 → eff_dd = D 의 다음 거래일. 장중 기사도 장 마감 후 기사도 여기로 온다.",
+        "④ D 가 비거래일(주말·공휴일)이면 → eff_dd = D 이후 첫 거래일.",
+        "⑤ pub_dt 의 시각이 정확히 00:00:00 이면 날짜만 있는 자료로 보고 ② 를 적용하지 않는다 → ③ 과 같이 다음 거래일로 민다.",
+        "⚠️ 거래일 판정은 계산으로 하지 않는다. common.trading_calendar.trading_days() 는 주말만 건너뛰고 공휴일을 모른다 — 개발구간 평일 3,042일 중 실제 거래일은 2,880일이라 162일(5.3%)이 어긋난다. daily_price 의 bas_dd 실측 집합을 거래일 달력으로 쓴다."
+      ],
+      "장마감후_기사는_어디로_가나": "장 마감(15:30) 후부터 자정까지의 기사와 다음 날 새벽~08:30 기사는 **같은 거래일(다음 시가)로 모인다.** 달력 날짜는 다르지만 매매 관점에서는 똑같이 '다음 시가에 처음 반영되는 뉴스'다. 실적 발표처럼 크게 움직이는 소식이 장 마감 뒤에 몰리는데, 발행일로 조인하면 이 뭉치가 통째로 하루 앞 거래일에 붙는다 — 뉴스에서 가장 흔한 누수 경로다.",
+      "피처계층은_어떻게_조인하나": "거래일 t 의 피처 행에 넣을 수 있는 기사는 eff_dd <= t+1 인 것 전부다. 그중 eff_dd == t+1 이 '새로 들어온 뉴스'이고 그보다 이른 것은 이동 창의 재료다. 인덱스 shift 가 아니라 **날짜로 조인한다.**",
+      "더_보수적인_벌": "'T일 종가까지의 정보'로 읽으면 t 마감 이후 기사는 t 의 피처에 못 들어간다 — 위보다 한 단계 좁다. 차이는 야간 뉴스 뭉치 전체이고 그 몫이 커서 결과가 달라진다. 규격은 eff_dd 를 08:30 기준으로 **저장**해 두고, 더 보수적인 벌이 필요하면 `pub_dt < t 15:30` 필터를 한 줄 얹어 얻는다. 넉넉히 저장하고 나중에 좁히는 것은 언제든 되지만 반대는 안 된다. ⚠️ 어느 쪽을 정본으로 할지는 피처 담당(신장환)과 정할 문제이고 이 규격이 단독으로 닫지 않는다.",
+      "지금은_학습에_못_쓴다": "뉴스는 앞으로 누적된다. 네이버 검색 API 는 검색어당 과거로 거슬러 갈 수 있는 양이 제한돼 있어 2010~2021 개발구간을 소급할 수 없다. 그래서 1차 백테스트와는 만나지 않는다 — 틀린 자료라서가 아니라 겹치는 구간이 없어서다. 규격을 지금 세우는 이유는 나중에 쌓인 뒤에 정하면 이미 쌓인 것이 규격을 정해 버리기 때문이다.",
+      "저작권": "본문은 받지 않는다. 방어는 세 겹이다 — ① rejectedNames 로 본문 컬럼이 든 파일을 거절, ② summary 길이 500자, ③ raw_store 의 ALLOWED_SOURCES 에 네이버가 없어 응답 원문도 남기지 않는다. ⚠️ '출처 표기 의무' 는 이 팀이 약관에서 근거 조항을 아직 못 찾았다. 의무라고 단정하지 않고, 표기는 어차피 하는 편이 낫다는 이유로 press·link 를 남긴다."
+    }
+  }
+}

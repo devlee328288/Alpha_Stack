@@ -462,12 +462,20 @@ def resolve_corp(code: str) -> Tuple[str, str]:
     return corp_code, get_corp_name(code)
 
 
-def fetch_corp_code_rows() -> List[Dict[str, str]]:
+def fetch_corp_code_rows(*, keep_raw: bool = False) -> List[Dict[str, str]]:
     """`corpCode.xml` 을 받아 전 법인 목록을 돌려준다. **빌더 스크립트 전용**이다.
 
     응답이 ZIP 이고 그 안에 XML 한 개가 들어 있다. 약 10만 건이라 무겁기 때문에
     앱이 실행 중에 부르지 않는다 — `scripts/build_corp_code.py` 가 한 번 돌려
     상장사만 추려 `data/corp_code.json` 으로 만들어 둔다.
+
+    `keep_raw=True` 면 받은 ZIP 원문을 `common.raw_store` 에 남긴다. 기본값이 거짓인
+    이유는 이 함수를 부르는 다른 자리가 생겼을 때 조용히 DB 를 쓰지 않게 하려는 것이고,
+    빌더는 참으로 부른다 — 고유번호 매핑은 `modify_date` 로 **바뀌는 값**이라 지금
+    받은 표가 언제 받은 것인지 증명할 근거가 없으면 나중에 되짚을 수 없기 때문이다.
+
+    원문 보존이 실패해도 매핑 만들기는 계속한다. 보존은 나중을 위한 보험이지
+    지금 이 작업의 목적이 아니고, 여기서 멈추면 빌더가 통째로 실패한다.
     """
     key = _require_key()
     url = f"{DART_BASE_URL}/corpCode.xml?{urlencode({'crtfc_key': key})}"
@@ -483,6 +491,15 @@ def fetch_corp_code_rows() -> List[Dict[str, str]]:
     if not body.startswith(b"PK"):
         text = body.decode("utf-8", errors="replace")[:200]
         raise DartError(f"corpCode.xml 대신 오류 응답이 왔습니다: {text}", status=502)
+
+    if keep_raw:
+        # 지연 import — 원문을 안 남기는 평소 경로가 raw_store 를 끌고 오지 않게 한다.
+        from common import raw_store
+
+        try:
+            raw_store.save("dart", "corpCode.xml", body, note="고유번호 매핑 원본 ZIP")
+        except Exception as error:                       # noqa: BLE001 — 보존 실패는 치명적이지 않다
+            print(f"⚠️  원문 보존 실패(계속 진행): {type(error).__name__}: {error}")
 
     try:
         with zipfile.ZipFile(io.BytesIO(body)) as archive:

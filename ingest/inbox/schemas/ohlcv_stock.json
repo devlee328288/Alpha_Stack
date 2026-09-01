@@ -9,14 +9,19 @@
       "format": "%Y%m%d",
       "title": "기준일자",
       "description": "거래가 일어난 날. 저장은 YYYYMMDD 여덟 자리로 통일한다.",
-      "constraints": { "required": true }
+      "constraints": {
+        "required": true
+      }
     },
     {
       "name": "code",
       "type": "string",
       "title": "종목코드",
       "description": "여섯 자리 숫자. 엑셀이 앞자리 0 을 지워 5자리로 만드는 일이 잦아 zfill6 으로 되살린다.",
-      "constraints": { "required": true, "pattern": "^[0-9]{6}$" }
+      "constraints": {
+        "required": true,
+        "pattern": "^[0-9]{6}$"
+      }
     },
     {
       "name": "name",
@@ -28,7 +33,13 @@
       "name": "market",
       "type": "string",
       "title": "시장구분",
-      "constraints": { "enum": ["KOSPI", "KOSDAQ", "KONEX"] }
+      "constraints": {
+        "enum": [
+          "KOSPI",
+          "KOSDAQ",
+          "KONEX"
+        ]
+      }
     },
     {
       "name": "sector",
@@ -40,25 +51,34 @@
       "type": "integer",
       "title": "시가",
       "description": "원 단위 정수. 국내 주식은 호가 단위가 1원이라 소수점이 나오면 수정주가일 가능성이 높다.",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "high",
       "type": "integer",
       "title": "고가",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "low",
       "type": "integer",
       "title": "저가",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "close",
       "type": "integer",
       "title": "종가",
-      "constraints": { "required": true, "minimum": 0 }
+      "constraints": {
+        "required": true,
+        "minimum": 0
+      }
     },
     {
       "name": "change",
@@ -70,118 +90,298 @@
       "type": "number",
       "title": "등락률",
       "description": "퍼센트 값. 0.03 이 아니라 3.0 으로 적는다.",
-      "constraints": { "minimum": -100.0, "maximum": 1000.0 }
+      "constraints": {
+        "minimum": -100.0,
+        "maximum": 1000.0
+      }
     },
     {
       "name": "volume",
       "type": "integer",
       "title": "거래량",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "value",
       "type": "integer",
       "title": "거래대금",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "market_cap",
       "type": "integer",
       "title": "시가총액",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     },
     {
       "name": "listed_shares",
       "type": "integer",
       "title": "상장주식수",
-      "constraints": { "minimum": 0 }
+      "constraints": {
+        "minimum": 0
+      }
     }
   ],
-  "primaryKey": ["bas_dd", "code"],
-  "missingValues": ["", "-", "NA", "N/A", "N.A.", "None", "null", "nan", "NaN", "#N/A"],
-
+  "primaryKey": [
+    "bas_dd",
+    "code"
+  ],
+  "missingValues": [
+    "",
+    "-",
+    "NA",
+    "N/A",
+    "N.A.",
+    "None",
+    "null",
+    "nan",
+    "NaN",
+    "#N/A"
+  ],
   "x-alphastack": {
-    "version": "1.0",
+    "version": "1.1",
     "target": {
       "compareWith": "daily_price",
       "description": "합격분은 daily_price 와 같은 열쇠(날짜+종목코드)를 가지므로 대조해 차이를 볼 수 있다. 대조는 반입 단계가 아니라 적재 뒤에 따로 한다."
     },
     "aliases": {
-      "bas_dd": ["날짜", "일자", "기준일", "기준일자", "거래일", "date", "Date", "DATE", "trade_date", "TRD_DD", "BAS_DD"],
-      "code": ["종목코드", "단축코드", "코드", "종목번호", "ticker", "symbol", "stock_code", "ISU_SRT_CD", "ISU_CD"],
-      "name": ["종목명", "회사명", "이름", "stock_name", "ISU_ABBRV", "ISU_NM"],
-      "market": ["시장", "시장구분", "소속시장", "market_name", "MKT_NM", "MKT_ID"],
-      "sector": ["소속부", "업종", "섹터", "industry", "SECT_TP_NM"],
-      "open": ["시가", "open_price", "Open", "OPEN", "TDD_OPNPRC"],
-      "high": ["고가", "high_price", "High", "HIGH", "TDD_HGPRC"],
-      "low": ["저가", "low_price", "Low", "LOW", "TDD_LWPRC"],
-      "close": ["종가", "현재가", "수정종가", "close_price", "Close", "CLOSE", "TDD_CLSPRC"],
-      "change": ["전일대비", "대비", "diff", "CMPPREVDD_PRC"],
-      "change_rate": ["등락률", "등락율", "change_pct", "pct_change", "FLUC_RT"],
-      "volume": ["거래량", "vol", "Volume", "VOLUME", "ACC_TRDVOL"],
-      "value": ["거래대금", "거래금액", "amount", "ACC_TRDVAL"],
-      "market_cap": ["시가총액", "시총", "market_capitalization", "MKTCAP"],
-      "listed_shares": ["상장주식수", "주식수", "shares_outstanding", "LIST_SHRS"]
+      "bas_dd": [
+        "날짜",
+        "일자",
+        "기준일",
+        "기준일자",
+        "거래일",
+        "date",
+        "Date",
+        "DATE",
+        "trade_date",
+        "TRD_DD",
+        "BAS_DD"
+      ],
+      "code": [
+        "종목코드",
+        "단축코드",
+        "코드",
+        "종목번호",
+        "ticker",
+        "symbol",
+        "stock_code",
+        "ISU_SRT_CD",
+        "ISU_CD"
+      ],
+      "name": [
+        "종목명",
+        "회사명",
+        "이름",
+        "stock_name",
+        "ISU_ABBRV",
+        "ISU_NM"
+      ],
+      "market": [
+        "시장",
+        "시장구분",
+        "소속시장",
+        "market_name",
+        "MKT_NM",
+        "MKT_ID"
+      ],
+      "sector": [
+        "소속부",
+        "업종",
+        "섹터",
+        "industry",
+        "SECT_TP_NM"
+      ],
+      "open": [
+        "시가",
+        "open_price",
+        "Open",
+        "OPEN",
+        "TDD_OPNPRC"
+      ],
+      "high": [
+        "고가",
+        "high_price",
+        "High",
+        "HIGH",
+        "TDD_HGPRC"
+      ],
+      "low": [
+        "저가",
+        "low_price",
+        "Low",
+        "LOW",
+        "TDD_LWPRC"
+      ],
+      "close": [
+        "종가",
+        "현재가",
+        "수정종가",
+        "close_price",
+        "Close",
+        "CLOSE",
+        "TDD_CLSPRC"
+      ],
+      "change": [
+        "전일대비",
+        "대비",
+        "diff",
+        "CMPPREVDD_PRC"
+      ],
+      "change_rate": [
+        "등락률",
+        "등락율",
+        "change_pct",
+        "pct_change",
+        "FLUC_RT"
+      ],
+      "volume": [
+        "거래량",
+        "vol",
+        "Volume",
+        "VOLUME",
+        "ACC_TRDVOL"
+      ],
+      "value": [
+        "거래대금",
+        "거래금액",
+        "amount",
+        "ACC_TRDVAL"
+      ],
+      "market_cap": [
+        "시가총액",
+        "시총",
+        "market_capitalization",
+        "MKTCAP"
+      ],
+      "listed_shares": [
+        "상장주식수",
+        "주식수",
+        "shares_outstanding",
+        "LIST_SHRS"
+      ]
     },
     "cleaners": {
-      "bas_dd": ["strip", "to_yyyymmdd"],
-      "code": ["strip", "drop_suffix_ks_kq", "zfill6"],
-      "name": ["strip"],
-      "market": ["strip", "upper", "map_market"],
-      "sector": ["strip"],
-      "open": ["strip", "strip_comma", "to_int"],
-      "high": ["strip", "strip_comma", "to_int"],
-      "low": ["strip", "strip_comma", "to_int"],
-      "close": ["strip", "strip_comma", "to_int"],
-      "change": ["strip", "strip_comma", "to_int"],
-      "change_rate": ["strip", "strip_comma", "strip_percent", "to_float"],
-      "volume": ["strip", "strip_comma", "to_int"],
-      "value": ["strip", "strip_comma", "to_int"],
-      "market_cap": ["strip", "strip_comma", "to_int"],
-      "listed_shares": ["strip", "strip_comma", "to_int"]
+      "bas_dd": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "code": [
+        "strip",
+        "drop_suffix_ks_kq",
+        "zfill6"
+      ],
+      "name": [
+        "strip"
+      ],
+      "market": [
+        "strip",
+        "upper",
+        "map_market"
+      ],
+      "sector": [
+        "strip"
+      ],
+      "open": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "high": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "low": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "close": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "change": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "change_rate": [
+        "strip",
+        "strip_comma",
+        "strip_percent",
+        "to_float"
+      ],
+      "volume": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "value": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "market_cap": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "listed_shares": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ]
     },
     "rowRules": [
       {
         "id": "high_ge_low",
-        "expr": "high >= low",
+        "expr": "high is null or low is null or high >= low",
         "severity": "error",
-        "note": "고가가 저가보다 낮으면 두 칸이 뒤바뀐 것이다. 값만 보고는 어느 쪽이 옳은지 알 수 없어 고치지 않고 격리한다."
+        "note": "고가가 저가보다 낮으면 두 칸이 뒤바뀐 것이다. 값만 보고는 어느 쪽이 옳은지 알 수 없어 고치지 않고 격리한다. 우리 daily_price 는 이 칸들이 널이 아니지만(9,209,812행 전부 채워져 있다) 손수 모은 파일은 비어 올 수 있어 널 가드를 둔다 — 널 비교는 pandas 에서 False 로 떨어져 위반으로 잡히기 때문이다."
       },
       {
         "id": "high_ge_open_close",
-        "expr": "high >= open and high >= close",
+        "expr": "high is null or high == 0 or ((open is null or high >= open) and (close is null or high >= close))",
         "severity": "error",
-        "note": "고가는 그날 가장 비쌌던 값이므로 시가·종가보다 작을 수 없다."
+        "note": "고가는 그날 가장 비쌌던 값이므로 시가·종가보다 작을 수 없다. ⚠️ `high == 0` 탈출구가 없으면 이 규칙 하나가 우리 자료 283,468행(3.1%)을 격리한다 — 거래정지 종목은 시고저가 0 인데 종가는 잔존가로 양수라 `0 >= 종가` 가 거짓이 되기 때문이다. 실측으로 확인했다: 이 규칙 위반 283,468행이 zero-OHLC 행과 **정확히 일치**하고 그 밖의 위반은 0건이다."
       },
       {
         "id": "low_le_open_close",
-        "expr": "low <= open and low <= close",
+        "expr": "low is null or low == 0 or ((open is null or low <= open) and (close is null or low <= close))",
         "severity": "error",
-        "note": "저가는 그날 가장 쌌던 값이므로 시가·종가보다 클 수 없다."
+        "note": "저가는 그날 가장 쌌던 값이므로 시가·종가보다 클 수 없다. `low == 0` 은 위와 같은 이유의 탈출구인데, 저가는 0 이 다른 값보다 작아서 어차피 통과한다 — 실측 위반 0건이다. 대칭을 지켜 두면 나중에 시고저가 음수로 오는 출처가 생겨도 두 규칙이 같은 방식으로 움직인다."
       },
       {
         "id": "zero_ohlc",
-        "expr": "not (open == 0 and high == 0 and low == 0)",
+        "expr": "open is null or high is null or low is null or not (open == 0 and high == 0 and low == 0)",
         "severity": "warn",
         "note": "시고저가 셋이 모두 0 인 행은 우리 자료에도 283,468행 있다 — 거래정지 종목을 KRX 가 0 으로 내려준다. 버리지 않고 표시만 한다."
       },
       {
         "id": "zero_ohlc_but_traded",
-        "expr": "not (open == 0 and high == 0 and low == 0 and volume > 0)",
+        "expr": "open is null or high is null or low is null or volume is null or not (open == 0 and high == 0 and low == 0 and volume > 0)",
         "severity": "warn",
         "note": "가격이 0 인데 거래량이 있는 행. 우리 자료에 125건 있고 정지 중 시간외 체결로 설명된다. 드물어서 눈에 띄게 표시한다."
       },
       {
         "id": "not_future",
-        "expr": "bas_dd <= today",
+        "expr": "bas_dd is null or bas_dd <= today",
         "severity": "error",
-        "note": "오늘보다 뒤인 날짜는 미래 자료이거나 날짜 파싱이 틀린 것이다. 어느 쪽이든 학습에 넣으면 안 된다."
+        "note": "오늘보다 뒤인 날짜는 미래 자료이거나 날짜 파싱이 틀린 것이다. 어느 쪽이든 학습에 넣으면 안 된다. 날짜가 아예 없는 행은 여기가 아니라 required 검사에서 걸린다 — 한 잘못을 두 번 세면 보고서가 부풀려진다."
       },
       {
         "id": "is_business_day",
-        "expr": "bas_dd is weekday",
+        "expr": "bas_dd is null or bas_dd is weekday",
         "severity": "warn",
-        "note": "토·일에 찍힌 시세. 공휴일까지 판정하려면 거래일 달력이 필요한데 반입 단계에서는 주말만 본다."
+        "note": "토·일에 찍힌 시세. ⚠️ 주말만 본다 — 공휴일까지 가리려면 거래일 달력이 필요한데, 실측하면 개발구간 평일 3,042일 중 실제 거래일은 2,880일이라 **162일(5.3%)이 공휴일**이다. 즉 이 규칙을 통과해도 거래일이라는 보장은 없다. 진짜 거래일 판정은 daily_price 의 bas_dd 실측값과 대조해야 하고, 그것은 적재 뒤에 한다."
       }
     ],
     "lookahead": null
