@@ -78,9 +78,14 @@ class MigrationError(RuntimeError):
 #
 #    그래서 번호를 **미리 배정하고 그 순서대로 직렬로만 합친다.**
 #
-#      v5  공시 시점정합 (dart_disclosure · dart_financial)   예약
-#      v6  거시 통계 (macro_series)                            예약
-#      v7  다음 빈 번호
+#      v5  반입 (inbox_batch · inbox_accepted · inbox_quarantine)   ← 2026-09-01 적용
+#      v6  공시 시점정합 (dart_disclosure · dart_financial)          예약
+#      v7  거시 통계 (macro_series)                                  예약
+#      v8  다음 빈 번호
+#
+#    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
+#       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
+#       예약은 자리를 비워 둔 것이지 배포된 것이 아니다. 이미 배포된 항목은 이렇게 못 민다.
 #
 #    배정표는 `ingest/store/sqlite_db.py` 에도 있다. 둘을 함께 고친다.
 MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
@@ -225,6 +230,98 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
               PRIMARY KEY (origin)
             )
             """,
+        ),
+    ),
+    (
+        "v5: 반입 — 남의 자료를 들인 기록",
+        (
+            # ── 반입 묶음 ───────────────────────────────────────────────
+            # 파일 하나를 검사한 것이 한 묶음이다. **행보다 파일이 먼저 있는 이유**는
+            # 판정이 파일 단위로도 나기 때문이다 — 뉴스 본문 칸이 있으면 행을 보지도 않고
+            # 통째로 돌려보낸다. 그 사실을 적을 자리가 행 표에는 없다.
+            #
+            # `src_sha256` 이 열쇠 노릇을 한다. `scripts/check_inbox.py` 가 세션마다 도는데,
+            # 이미 들인 파일을 다시 넣지 않으려면 **내용으로** 같은지 봐야 한다 — 파일 이름은
+            # 팀원이 바꿔 올리고, 수정 시각은 내려받을 때마다 달라진다.
+            """
+            CREATE TABLE IF NOT EXISTS inbox_batch (
+              batch_id         TEXT    NOT NULL,
+              kind             TEXT    NOT NULL,
+              src_path         TEXT    NOT NULL,
+              src_sha256       TEXT    NOT NULL,
+              src_bytes        INTEGER NOT NULL,
+              origin           TEXT    NOT NULL DEFAULT 'local',
+              contributor      TEXT,
+              schema_version   TEXT,
+              rows_total       INTEGER NOT NULL DEFAULT 0,
+              rows_accepted    INTEGER NOT NULL DEFAULT 0,
+              rows_quarantined INTEGER NOT NULL DEFAULT 0,
+              rejected         TEXT,
+              report_path      TEXT,
+              started_at       TEXT    NOT NULL,
+              finished_at      TEXT    NOT NULL,
+              PRIMARY KEY (batch_id),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 의 collect_log 와 같은 이유).
+              CHECK (origin IN ('local', 'huggingface'))
+            )
+            """,
+            # 같은 파일을 두 번 들이지 않기 위한 조회. UNIQUE 로 걸지 **않는** 이유는
+            # 규격이 고쳐진 뒤 같은 파일을 일부러 다시 검사하는 일이 정당하기 때문이다 —
+            # 그때 판정이 어떻게 달라졌는지가 곧 규격 개정의 근거가 된다.
+            "CREATE INDEX IF NOT EXISTS idx_inbox_batch_sha ON inbox_batch(src_sha256)",
+            "CREATE INDEX IF NOT EXISTS idx_inbox_batch_kind ON inbox_batch(kind, finished_at)",
+
+            # ── 합격한 행 ───────────────────────────────────────────────
+            # 🔴 **규격 5장의 칸이 서로 겹치지 않아 한 표에 펼 수 없다.** 종목은 15칸,
+            #    재무는 20칸이고 이름이 같은 칸도 뜻이 다르다(`name` 은 종목명이지만 지수
+            #    파일에서는 지수명일 수 있다). 칸을 다 펴면 71칸짜리 표에 대부분이 NULL 이 되고,
+            #    종류를 하나 더 받을 때마다 마이그레이션이 붙는다.
+            #
+            #    그래서 **메타는 칸으로, 행 자체는 JSON 으로** 담는다. Airbyte 의 raw table
+            #    (`_airbyte_raw_id` · `_airbyte_data` JSON · `_airbyte_meta` JSON)이 같은 모양이고,
+            #    거기서도 `_airbyte_meta.changes` 가 "어느 칸을 왜 고쳤나" 를 배열로 담는다.
+            #    조회는 `json_extract(payload, '$.code')` 로 한다.
+            #
+            # `extras` 를 따로 두는 이유: 규격 밖 칸을 **버리지 않는다.** 팀원이 애써 붙여 온
+            # 것이고, 나중에 쓸모가 생겼을 때 원본을 다시 받는 것보다 싸다.
+            """
+            CREATE TABLE IF NOT EXISTS inbox_accepted (
+              batch_id   TEXT    NOT NULL,
+              row_no     INTEGER NOT NULL,
+              kind       TEXT    NOT NULL,
+              key_hash   TEXT,
+              payload    TEXT    NOT NULL,
+              extras     TEXT,
+              changes    TEXT,
+              warnings   TEXT,
+              loaded_at  TEXT    NOT NULL,
+              PRIMARY KEY (batch_id, row_no)
+            )
+            """,
+            # 같은 열쇠가 두 번 들어왔는지 보는 조회 — 반입은 겹칠 수밖에 없다(팀원 둘이
+            # 같은 구간을 받아 올 수 있다). 겹침을 막지 않고 **보이게** 둔다.
+            "CREATE INDEX IF NOT EXISTS idx_inbox_accepted_key ON inbox_accepted(kind, key_hash)",
+
+            # ── 격리된 행 ───────────────────────────────────────────────
+            # ⚠️ 합격 표와 달리 `raw` 를 함께 담는다. 격리는 **되돌릴 수 있어야** 한다 —
+            #    사람이 값을 고쳐 다시 넣으려면 우리가 정제하기 전 원본이 필요하고,
+            #    정제 뒤 값만 남기면 무엇을 고쳐야 하는지 알 수 없다.
+            """
+            CREATE TABLE IF NOT EXISTS inbox_quarantine (
+              batch_id   TEXT    NOT NULL,
+              row_no     INTEGER NOT NULL,
+              kind       TEXT    NOT NULL,
+              payload    TEXT    NOT NULL,
+              raw        TEXT    NOT NULL,
+              extras     TEXT,
+              changes    TEXT,
+              violations TEXT    NOT NULL,
+              loaded_at  TEXT    NOT NULL,
+              PRIMARY KEY (batch_id, row_no)
+            )
+            """,
+            "CREATE INDEX IF NOT EXISTS idx_inbox_quarantine_kind "
+            "ON inbox_quarantine(kind, batch_id)",
         ),
     ),
 )

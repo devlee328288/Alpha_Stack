@@ -32,7 +32,29 @@ data/inbox/
 받는 방법·올리는 방법은 [팀원 HuggingFace 가이드](../../docs/데이터파트/version2.1/팀원_HuggingFace_가이드.md)
 를 보세요. 팀장이 내려받아 이 폴더에 놓고 검사를 돌립니다.
 
-## 다음 단계
+## 어떻게 들이나
 
-검증·정제 엔진과 `inbox_accepted`/`inbox_quarantine` 적재는 아직 만드는 중입니다.
-지금은 규격 1장(`ohlcv_stock.json`)만 서 있습니다.
+```bash
+python scripts/check_inbox.py            # 이 폴더 + HuggingFace inbox/ 를 훑고 새 것만 들인다
+python scripts/check_inbox.py --dry-run  # 검사만 하고 DB 에는 안 담는다
+python scripts/check_inbox.py --force    # 규격을 고친 뒤 다시 검사한다
+```
+
+같은 파일을 두 번 들이지 않습니다. 판단은 이름이 아니라 **내용 지문(SHA-256)** 이라,
+이름을 바꿔 다시 놓아도 건너뜁니다.
+
+폴더 이름이 종류를 알려 주지만, 종류 폴더 없이 두어도 됩니다 — 그때는 규격 5장에 대 보고
+잽니다. **애매하면 정하지 않고 물어봅니다.**
+
+`_hf/` 는 HuggingFace 에서 내려받은 것이 쌓이는 자리입니다. 함께 `.gitignore` 됩니다.
+
+## 판정은 어디에 남나
+
+| 어디 | 무엇 | 커밋하나 |
+|---|---|---|
+| `reports/inbox/<날짜>/*.md` | 사람이 읽는 판정 — 무엇이 왜 안 들어갔나 | ✅ |
+| `reports/inbox/<날짜>/*.json` | 기계가 읽는 판정 — 전량 집계 + 표본 20건 | ✅ |
+| `krx_cache.db` 의 `inbox_accepted` | 합격한 행 | ❌ (DB 는 로컬) |
+| `krx_cache.db` 의 `inbox_quarantine` | 격리된 행 **+ 원본** | ❌ |
+
+격리된 행은 원본까지 함께 담습니다. 고쳐서 다시 넣으려면 우리가 정제하기 전 값이 필요하니까요.

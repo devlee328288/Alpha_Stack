@@ -127,7 +127,7 @@
     "#N/A"
   ],
   "x-alphastack": {
-    "version": "1.1",
+    "version": "1.2",
     "target": {
       "compareWith": "index_price",
       "description": "합격분은 index_price 와 같은 열쇠(날짜+지수명)를 가지므로 대조해 차이를 볼 수 있다. 대조는 반입 단계가 아니라 적재 뒤에 따로 한다."

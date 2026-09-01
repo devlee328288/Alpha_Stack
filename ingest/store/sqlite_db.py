@@ -54,9 +54,14 @@
 | 번호 | 무엇 | 상태 |
 |---|---|---|
 | v1~v4 | 기존 | 적용됨 |
-| **v5** | 공시 시점정합 (`dart_disclosure` · `dart_financial`) | **예약** |
-| **v6** | 거시 통계 (`macro_series`) | **예약** |
-| v7 | 다음 빈 번호 | — |
+| **v5** | 반입 (`inbox_batch` · `inbox_accepted` · `inbox_quarantine`) | **적용됨** (2026-09-01) |
+| **v6** | 공시 시점정합 (`dart_disclosure` · `dart_financial`) | **예약** |
+| **v7** | 거시 통계 (`macro_series`) | **예약** |
+| v8 | 다음 빈 번호 | — |
+
+v5·v6 은 처음에 공시·거시로 예약돼 있었으나 실제로 먼저 온 것이 반입이라 **한 칸씩 밀었다.**
+밀 수 있었던 것은 그 번호를 적용한 DB 가 아직 없었기 때문이다 — 예약은 자리를 비워 둔 것이지
+배포된 것이 아니다. **이미 배포된 항목은 이렇게 못 민다.**
 
 **번호를 선점한 쪽이 먼저 머지한다.** 두 갈래는 직렬로만 합친다.
 """
@@ -74,6 +79,7 @@ import threading
 write_lock = threading.Lock()
 
 #: 다음에 쓸 마이그레이션 번호. 위 표를 함께 고친다.
-NEXT_MIGRATION_VERSION = 7
+#: 반입이 v5 를 가져가면서 공시·거시 예약이 v6·v7 로 밀렸으므로 빈 자리는 v8 이다.
+NEXT_MIGRATION_VERSION = 8
 
 __all__ = ["write_lock", "NEXT_MIGRATION_VERSION"]

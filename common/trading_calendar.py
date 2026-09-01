@@ -75,3 +75,112 @@ def to_iso(bas_dd: str) -> str:
 def to_krx(iso: str) -> str:
     """`2026-07-30` 을 KRX 형식 `20260730` 으로 바꾼다."""
     return iso.replace("-", "")
+
+
+# ==================================================
+# 실측 거래일 달력 — 계산이 아니라 기록으로
+# ==================================================
+# 🔴 **`trading_days()` 로 거래일을 판정하면 안 된다.** 그 함수는 주말만 건너뛴다.
+#    개발구간(20100104~20210831)에서 재 보면 평일 3,042일 중 실제 거래일은 2,880일이라
+#    **162일(5.3%)이 어긋난다.** 그 162일은 명절·공휴일이고, 하필 실적 발표와 뉴스가 몰리는
+#    연휴 전후다. 뉴스의 `eff_dd` 배정이 이 달력 위에서 이뤄지므로 어긋나면 곧 미래참조다.
+#
+#    그래서 휴장일을 계산으로 맞히려 하지 않고 **우리가 실제로 받은 날을 그대로 쓴다** —
+#    `daily_price.bas_dd` 에 있는 날이 거래일이다. 이건 추정이 아니라 기록이다.
+#
+# `trading_days()` 를 지우지 않는 이유: 그쪽은 *"받아 볼 후보 날짜"* 를 고르는 용도라
+# 주말만 걸러도 맞다(휴장이면 0건으로 돌아오고 그 사실이 대장에 남는다). 쓰임이 다르다.
+
+_SESSION_CACHE: Optional[frozenset] = None
+_SESSION_SPAN: Optional[tuple] = None
+
+
+class CalendarOutOfRange(LookupError):
+    """물어본 날짜가 우리가 가진 달력 밖이다 — 답을 지어내지 않고 세운다."""
+
+
+def load_session_days(db_path=None, *, refresh: bool = False) -> frozenset:
+    """실제 거래가 있었던 날의 집합을 `YYYYMMDD` 문자열로 돌려준다.
+
+    한 번 읽어 캐시한다. 4,097개짜리 집합이라 메모리는 무시할 수 있고, 반입 검사가 행마다
+    부르기 때문에 매번 DB 를 두드리면 느리다.
+    """
+    global _SESSION_CACHE, _SESSION_SPAN
+    if _SESSION_CACHE is not None and not refresh:
+        return _SESSION_CACHE
+
+    import sqlite3
+
+    from common.paths import krx_db_path
+
+    path = db_path or krx_db_path()
+    conn = sqlite3.connect(path)
+    try:
+        rows = conn.execute("SELECT DISTINCT bas_dd FROM daily_price").fetchall()
+    finally:
+        conn.close()
+
+    days = frozenset(str(row[0]) for row in rows)
+    if not days:
+        raise CalendarOutOfRange(
+            "거래일 달력이 비어 있다 — daily_price 에 행이 없다.\n"
+            "  할 일: python scripts/fetch_krx.py 로 시세를 먼저 받는다."
+        )
+    _SESSION_CACHE = days
+    _SESSION_SPAN = (min(days), max(days))
+    return days
+
+
+def session_span(db_path=None) -> tuple:
+    """달력이 덮는 구간 `(첫 거래일, 마지막 거래일)`."""
+    load_session_days(db_path)
+    return _SESSION_SPAN
+
+
+def is_session(bas_dd: str, db_path=None) -> bool:
+    """그 날이 거래일이었나. **달력 밖이면 세운다** — False 로 답하지 않는다.
+
+    범위 밖에 False 를 주면 부르는 쪽이 *"휴장이었구나"* 로 읽는다. 2026-09-01 이 휴장인 것과
+    우리가 아직 안 받은 것은 전혀 다른 사실이고, 뒤엣것을 앞엣것처럼 다루면 조용히 틀린다.
+    """
+    days = load_session_days(db_path)
+    first, last = _SESSION_SPAN
+    if bas_dd < first or bas_dd > last:
+        raise CalendarOutOfRange(
+            f"{bas_dd} 는 우리 거래일 달력({first}~{last}) 밖이다.\n"
+            "  왜 세우나: 달력 밖을 '휴장' 으로 답하면 아직 안 받은 날과 구별되지 않는다.\n"
+            "  할 일: 그 구간 시세를 받거나, 부르는 쪽에서 이 예외를 잡아 그 행을 격리한다."
+        )
+    return bas_dd in days
+
+
+def next_session(bas_dd: str, db_path=None, *, inclusive: bool = False) -> str:
+    """그 날(포함 여부는 `inclusive`) 이후 처음 오는 거래일.
+
+    뉴스의 `eff_dd`, 재무의 `next_business_day(rcept_dt)` 가 이걸 쓴다.
+
+    `inclusive=True` 면 그 날이 거래일일 때 그 날을 돌려준다 — 장 시작 전(08:30 미만) 기사가
+    같은 날 시가에 반영되는 경우다. 기본값이 False 인 이유는 *"접수일 다음 거래일부터 유효"*
+    처럼 당일을 배제하는 쪽이 더 흔하고, **늦는 방향이 안전한 방향**이기 때문이다.
+    """
+    days = load_session_days(db_path)
+    first, last = _SESSION_SPAN
+
+    if inclusive and bas_dd in days:
+        return bas_dd
+
+    later = [d for d in days if d > bas_dd]
+    if not later:
+        raise CalendarOutOfRange(
+            f"{bas_dd} 다음 거래일을 모른다 — 달력이 {last} 까지밖에 없다.\n"
+            "  왜 세우나: 다음 거래일을 지어내면 아직 열리지 않은 장에 자료를 붙이게 된다.\n"
+            "  할 일: 시세를 더 받아 달력을 넓히거나, 그 행을 격리한다."
+        )
+    if bas_dd < first:
+        # 달력보다 이른 날은 "그 다음 거래일" 을 물어도 의미가 있다(첫 거래일). 다만 그
+        # 사이에 우리가 모르는 거래일이 있었을 수 있으므로 사실대로 알린다.
+        raise CalendarOutOfRange(
+            f"{bas_dd} 는 달력 시작({first})보다 이르다 — 그 사이 거래일을 우리는 모른다.\n"
+            "  할 일: 더 이른 구간을 받거나, 그 행을 격리한다."
+        )
+    return min(later)
