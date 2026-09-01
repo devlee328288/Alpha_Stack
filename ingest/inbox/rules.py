@@ -168,6 +168,7 @@ class _Evaluator:
             if function is None:
                 raise RuleSyntaxError(f"다룰 수 없는 비교 연산자: {type(operator).__name__}")
             right = self.walk(comparator)
+            left, right = self.align_for_compare(left, right)
             piece = function(left, right)
             result = piece if result is None else (self.as_bool(result) & self.as_bool(piece))
             left = right
@@ -230,6 +231,43 @@ class _Evaluator:
         return pd.Series(rows, index=self.frame.index)
 
     # ── 형 맞추기 ────────────────────────────────
+    def align_for_compare(self, left, right):
+        """비교 양쪽의 형을 맞춘다 — **시각과 문자열이 만날 때만.**
+
+        규격의 `pub_dt <= now` 가 이걸 필요로 한다. `pub_dt` 는 `to_kst_iso` 를 거쳐
+        `"2021-01-04T08:15:00+09:00"` 이라는 **문자열**로 담기는데, `now` 는 Timestamp 다.
+        pandas 는 이 둘을 비교하려 하면 값을 보지도 않고
+        *"Invalid comparison between dtype=str and Timestamp"* 로 죽는다.
+
+        문자열 쪽을 시각으로 올려 맞춘다. 반대로 하지 않는 이유는, Timestamp 를 문자열로
+        내리면 **사전순 비교**가 되어 오프셋이 다른 값끼리 틀리기 때문이다 — `"...+09:00"` 과
+        `"...Z"` 는 같은 순간이어도 글자가 달라 순서가 뒤집힌다.
+
+        ⚠️ 날짜 칸(`bas_dd` 같은 `YYYYMMDD` 문자열)은 건드리지 않는다. 그쪽은 `today` 도
+        문자열이라 사전순 비교가 곧 날짜순 비교이고, 규격이 그렇게 쓰고 있다.
+        """
+        left_is_time = isinstance(left, (pd.Timestamp,))
+        right_is_time = isinstance(right, (pd.Timestamp,))
+        if left_is_time and not right_is_time and isinstance(right, pd.Series):
+            return left, self.as_naive_datetime(right)
+        if right_is_time and not left_is_time and isinstance(left, pd.Series):
+            return self.as_naive_datetime(left), right
+        return left, right
+
+    def as_naive_datetime(self, series: pd.Series) -> pd.Series:
+        """시각 문자열을 tz 없는 KST 시각으로 읽는다.
+
+        `now` 가 tz 없는 KST 라서 상대도 그렇게 맞춘다. 오프셋이 붙어 온 값은 **KST 로 옮긴 뒤**
+        오프셋을 뗀다 — 떼기부터 하면 UTC 23:45 가 KST 23:45 로 둔갑해 하루가 어긋난다.
+        """
+        if pd.api.types.is_datetime64_any_dtype(series):
+            converted = series
+        else:
+            converted = pd.to_datetime(series, errors="coerce", utc=True, format="mixed")
+        if getattr(converted.dtype, "tz", None) is not None:
+            converted = converted.dt.tz_convert("Asia/Seoul").dt.tz_localize(None)
+        return converted
+
     def date_part(self, value, part: str) -> pd.Series:
         """`YYYYMMDD` 문자열에서 연·월·일을 정수로 뽑는다.
 

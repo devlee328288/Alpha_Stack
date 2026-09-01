@@ -141,7 +141,7 @@
     "."
   ],
   "x-alphastack": {
-    "version": "1.1",
+    "version": "1.2",
     "target": {
       "compareWith": null,
       "description": "대조할 표가 아직 없다. ⚠️ 그리고 지금은 수집도 못 한다 — common/budget.py 의 LIMITS 에 dart·krx·naver_search·youtube·youtube_search 다섯뿐이고 **ecos·fred·kosis 는 항목조차 없어 try_spend 를 부르면 UnknownSource 로 터진다.** 이 규격을 세우는 것과 별개로 그 세 줄을 넣어야 수집이 시작된다."
