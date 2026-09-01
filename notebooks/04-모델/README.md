@@ -24,5 +24,5 @@
 가장 높습니다. 네 모델 모두 최빈 클래스 기준선 Accuracy 0.4250을 넘지 못했습니다.
 
 표·클래스별 Recall·혼동행렬을 한눈에 보는 해석은
-[`05.모델비교.md`](실험/조합A_rsi14_bb_bandwidth_hv20_vol_ratio20/05.모델비교.md)에
+[`05.모델비교.ipynb`](실험/조합A_rsi14_bb_bandwidth_hv20_vol_ratio20/05.모델비교.ipynb)에
 정리했습니다.
