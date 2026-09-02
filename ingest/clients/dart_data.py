@@ -81,8 +81,10 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 CORP_CODE_FILE = BASE_DIR / "data" / "corp_code.json"
 
 DART_BASE_URL = "https://opendart.fss.or.kr/api"
-REQUEST_TIMEOUT = 30                 # 재무제표는 응답이 커서 FRED(20초)보다 넉넉히 준다
-CACHE_TTL = 86400                    # 재무제표 24시간 (명세서 §8.1) — 공시는 하루에 여러 번 바뀌지 않는다
+# 재무제표는 응답이 커서 FRED(20초)보다 넉넉히 준다.
+REQUEST_TIMEOUT = 30
+# 재무제표 24시간(명세서 §8.1) — 공시는 하루에 여러 번 바뀌지 않는다.
+CACHE_TTL = 86400
 KST = timezone(timedelta(hours=9))
 
 # 환경변수·파일에서 찾아볼 키 이름 (앞에 있는 것이 우선)
@@ -831,7 +833,8 @@ def _fetch_financials_uncached(corp_code: str, corp_name: str, year: int,
             gaps.append({
                 "code": "G-DATA",
                 "message": f"금융업이라 해당 계정이 재무제표에 없습니다: {names}",
-                "detail": "은행·보험·증권은 유동/비유동을 나누지 않고(유동성 배열법) 재고자산이 없으며, "
+                "detail": "은행·보험·증권은 유동/비유동을 나누지 않고 "
+                          "재고자산이 없으며, "
                           "매출액 대신 이자수익·보험수익·수수료수익으로 나눠 적습니다. "
                           "결측이 아니라 회계 관행의 차이이므로, 제조업 피어와 매출·마진을 "
                           "직접 비교하면 안 됩니다.",
@@ -1027,7 +1030,11 @@ def _fetch_disclosures_uncached(corp_code: str, corp_name: str, bgn_de: str,
                 "corp_name": (item.get("corp_name") or "").strip(),
                 "stock_code": (item.get("stock_code") or "").strip(),
                 # 원문 링크 — 근거(E-) 레코드의 `url` 이 된다
-                "url": f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}" if rcept_no else "",
+                "url": (
+                    f"https://dart.fss.or.kr/dsaf001/main.do?rcpNo={rcept_no}"
+                    if rcept_no
+                    else ""
+                ),
                 "public_type": public_type,
                 "public_type_name": PUBLIC_TYPES.get(public_type, "전체"),
                 "category": _classify(item.get("report_nm") or ""),
@@ -1063,11 +1070,33 @@ def _fetch_disclosures_uncached(corp_code: str, corp_name: str, bgn_de: str,
 # 공시 제목 → 분류. 리포트가 "무슨 일이 있었나"를 묶어 보여줄 때 쓴다.
 # 앞에 있는 규칙이 먼저 맞는다 (구체적인 것부터 둔다).
 DISCLOSURE_CATEGORIES: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
-    ("실적", ("분기보고서", "반기보고서", "사업보고서", "결산실적", "영업(잠정)실적", "매출액또는손익구조")),
+    (
+        "실적",
+        (
+            "분기보고서",
+            "반기보고서",
+            "사업보고서",
+            "결산실적",
+            "영업(잠정)실적",
+            "매출액또는손익구조",
+        ),
+    ),
     ("지분", ("주식등의대량보유", "임원ㆍ주요주주", "임원·주요주주", "특정증권")),
     ("자본", ("유상증자", "무상증자", "전환사채", "신주인수권", "자기주식", "주식소각", "감자")),
     ("배당", ("현금·현물배당", "현금ㆍ현물배당", "배당")),
-    ("사업", ("단일판매", "공급계약", "신규시설투자", "타법인주식", "영업양수", "영업양도", "합병", "분할")),
+    (
+        "사업",
+        (
+            "단일판매",
+            "공급계약",
+            "신규시설투자",
+            "타법인주식",
+            "영업양수",
+            "영업양도",
+            "합병",
+            "분할",
+        ),
+    ),
     ("지배구조", ("기업지배구조", "주주총회", "대표이사", "최대주주")),
     ("감사", ("감사보고서", "회계처리기준", "내부회계관리")),
     ("제재", ("불성실공시", "관리종목", "상장폐지", "소송", "벌금", "과징금")),
