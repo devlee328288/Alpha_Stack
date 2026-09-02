@@ -217,7 +217,8 @@ def walk_forward(prices: Sequence, order: Optional[Tuple[int, int, int]] = None,
             "적중률은 출발점(학습 마지막 종가) 대비 방향이며, 보합인 날은 판정에서 뺐습니다."
             + (f" ⚠️ 표본이 {n}행뿐이라 폴드 간격이 {step}일로 좁아져 "
                f"**{len(fold_rows)}개 폴드의 평가 구간이 서로 겹칩니다**(예측기간 {horizon}일). "
-               f"학습 집합도 거의 같아 사실상 독립 시행은 {min(independent_folds, len(fold_rows))}회 수준입니다 — "
+               "학습 집합도 거의 같아 사실상 독립 시행은 "
+               f"{min(independent_folds, len(fold_rows))}회 수준입니다 — "
                "적중률과 RMSE 를 '측정값'이 아니라 **한 구간의 결과**로 읽어야 합니다. "
                "긴 시계열(로컬 원본 캐시)에서 다시 재면 크게 달라질 수 있습니다."
                if overlapping else "")
