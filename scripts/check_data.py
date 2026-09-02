@@ -518,22 +518,71 @@ def _relative_db_path() -> str:
         return path.name          # 임시 폴더 등 저장소 밖이면 이름만
 
 
-def build_report(sections: Dict[str, List[Check]]) -> Dict:
-    """JSON 으로 내보낼 모양. 게이트 판정도 여기서 한다."""
+def stock_scale(con: sqlite3.Connection) -> Dict:
+    """`daily_price` 가 지금 얼마나 큰지 잰다. **검사가 아니라 기록이다.**
+
+    검사 항목만 남기면 "이 리포트를 만들 때 자료가 어디까지 차 있었나"를 되짚을 수
+    없다. 그런데 `krx_cache.db` 는 저장소에 올라가지 않으므로(KRX 이용약관 제11조 ②),
+    DB 를 안 가진 팀원에게는 **이 리포트가 규모를 알 수 있는 유일한 경로**다.
+
+    매일 자동으로 받기 시작하면 이 값이 특히 중요해진다 — 어제 리포트와 나란히 놓고
+    "몇 행 늘었나"를 볼 수 있어야 조용한 실패(0건인데 성공으로 끝난 수집)를 알아챈다.
+
+    실측 2026-09-02 · 920만 행 기준 세 쿼리 합계 1.7초. 게이트 전체가 전 종목을
+    순회하는 데 그보다 훨씬 오래 걸리므로 다시 세는 비용은 무시할 만하다.
+    """
+    rows, codes, days, latest, earliest = con.execute(
+        "SELECT COUNT(*), COUNT(DISTINCT code), COUNT(DISTINCT bas_dd), "
+        "MAX(bas_dd), MIN(bas_dd) FROM daily_price"
+    ).fetchone()
+    return {"rows": rows, "codes": codes, "trading_days": days,
+            "first_date": earliest, "last_date": latest}
+
+
+def index_scale(con: sqlite3.Connection, only: Optional[str] = None) -> Dict:
+    """`index_price` 의 규모. `only` 를 주면 그 지수만 잰다.
+
+    ⚠️ 좁혀서 잰 값을 전체인 것처럼 남기면 나중에 읽는 사람이 속는다. 그래서 무엇으로
+       좁혔는지를 `scope` 에 함께 적는다 — 없으면 전체다.
+    """
+    sql = ("SELECT COUNT(*), COUNT(DISTINCT index_name), MAX(bas_dd), MIN(bas_dd) "
+           "FROM index_price")
+    params: List = []
+    if only:
+        sql += " WHERE index_name = ?"
+        params.append(only)
+    rows, names, latest, earliest = con.execute(sql, params).fetchone()
+    scale = {"rows": rows, "indices": names,
+             "first_date": earliest, "last_date": latest}
+    if only:
+        scale["scope"] = only
+    return scale
+
+
+def build_report(sections: Dict[str, List[Check]],
+                 scale: Optional[Dict[str, Dict]] = None) -> Dict:
+    """JSON 으로 내보낼 모양. 게이트 판정도 여기서 한다.
+
+    `scale` 은 선택이다 — 넘기지 않으면 예전과 같은 모양이 나온다. 검사만 돌려 보는
+    쪽(테스트 등)이 규모를 재느라 920만 행을 훑을 이유는 없다.
+    """
     failed = [f"{sec}.{c.name}" for sec, checks in sections.items()
               for c in checks if c.failed]
-    return {
+    report = {
         "generated_at": now_kst_iso(),
         "db_path": _relative_db_path(),
         "gate": {
             "status": "fail" if failed else "pass",
             "failed_checks": failed,
         },
-        "sections": {
-            sec: {c.name: c.to_json() for c in checks}
-            for sec, checks in sections.items()
-        },
     }
+    if scale:
+        report["scale"] = scale
+    report["sections"] = {
+        sec: {c.name: c.to_json() for c in checks}
+        for sec, checks in sections.items()
+    }
+    return report
 
 
 def main() -> int:
@@ -555,10 +604,14 @@ def main() -> int:
 
     con = open_readonly(db)
     sections: Dict[str, List[Check]] = {}
+    # 검사한 섹션만 규모를 잰다 — 보지도 않은 표의 크기를 리포트에 적으면
+    # "이 리포트가 무엇을 확인한 것인가"가 흐려진다.
+    scale: Dict[str, Dict] = {}
 
     if args.only != "index":
         print("═══ 시세 (daily_price) ═══")
         sections["stock"] = check_stock(con)
+        scale["stock"] = stock_scale(con)
         _print_checks(sections["stock"])
         print()
 
@@ -566,10 +619,11 @@ def main() -> int:
         title = f"지수 (index_price · {args.index})" if args.index else "지수 (index_price)"
         print(f"═══ {title} ═══")
         sections["index"] = check_index(con, only=args.index)
+        scale["index"] = index_scale(con, only=args.index)
         _print_checks(sections["index"])
         print()
 
-    report = build_report(sections)
+    report = build_report(sections, scale)
 
     if not args.no_json:
         out = Path(args.json) if args.json else REPORTS_DIR / "data_quality.json"

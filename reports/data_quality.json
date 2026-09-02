@@ -1,9 +1,24 @@
 {
-  "generated_at": "2026-08-31T14:59:11+09:00",
+  "generated_at": "2026-09-02T09:53:57+09:00",
   "db_path": "data/krx_cache.db",
   "gate": {
     "status": "pass",
     "failed_checks": []
+  },
+  "scale": {
+    "stock": {
+      "rows": 9223644,
+      "codes": 3677,
+      "trading_days": 4102,
+      "first_date": "20100104",
+      "last_date": "20260901"
+    },
+    "index": {
+      "rows": 196119,
+      "indices": 51,
+      "first_date": "20100104",
+      "last_date": "20260901"
+    }
   },
   "sections": {
     "stock": {
@@ -44,7 +59,7 @@
       },
       "zero_ohlc_rows": {
         "severity": "warn",
-        "count": 283468,
+        "count": 284107,
         "message": "거래정지 표시행 (open=high=low=0). 자료 오류가 아니다",
         "samples": [
           "20190109/000030",
@@ -182,7 +197,7 @@
       },
       "liquidation_rows": {
         "severity": "warn",
-        "count": 20763,
+        "count": 20812,
         "message": "정리매매 — 체결이 끊기기 직전 10체결일. 학습에서 뺀다",
         "samples": [
           "20181221/000030",
@@ -240,7 +255,7 @@
       },
       "capital_change_rows": {
         "severity": "warn",
-        "count": 40967,
+        "count": 41039,
         "message": "상장주식수가 바뀐 날 (증자·감자)",
         "samples": [
           "20151014/000030",
@@ -269,7 +284,7 @@
       },
       "basis_price_adjusted": {
         "severity": "warn",
-        "count": 5223,
+        "count": 5251,
         "message": "KRX 가 기준가를 조정한 날 — 가격이 연속되지 않는다",
         "samples": [
           {
@@ -629,7 +644,7 @@
       },
       "close_null_rows": {
         "severity": "warn",
-        "count": 4097,
+        "count": 4102,
         "message": "종가가 없는 행 — 거래량만 오는 지수가 있다",
         "samples": [
           "20100104/코스피 (외국주포함)",

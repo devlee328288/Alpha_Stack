@@ -365,3 +365,75 @@ def test_종가가_없는_지수_행은_실패가_아니라_기록이다(깨끗�
     assert checks["close_null_rows"].count == 1
     assert not checks["close_null_rows"].failed
     assert [c.name for c in checks.values() if c.failed] == []
+
+
+# ── 규모 기록 ───────────────────────────────────────────────────────────────
+# 검사 결과만 남기면 "이 리포트를 만들 때 자료가 어디까지 차 있었나"를 되짚을 수 없다.
+# DB 는 저장소에 올라가지 않으므로, DB 를 안 가진 팀원에게는 리포트가 유일한 경로다.
+
+def test_리포트가_규모를_기록한다(깨끗한DB):
+    con = sqlite3.connect(f"file:{깨끗한DB}?mode=ro", uri=True)
+    try:
+        scale = {"stock": check_data.stock_scale(con),
+                 "index": check_data.index_scale(con)}
+        report = check_data.build_report(
+            {"stock": check_data.check_stock(con)}, scale)
+    finally:
+        con.close()
+
+    # fixture 는 평일 30일 × 2종목을 넣는다. 세는 쪽(SQL)과는 독립이라
+    # 구현이 잘못 세면 여기서 걸린다.
+    assert report["scale"]["stock"]["rows"] == len(DAYS) * len(CODES)
+    assert report["scale"]["stock"]["codes"] == len(CODES)
+    assert report["scale"]["stock"]["trading_days"] == len(DAYS)
+    assert report["scale"]["stock"]["first_date"] == DAYS[0]
+    assert report["scale"]["stock"]["last_date"] == DAYS[-1]
+    assert report["scale"]["index"]["indices"] == 1
+
+
+def test_행이_늘면_규모도_늘어난다(깨끗한DB):
+    """행 수를 상수로 굳혀 놓으면 자료가 바뀌어도 통과한다 — 변화를 따라가는지 본다."""
+    con = sqlite3.connect(f"file:{깨끗한DB}?mode=ro", uri=True)
+    before = check_data.stock_scale(con)
+    con.close()
+
+    _고친다(깨끗한DB,
+            "INSERT INTO daily_price (bas_dd, code, name, market, open, high, low, "
+            "close, change, change_rate, volume, listed_shares) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            (DAYS[0], "000003", "새종목", "KOSPI", 1000, 1010, 990, 1000, 0, 0.0,
+             5000, 100))
+
+    con = sqlite3.connect(f"file:{깨끗한DB}?mode=ro", uri=True)
+    after = check_data.stock_scale(con)
+    con.close()
+
+    assert after["rows"] == before["rows"] + 1
+    assert after["codes"] == before["codes"] + 1
+    assert after["trading_days"] == before["trading_days"]   # 날짜는 그대로다
+
+
+def test_규모를_안_넘기면_리포트에_scale_이_없다(깨끗한DB):
+    """검사만 돌려 보는 쪽이 920만 행을 훑을 이유는 없다 — 선택 인자여야 한다."""
+    con = sqlite3.connect(f"file:{깨끗한DB}?mode=ro", uri=True)
+    report = check_data.build_report({"stock": check_data.check_stock(con)})
+    con.close()
+
+    assert "scale" not in report
+    assert report["gate"]["status"] == "pass"      # 나머지는 그대로 나온다
+
+
+def test_지수를_좁혀_재면_무엇으로_좁혔는지_남는다(깨끗한DB):
+    """좁혀서 잰 값을 전체인 것처럼 남기면 나중에 읽는 사람이 속는다."""
+    con = sqlite3.connect(f"file:{깨끗한DB}?mode=ro", uri=True)
+    try:
+        전체 = check_data.index_scale(con)
+        좁힘 = check_data.index_scale(con, only="코스피 200")
+        없는것 = check_data.index_scale(con, only="있을 리 없는 지수")
+    finally:
+        con.close()
+
+    assert "scope" not in 전체
+    assert 좁힘["scope"] == "코스피 200"
+    assert 좁힘["rows"] == len(DAYS)
+    assert 없는것["rows"] == 0                      # 빈 결과도 예외 없이 0 으로 온다
