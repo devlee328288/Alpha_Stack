@@ -102,8 +102,18 @@ class CalendarOutOfRange(LookupError):
 def load_session_days(db_path=None, *, refresh: bool = False) -> frozenset:
     """실제 거래가 있었던 날의 집합을 `YYYYMMDD` 문자열로 돌려준다.
 
-    한 번 읽어 캐시한다. 4,097개짜리 집합이라 메모리는 무시할 수 있고, 반입 검사가 행마다
+    한 번 읽어 캐시한다. 4,102개짜리 집합이라 메모리는 무시할 수 있고, 반입 검사가 행마다
     부르기 때문에 매번 DB 를 두드리면 느리다.
+
+    **`trading_calendar` 표를 먼저 본다** (마이그레이션 v9). 없거나 비어 있으면
+    `daily_price` 를 직접 센다 — 답은 같고 속도만 다르다:
+
+        SELECT DISTINCT bas_dd FROM daily_price   9.2M 행을 훑는다   660ms
+        SELECT bas_dd FROM trading_calendar       4,102행을 읽는다   ~1ms
+
+    ⚠️ **폴백을 지우지 않는다.** 표는 `daily_price` 에서 파생된 것이라 시세를 더 받고
+       `adj_price.rebuild_calendar()` 를 안 부르면 낡는다. 그때 표가 없다고 예외를 내면
+       달력을 쓰는 기능이 전부 멈추고, 조용히 낡은 답을 주면 더 나쁘다. 느린 쪽이 낫다.
     """
     global _SESSION_CACHE, _SESSION_SPAN
     if _SESSION_CACHE is not None and not refresh:
@@ -116,7 +126,14 @@ def load_session_days(db_path=None, *, refresh: bool = False) -> frozenset:
     path = db_path or krx_db_path()
     conn = sqlite3.connect(path)
     try:
-        rows = conn.execute("SELECT DISTINCT bas_dd FROM daily_price").fetchall()
+        rows = []
+        try:
+            rows = conn.execute(
+                "SELECT bas_dd FROM trading_calendar WHERE market = 'ALL'").fetchall()
+        except sqlite3.OperationalError:
+            pass                      # v9 이전 DB — 표가 없다. 아래에서 원본을 센다
+        if not rows:
+            rows = conn.execute("SELECT DISTINCT bas_dd FROM daily_price").fetchall()
     finally:
         conn.close()
 

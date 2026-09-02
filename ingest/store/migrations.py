@@ -53,13 +53,34 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from common.paths import krx_db_path  # DB 경로 — 유일한 정의
 
 
 class MigrationError(RuntimeError):
     """마이그레이션이 실패했다. 무엇을 해야 하는지까지 메시지에 담는다."""
+
+
+#: 마이그레이션 한 칸에 들어갈 수 있는 것 — 그냥 SQL 문자열이거나, **연결을 받아
+#: SQL 을 만들어 주는 함수**다. 함수를 허용하는 이유는 하나뿐이다:
+#:
+#:   `ALTER TABLE ... ADD COLUMN` 에는 `IF NOT EXISTS` 가 없다. 같은 이름이 이미 있으면
+#:   **예외를 던진다.** 그런데 이 파일의 규약은 *"문장은 여러 번 돌려도 같은 결과"* 다.
+#:   문자열만으로는 그 둘을 동시에 만족할 수 없어서, 칸이 있는지 보고 문장을 만들거나
+#:   `None` 을 주는 함수를 받는다.
+#:
+#: `None` 을 돌려주면 그 문장은 **건너뛴다** — 할 일이 없다는 뜻이다.
+Statement = "str | Callable[[sqlite3.Connection], Optional[str]]"
+
+
+def _add_column(table: str, column: str, definition: str) -> Callable:
+    """`ADD COLUMN` 을 **칸이 없을 때만** 내는 지연 문장을 만든다.
+
+    `add_column_sql()` 은 연결이 있어야 판단할 수 있는데 `MIGRATIONS` 는 모듈이 읽힐 때
+    만들어지므로 아직 연결이 없다. 그래서 판단을 실행 시점으로 미룬다.
+    """
+    return lambda conn: add_column_sql(conn, table, column, definition)
 
 
 # ==================================================
@@ -82,7 +103,9 @@ class MigrationError(RuntimeError):
 #      v6  공시 시점정합 (dart_financial · dart_disclosure)          ← 2026-09-02 적용
 #      v7  거시 통계 (macro_series)                                  ← 2026-09-02 적용
 #      v8  수집 실행 기록 (ingest_run · ingest_run_stage)            ← 2026-09-02 적용
-#      v9  다음 빈 번호
+#      v9  수정주가 4칸 · 거래일 달력 (daily_price.adj_* · trading_calendar)
+#                                                                   ← 2026-09-02 적용
+#      v10 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -576,6 +599,81 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             "ON ingest_run_stage(run_id, started_at)",
         ),
     ),
+    (
+        "v9: 수정주가 4칸 · 실측 거래일 달력",
+        (
+            # ── 수정 OHLC ───────────────────────────────────────────────
+            # `close` 는 **액면분할이 조정되지 않은 원가격**이다. 분할일에 가격이 그대로
+            # 뚝 떨어지므로 수익률로 계산하면 삼성전자 2018-05-04 가 **-98.04%** 로 읽힌다
+            # (실제 그날 등락은 -2.08%). 1,139건의 분할·병합이 806종(21.9%)에 걸쳐 있다.
+            #
+            # **원 가격 칸을 덮지 않고 옆에 4칸을 새로 둔다.** 세 가지 이유가 있다.
+            #
+            #   ① `market_cap = close × listed_shares` 는 **원가격**이어야 맞다. 덮으면 깨진다.
+            #   ② 후방조정 값은 **다음 분할 때 과거 전체가 다시 바뀐다.** append-only 워터마크
+            #      반입과 정면으로 충돌하므로, 원본을 덮으면 어제 결과를 재현할 수 없다.
+            #   ③ Kronos 같은 OHLCV 6채널 모델은 종가만이 아니라 **수정 OHLC 전부**가 필요하다.
+            #
+            # ⚠️ **INTEGER 가 아니라 REAL 이다.** 후방조정 값은 정수가 아니다 — 삼성전자
+            #    2010-01-04 은 원종가 809,000 이 아니라 16,180.00 이 되고, 분할이 잦았던
+            #    종목은 1원 아래로 내려간다. INTEGER 로 두면 조용히 잘린다.
+            _add_column("daily_price", "adj_open", "REAL"),
+            _add_column("daily_price", "adj_high", "REAL"),
+            _add_column("daily_price", "adj_low", "REAL"),
+            _add_column("daily_price", "adj_close", "REAL"),
+            # 이 행의 수정값이 **어디서 왔나**. 값을 믿을 범위가 둘이 다르다.
+            #
+            #   fdr    FinanceDataReader(네이버 fchart) 가 직접 준 값. 외부 실측이다.
+            #   chain  우리가 조정계수를 곱해 **뒤로 이어 붙인** 값 (`common.corporate_actions`).
+            #
+            # 왜 두 가지인가: 네이버는 **최근 3,000거래일만** 준다(2014-06-13~). `count` 를
+            # 6000·9000 으로 올려도 서버가 3,000 에서 자른다. 우리 달력은 4,102일이라
+            # 2010-01-04~2014-06-12 의 1,103일(2,146,042행·23.3%)이 남고, 홀드아웃이
+            # 20240901 이므로 그 구멍은 **전부 학습구간 안**이다. 그래서 겹치는 지점을
+            # 앵커로 삼아 그 앞을 자체 계산으로 잇는다.
+            #
+            # 날짜로 유추할 수 없어서 칸으로 둔다 — 2012년에 상장폐지된 종목은 FDR 이
+            # 아예 없어 전 구간이 `chain` 이고, 2020년 상장 종목은 전 구간이 `fdr` 다.
+            _add_column("daily_price", "adj_source", "TEXT"),
+
+            # ── 실측 거래일 달력 ────────────────────────────────────────
+            # **거래일을 계산으로 맞히지 않는다.** 주말만 걸러 세면 개발구간 평일 3,042일
+            # 중 162일(5.3%)이 어긋난다 — 그 162일은 명절·공휴일이고 하필 실적 발표와
+            # 뉴스가 몰리는 연휴 전후다. 우리가 실제로 받은 날을 그대로 쓴다.
+            #
+            # 로직은 `common/trading_calendar.py` 에 이미 있었다. 표로 옮기는 이유는
+            # **`SELECT DISTINCT bas_dd FROM daily_price` 가 9.2M 행을 훑어 660ms 걸리기
+            # 때문이다.** 프로세스마다 한 번씩 무는 값이고, 반입 검사는 행마다 달력을
+            # 부른다. 4,102행짜리 표로 옮기면 같은 답이 ~1ms 에 나온다.
+            #
+            # ⚠️ 이 표는 `daily_price` 에서 **파생된 것**이라 원본이 늘면 낡는다.
+            #    그래서 `rebuild_calendar()` 를 시세 적재 뒤에 함께 부르고,
+            #    `common.trading_calendar` 는 표가 비었거나 없으면 **원본으로 폴백**한다.
+            #    표가 낡아서 조용히 틀리느니 느린 편이 낫다.
+            """
+            CREATE TABLE IF NOT EXISTS trading_calendar (
+              bas_dd      TEXT    NOT NULL,
+              market      TEXT    NOT NULL,
+              stock_count INTEGER NOT NULL DEFAULT 0,
+              built_at    TEXT    NOT NULL,
+              -- 시장별로 한 줄. `ALL` 은 "어느 시장이든 열렸다" 를 뜻하는 합집합이다.
+              -- 시장을 나눠 두는 이유: 한쪽만 열리는 날이 실제로 있고(코스닥 단독 개장),
+              -- 합집합만 있으면 그 날을 코스피 거래일로 잘못 읽는다.
+              PRIMARY KEY (bas_dd, market),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              CHECK (length(bas_dd) = 8),
+              CHECK (market IN ('ALL', 'KOSPI', 'KOSDAQ')),
+              -- 거래일인데 종목이 0종일 수는 없다. 0 이면 그건 휴장이고, 휴장일은
+              -- 이 표에 **행이 없어야** 한다 — 0행과 미수집을 섞지 않기 위해서다.
+              CHECK (stock_count > 0)
+            )
+            """,
+            # 한 시장의 거래일을 날짜 순으로 훑을 때. PK 는 (날짜, 시장) 이라 시장으로
+            # 먼저 좁히지 못한다.
+            "CREATE INDEX IF NOT EXISTS idx_calendar_market_date "
+            "ON trading_calendar(market, bas_dd)",
+        ),
+    ),
 )
 
 #: 이 코드가 아는 최신 스키마 버전.
@@ -606,9 +704,20 @@ def add_column_sql(conn: sqlite3.Connection, table: str, column: str,
     `ADD COLUMN` 은 **같은 이름이 이미 있으면 예외를 던진다** — `IF NOT EXISTS` 가 없다.
     마이그레이션은 여러 번 돌아도 안전해야 하므로 여기서 미리 걸러 준다.
 
-    시세·공시 표에 *"이 행을 우리가 언제부터 알 수 있었나"* 칸을 얹을 때 쓸 자리다.
-    지금은 아직 쓰이지 않는다.
+    🔴 **표가 아직 없으면 `None` 이다 — 그리고 그건 정상이다.**
+    -------------------------------------------------------
+    `daily_price` 는 이 파일이 아니라 `krx_store.SCHEMA` 가 만든다. 그런데
+    `migrate_path()` 는 예산·raw 저장소·robots·반입이 **각자 필요할 때 지연 호출**하므로,
+    시세를 한 번도 받지 않은 DB 에서는 표가 없는 채로 v9 가 돈다. 거기서 예외를 던지면
+    시세와 무관한 기능이 전부 못 뜬다.
+
+    ⚠️ 대신 **`krx_store.SCHEMA` 에도 같은 칸을 넣어 둔다.** 여기서 건너뛰기만 하면
+       그 DB 는 이미 v9 로 표시된 뒤에 칸 없는 `daily_price` 를 만들게 되고,
+       마이그레이션은 다시 돌지 않으므로 **칸이 영영 안 생긴다.** 두 경로가 같은 모양으로
+       모이게 하는 것이 요점이다 — 한쪽만 고치면 조용히 갈라진다.
     """
+    if not column_names(conn, table):
+        return None                    # 표 자체가 없다 — SCHEMA 쪽이 갖고 태어난다
     if column in column_names(conn, table):
         return None
     return f"ALTER TABLE {table} ADD COLUMN {column} {definition}"
@@ -652,6 +761,12 @@ def migrate(conn: sqlite3.Connection) -> int:
         try:
             # ② executescript() 를 쓰지 않는다 — 열린 트랜잭션을 커밋해 롤백을 막는다.
             for statement in statements:
+                # 지연 문장(`_add_column`)은 지금 연결을 보고 문장을 만든다.
+                # `None` 은 "이미 되어 있어 할 일이 없다" 이므로 건너뛴다.
+                if callable(statement):
+                    statement = statement(conn)
+                    if statement is None:
+                        continue
                 conn.execute(statement)
             # ③ 버전 표시를 같은 트랜잭션에 넣는다 — 중간 상태를 원천 차단한다.
             #    PRAGMA 는 파라미터 바인딩을 받지 않지만 `target` 은 우리가 만든 정수다.

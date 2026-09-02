@@ -72,6 +72,9 @@ def build_dataset_card(root: Path, repo_id: str) -> str:
     지수분포 = manifest["stats"].get("kospi200", {}).get("distribution", {})
     종목분포 = manifest["stats"].get("stocks30", {}).get("distribution", {})
 
+    dev = manifest["dev_end"]
+    dev_iso = f"{dev[:4]}-{dev[4:6]}-{dev[6:]}"
+
     def 비율(d: Dict[str, int]) -> str:
         총 = sum(d.values()) or 1
         return " · ".join(f"{k} {v / 총:.2%}" for k, v in d.items())
@@ -106,6 +109,63 @@ pretty_name: AlphaStack KRX 개발구간
 
 {chr(10).join(표)}
 
+## 🔴 가장 먼저 알아야 할 것 두 가지
+
+### ① 수익률은 `close` 가 아니라 `adj_close` 로 계산하세요
+
+`open`·`high`·`low`·`close` 는 **KRX 원문 그대로라 액면분할이 조정돼 있지 않습니다.**
+그대로 수익률을 내면 분할일이 폭락으로 읽힙니다.
+
+```
+삼성전자 2018-05-04 (50:1 액면분할)
+  close     로 계산 →  -98.04%   ← 틀렸다
+  adj_close 로 계산 →   -2.08%   ← 맞다 (KRX 공시 등락률과 같다)
+```
+
+분할·병합 **1,139건이 806종(21.9%)** 에 걸쳐 있습니다. 그래서 조정된 값을 옆에 붙였습니다.
+
+| 무엇을 하려나 | 어느 칸을 쓰나 |
+|---|---|
+| 수익률 · 라벨 · 모멘텀 | **`adj_close`** |
+| 변동성 · 고저 폭 (ATR · Parkinson) | **`adj_high`·`adj_low`·`adj_open`** |
+| 시가총액 | **`close`** — `market_cap = close × listed_shares` 라서 |
+| KRX 원문과 대조 | **`close`** |
+
+**원 칸을 지우지 않은 이유**: 수정주가는 *현재 가격 기준으로 과거를 눌러 놓은 값*이라
+**새 분할이 생기면 과거 값이 전부 바뀝니다.** 원문을 남겨 두어야 언제든 되돌아갈 수 있습니다.
+
+`adj_source` 칸이 그 행의 값이 어디서 왔는지 알려 줍니다.
+
+| 값 | 뜻 | 비중 |
+|---|---|---|
+| `fdr` | FinanceDataReader(네이버) 외부 실측 | 78.4% |
+| `chain` | 우리가 조정계수로 이어 붙인 값 | 21.6% |
+
+`chain` 이 있는 이유: FDR 은 **최근 3,000거래일만** 줍니다. 우리 자료는 2010년부터라
+그 앞이 비어서, FDR 이 닿는 가장 이른 날을 기준점으로 삼아 과거로 이어 붙였습니다.
+그 계산의 오차는 **최대 0.39%** 입니다 (기준점 하나만 남기고 2,999일을 우리 계산으로
+채운 뒤 진짜 값과 대조해 실측). 정지일은 시·고·저가가 비어 있고 종가만 있습니다.
+
+### ② 한글이 깨져 보이면 파일이 아니라 **읽는 방법**입니다
+
+파일은 전부 UTF-8 입니다. 한국어 Windows 의 파이썬 기본 인코딩은 `cp949` 라서,
+`encoding=` 을 안 주면 UTF-8 파일을 cp949 로 해석해 `ê¸°ì¤ì¼` 같은 글자가 나옵니다.
+
+```python
+# 🔴 이렇게 하면 깨집니다
+meta = json.load(open(path))
+
+# ✅ 이렇게 하세요
+with open(path, encoding="utf-8") as f:
+    meta = json.load(f)
+
+# CSV 는 pandas 가 기본 UTF-8 이라 그냥 읽힙니다
+df = pd.read_csv(path)               # ✅
+# parquet 은 UTF-8 이 내장이라 애초에 안 깨집니다
+```
+
+콘솔 출력까지 깨진다면 — PowerShell `$env:PYTHONUTF8=1` · cmd `chcp 65001`.
+
 ## 예측 대상
 
 - 진입 **t+1 시가** → 청산 **t+6 시가** ({manifest['horizon']}거래일)
@@ -113,7 +173,22 @@ pretty_name: AlphaStack KRX 개발구간
 - 지수 라벨 분포: {비율(지수분포)}
 - 표본 종목 라벨 분포: {비율(종목분포)}
   ⚠️ 표본 30종목의 분포입니다. 거래정지·상장폐지 사례를 **일부러 섞어** 뽑았기 때문에
-  전 종목 분포(30.12/37.90/31.98)와 다릅니다. 전체 통계로 인용하지 마세요.
+  전 종목 분포와 다릅니다. 전체 통계로 인용하지 마세요.
+
+## 개발구간이 어디까지인가 — 오해가 잦은 곳
+
+**개발구간에 하한은 없습니다.** `{manifest['dev_end']}` 는 **끝**이지 시작이 아닙니다.
+
+```
+{dev_iso} 로 경계가 바뀐 것은 "끝이 뒤로 밀린 것"입니다.
+시작은 여전히 2010-01-04 입니다.
+
+  2010-01-04 ─────────────────────── {dev_iso}  │  봉인 {manifest['holdout_start']} ~
+             ↑ 여기부터 전부 쓸 수 있습니다        │  (여기 없습니다)
+```
+
+늘어난 구간은 기존 구간을 **대체하는 것이 아니라 더해지는 것**입니다.
+뒤쪽 몇 년만 잘라 쓰면 학습 자료의 대부분을 버리게 됩니다.
 
 ## 바로 쓰기
 
@@ -137,15 +212,50 @@ X, y = df[FEATURES], df["label"]
 
 ⚠️ `X` 와 `y` 를 무작위로 섞어 나누지 마세요. 시계열이라 **시간 순서로** 잘라야 합니다.
 
+## 칸 설명 — `full/daily_price_dev.parquet`
+
+| 칸 | 뜻 | 함정 |
+|---|---|---|
+| `bas_dd` | 거래일 `YYYYMMDD` | **문자열**입니다. 사전순 = 날짜순이라 `<=` 비교가 그대로 통합니다 |
+| `code` | 종목코드 | 🔴 **숫자가 아닙니다** — 5·6번째에 영문이 오는 종목 84종(`0001B0`) |
+| `name` | 종목명 | 같은 코드도 이름이 바뀝니다. 코드로 잇고 이름으로 잇지 마세요 |
+| `market` | `KOSPI` / `KOSDAQ` | |
+| `sector` | KRX 업종 | WICS 와 다릅니다. KOSPI 는 빈 값이 많습니다 |
+| `open` `high` `low` `close` | 시·고·저·종가 (원) | 🔴 **미조정 원가격** — 위 ① 참고 |
+| `change` `change_rate` | 전일대비 · 등락률(%) | `change_rate` 는 **분할이 반영된 값** |
+| `volume` `value` | 거래량 · 거래대금 | 거래정지일은 0 |
+| `market_cap` | 시가총액 (원) | 1.8경이라 float64 유효숫자를 넘습니다 |
+| `listed_shares` | 상장주식수 | 증자·감자·분할로 바뀝니다 |
+| `adj_open` `adj_high` `adj_low` `adj_close` | **수정 OHLC** | ✅ **수익률은 이쪽** |
+| `adj_source` | `fdr` / `chain` | 그 행의 수정값 출처 |
+
+⚠️ **거래정지일**(`open=high=low=0`)에는 `adj_open`·`adj_high`·`adj_low` 가 **비어 있고**
+`adj_close` 만 있습니다. 그 날은 체결이 없었으므로 시·고·저가가 존재하지 않습니다.
+`0` 으로 채우면 "그 날 가격이 0원" 이 되니 그대로 두거나 걸러 내세요.
+
 ## 무결성 확인
 
 `MANIFEST.json` 에 파일마다 SHA-256 이 있습니다. 받은 파일이 보낸 것과 같은지
 맞춰 볼 수 있습니다.
 
+```python
+import hashlib, json
+
+with open("MANIFEST.json", encoding="utf-8") as f:      # encoding 필수
+    manifest = json.load(f)
+for item in manifest["files"]:
+    print(item["path"], item["sha256"][:16], f'{{item["rows"]:,}}행')
+```
+
 ## 만든 방법
 
-`scripts/export_team_dataset.py` (저장소 `devlee328288/Alpha_Stack`). 같은 커밋에서
-다시 돌리면 같은 파일이 나옵니다.
+`scripts/export_team_dataset.py` → `scripts/upload_to_hf.py`
+(저장소 `devlee328288/Alpha_Stack`). 같은 커밋에서 다시 돌리면 같은 파일이 나옵니다.
+
+이 카드는 **업로드할 때마다 `MANIFEST.json` 에서 자동으로 다시 만들어집니다** —
+파일 목록·행 수·홀드아웃 경계·라벨 분포는 항상 지금 올라간 자료의 값입니다.
+
+문제가 보이면 저장소에 이슈로 남겨 주세요. 데이터 파트(이동원)가 봅니다.
 """
 
 
@@ -171,11 +281,24 @@ def main() -> int:
     if args.path:
         root = Path(args.path)
     else:
-        후보 = sorted(Path("data/outbox").glob("*"))
+        # 🔴 **날짜 모양(YYYY-MM-DD)인 폴더만 본다.**
+        #
+        # 예전에는 `glob("*")` 을 그냥 정렬해 마지막을 골랐다. 그런데 `data/outbox` 에는
+        # 성격이 다른 반출도 함께 산다(`dart_20260902` 등). 사전순으로 정렬하면
+        # `'d' > '2'` 라서 **`dart_20260902` 가 `2026-09-02` 를 이긴다.**
+        #
+        # 실제로 2026-09-02 에 이 일이 났다. 시세 반출을 올리려는데 기본값이 DART 폴더를
+        # 골랐고, 그대로 갔으면 **DART 자료가 시세 레포의 루트를 덮을 뻔했다**
+        # (README.md·MANIFEST.json 까지). `--dry-run` 이 잡아서 막았다.
+        날짜모양 = "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
+        후보 = sorted(p for p in Path("data/outbox").glob(날짜모양) if p.is_dir())
         if not 후보:
-            print("data/outbox 가 비어 있다. 먼저 scripts/export_team_dataset.py 를 돌릴 것")
+            print("data/outbox 에 날짜(YYYY-MM-DD) 폴더가 없다.")
+            print("  할 일: python scripts/export_team_dataset.py 를 먼저 돌린다.")
+            print("  다른 종류의 반출을 올리려면 --path 로 폴더를 직접 지정한다.")
             return 1
         root = 후보[-1]
+        print(f"(날짜 폴더 {len(후보)}개 중 가장 최근을 골랐다. 다른 것을 올리려면 --path)")
 
     if not (root / "MANIFEST.json").exists():
         print(f"{root}/MANIFEST.json 이 없다. 반출이 끝나지 않았다")
