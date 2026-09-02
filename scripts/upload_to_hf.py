@@ -154,6 +154,16 @@ def main() -> int:
     parser.add_argument("--repo", default=DEFAULT_REPO, help=f"기본 {DEFAULT_REPO}")
     parser.add_argument("--path", default=None,
                         help="올릴 폴더 (기본: data/outbox 의 가장 최근 날짜)")
+    parser.add_argument("--path-in-repo", default="",
+                        help="레포 안의 하위 폴더 (기본: 루트). "
+                             "🔴 같은 레포에 성격이 다른 자료를 함께 둘 때 반드시 준다 — "
+                             "루트에 올리면 기존 README.md·MANIFEST.json 을 덮어쓴다")
+    parser.add_argument("--no-card", action="store_true",
+                        help="데이터셋 카드를 만들지 않는다. 🔴 build_dataset_card 는 "
+                             "시세 반출(MANIFEST 의 stats.kospi200)을 전제하므로 "
+                             "다른 종류의 반출은 자기 README.md 를 들고 와야 한다")
+    parser.add_argument("--note", default="",
+                        help="커밋 메시지에 덧붙일 한 줄")
     parser.add_argument("--dry-run", action="store_true",
                         help="올리지 않고 무엇을 올릴지만 보여준다")
     args = parser.parse_args()
@@ -177,7 +187,8 @@ def main() -> int:
         return 1
     print(f"토큰 출처: {source}")
     print(f"올릴 폴더: {root}")
-    print(f"대상 레포: {args.repo}")
+    print(f"대상 레포: {args.repo}"
+          + (f"  (하위 폴더 {args.path_in_repo}/)" if args.path_in_repo else "  (루트)"))
     print()
 
     api = _api(token)
@@ -195,9 +206,13 @@ def main() -> int:
     print("✅ private 확인")
 
     # ── 데이터셋 카드 ────────────────────────────────────────────────
-    card = build_dataset_card(root, args.repo)
-    (root / "README.md").write_text(card, encoding="utf-8")
-    print("✅ 데이터셋 카드 생성")
+    if args.no_card:
+        있나 = (root / "README.md").exists()
+        print(f"✅ 카드 생성 건너뜀 (반출본의 README.md {'있음' if 있나 else '없음'})")
+    else:
+        card = build_dataset_card(root, args.repo)
+        (root / "README.md").write_text(card, encoding="utf-8")
+        print("✅ 데이터셋 카드 생성")
 
     올릴것 = [p for p in sorted(root.rglob("*")) if p.is_file()]
     총MB = sum(p.stat().st_size for p in 올릴것) / 1024 / 1024
@@ -213,11 +228,15 @@ def main() -> int:
 
     print()
     print("업로드 중… (142MB parquet 이 있어 몇 분 걸린다)")
+    메시지 = f"데이터 반출 {root.name}"
+    if args.note:
+        메시지 += f" — {args.note}"
     api.upload_folder(
         folder_path=str(root),
         repo_id=args.repo,
         repo_type="dataset",
-        commit_message=f"데이터 반출 {root.name} — 개발구간만",
+        path_in_repo=args.path_in_repo or None,
+        commit_message=메시지,
     )
 
     올라간 = api.list_repo_files(repo_id=args.repo, repo_type="dataset")
