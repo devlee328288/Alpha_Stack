@@ -1,0 +1,97 @@
+{
+  "generated_at": "2026-09-02T11:49:50+09:00",
+  "gate": {
+    "status": "pass",
+    "failed_checks": []
+  },
+  "scale": {
+    "rows": 662933,
+    "corps": 350,
+    "stocks": 350,
+    "first_year": 2015,
+    "last_year": 2025,
+    "first_receipt": "20150923",
+    "last_receipt": "20260814",
+    "by_year": {
+      "2015": 46428,
+      "2016": 46817,
+      "2017": 49127,
+      "2018": 54257,
+      "2019": 57511,
+      "2020": 57228,
+      "2021": 59291,
+      "2022": 60831,
+      "2023": 72378,
+      "2024": 78098,
+      "2025": 80967
+    },
+    "by_statement": {
+      "BS": 151619,
+      "CF": 172448,
+      "CIS": 84042,
+      "IS": 11586,
+      "SCE": 243238
+    }
+  },
+  "collect_log": {
+    "empty": {
+      "targets": 2391,
+      "rows": 0
+    },
+    "ok": {
+      "targets": 3209,
+      "rows": 662933
+    }
+  },
+  "checks": {
+    "missing_receipt_date": {
+      "severity": "error",
+      "count": 0,
+      "message": "접수일이 없다 — 언제부터 알 수 있었는지 세울 수 없다",
+      "samples": []
+    },
+    "future_receipt_date": {
+      "severity": "error",
+      "count": 0,
+      "message": "접수일이 오늘보다 뒤다 — 미래 자료이거나 날짜 파싱이 틀렸다",
+      "samples": []
+    },
+    "receipt_before_period": {
+      "severity": "error",
+      "count": 0,
+      "message": "접수 연도가 사업연도보다 앞이다 — 결산월이 어떻든 설명이 안 된다",
+      "samples": []
+    },
+    "non_december_settlement": {
+      "severity": "warn",
+      "count": 318,
+      "message": "접수 연도 = 사업연도 — 12월 결산이 아닌 회사다 (오류가 아니다)",
+      "samples": [
+        {
+          "stock_code": "082920",
+          "corp_name": "비츠로셀",
+          "bsns_year": 2015,
+          "rcept_dt": "20150923"
+        },
+        {
+          "stock_code": "082920",
+          "corp_name": "비츠로셀",
+          "bsns_year": 2016,
+          "rcept_dt": "20160928"
+        }
+      ]
+    },
+    "duplicate_keys": {
+      "severity": "error",
+      "count": 0,
+      "message": "같은 기본키가 두 번 들어갔다 — 기본키가 새고 있다",
+      "samples": []
+    },
+    "guard_is_not_identity": {
+      "severity": "error",
+      "count": 0,
+      "message": "account_detail 을 빼면 중복이 43,400건이어야 한다 — 0 이면 위 중복 검사가 항등식이다",
+      "samples": []
+    }
+  }
+}
