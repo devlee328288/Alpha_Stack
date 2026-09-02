@@ -62,6 +62,30 @@
             border: 1px dashed #6c757d;
         }
 
+        /* 실무 표준 공식 전용 박스 (약간 더 강조) */
+        .standard-formula-box {
+            background-color: #e2d9f3;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 2px solid #6f42c1;
+            box-shadow: 0 2px 8px rgba(111, 66, 193, 0.15);
+        }
+
+        .standard-formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .standard-formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
         .variable-table {
             width: 100%;
             border-collapse: collapse;
@@ -197,7 +221,7 @@
         </span>
     </div>
 
-    <h2>📐 세부 계산 수식 (사다리꼴 적분 근사법)</h2>
+    <h2>📐 세부 계산 수식 (사다리꼴 적분 근사법 - 이론적 접근)</h2>
     <div class="sub-formula-box">
         <span class="math">PR-AUC</span> ≈
         <span style="font-size:1.0rem;">
@@ -206,7 +230,36 @@
         </span>
         <br>
         <span class="sub" style="font-size:0.9rem;">
-            ※ PR 곡선의 각 임계값(Threshold) 지점에서 <strong>사다리꼴 넓이</strong>를 모두 합산하여 근사합니다.
+            ※ PR 곡선의 각 임계값(Threshold) 지점에서 <strong>사다리꼴 넓이</strong>를 모두 합산하여 근사하는 수치해석적 방법입니다.
+        </span>
+    </div>
+
+    <!-- ==================== 실무 표준 공식 (추가된 부분) ==================== -->
+    <h2>📐 실무 표준 계산 수식 (Average Precision - AP)</h2>
+    <p>
+        <strong>scikit-learn</strong> 및 정보 검색(IR) 분야를 포함한 <strong>대부분의 실무(Industry Standard)에서는 '사다리꼴' 대신
+            '계단식(Step-wise)' 방식을 채택</strong>합니다.
+        이 공식은 각 Recall 구간에서 <strong>구간의 끝(오른쪽)에 해당하는 Precision 값</strong>을 가중치로 사용합니다.
+        (scikit-learn의 <code>average_precision_score</code> 함수가 이 공식을 구현하고 있습니다.)
+    </p>
+
+    <div class="standard-formula-box">
+        <span class="math">AP</span> =
+        <span style="font-size:1.0rem;">
+            Σ<sub>n</sub> ( Recall<sub>n</sub> − Recall<sub>n-1</sub> ) × <span
+                class="math">Precision<sub>n</sub></span>
+        </span>
+        <br>
+        <span class="sub" style="margin-top:10px;">
+            ✅ <strong>사다리꼴 방식과의 결정적 차이</strong>: <span
+                style="color:#6f42c1; font-weight:bold;">Precision<sub>n</sub></span> (구간 끝점)을 사용하며,
+            <span style="color:#dc3545; font-weight:bold;">Precision<sub>i-1</sub></span> (시작점)은 사용하지 않습니다.
+            <br>(즉, <span style="font-size:1.1rem; font-weight:bold;">(P<sub>i</sub> + P<sub>i-1</sub>) / 2</span> 가 아닌
+            <span style="font-size:1.1rem; font-weight:bold;">P<sub>i</sub></span> 단독으로 계산)
+        </span>
+        <span class="sub" style="margin-top:15px; font-size:0.9rem; border-top:1px solid #ced4da; padding-top:10px;">
+            💡 <strong>왜 실무 표준일까요?</strong> PR 곡선은 Recall이 증가함에 따라 Precision이 급감하는 경우가 많습니다.
+            사다리꼴(평균) 방식은 급감하는 구간을 과대평가하는 경향이 있어, <strong>AP(계단식) 방식이 모델의 실제 성능을 더 보수적이고 엄격하게 평가</strong>하기 때문입니다.
         </span>
     </div>
 
@@ -224,7 +277,7 @@
         <tbody>
             <tr>
                 <td><strong>PR 곡선 면적</strong></td>
-                <td><span class="math">PR-AUC</span></td>
+                <td><span class="math">PR-AUC</span> 또는 <span class="math">AP</span></td>
                 <td>
                     <span class="badge badge-red">결과값</span>
                     <strong>0 ~ 1</strong> 범위의 무차원 수치.

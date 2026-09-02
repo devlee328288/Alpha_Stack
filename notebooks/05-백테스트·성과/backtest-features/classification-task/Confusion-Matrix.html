@@ -8,7 +8,7 @@
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 850px;
+            max-width: 950px;
             margin: 40px auto;
             padding: 20px;
             background-color: #f8f9fa;
@@ -27,6 +27,14 @@
             margin-top: 30px;
             border-left: 5px solid #0d6efd;
             padding-left: 15px;
+        }
+
+        h3 {
+            color: #495057;
+            margin-top: 25px;
+            border-bottom: 1px solid #dee2e6;
+            padding-bottom: 5px;
+            padding-left: 10px;
         }
 
         .formula-box {
@@ -93,13 +101,13 @@
             background-color: #f1f3f5;
         }
 
-        /* 혼동 행렬 표 전용 스타일 */
+        /* 혼동 행렬 표 전용 스타일 (2x2 및 3x3 공용) */
         .confusion-matrix {
             width: 100%;
-            max-width: 450px;
+            max-width: 550px;
             margin: 10px auto;
             border-collapse: collapse;
-            font-size: 1.1rem;
+            font-size: 1.0rem;
             text-align: center;
             background-color: white;
             border-radius: 8px;
@@ -110,12 +118,12 @@
         .confusion-matrix th {
             background-color: #343a40;
             color: white;
-            padding: 12px 5px;
+            padding: 10px 5px;
             font-weight: 600;
         }
 
         .confusion-matrix td {
-            padding: 20px 10px;
+            padding: 14px 8px;
             border: 1px solid #dee2e6;
             font-weight: 600;
         }
@@ -125,25 +133,21 @@
             color: #0f5132;
         }
 
-        /* 초록 계열 */
         .confusion-matrix .tn {
             background-color: #d1e7dd;
             color: #0f5132;
         }
 
-        /* 초록 계열 */
         .confusion-matrix .fp {
             background-color: #f8d7da;
             color: #842029;
         }
 
-        /* 빨강 계열 */
         .confusion-matrix .fn {
             background-color: #f8d7da;
             color: #842029;
         }
 
-        /* 빨강 계열 */
         .confusion-matrix .label-true {
             background-color: #e9ecef;
             font-weight: bold;
@@ -183,6 +187,14 @@
             border-radius: 4px;
         }
 
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
         .badge {
             display: inline-block;
             background-color: #6c757d;
@@ -214,12 +226,32 @@
             background-color: #343a40;
         }
 
-        .compare-box {
-            background-color: #e2d9f3;
-            border-left: 5px solid #6f42c1;
-            padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 4px;
+        .ratio-bar {
+            display: flex;
+            height: 30px;
+            border-radius: 6px;
+            overflow: hidden;
+            margin: 10px 0 15px 0;
+            font-size: 0.9rem;
+            font-weight: bold;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+        }
+
+        .ratio-bar .up {
+            background-color: #dc3545;
+            flex: 5;
+        }
+
+        .ratio-bar .down {
+            background-color: #0d6efd;
+            flex: 3;
+        }
+
+        .ratio-bar .flat {
+            background-color: #6c757d;
+            flex: 2;
         }
 
         footer {
@@ -238,17 +270,13 @@
     <h1>📊 혼동 행렬 (Confusion Matrix) - TP, TN, FP, FN</h1>
     <p>
         <strong>혼동 행렬(Confusion Matrix)</strong>은 분류 모델(Classification Model)의 성능을 평가하는 가장 기본적이고 직관적인 도구로,
-        <strong>실제값(Actual)과 예측값(Predicted)을 2x2 행렬로 교차하여 4가지 경우(TP, TN, FP, FN)로 나눈 표</strong>입니다.
-    </p>
-    <p>
-        이 4가지 요소는 모든 분류 평가 지표(<strong>Accuracy, Precision, Recall, F1-Score, MCC, Balanced Accuracy</strong> 등)의
-        <strong>기초가 되는 원자재(Atom) 데이터</strong>입니다. 특히 금융/퀀트 분야에서는
-        <strong>False Positive(거짓 양성, 허위 매수 신호)와 False Negative(거짓 음성, 놓친 매수 기회)</strong> 중
-        어느 것이 전략에 더 치명적인지 판단하는 출발점이 됩니다.
+        <strong>실제값(Actual)과 예측값(Predicted)을 행렬로 교차하여 각 경우의 수를 집계한 표</strong>입니다.
+        이 문서에서는 먼저 <strong>2진 분류(Binary)</strong>의 기본 개념을 익히고, 이를 <strong>3분류(상승/하락/보합)</strong>로 확장하는 방법과
+        해당 3분류에서 <strong>MCC, PR-AUC, BA(Balanced Accuracy)</strong>가 어떻게 적용되는지 설명합니다.
     </p>
 
-    <!-- ==================== 혼동 행렬 시각화 ==================== -->
-    <h2>📋 혼동 행렬 기본 구조 (2x2)</h2>
+    <!-- ==================== 1. 이진 분류 기본 ==================== -->
+    <h2>📋 1. 이진 분류(Binary) 혼동 행렬 (2x2)</h2>
 
     <div class="formula-box" style="background-color: #f8f9fa; padding: 10px;">
         <table class="confusion-matrix">
@@ -284,9 +312,6 @@
         </div>
     </div>
 
-    <!-- ==================== 각 요소 정의 ==================== -->
-    <h2>📐 4가지 요소 (TP, TN, FP, FN) 상세 정의</h2>
-
     <div class="sub-formula-box">
         <span style="font-size:1.1rem; font-weight:bold; color:#0d6efd;">TP (True Positive)</span> = 실제 <span
             style="color:#198754; font-weight:bold;">양성</span>이고, 예측도 <span
@@ -300,111 +325,267 @@
         <span style="font-size:1.1rem; font-weight:bold; color:#dc3545;">FN (False Negative)</span> = 실제 <span
             style="color:#dc3545; font-weight:bold;">양성</span>인데, 예측을 <span
             style="color:#dc3545; font-weight:bold;">음성</span>으로 함 (2종 오류 / 놓친 기회)
-        <br>
-        <span class="sub" style="font-size:0.9rem; margin-top:10px; display:block;">
-            ※ <strong>1종 오류 (FP)</strong>: "실제는 아닌데 있다고 함" (허위 매수 신호) <br>
-            ※ <strong>2종 오류 (FN)</strong>: "실제는 있는데 없다고 함" (놓친 매수 기회 / 손실 회피 실패)
-        </span>
     </div>
 
-    <!-- ==================== 변수 설명 ==================== -->
-    <h2>🔍 변수(Variables) 상세 설명</h2>
+    <!-- ==================== 2. 3분류 확장 ==================== -->
+    <h2>📊 2. 3분류(상승/하락/보합) 혼동 행렬 (3x3)</h2>
+    <p>
+        현실의 주가 예측은 단순한 상승/하락보다 <strong>보합(횡보)</strong>이 포함된 3분류가 더 현실적입니다.
+        3분류 혼동 행렬은 <strong>3x3 크기</strong>이며, 대각선(↘)에 위치한 값들이 <strong>정답(TP)</strong>에 해당합니다.
+    </p>
+
+    <div class="formula-box" style="background-color: #f8f9fa; padding: 10px;">
+        <table class="confusion-matrix" style="max-width: 550px;">
+            <tr>
+                <th colspan="2" rowspan="2"
+                    style="background-color: #f8f9fa; color: #212529; border: none; font-size: 0.9rem;"></th>
+                <th colspan="3" style="background-color: #0d6efd; color: white;">예측값 (Predicted)</th>
+            </tr>
+            <tr>
+                <th style="background-color: #0d6efd; color: white;">상승</th>
+                <th style="background-color: #0d6efd; color: white;">하락</th>
+                <th style="background-color: #0d6efd; color: white;">보합</th>
+            </tr>
+            <tr>
+                <th rowspan="3" style="background-color: #e9ecef; color: #212529; width: 12%;">실제값<br>(Actual)</th>
+                <th style="background-color: #e9ecef; color: #212529;">상승</th>
+                <td class="tp"><strong>TP</strong><br><span style="font-size:0.75rem;">(상승→상승)</span></td>
+                <td class="fn"><span style="color:#dc3545;">FN</span><br><span style="font-size:0.75rem;">(상승→하락)</span>
+                </td>
+                <td class="fn"><span style="color:#dc3545;">FN</span><br><span style="font-size:0.75rem;">(상승→보합)</span>
+                </td>
+            </tr>
+            <tr>
+                <th style="background-color: #e9ecef; color: #212529;">하락</th>
+                <td class="fp"><span style="color:#dc3545;">FP</span><br><span style="font-size:0.75rem;">(하락→상승)</span>
+                </td>
+                <td class="tp"><strong>TP</strong><br><span style="font-size:0.75rem;">(하락→하락)</span></td>
+                <td class="fn"><span style="color:#dc3545;">FN</span><br><span style="font-size:0.75rem;">(하락→보합)</span>
+                </td>
+            </tr>
+            <tr>
+                <th style="background-color: #e9ecef; color: #212529;">보합</th>
+                <td class="fp"><span style="color:#dc3545;">FP</span><br><span style="font-size:0.75rem;">(보합→상승)</span>
+                </td>
+                <td class="fp"><span style="color:#dc3545;">FP</span><br><span style="font-size:0.75rem;">(보합→하락)</span>
+                </td>
+                <td class="tp"><strong>TP</strong><br><span style="font-size:0.75rem;">(보합→보합)</span></td>
+            </tr>
+        </table>
+        <div class="sub" style="margin-top: 10px;">
+            <span style="background-color:#d1e7dd; padding:2px 10px; border-radius:4px;">✅ 대각선(TP) = 정답</span>
+            <span style="background-color:#f8d7da; padding:2px 10px; border-radius:4px; margin-left:10px;">❌ 비대각선 = 오류
+                (FP 또는 FN)</span>
+        </div>
+    </div>
+
+    <h3>🔍 3분류에서 TP, TN, FP, FN 재정의 (One-vs-Rest)</h3>
+    <p>
+        3분류에서는 <strong>특정 클래스 하나를 '양성(Positive)'으로, 나머지 두 개 클래스를 모두 '음성(Negative)'으로 묶는</strong>
+        <strong>One-vs-Rest (OVR)</strong> 방식으로 TP/TN/FP/FN을 계산합니다.
+        아래는 위 3x3 행렬을 OVR로 변환한 예시입니다.
+    </p>
 
     <table class="variable-table">
         <thead>
             <tr>
-                <th style="width:22%;">변수명</th>
-                <th style="width:28%;">기호</th>
-                <th style="width:50%;">상세 설명 및 금융적 의미</th>
+                <th>기준 클래스 (Positive)</th>
+                <th>TP</th>
+                <th>FP</th>
+                <th>FN</th>
+                <th>TN</th>
             </tr>
         </thead>
         <tbody>
             <tr>
-                <td><strong>진짜 양성</strong></td>
-                <td><span class="math">TP</span></td>
-                <td>
-                    <span class="badge badge-green">정답</span>
-                    모델이 <strong>상승(또는 이상거래)</strong>을 정확히 예측하여 실제로 수익을 낸 경우.
-                    <br><small>👉 매니저의 핵심 실력</small>
-                </td>
+                <td><strong>상승</strong></td>
+                <td>(상승, 상승)</td>
+                <td>(하락, 상승) + (보합, 상승)</td>
+                <td>(상승, 하락) + (상승, 보합)</td>
+                <td>전체 샘플 - (TP + FP + FN)</td>
             </tr>
             <tr>
-                <td><strong>진짜 음성</strong></td>
-                <td><span class="math">TN</span></td>
-                <td>
-                    <span class="badge badge-green">정답</span>
-                    모델이 <strong>하락(또는 정상거래)</strong>을 정확히 예측하여 손실을 피한 경우.
-                    <br><small>👉 방어 능력의 핵심</small>
-                </td>
+                <td><strong>하락</strong></td>
+                <td>(하락, 하락)</td>
+                <td>(상승, 하락) + (보합, 하락)</td>
+                <td>(하락, 상승) + (하락, 보합)</td>
+                <td>전체 샘플 - (TP + FP + FN)</td>
             </tr>
             <tr>
-                <td><strong>거짓 양성 (1종 오류)</strong></td>
-                <td><span class="math">FP</span></td>
-                <td>
-                    <span class="badge badge-red">위험 (허위 경보)</span>
-                    실제는 하락장인데, 모델이 <strong>상승(매수) 신호</strong>를 잘못 내어 손실을 본 경우.
-                    <br><small>👉 전략의 <strong>과매수/거짓 경보</strong> 비용</small>
-                </td>
-            </tr>
-            <tr>
-                <td><strong>거짓 음성 (2종 오류)</strong></td>
-                <td><span class="math">FN</span></td>
-                <td>
-                    <span class="badge badge-red">위험 (기회 상실)</span>
-                    실제는 상승장인데, 모델이 <strong>하락(매도/관망)</strong>으로 잘못 예측하여 수익을 놓친 경우.
-                    <br><small>👉 전략의 <strong>놓친 기회 비용 (Opportunity Cost)</strong></small>
-                </td>
+                <td><strong>보합</strong></td>
+                <td>(보합, 보합)</td>
+                <td>(상승, 보합) + (하락, 보합)</td>
+                <td>(보합, 상승) + (보합, 하락)</td>
+                <td>전체 샘플 - (TP + FP + FN)</td>
             </tr>
         </tbody>
     </table>
 
-    <!-- ==================== 계산 예시 ==================== -->
-    <h2>🧮 계산 예시 (주식 방향성 예측)</h2>
+    <!-- ==================== 3. 클래스 비율 (Class Ratio) ==================== -->
+    <h2>📈 3. 클래스 비율 (Class Ratio)과 불균형의 함정</h2>
+    <p>
+        <strong>클래스 비율</strong>은 전체 데이터셋에서 각 클래스(상승/하락/보합)가 차지하는 샘플의 비율을 의미합니다.
+        금융 데이터는 대부분 <strong>불균형(Imbalanced)</strong>합니다. 예를 들어, 장기 우상향 시장에서는 '상승'이 50%, '하락'이 20%, '보합'이 30%일 수 있습니다.
+    </p>
 
-    <div class="example-box">
-        <p><strong>📌 예시 상황 (100개의 거래 신호, 실제 상승장 60개 / 하락장 40개)</strong></p>
+    <div style="background-color: white; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; margin: 15px 0;">
+        <p style="font-weight:bold; text-align:center;">📌 가상의 클래스 비율 예시 (전체 1,000개 샘플)</p>
+        <div class="ratio-bar">
+            <div class="up" style="flex: 5;">상승 50% (500개)</div>
+            <div class="flat" style="flex: 3;">보합 30% (300개)</div>
+            <div class="down" style="flex: 2;">하락 20% (200개)</div>
+        </div>
+        <ul style="margin-top: 10px; font-size:0.95rem;">
+            <li><strong>🔴 상승 (50%)</strong>: 다수 클래스 (Majority)</li>
+            <li><strong>⚪ 보합 (30%)</strong>: 중간 클래스</li>
+            <li><strong>🔵 하락 (20%)</strong>: 소수 클래스 (Minority)</li>
+        </ul>
+        <div class="note-box" style="margin-top:10px;">
+            <strong>⚠️ Accuracy(정확도)의 함정</strong>: 만약 모델이 모든 샘플을 '상승'으로만 예측해도 Accuracy는 50%가 나옵니다.
+            이는 전혀 쓸모없는 모델이지만, 성능이 50%인 것으로 오인할 수 있습니다.
+            따라서 불균형 데이터에서는 <strong>BA, MCC, PR-AUC</strong> 같은 지표가 필수적입니다.
+        </div>
+    </div>
+
+    <!-- ==================== 4. 3분류 평가 지표 적용 ==================== -->
+    <h2>📐 4. 3분류(상승/하락/보합) 평가 지표 적용법</h2>
+    <p>
+        3분류 모델을 평가할 때는 <strong>각 클래스의 성능을 균형 있게 반영</strong>해야 합니다.
+        대표적인 지표인 <strong>BA (Balanced Accuracy), MCC, PR-AUC</strong>가 3분류에서 어떻게 적용되는지 설명합니다.
+    </p>
+
+    <h3>✅ BA (Balanced Accuracy, 균형 정확도)</h3>
+    <div class="sub-formula-box" style="text-align:left; padding:15px 20px;">
+        <strong>개념</strong>: 각 클래스별 Recall(재현율)의 <strong>산술 평균</strong>입니다. 불균형 데이터에서 Accuracy의 대안으로 사용됩니다.<br><br>
+        <strong>3분류 수식</strong>:
+        <span style="font-size:1.1rem; font-weight:bold; display:block; text-align:center; margin:10px 0;">
+            BA = ( Recall<sub>상승</sub> + Recall<sub>하락</sub> + Recall<sub>보합</sub> ) / 3
+        </span>
         <ul>
-            <li><strong>모델 예측 결과</strong>:
+            <li><strong>장점</strong>: 모든 클래스를 동등하게 취급하여, 소수 클래스(하락)의 성능 저하를 놓치지 않습니다.</li>
+            <li><strong>단점</strong>: 클래스별 샘플 수가 극도로 불균형할 때, 소수 클래스의 변동성에 전체 점수가 크게 영향받을 수 있습니다.</li>
+            <li><strong>해석</strong>: 0~1 사이의 값. 0.5는 무작위 추측 수준, 1.0은 완벽한 분류를 의미합니다.</li>
+        </ul>
+    </div>
+
+    <h3>✅ MCC (Matthews Correlation Coefficient, 매튜스 상관계수)</h3>
+    <div class="sub-formula-box" style="text-align:left; padding:15px 20px;">
+        <strong>개념</strong>: 혼동 행렬의 모든 요소(TP, TN, FP, FN)를 종합하여 <strong>-1 ~ +1</strong> 사이의 값을 반환합니다.<br><br>
+        <strong>3분류 적용 방식 (2가지)</strong>:
+        <ol>
+            <li><strong>일반화된 다중 분류 MCC (sklearn 공식 구현)</strong>: 3x3 행렬 전체를 하나의 공식에 대입하여 단일 값을 계산합니다. (최대값 +1, 최소값은 -1보다
+                큼)</li>
+            <li><strong>Macro 평균 MCC (One-vs-Rest)</strong>: 각 클래스별로 이진 MCC를 계산한 뒤, <strong>세 클래스의 평균</strong>을 구합니다.
+                <br>→ <span style="font-size:0.9rem;">MCC<sub>Macro</sub> = (MCC<sub>상승</sub> + MCC<sub>하락</sub> +
+                    MCC<sub>보합</sub>) / 3</span>
+            </li>
+        </ol>
+        <ul>
+            <li><strong>장점</strong>: 불균형 데이터에서도 <strong>가장 신뢰할 수 있는 지표</strong>로 평가받습니다.</li>
+            <li><strong>해석</strong>: +1에 가까울수록 완벽한 예측, 0에 가까우면 무작위 추측, 음수면 반대 예측을 의미합니다.</li>
+        </ul>
+    </div>
+
+    <h3>✅ PR-AUC (Precision-Recall AUC)</h3>
+    <div class="sub-formula-box" style="text-align:left; padding:15px 20px;">
+        <strong>개념</strong>: 임계값(Threshold) 변화에 따른 Precision-Recall 곡선 아래 면적(AUC)입니다. 불균형 데이터에서 ROC-AUC보다 정확한 평가를
+        제공합니다.<br><br>
+        <strong>3분류 적용 방식</strong>:
+        <ul>
+            <li><strong>One-vs-Rest (OVR) 확장</strong>: 각 클래스(상승, 하락, 보합)별로 <strong>별도의 PR 곡선</strong>을 그리고, 각각의 AUC를
+                계산합니다.</li>
+            <li><strong>최종 PR-AUC</strong>:
                 <ul>
-                    <li>TP (상승을 상승으로 맞춤): <strong>50개</strong></li>
-                    <li>TN (하락을 하락으로 맞춤): <strong>30개</strong></li>
-                    <li>FP (하락을 상승으로 예측 → <span style="color:#dc3545;">손실</span>): <strong>10개</strong></li>
-                    <li>FN (상승을 하락으로 예측 → <span style="color:#dc3545;">기회 상실</span>): <strong>10개</strong></li>
+                    <li><strong>Macro 평균</strong>: (AUC<sub>상승</sub> + AUC<sub>하락</sub> + AUC<sub>보합</sub>) / 3 → 모든
+                        클래스를 동등하게 평가</li>
+                    <li><strong>Micro 평균</strong>: 모든 클래스의 TP/FP/FN을 합산하여 하나의 PR 곡선을 그리고 AUC 계산 → 다수 클래스의 영향이 큼</li>
                 </ul>
             </li>
         </ul>
-        <p style="margin-top:10px;">
-            <strong>👉 해당 혼동 행렬을 기반으로 파생되는 주요 지표</strong><br>
-            Accuracy = (50+30) / 100 = <strong>0.80 (80%)</strong><br>
-            Precision = 50 / (50+10) = <strong>0.833 (83.3%)</strong> (매수 신호의 정확도)<br>
-            Recall (TPR) = 50 / (50+10) = <strong>0.833 (83.3%)</strong> (실제 상승을 놓치지 않은 비율)<br>
-            Specificity (TNR) = 30 / (30+10) = <strong>0.75 (75%)</strong> (실제 하락을 잘 피한 비율)<br>
-            Balanced Accuracy = (0.833 + 0.75) / 2 = <strong>0.7915 (약 79.2%)</strong>
-        </p>
-        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
-            ✅ 해석: FP(10개)는 잘못된 매수로 인한 <strong>실제 손실</strong>을 의미하고, FN(10개)는 놓친 상승장으로 인한 <strong>기회 비용</strong>을 의미합니다.
-            전략의 성격에 따라 <strong>FP를 줄일지(보수적), FN을 줄일지(공격적)</strong>를 이 혼동 행렬을 보고 결정합니다.
-        </p>
-    </div>
-
-    <!-- ==================== 해석 가이드 ==================== -->
-    <h2>📈 혼동 행렬 해석 가이드 (금융 관점)</h2>
-
-    <div class="interpret-box">
         <ul>
-            <li><strong>🔵 TP (진짜 양성)가 높을수록</strong>: <strong>수익 기회를 잘 포착</strong>하는 우수한 전략입니다.</li>
-            <li><strong>🟢 TN (진짜 음성)가 높을수록</strong>: <strong>하락장을 잘 방어</strong>하는 안정적인 전략입니다.</li>
-            <li><strong>🔴 FP (거짓 양성)이 높을수록</strong>: <strong>잦은 허위 매수 신호</strong>로 인해 거래 비용과 손실이 누적됩니다. (과민한 전략)</li>
-            <li><strong>🟠 FN (거짓 음성)이 높을수록</strong>: <strong>큰 상승장을 놓치는</strong> 비용이 발생합니다. (지나치게 보수적인 전략)</li>
+            <li><strong>장점</strong>: 소수 클래스(하락)의 탐지 성능을 정밀하게 측정할 수 있습니다.</li>
+            <li><strong>해석</strong>: 0~1 사이의 값. 1에 가까울수록 완벽한 분류, 0.5는 무작위 추측 수준입니다.</li>
         </ul>
-        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
-            💡 <strong>트레이드 오프(Trade-off)</strong>: FP를 줄이려고 임계값을 높이면 FN이 증가하고, FN을 줄이려고 임계값을 낮추면 FP가 증가합니다.
-            자신의 투자 철학(손실 회피 vs 수익 추구)에 따라 <strong>어느 오류를 더 용인할지</strong>를 혼동 행렬로 정량화해야 합니다.
+    </div>
+
+    <!-- ==================== 5. 통합 계산 예시 ==================== -->
+    <h2>🧮 5. 3분류 혼동 행렬 기반 평가 지표 계산 예시</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시: 3x3 혼동 행렬 (총 150개 샘플)</strong></p>
+        <table
+            style="width:100%; border-collapse:collapse; background:white; border-radius:6px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.05); margin-bottom:15px;">
+            <thead>
+                <tr style="background-color:#0d6efd; color:white;">
+                    <th style="padding:8px; text-align:center;">실제 \ 예측</th>
+                    <th style="padding:8px; text-align:center;">상승</th>
+                    <th style="padding:8px; text-align:center;">하락</th>
+                    <th style="padding:8px; text-align:center;">보합</th>
+                    <th style="padding:8px; text-align:center;">합계</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">상승</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">40 (TP)</td>
+                    <td style="padding:8px; text-align:center;">5 (FN)</td>
+                    <td style="padding:8px; text-align:center;">5 (FN)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">50</td>
+                </tr>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">하락</td>
+                    <td style="padding:8px; text-align:center;">8 (FP)</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">30 (TP)</td>
+                    <td style="padding:8px; text-align:center;">2 (FN)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">40</td>
+                </tr>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">보합</td>
+                    <td style="padding:8px; text-align:center;">4 (FP)</td>
+                    <td style="padding:8px; text-align:center;">6 (FP)</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">50 (TP)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">60</td>
+                </tr>
+                <tr style="background-color:#e9ecef; font-weight:bold;">
+                    <td style="padding:8px;">합계</td>
+                    <td style="padding:8px; text-align:center;">52</td>
+                    <td style="padding:8px; text-align:center;">41</td>
+                    <td style="padding:8px; text-align:center;">57</td>
+                    <td style="padding:8px; text-align:center;">150</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><strong>👉 Step 1: 각 클래스별 Recall(재현율) 계산</strong></p>
+        <ul>
+            <li>Recall<sub>상승</sub> = 40 / 50 = <strong>0.800</strong></li>
+            <li>Recall<sub>하락</sub> = 30 / 40 = <strong>0.750</strong></li>
+            <li>Recall<sub>보합</sub> = 50 / 60 = <strong>0.833</strong></li>
+        </ul>
+        <p><strong>👉 Step 2: BA (Balanced Accuracy) 계산</strong><br>
+            BA = (0.800 + 0.750 + 0.833) / 3 = 2.383 / 3 ≈ <strong style="color:#0d6efd;">0.794 (79.4%)</strong>
+        </p>
+
+        <p><strong>👉 Step 3: Macro MCC 계산 (OVR 방식)</strong><br>
+            각 클래스별 MCC를 계산하면 (계산 과정 생략):<br>
+            MCC<sub>상승</sub> ≈ 0.673, MCC<sub>하락</sub> ≈ 0.650, MCC<sub>보합</sub> ≈ 0.763<br>
+            MCC<sub>Macro</sub> = (0.673 + 0.650 + 0.763) / 3 ≈ <strong style="color:#0d6efd;">0.695</strong>
+        </p>
+
+        <p><strong>👉 Step 4: PR-AUC (Macro 평균) 계산</strong><br>
+            각 클래스별 PR-AUC를 계산했다고 가정하면 (예시 값):<br>
+            AUC<sub>상승</sub> ≈ 0.85, AUC<sub>하락</sub> ≈ 0.78, AUC<sub>보합</sub> ≈ 0.88<br>
+            PR-AUC<sub>Macro</sub> = (0.85 + 0.78 + 0.88) / 3 ≈ <strong style="color:#0d6efd;">0.837</strong>
+        </p>
+
+        <p style="margin-top:10px; font-size:0.95rem; color:#495057;">
+            ✅ <strong>종합 해석</strong>: BA(79.4%)와 MCC(0.695)가 모두 양호한 수준이며, PR-AUC(0.837)도 우수합니다.
+            세 지표 모두 일관되게 <strong>해당 3분류 모델이 실무에서 충분히 활용 가능한 수준</strong>임을 보여줍니다.
         </p>
     </div>
 
-    <!-- ==================== 1종 오류 vs 2종 오류 비교 ==================== -->
-    <h2>📊 1종 오류 (FP) vs 2종 오류 (FN) 비교</h2>
+    <!-- ==================== 6. 1종 vs 2종 오류 (3분류 관점) ==================== -->
+    <h2>📊 6. 3분류에서의 1종 오류(FP)와 2종 오류(FN)의 의미</h2>
 
     <div class="compare-box">
         <table style="width:100%; border-collapse: collapse; background: transparent;">
@@ -414,46 +595,46 @@
                 <th style="text-align: left; padding: 8px;">2종 오류 (FN / False Negative)</th>
             </tr>
             <tr>
-                <td style="padding: 8px;"><strong>별칭</strong></td>
-                <td style="padding: 8px;"><span style="color:#dc3545;">거짓 경보 (False Alarm)</span></td>
-                <td style="padding: 8px;"><span style="color:#dc3545;">놓친 발견 (Miss)</span></td>
+                <td style="padding: 8px;"><strong>정의 (OVR 기준)</strong></td>
+                <td style="padding: 8px;">실제는 <strong>타 클래스</strong>인데, 특정 클래스(P)로 <strong>잘못 예측</strong></td>
+                <td style="padding: 8px;">실제는 <strong>특정 클래스(P)</strong>인데, 타 클래스로 <strong>잘못 예측</strong></td>
             </tr>
             <tr>
-                <td style="padding: 8px;"><strong>금융 예시</strong></td>
-                <td style="padding: 8px;">하락장인데 <strong>"매수"</strong> 신호를 냄 → <span style="color:#dc3545;">실제 손실
-                        발생</span></td>
-                <td style="padding: 8px;">상승장인데 <strong>"매도/관망"</strong> 신호를 냄 → <span style="color:#dc3545;">수익 기회
+                <td style="padding: 8px;"><strong>금융 예시 (상승 기준)</strong></td>
+                <td style="padding: 8px;">하락/보합인데 <strong>"상승"</strong> 예측 → <span style="color:#dc3545;">손실 또는
+                        기회비용</span></td>
+                <td style="padding: 8px;">실제 상승인데 <strong>"하락/보합"</strong> 예측 → <span style="color:#dc3545;">수익 기회
                         상실</span></td>
             </tr>
             <tr>
-                <td style="padding: 8px;"><strong>비용 성격</strong></td>
-                <td style="padding: 8px;"><strong>명시적 비용</strong> (실현 손실, 거래 수수료)</td>
-                <td style="padding: 8px;"><strong>암묵적 비용</strong> (기회 비용, 상대 수익률 하락)</td>
-            </tr>
-            <tr>
                 <td style="padding: 8px;"><strong>대응 전략</strong></td>
-                <td style="padding: 8px;">임계값(Threshold)을 <strong>높여</strong> 보수적으로 운영</td>
-                <td style="padding: 8px;">임계값(Threshold)을 <strong>낮춰</strong> 공격적으로 운영</td>
+                <td style="padding: 8px;">해당 클래스의 임계값(Threshold)을 <strong>높여</strong> 보수적으로 운영</td>
+                <td style="padding: 8px;">해당 클래스의 임계값(Threshold)을 <strong>낮춰</strong> 공격적으로 운영</td>
             </tr>
         </table>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            💡 3분류에서는 각 클래스마다 FP와 FN의 비용이 다를 수 있습니다. 예를 들어, '하락'을 '상승'으로 잘못 예측(FP)하는 것과 '보합'을 '상승'으로 잘못 예측(FP)하는 것은
+            손실 규모가 다를 수 있으므로, <strong>클래스별 가중치(Cost-sensitive)</strong>를 고려한 전략 설계가 필요합니다.
+        </p>
     </div>
 
-    <!-- ==================== 주의사항 및 한계 ==================== -->
-    <h2>⚠️ 혼동 행렬 한계 및 주의사항</h2>
+    <!-- ==================== 7. 주의사항 및 한계 ==================== -->
+    <h2>⚠️ 7. 혼동 행렬 및 3분류 평가 시 주의사항</h2>
 
     <div class="note-box">
         <ul>
             <li>
-                <strong>이진 분류(Binary) 전용</strong>: 다중 클래스(Multi-class) 문제는 2x2가 아닌 더 큰 행렬이 필요하며,
-                각 클래스 쌍별로 1대1(One-vs-Rest) 방식으로 확장해야 합니다.
+                <strong>다중 분류(Multi-class) OVR 해석의 한계</strong>: OVR 방식은 각 클래스를 독립적으로 평가하지만, 클래스 간 상호 배타적(Mutually
+                Exclusive)인 특성을 완전히 반영하지는 못합니다.
+                따라서 <strong>Macro 평균과 Micro 평균을 함께 보고</strong> 종합적으로 판단해야 합니다.
             </li>
             <li>
                 <strong>임계값(Threshold) 의존성</strong>: 혼동 행렬의 숫자는 분류 임계값에 따라 크게 달라집니다.
                 따라서 <strong>고정된 임계값 하나만 보고 판단하지 말고</strong>, PR-AUC나 ROC-AUC 같은 곡선 기반 지표와 함께 봐야 합니다.
             </li>
             <li>
-                <strong>클래스 불균형 시 왜곡된 해석</strong>: 음성이 99%인 데이터에서 FP가 0이고 FN이 100이면 TN은 엄청 많아 보이지만,
-                실제로는 양성을 전혀 찾지 못한 것입니다. 반드시 <strong>비율(Precision, Recall)로 환산</strong>하여 해석해야 합니다.
+                <strong>클래스 불균형 시 BA와 MCC의 우위</strong>: Accuracy는 불균형 데이터에서 무조건 다수 클래스로 예측해도 높게 나오지만,
+                BA와 MCC는 <strong>소수 클래스의 성능 저하를 민감하게 반영</strong>하므로, 반드시 이 지표들을 기준으로 모델을 선택해야 합니다.
             </li>
             <li>
                 <strong>비용(Cost) 정보 부재</strong>: FP 1개와 FN 1개의 금전적 비용이 동일하지 않을 수 있습니다.
@@ -463,18 +644,17 @@
         </ul>
     </div>
 
-    <!-- ==================== 활용 분야 ==================== -->
-    <h2>📚 혼동 행렬 (TP, TN, FP, FN) 주요 활용 분야</h2>
+    <!-- ==================== 8. 활용 분야 ==================== -->
+    <h2>📚 8. 3분류 혼동 행렬 및 평가 지표 활용 분야</h2>
     <ul>
-        <li><strong>모든 분류 모델의 1차 진단 도구</strong>: 머신러닝/딥러닝 모델을 개발할 때 가장 먼저 출력하여 오류의 패턴을 분석합니다.</li>
-        <li><strong>임계값(Threshold) 튜닝</strong>: FP와 FN의 비용을 고려하여 최적의 분류 경계선을 찾는 과정의 기초 자료로 사용됩니다.</li>
-        <li><strong>전략 성과 원인 분석</strong>: 퀀트 전략이 손실난 이유가 "잦은 허위 매수(FP)" 때문인지, "상승장을 못 탐(FN)" 때문인지 근본 원인을 추적합니다.</li>
-        <li><strong>불균형 데이터 처리</strong>: 오버샘플링(Over-sampling)이나 언더샘플링(Under-sampling) 전에 현재 데이터의 FP/FN 분포를 파악하는 출발점이
-            됩니다.</li>
+        <li><strong>주가 방향성 예측 (상승/하락/보합)</strong>: 3가지 시나리오에 대한 모델의 예측 능력을 BA, MCC, PR-AUC로 종합 검증.</li>
+        <li><strong>신용 평가 (양호/보통/불량)</strong>: 각 등급별 예측 성능을 OVR 방식으로 분석하여 리스크 관리에 활용.</li>
+        <li><strong>이상 탐지 (정상/의심/위험)</strong>: 소수 클래스(위험)에 대한 탐지력을 PR-AUC로 정밀 측정.</li>
+        <li><strong>멀티 클래스 트레이딩 시그널</strong>: 매수/매도/홀드(보유) 신호의 정확도를 Accuracy 대신 BA와 MCC로 엄격하게 평가.</li>
     </ul>
 
     <footer>
-        <p>혼동 행렬 (Confusion Matrix) - TP, TN, FP, FN 설명 | © 2026</p>
+        <p>혼동 행렬 (Confusion Matrix) - 2진 분류 및 3분류(상승/하락/보합) 확장 | © 2026</p>
     </footer>
 
 </body>
