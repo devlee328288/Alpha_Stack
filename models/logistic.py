@@ -20,6 +20,7 @@ def build_logistic_baseline(
     *,
     random_state: int = DEFAULT_RANDOM_STATE,
     max_iter: int = DEFAULT_MAX_ITER,
+    class_weight: str | dict[int, float] | None = None,
 ) -> Pipeline:
     """3분류 방향 예측용 Logistic Regression 모델을 만듭니다.
 
@@ -31,6 +32,9 @@ def build_logistic_baseline(
             같은 데이터로 다시 학습했을 때 결과를 재현하기 위한 난수값입니다.
         max_iter:
             Logistic Regression이 반복해서 학습할 수 있는 최대 횟수입니다.
+        class_weight:
+            클래스별 학습 가중치입니다. ``"balanced"``는 각 폴드의 학습 라벨
+            빈도의 역수로 가중치를 계산합니다. 기본값 ``None``은 기존 모델과 같습니다.
 
     Returns:
         StandardScaler와 LogisticRegression을 연결한 Pipeline입니다.
@@ -57,6 +61,9 @@ def build_logistic_baseline(
 
                     # 학습이 수렴할 수 있도록 최대 반복 횟수를 설정합니다.
                     max_iter=max_iter,
+
+                    # 비교 실험에서만 클래스 빈도의 역수를 학습 가중치로 사용합니다.
+                    class_weight=class_weight,
                 ),
             ),
         ]

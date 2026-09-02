@@ -6,6 +6,9 @@ import numpy as np
 # sklearn 모델 규칙을 따르는 사용자 정의 분류기를 만들기 위한 클래스를 가져옵니다.
 from sklearn.base import BaseEstimator, ClassifierMixin
 
+# XGBoost에 클래스 가중치와 같은 표본 가중치를 전달하기 위해 가져옵니다.
+from sklearn.utils.class_weight import compute_sample_weight
+
 # predict() 전에 모델이 학습됐는지 확인하는 함수를 가져옵니다.
 from sklearn.utils.validation import check_is_fitted
 
@@ -47,6 +50,7 @@ class DirectionXGBClassifier(ClassifierMixin, BaseEstimator):
         max_depth: int = DEFAULT_MAX_DEPTH,
         learning_rate: float = DEFAULT_LEARNING_RATE,
         n_jobs: int = DEFAULT_N_JOBS,
+        class_weight: str | dict[int, float] | None = None,
     ) -> None:
         """XGBoost 생성에 필요한 설정값을 저장합니다."""
 
@@ -56,6 +60,7 @@ class DirectionXGBClassifier(ClassifierMixin, BaseEstimator):
         self.max_depth = max_depth
         self.learning_rate = learning_rate
         self.n_jobs = n_jobs
+        self.class_weight = class_weight
 
     def fit(self, x, y):
         """학습 데이터만 사용해 XGBoost 모델을 학습합니다."""
@@ -112,8 +117,17 @@ class DirectionXGBClassifier(ClassifierMixin, BaseEstimator):
             verbosity=0,
         )
 
-        # XGBoost에는 변환된 학습 정답만 전달합니다.
-        self.classifier_.fit(x, encoded_y)
+        # XGBoost는 sklearn의 class_weight 인자를 직접 받지 않으므로,
+        # 같은 의미의 표본별 가중치를 각 폴드의 학습 라벨로만 계산합니다.
+        sample_weight = None
+        if self.class_weight is not None:
+            sample_weight = compute_sample_weight(
+                class_weight=self.class_weight,
+                y=y_array,
+            )
+
+        # 변환된 학습 정답과 선택적 표본 가중치를 전달합니다.
+        self.classifier_.fit(x, encoded_y, sample_weight=sample_weight)
 
         # sklearn 규칙에 맞게 학습이 끝난 자기 자신을 반환합니다.
         return self
@@ -153,6 +167,7 @@ def build_xgboost_baseline(
     max_depth: int = DEFAULT_MAX_DEPTH,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     n_jobs: int = DEFAULT_N_JOBS,
+    class_weight: str | dict[int, float] | None = None,
 ) -> DirectionXGBClassifier:
     """3분류 방향 예측용 XGBoost 모델을 만듭니다.
 
@@ -167,6 +182,7 @@ def build_xgboost_baseline(
         max_depth=max_depth,
         learning_rate=learning_rate,
         n_jobs=n_jobs,
+        class_weight=class_weight,
     )
 
     # 아직 학습되지 않은 XGBoost 모델을 반환합니다.

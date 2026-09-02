@@ -22,6 +22,7 @@ def build_lightgbm_baseline(
     n_estimators: int = DEFAULT_N_ESTIMATORS,
     learning_rate: float = DEFAULT_LEARNING_RATE,
     n_jobs: int = DEFAULT_N_JOBS,
+    class_weight: str | dict[int, float] | None = None,
 ) -> LGBMClassifier:
     """3분류 방향 예측용 LightGBM 모델을 만듭니다.
 
@@ -39,6 +40,8 @@ def build_lightgbm_baseline(
             각 결정트리가 이전 오류를 보완하는 정도입니다.
         n_jobs:
             학습에 사용할 CPU 코어 개수입니다. -1은 모든 코어를 의미합니다.
+        class_weight:
+            클래스별 학습 가중치입니다. 기본값 ``None``은 기존 모델과 같습니다.
 
     Returns:
         아직 학습되지 않은 LGBMClassifier입니다.
@@ -66,6 +69,9 @@ def build_lightgbm_baseline(
 
         # 단위 테스트와 실행 결과에 불필요한 학습 메시지를 표시하지 않습니다.
         verbosity=-1,
+
+        # 각 폴드의 학습 라벨 빈도를 반영할지 선택합니다.
+        class_weight=class_weight,
     )
 
     # 아직 학습되지 않은 LightGBM 모델을 반환합니다.

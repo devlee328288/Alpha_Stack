@@ -172,3 +172,13 @@ def test_스케일러가_학습_데이터만_사용한다():
         scaler.mean_,
         expected_train_mean,
     )
+
+
+def test_로지스틱_모델이_balanced_가중치를_선택적으로_받는다():
+    """기존 기본값은 유지하고 balanced를 선택했을 때만 적용하는지 확인합니다."""
+
+    default_model = build_logistic_baseline()
+    balanced_model = build_logistic_baseline(class_weight="balanced")
+
+    assert default_model.named_steps["classifier"].class_weight is None
+    assert balanced_model.named_steps["classifier"].class_weight == "balanced"
