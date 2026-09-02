@@ -74,7 +74,7 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
-from common import codes, secrets
+from common import budget, codes, secrets
 
 # 이 파일은 <루트>/ingest/clients/ 안에 있으므로 parents[2] 가 프로젝트 루트다.
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -118,6 +118,11 @@ MULTI_ACCOUNT_LIMIT = 100
 #    둘을 한 파일에 두면 "한도를 올렸다" 와
 #    "예산을 늘렸다" 가 같은 diff 로 보인다.
 DAILY_CALL_LIMIT = 20_000
+
+# 호출 예산 장부(`call_budget`)에 적힐 출처 이름. 한도 자체는 `common/budget.py`
+# 의 LIMITS 에 있고 위 상수와 같은 값이다 — 여기 상수는 **DART 가 정한 사실**이고,
+# 그중 얼마를 쓸지(예산)는 저쪽이 정한다.
+BUDGET_SOURCE = "dart"
 
 # DART 응답 `status` 코드. 013 은 오류가 아니라 '빈 결과'다.
 DART_STATUS: Dict[str, str] = {
@@ -252,6 +257,17 @@ class DartError(Exception):
         self.dart_status = dart_status
 
 
+class DartQuotaExhausted(DartError):
+    """오늘 쓸 수 있는 DART 호출을 다 썼다. **실패가 아니라 "오늘은 여기까지"** 다.
+
+    배치 수집은 이걸 잡아서 얌전히 멈추고, 다음 날 받은 곳부터 이어 받는다.
+    `DartError` 를 물려받으므로 기존에 `except DartError` 로 감싼 곳은 그대로 동작한다.
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message, status=429)
+
+
 # ==================================================
 # 공통 도구
 # ==================================================
@@ -335,6 +351,18 @@ def _call(path: str, params: Dict[str, str], allow_empty: bool = True) -> dict:
     분기보고서를 내지 않은 회사·상장 전 연도가 흔해서, 이걸 예외로 만들면
     호출하는 쪽이 전부 try/except 로 감싸야 한다.
     """
+    # ⚠️ **부르기 전에** 센다. 부르고 나서 세면 응답을 못 받고 죽었을 때 이미 나간
+    #    호출이 장부에 안 남아 한도를 넘겨 쓴다. 세고 나서 실패하면 손해는 1콜뿐이다.
+    #
+    # 그리고 **여기가 세는 자리다.** 한 단계 위(`fetch_financials`)에서 세면 재무 본문과
+    # 접수일 조회(`list.json`)가 한 번으로 뭉뚱그려진다 — 실제로는 회사·연도마다 2콜이고,
+    # 연결이 비어 별도로 재시도하면 3콜이다. 350종 × 5개년이면 그 차이가 1,750콜이다.
+    if not budget.try_spend(BUDGET_SOURCE):
+        raise DartQuotaExhausted(
+            "오늘 쓸 수 있는 DART 호출을 다 썼습니다. "
+            "내일 다시 실행하면 받은 곳부터 이어 받습니다."
+        )
+
     key = _require_key()
     query = urlencode({**params, "crtfc_key": key})
     request = Request(f"{DART_BASE_URL}/{path}?{query}",

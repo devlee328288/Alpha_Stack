@@ -55,7 +55,7 @@
 |---|---|---|
 | v1~v4 | 기존 | 적용됨 |
 | **v5** | 반입 (`inbox_batch` · `inbox_accepted` · `inbox_quarantine`) | **적용됨** (2026-09-01) |
-| **v6** | 공시 시점정합 (`dart_disclosure` · `dart_financial`) | **예약** |
+| **v6** | 공시 시점정합 (`dart_financial` · `dart_disclosure`) | **적용됨** (2026-09-02) |
 | **v7** | 거시 통계 (`macro_series`) | **예약** |
 | v8 | 다음 빈 번호 | — |
 
