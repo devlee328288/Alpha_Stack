@@ -1,0 +1,253 @@
+"""수정주가 적재 — FDR 이 준 구간과 우리가 이어 붙인 구간 (저장소 계층)
+
+`daily_price.adj_open`·`adj_high`·`adj_low`·`adj_close` 를 채운다.
+
+## 왜 두 가지 출처를 섞나
+
+FDR(네이버 fchart)은 **최근 3,000거래일만** 준다(20140613~). 우리 달력은 4,102일이라
+**20100104~20140612 의 1,103일(2,146,042행·23.3%)** 이 비고, 홀드아웃이 20240901 이므로
+그 구멍은 **전부 학습구간 안**이다. 그렇다고 그 구간을 미조정 원가격으로 두면 #51 이
+지적한 -98% 가 그대로 남는다.
+
+그래서 **FDR 이 닿는 가장 이른 날을 앵커로 삼아, 그 앞을 우리 조정계수로 이어 붙인다.**
+계수 계산은 이미 `common/corporate_actions.py` 에 있다(평상일은 기준가, 재개일은
+상장주식수 배율 — 그 파일의 주석에 왜 둘로 나뉘는지가 있다).
+
+    20100104 ────────────── 20140612 │ 20140613 ────────── 20260901
+      chain (계수로 뒤로 이어 붙임)   │      fdr (외부 실측)
+                                     ↑
+                              여기가 앵커. 이 날의 배율을
+                              FDR 이 알려 주므로 그 앞이 정해진다
+
+칸 하나(`adj_source`)로 어느 쪽인지 행마다 남긴다. **날짜로는 유추할 수 없다** —
+2012년에 상장폐지된 종목은 FDR 이 아예 없어 전 구간이 `chain` 이고, 2020년 상장 종목은
+전 구간이 `fdr` 다.
+
+## 배율을 어떻게 옮기나
+
+`scale[i] = adj_close[i] / close[i]` — 원가격을 수정가격으로 바꾸는 배율이다.
+앵커에서는 FDR 이 알려 준다. 거기서 양쪽으로 퍼뜨린다:
+
+    뒤로 (과거 방향)   scale[i]   = scale[i+1] * factor[i+1]
+    앞으로 (미래 방향) scale[i]   = scale[i-1] / factor[i]
+
+`factor[i]` 는 **그 날 일어난 조정**이고 **그 앞의 행들에** 적용된다 — 그래서 과거로 갈 때
+곱하고 미래로 갈 때 나눈다. (`corporate_actions.back_adjusted_closes` 가 같은 방향으로 돈다.)
+
+⚠️ **배율은 `Fraction` 으로 옮기고 마지막에 한 번만 `float` 한다.** 1/50 · 1/3 같은 계수가
+   수천 행에 걸쳐 곱해지므로 부동소수로 누적하면 반올림 잡음이 되돌아온다.
+
+## 왜 O/H/L 에 같은 배율을 쓰나
+
+하루 안의 시·고·저·종가는 **같은 스케일**이다. 배율 하나를 넷에 똑같이 곱하면 그 날의
+고저 폭과 시종 관계가 정확히 보존된다. 넷을 따로 조정하면 `low ≤ close ≤ high` 가
+반올림 때문에 깨질 수 있다.
+
+## 정지일
+
+`open=high=low=0` 인 행이 거래정지다(종가만 직전 값을 물고 있다). 그 0 에 배율을 곱하면
+0 이 되어 **"그 날 가격이 0원이었다"** 로 읽힌다. 시·고·저가는 `None` 으로 두고 종가만
+채운다 — FDR 도 정확히 그렇게 준다.
+"""
+
+from __future__ import annotations
+
+import sqlite3
+from datetime import datetime
+from fractions import Fraction
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
+
+from common.corporate_actions import factor_series, is_halted
+from ingest.clients.fdr_data import SOURCE_FDR
+from ingest.store.sqlite_db import write_lock
+
+#: 우리가 계수로 이어 붙인 행의 표시. `daily_price.adj_source` 에 들어간다.
+SOURCE_CHAIN = "chain"
+
+#: 수집 대장에 남길 출처 이름. 종목 하나가 대장 한 줄이다.
+#:
+#: 왜 대장에 남기나: 후방조정 값은 **새 분할이 생기면 과거 전체가 바뀐다.** 그래서
+#: "이 값을 언제 계산했나" 가 값 자체만큼 중요하다. 그렇다고 9.2M 행마다 시각을 적으면
+#: 그것만 180MB 다 — 종목별로 한 줄이면 3,677줄이고 같은 질문에 답한다.
+COLLECT_SOURCE = "adj_price"
+
+#: `daily_price` 에서 계수 계산에 필요한 칸. `corporate_actions` 가 요구하는 것과 같다.
+PRICE_COLUMNS = ("bas_dd", "open", "high", "low", "close", "change",
+                 "volume", "listed_shares")
+
+
+def load_rows(conn: sqlite3.Connection, code: str) -> List[Dict]:
+    """한 종목의 전 구간 원가격 행. `bas_dd` 오름차순.
+
+    ⚠️ **그 종목의 전부**여야 한다. 계수는 앞 행과의 관계로 정해지므로 중간을 잘라
+       읽으면 잘린 자리에서 조정이 하나 사라지고, 그 뒤가 통째로 어긋난다.
+    """
+    cursor = conn.execute(
+        f"SELECT {','.join(PRICE_COLUMNS)} FROM daily_price WHERE code = ? "
+        "ORDER BY bas_dd",
+        (code,),
+    )
+    names = [d[0] for d in cursor.description]
+    return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
+
+
+def scale_series(rows: Sequence[Mapping],
+                 fdr_close: Mapping[str, Optional[float]]) -> List[Optional[Fraction]]:
+    """행마다 `수정가격 / 원가격` 배율. FDR 이 아는 날에서 시작해 양쪽으로 퍼뜨린다.
+
+    `fdr_close` 는 `{YYYYMMDD: 수정종가}`. 값이 `None` 이거나 그 날이 없으면 모르는 날이다.
+
+    **FDR 이 한 날도 없으면** 마지막 행을 배율 1 로 잡고 뒤로만 퍼뜨린다 — 그 종목을
+    자기 마지막 가격 기준으로 이어 붙인 것이 된다. 2014년 이전에 사라진 종목이 그렇다.
+    이때도 분할은 제대로 펴지고, 다만 **스케일의 절대 수준이 FDR 종목과 다르다** —
+    종목 간 가격 비교가 아니라 종목 안의 수익률을 위한 값이라 문제가 되지 않는다.
+    """
+    n = len(rows)
+    if n == 0:
+        return []
+
+    factors = factor_series(rows)
+    scales: List[Optional[Fraction]] = [None] * n
+
+    # ① FDR 이 아는 날을 그대로 심는다.
+    for i, row in enumerate(rows):
+        close = row["close"]
+        if not close:                       # 0 이나 None 이면 배율을 정의할 수 없다
+            continue
+        adj = fdr_close.get(row["bas_dd"])
+        if adj is None:
+            continue
+        # 둘 다 정수 자릿수를 가진 값이라 유리수로 정확히 잡을 수 있다.
+        scales[i] = Fraction(adj).limit_denominator(10 ** 12) / Fraction(int(close))
+
+    # ② 한 날도 없으면 마지막 행을 1 로 잡는다 (자기 기준 후방조정).
+    if not any(s is not None for s in scales):
+        scales[n - 1] = Fraction(1)
+
+    # ③ 과거 방향 — 그 날의 조정은 **그 앞** 행들에 적용된다. 그래서 곱한다.
+    for i in range(n - 2, -1, -1):
+        if scales[i] is None and scales[i + 1] is not None:
+            scales[i] = scales[i + 1] * factors[i + 1]
+
+    # ④ 미래 방향 — 반대이므로 나눈다. 계수가 0 이면 나눌 수 없으니 그대로 물려준다
+    #    (기준가가 0 인 행은 조정이 아니라 자료 결손이다 — 없는 조정을 만들지 않는다).
+    for i in range(1, n):
+        if scales[i] is None and scales[i - 1] is not None:
+            factor = factors[i]
+            scales[i] = scales[i - 1] / factor if factor else scales[i - 1]
+
+    return scales
+
+
+def build_rows(rows: Sequence[Mapping],
+               adjusted: Mapping[str, Mapping[str, Optional[float]]]
+               ) -> List[Tuple]:
+    """DB 에 쓸 `(adj_open, adj_high, adj_low, adj_close, adj_source, bas_dd)` 목록.
+
+    **네 칸 전부 `원가격 × 배율` 로 만든다.** FDR 이 준 날도 마찬가지다 — 다만 그 날의
+    배율을 FDR 종가가 정하므로 `adj_close` 는 FDR 값과 정확히 같아진다
+    (`scale = fdr종가 / 원종가` 이므로 `원종가 × scale = fdr종가`).
+
+    🔴 **FDR 의 시·고·저가를 그대로 싣지 않는 이유 — 실측으로 드러났다.**
+    -------------------------------------------------------------------
+    FDR 은 네 칸을 **각각 따로 반올림**한다. 그래서 원문에서 `close == high` 인 날에
+    수정값이 `adj_high < adj_close` 로 뒤집힌다.
+
+        20150127 삼성전자  원문 high 1,400,000  close 1,400,000   (같다)
+                           FDR  adj_high  27,999  adj_close 28,000  ← 1원 뒤집힘
+
+    표본 3종에서만 68행이 이렇게 걸렸고 **전부 `fdr` 행**이었다(원가격 위반은 0행).
+    `true_range`·`parkinson_20` 처럼 고저 폭을 쓰는 피처는 여기서 음수가 나온다.
+
+    배율 하나를 넷에 똑같이 곱하면 그 날의 고저 폭과 시종 관계가 **정확히 보존된다.**
+    위 예에서 `1,400,000 × 0.02 = 28,000` 이라 `adj_high` 가 `adj_close` 와 같아진다.
+    시가·저가는 FDR 값과 어차피 일치했다 — 뒤집히던 칸만 제자리를 찾는다.
+
+    ⚠️ 그래도 `adj_source` 는 `fdr` 이다. 값을 정한 것이 FDR 종가이기 때문이다.
+       "FDR 이 준 네 칸" 이 아니라 **"FDR 이 정한 배율"** 이 이 행의 출처다.
+    """
+    fdr_close = {day: value.get("adj_close") for day, value in adjusted.items()}
+    scales = scale_series(rows, fdr_close)
+
+    out: List[Tuple] = []
+    for i, row in enumerate(rows):
+        scale = scales[i]
+        if scale is None:
+            continue                        # 배율을 모르는 행은 **비워 둔다**
+
+        bas_dd = row["bas_dd"]
+        factor = float(scale)
+        # 정지일은 시·고·저가가 0 이다. 0 × 배율 = 0 을 실으면 "그 날 0원" 이 된다.
+        halted = is_halted(row)
+        values = tuple(
+            None if (halted and column != "close") or not row[column] or row[column] <= 0
+            else row[column] * factor
+            for column in ("open", "high", "low", "close")
+        )
+        source = SOURCE_FDR if fdr_close.get(bas_dd) is not None else SOURCE_CHAIN
+        out.append(values + (source, bas_dd))
+    return out
+
+
+def save(conn: sqlite3.Connection, code: str, rows: Sequence[Tuple]) -> int:
+    """계산한 수정주가를 그 종목의 행에 채운다. **원가격 칸은 건드리지 않는다.**
+
+    `UPDATE` 를 쓰는 이유: 행은 이미 있다. `INSERT OR REPLACE` 로 넣으면 행을 지우고
+    새로 만들어 원가격이 통째로 날아간다 (`krx_store.UPSERT_SQL` 주석과 같은 함정).
+
+    ⚠️ **쓰기 자물쇠는 부르는 쪽이 쥔다.** 여기서 잡으면 종목 3,677개를 한 트랜잭션으로
+       묶으려는 적재기가 자물쇠를 두 번 잡게 되고, `threading.Lock` 은 재진입이 안 되므로
+       거기서 멈춰 선다 — 예외도 없이 그냥 멈춘다.
+    """
+    if not rows:
+        return 0
+    conn.executemany(
+        "UPDATE daily_price SET adj_open=?, adj_high=?, adj_low=?, adj_close=?, "
+        "adj_source=? WHERE bas_dd=? AND code=?",
+        [row + (code,) for row in rows],
+    )
+    return len(rows)
+
+
+def build_and_save(conn: sqlite3.Connection, code: str,
+                   adjusted: Mapping[str, Mapping[str, Optional[float]]]) -> int:
+    """한 종목을 계산해 저장한다. 채운 행 수를 돌려준다."""
+    rows = load_rows(conn, code)
+    if not rows:
+        return 0
+    return save(conn, code, build_rows(rows, adjusted))
+
+
+# ==================================================
+# 실측 거래일 달력
+# ==================================================
+def rebuild_calendar(conn: sqlite3.Connection) -> int:
+    """`daily_price` 를 세어 `trading_calendar` 를 다시 깐다. 넣은 행 수를 돌려준다.
+
+    **거래일을 계산으로 맞히지 않는다.** 주말만 걸러 세면 개발구간 평일 3,042일 중
+    162일(5.3%)이 어긋나고, 그 162일은 명절·공휴일이라 하필 실적 발표와 뉴스가 몰린다.
+    우리가 실제로 받은 날이 거래일이다 — 추정이 아니라 기록이다.
+
+    `DELETE` 후 다시 넣는 이유: 시장 구분이 바뀌거나 어떤 날을 다시 받아 종목 수가
+    달라졌을 때 **낡은 줄이 남지 않게** 하기 위해서다. 4,102행이라 비용이 없다.
+
+    ⚠️ 이 함수를 **시세를 적재한 뒤에 부른다.** 안 부르면 달력이 조용히 낡고,
+       그 낡음은 "다음 거래일" 을 물었을 때 틀린 날짜로만 드러난다.
+    """
+    built_at = datetime.now().isoformat(timespec="seconds")
+    with write_lock:
+        conn.execute("DELETE FROM trading_calendar")
+        # 시장별 한 줄 + 'ALL' 한 줄. 'ALL' 을 따로 세는 이유는 한쪽 시장만 열린 날을
+        # 양쪽 거래일로 읽지 않기 위해서다.
+        conn.execute(
+            "INSERT INTO trading_calendar (bas_dd, market, stock_count, built_at) "
+            "SELECT bas_dd, market, COUNT(*), ? FROM daily_price "
+            "WHERE market IS NOT NULL GROUP BY bas_dd, market",
+            (built_at,),
+        )
+        conn.execute(
+            "INSERT INTO trading_calendar (bas_dd, market, stock_count, built_at) "
+            "SELECT bas_dd, 'ALL', COUNT(*), ? FROM daily_price GROUP BY bas_dd",
+            (built_at,),
+        )
+        return conn.execute("SELECT COUNT(*) FROM trading_calendar").fetchone()[0]
