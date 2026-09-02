@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sharpe Ratio (샤프 지수) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.3rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-blue { background-color: #0d6efd; }
+        .badge-green { background-color: #198754; }
+        .badge-red { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📊 Sharpe Ratio (샤프 지수)</h1>
+    <p>
+        <strong>샤프 지수(Sharpe Ratio)</strong>는 1966년 윌리엄 샤프(William F. Sharpe)가 제안한 지표로,
+        <strong>투자 자산(또는 포트폴리오)의 총 위험(표준편차) 1단위당 얻은 초과 수익률</strong>을 의미합니다.
+    </p>
+    <p>
+        단순 수익률이 아닌 <strong>위험을 감안한 성과</strong>를 평가하기 때문에, 여러 펀드나 전략을 비교할 때
+        가장 보편적으로 활용되는 <strong>위험-수익 조정 지표</strong>입니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 Sharpe Ratio 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">Sharpe Ratio</span> =
+        <span style="font-size: 1.6rem;">(</span>
+        <span class="math">R<sub>p</sub></span>
+        <span style="font-size: 1.2rem;"> − </span>
+        <span class="math">R<sub>f</sub></span>
+        <span style="font-size: 1.6rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">σ<sub>p</sub></span>
+        <br>
+        <span class="sub">(또는 <span class="math">Sharpe = (E[R<sub>p</sub>] − R<sub>f</sub>) / σ<sub>p</sub></span>)</span>
+    </div>
+
+    <!-- ==================== 연환산 수식 ==================== -->
+    <h2>📐 연환산(Annualized) Sharpe Ratio 수식</h2>
+    <div class="formula-box" style="font-size:1.1rem;">
+        <span class="math">Sharpe<sub>annual</sub></span> =
+        <span style="font-size:1.4rem;">√</span><span class="math">N</span>
+        <span style="font-size: 1.2rem;"> × </span>
+        <span style="font-size:1.4rem;">(</span>
+        <span class="math">R<sub>p</sub></span>
+        <span style="font-size: 1.2rem;"> − </span>
+        <span class="math">R<sub>f</sub></span>
+        <span style="font-size:1.4rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">σ<sub>p</sub></span>
+        <br>
+        <span class="sub">(여기서 <span class="math">N</span>은 1년 동안의 기간 수: 일간=252, 주간=52, 월간=12)</span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>샤프 지수</strong></td>
+                <td><span class="math">Sharpe Ratio</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    최종 계산된 위험 조정 수익률. <strong>단위가 없는(무차원) 수치</strong>이며,
+                    <strong>값이 클수록 우수한 위험-수익 효율</strong>을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>포트폴리오 수익률</strong></td>
+                <td><span class="math">R<sub>p</sub></span> 또는 <span class="math">E[R<sub>p</sub>]</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    분석 기간 동안의 <strong>평균 수익률 (또는 기대 수익률)</strong>.
+                    <br>※ <strong>실무 팁</strong>: 일간/월간 수익률의 <strong>산술 평균</strong>을 사용합니다.
+                    <br><small>(예: 월간 수익률 1%, 2%, -1%... 의 평균)</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>무위험 수익률</strong></td>
+                <td><span class="math">R<sub>f</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>위험이 전혀 없는 자산</strong>의 수익률 (Risk-Free Rate).
+                    <br>🔹 한국: <strong>국고채 3년물</strong> 또는 <strong>CD 금리</strong>를 주로 사용.
+                    <br>🔹 미국: <strong>미국 국채 3개월물(T-Bill)</strong> 수익률을 사용.
+                    <br><small>※ 분석 기간과 동일한 기간의 평균 무위험 수익률을 적용합니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>초과 수익률</strong></td>
+                <td><span class="math">R<sub>p</sub> − R<sub>f</sub></span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    포트폴리오가 무위험 자산 대비 <strong>추가로 벌어들인 수익</strong> (Excess Return).
+                    <br><small>※ 이 값이 음수(-)이면, 무위험 자산보다 성과가 나쁘다는 의미입니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>포트폴리오 표준편차</strong></td>
+                <td><span class="math">σ<sub>p</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    포트폴리오 수익률의 <strong>변동성(Volatility)</strong> = <strong>총 위험</strong>.
+                    <br>수익률 시계열의 <strong>표준편차</strong>를 계산합니다.
+                    <br><small>※ 분모에 위치하므로, <strong>σ가 작을수록</strong> 샤프 지수가 높아집니다 (안정적일수록 유리).</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>연환산 계수</strong></td>
+                <td><span class="math">√N</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    주어진 <strong>기간(일/월/주)의 수익률</strong>을 <strong>연간 기준</strong>으로 환산하기 위한 조정 계수.
+                    <br>🔹 <strong>일간</strong>: √252 &nbsp;|&nbsp; 🔹 <strong>주간</strong>: √52 &nbsp;|&nbsp; 🔹 <strong>월간</strong>: √12
+                    <br><small>※ 연환산 없이도 지표 비교는 가능하나, 보통은 연율로 통일하여 사용합니다.</small>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (월간 데이터 기준)</strong></p>
+        <ul>
+            <li>월간 평균 포트폴리오 수익률 (<span class="math">R<sub>p</sub></span>): <strong>1.2%</strong> (0.012)</li>
+            <li>월간 무위험 수익률 (<span class="math">R<sub>f</sub></span>): <strong>0.2%</strong> (0.002) </li>
+            <li>월간 수익률 표준편차 (<span class="math">σ<sub>p</sub></span>): <strong>4.5%</strong> (0.045)</li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 기본 (월간) Sharpe Ratio 계산</strong><br>
+            <span class="math">Sharpe = (0.012 − 0.002) / 0.045 = 0.010 / 0.045 ≈ <strong style="color:#0d6efd;">0.222</strong></span>
+        </p>
+        <p>
+            <strong>👉 2) 연환산(Annualized) Sharpe Ratio 계산</strong> (월간 → 연간, N=12)<br>
+            <span class="math">Sharpe<sub>annual</sub> = √12 × 0.222 ≈ 3.464 × 0.222 ≈ <strong style="color:#198754;">0.769</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 이 포트폴리오는 위험(변동성) 1단위당 연간 약 <strong>0.77의 초과 수익</strong>을 창출하고 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 Sharpe Ratio 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 Sharpe &lt; 0</strong> : 무위험 자산보다 수익률이 나쁨 (투자 매력 없음).</li>
+            <li><strong>🟡 0 ≤ Sharpe &lt; 1</strong> : 보통 수준 (과거 성과 대비 위험 관리가 평범).</li>
+            <li><strong>🟢 1 ≤ Sharpe &lt; 2</strong> : 양호/우수한 수준 (위험 대비 좋은 수익).</li>
+            <li><strong>⭐ Sharpe ≥ 2</strong> : 매우 우수한 수준 (탁월한 위험-수익 효율).</li>
+            <li><strong>🚀 Sharpe ≥ 3</strong> : 최상위 수준 (워렌 버핏급 장기 성과에 준하는 효율).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>단, 이는 절대적인 기준이 아니며</strong>, 시장 환경(금리, 경기 사이클)과 자산군에 따라 해석이 달라질 수 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ Sharpe Ratio 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>정규 분포 가정</strong>: 샤프 지수는 수익률이 정규분포를 따른다고 가정하지만, 실제 금융 시장은 <strong>꼬리가 두꺼운(극단값) 분포</strong>를 보입니다.
+            </li>
+            <li>
+                <strong>상승 변동성과 하락 변동성을 동일하게 취급</strong>: 긍정적인 상승 변동성(상승 랠리)도 위험(분모)으로 잡아 <strong>좋은 성과를 과소평가</strong>할 수 있습니다.
+                <br>👉 이런 단점을 보완한 지표가 <strong>소르티노 지수(Sortino Ratio)</strong>입니다.
+            </li>
+            <li>
+                <strong>무위험 수익률의 선택</strong>: 어떤 무위험 자산을 선택하느냐에 따라 지표 값이 크게 달라질 수 있습니다.
+            </li>
+            <li>
+                <strong>과거 지표일 뿐, 미래를 보장하지 않음</strong>: 백테스트 상의 높은 샤프 지수가 미래에도 지속된다는 보장은 없습니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 Sharpe Ratio 주요 활용 분야</h2>
+    <ul>
+        <li><strong>펀드/포트폴리오 성과 평가</strong>: 동일한 수익률이라도 변동성이 낮은 펀드가 높은 평가를 받음.</li>
+        <li><strong>퀀트 전략 백테스트</strong>: 전략 간의 위험-수익 효율성을 객관적으로 비교.</li>
+        <li><strong>자산 배분 최적화</strong>: 샤프 지수를 최대화하는 포트폴리오 비중 탐색 (최적화 알고리즘).</li>
+        <li><strong>ETF/뮤추얼 펀드 순위 비교</strong>: 모닝스타 등 주요 평가사에서 기본 지표로 활용.</li>
+    </ul>
+
+    <footer>
+        <p>Sharpe Ratio (샤프 지수) 설명 | © 2026</p>
+    </footer>
+
+</body>
+</html>

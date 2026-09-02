@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>5대 위험 조정 성과 지표 비교</title>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f4f6f9;
+            color: #212529;
+            padding: 30px 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: #0d6efd;
+            margin-bottom: 10px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #6c757d;
+            font-size: 1.05rem;
+            margin-bottom: 35px;
+            border-bottom: 2px dashed #dee2e6;
+            padding-bottom: 20px;
+        }
+        .chart-wrapper {
+            background: white;
+            border-radius: 16px;
+            padding: 25px 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+        }
+        .chart-wrapper h2 {
+            font-size: 1.2rem;
+            color: #343a40;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .chart-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+        }
+        .chart-box {
+            flex: 1 1 300px;
+            min-width: 280px;
+            max-width: 500px;
+            height: 280px;
+        }
+        .table-responsive {
+            overflow-x: auto;
+            margin-bottom: 40px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            border: 1px solid #e9ecef;
+            padding: 5px 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.92rem;
+            min-width: 800px;
+        }
+        th {
+            background: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 14px 12px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #f1f3f5;
+            vertical-align: middle;
+            background-color: white;
+        }
+        tr:hover td {
+            background-color: #f8f9fa;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+            color: white;
+            white-space: nowrap;
+        }
+        .badge-sharpe { background: #0d6efd; }
+        .badge-sortino { background: #198754; }
+        .badge-sterling { background: #fd7e14; }
+        .badge-calmar { background: #dc3545; }
+        .badge-deflated { background: #6f42c1; }
+
+        .formula-highlight {
+            background: #f1f3f5;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            display: inline-block;
+            margin: 2px 0;
+        }
+        .tag {
+            display: inline-block;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: #e9ecef;
+            color: #495057;
+            margin: 2px 4px 2px 0;
+        }
+        .tag-blue { background: #cfe2ff; color: #084298; }
+        .tag-green { background: #d1e7dd; color: #0a3622; }
+        .tag-orange { background: #fff3cd; color: #856404; }
+        .tag-red { background: #f8d7da; color: #721c24; }
+        .tag-purple { background: #e2d9f3; color: #3d1f6e; }
+
+        .col-metric { font-weight: 600; min-width: 130px; }
+        .col-formula { min-width: 220px; }
+        .col-interp { min-width: 180px; }
+        .col-pros { min-width: 160px; }
+        .col-cons { min-width: 160px; }
+
+        .legend-list {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px 35px;
+            margin: 10px 0 5px 0;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.9rem;
+        }
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .footer-note {
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+        }
+        @media (max-width: 600px) {
+            h1 { font-size: 1.6rem; }
+            .chart-box { height: 220px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 5대 위험 조정 성과 지표 비교</h1>
+        <p class="subtitle">
+            Sharpe · Sortino · Sterling · Calmar · Deflated Sharpe Ratio<br>
+            <span style="font-size:0.9rem;">각 지표의 수식, 위험 정의, 해석 기준, 장단점을 한눈에 비교합니다.</span>
+        </p>
+
+        <!-- ========== 시각화 차트 ========== -->
+        <div class="chart-wrapper">
+            <h2>📈 가상 포트폴리오 지표 값 비교 (예시)</h2>
+            <div class="chart-grid">
+                <div class="chart-box">
+                    <canvas id="barChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+            <div style="text-align:center; font-size:0.85rem; color:#6c757d; margin-top:10px;">
+                * Deflated Sharpe Ratio는 0~1 사이의 확률(95%=0.95)로, 다른 지표들은 절대값입니다. 
+                <br>수치 자체보다는 지표 간 상대적 특성을 참고하세요.
+            </div>
+        </div>
+
+        <!-- ========== 비교 테이블 ========== -->
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="min-width:120px;">지표</th>
+                        <th style="min-width:200px;">수식 (분자 / 분모)</th>
+                        <th style="min-width:150px;">위험 정의 (분모)</th>
+                        <th style="min-width:180px;">해석 기준</th>
+                        <th style="min-width:160px;">핵심 장점</th>
+                        <th style="min-width:160px;">핵심 단점</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- 1. Sharpe Ratio -->
+                    <tr>
+                        <td class="col-metric">
+                            <span class="badge badge-sharpe">Sharpe</span>
+                        </td>
+                        <td class="col-formula">
+                            <span class="formula-highlight">(R<sub>p</sub> − R<sub>f</sub>) / σ<sub>p</sub></span>
+                        </td>
+                        <td><strong>총 변동성 (표준편차)</strong><br><span class="tag tag-blue">상승+하락 모두 위험</span></td>
+                        <td class="col-interp">
+                            <strong>&gt; 1.0</strong> 양호<br>
+                            <strong>&gt; 2.0</strong> 우수<br>
+                            <strong>&lt; 0</strong> 무위험 이하
+                        </td>
+                        <td class="col-pros">
+                            ✅ 가장 보편적, 직관적<br>
+                            ✅ 업계 표준
+                        </td>
+                        <td class="col-cons">
+                            ❌ 상승 변동성도 위험으로 간주<br>
+                            ❌ 정규 분포 가정
+                        </td>
+                    </tr>
+
+                    <!-- 2. Sortino Ratio -->
+                    <tr>
+                        <td class="col-metric">
+                            <span class="badge badge-sortino">Sortino</span>
+                        </td>
+                        <td class="col-formula">
+                            <span class="formula-highlight">(R<sub>p</sub> − MAR) / σ<sub>d</sub></span>
+                        </td>
+                        <td><strong>하방 편차 (Downside)</strong><br><span class="tag tag-green">하락(음수)만 위험</span></td>
+                        <td class="col-interp">
+                            <strong>&gt; 0.5</strong> 양호<br>
+                            <strong>&gt; 1.0</strong> 우수<br>
+                            <strong>&gt; 2.0</strong> 최상
+                        </td>
+                        <td class="col-pros">
+                            ✅ 하락 위험에 집중<br>
+                            ✅ 샤프의 단점 보완
+                        </td>
+                        <td class="col-cons">
+                            ❌ MAR 설정에 민감<br>
+                            ❌ 상승 기회 비용 무시
+                        </td>
+                    </tr>
+
+                    <!-- 3. Sterling Ratio -->
+                    <tr>
+                        <td class="col-metric">
+                            <span class="badge badge-sterling">Sterling</span>
+                        </td>
+                        <td class="col-formula">
+                            <span class="formula-highlight">CAGR / Avg. MDD<sub>(Top 3)</sub></span>
+                        </td>
+                        <td><strong>평균 최대 낙폭 (상위 3개)</strong><br><span class="tag tag-orange">이상치 완화</span></td>
+                        <td class="col-interp">
+                            <strong>&gt; 1.0</strong> 양호<br>
+                            <strong>&gt; 2.0</strong> 우수<br>
+                            <strong>&gt; 3.0</strong> 최상
+                        </td>
+                        <td class="col-pros">
+                            ✅ 이상치에 덜 민감<br>
+                            ✅ 장기 전략 적합
+                        </td>
+                        <td class="col-cons">
+                            ❌ MDD 선정 방식에 따라 변동<br>
+                            ❌ 단기 투자 부적합
+                        </td>
+                    </tr>
+
+                    <!-- 4. Calmar Ratio -->
+                    <tr>
+                        <td class="col-metric">
+                            <span class="badge badge-calmar">Calmar</span>
+                        </td>
+                        <td class="col-formula">
+                            <span class="formula-highlight">CAGR / Max MDD</span>
+                        </td>
+                        <td><strong>단일 최대 낙폭 (Max MDD)</strong><br><span class="tag tag-red">가장 보수적</span></td>
+                        <td class="col-interp">
+                            <strong>&gt; 1.0</strong> 양호<br>
+                            <strong>&gt; 2.0</strong> 우수<br>
+                            <strong>&gt; 3.0</strong> 최상
+                        </td>
+                        <td class="col-pros">
+                            ✅ 극단적 하락에 민감<br>
+                            ✅ 레버리지 전략에 적합
+                        </td>
+                        <td class="col-cons">
+                            ❌ 단일 사건에 과도 민감<br>
+                            ❌ Sterling보다 엄격 (값 낮음)
+                        </td>
+                    </tr>
+
+                    <!-- 5. Deflated Sharpe Ratio -->
+                    <tr>
+                        <td class="col-metric">
+                            <span class="badge badge-deflated">Deflated<br>Sharpe</span>
+                        </td>
+                        <td class="col-formula">
+                            <span class="formula-highlight">PSR[ SR<sub>0</sub> ]</span><br>
+                            <small style="color:#6c757d;">(확률값 0~1)</small>
+                        </td>
+                        <td><strong>다중 검정 교정</strong><br><span class="tag tag-purple">데이터 마이닝 방지</span></td>
+                        <td class="col-interp">
+                            <strong>&gt; 0.95</strong> 유의미 (95%)<br>
+                            <strong>&gt; 0.99</strong> 강력<br>
+                            <strong>&lt; 0.90</strong> 우연 가능성 높음
+                        </td>
+                        <td class="col-pros">
+                            ✅ 선택 편향 교정<br>
+                            ✅ 왜도/첨도 반영
+                        </td>
+                        <td class="col-cons">
+                            ❌ 계산 복잡<br>
+                            ❌ N(시행 횟수) 추정 모호
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ========== 추가 비교: 어떤 지표를 써야 할까? ========== -->
+        <div style="background: white; border-radius: 16px; padding: 25px 30px; margin-bottom: 30px; border: 1px solid #e9ecef; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
+            <h2 style="font-size:1.3rem; color:#0d6efd; margin-bottom: 15px;">🎯 어떤 지표를 선택해야 할까?</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #0d6efd;">
+                    <h4 style="font-size:1rem; margin-bottom:5px;">📌 Sharpe</h4>
+                    <p style="font-size:0.9rem; margin:0;">전통적인 펀드 평가, <strong>일반 투자자</strong>에게 가장 적합.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #198754;">
+                    <h4 style="font-size:1rem; margin-bottom:5px;">📌 Sortino</h4>
+                    <p style="font-size:0.9rem; margin:0;"><strong>하락 방지</strong>가 중요한 연금/은퇴자금, 헤지펀드.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #fd7e14;">
+                    <h4 style="font-size:1rem; margin-bottom:5px;">📌 Sterling</h4>
+                    <p style="font-size:0.9rem; margin:0;"><strong>장기 추세 추종</strong> 전략, 다양한 하락 구간이 있는 전략.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #dc3545;">
+                    <h4 style="font-size:1rem; margin-bottom:5px;">📌 Calmar</h4>
+                    <p style="font-size:0.9rem; margin:0;"><strong>레버리지/극한 손실</strong>에 민감한 전략, CTA.</p>
+                </div>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 10px; border-left: 4px solid #6f42c1;">
+                    <h4 style="font-size:1rem; margin-bottom:5px;">📌 Deflated Sharpe</h4>
+                    <p style="font-size:0.9rem; margin:0;"><strong>퀀트/머신러닝</strong> 전략의 과적합(Overfitting) 검증.</p>
+                </div>
+            </div>
+            <div style="margin-top: 20px; background: #e9ecef; padding: 12px 18px; border-radius: 8px; font-size:0.95rem;">
+                💡 <strong>Tip:</strong> 단일 지표에 의존하지 말고, <strong>최소 3개 이상의 지표</strong>를 함께 보는 것이 바람직합니다.
+                (예: Sharpe + Sortino + Calmar)
+            </div>
+        </div>
+
+        <!-- ========== 푸터 ========== -->
+        <div class="footer-note">
+            ⓒ 2026 · 위험 조정 성과 지표 비교 · 모든 수치는 예시이며, 실제 투자 결정 시 전문가와 상담하세요.
+        </div>
+    </div>
+
+    <!-- ========== Chart.js 스크립트 ========== -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // -------- Bar Chart (막대) --------
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Sharpe', 'Sortino', 'Sterling', 'Calmar', 'Deflated\nSharpe'],
+                    datasets: [{
+                        label: '가상 포트폴리오 점수 (예시)',
+                        data: [0.85, 1.25, 1.45, 1.05, 0.92],
+                        backgroundColor: ['#0d6efd', '#198754', '#fd7e14', '#dc3545', '#6f42c1'],
+                        borderRadius: 6,
+                        barPercentage: 0.6,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.parsed.y !== null) {
+                                        return '값: ' + context.parsed.y.toFixed(2);
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f1f3f5' }
+                        }
+                    }
+                }
+            });
+
+            // -------- Radar Chart (레이더) --------
+            const ctxRadar = document.getElementById('radarChart').getContext('2d');
+            new Chart(ctxRadar, {
+                type: 'radar',
+                data: {
+                    labels: ['Sharpe', 'Sortino', 'Sterling', 'Calmar', 'Deflated\nSharpe'],
+                    datasets: [
+                        {
+                            label: '위험-수익 효율성',
+                            data: [0.85, 1.25, 1.45, 1.05, 0.92],
+                            backgroundColor: 'rgba(13, 110, 253, 0.15)',
+                            borderColor: '#0d6efd',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#0d6efd',
+                            pointRadius: 5,
+                        },
+                        {
+                            label: '보수적 안전성 (MDD/하방)',
+                            data: [0.5, 0.9, 1.3, 0.8, 0.3],
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            borderColor: '#dc3545',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            pointBackgroundColor: '#dc3545',
+                            pointRadius: 4,
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                boxWidth: 12,
+                                font: { size: 10 }
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 2.0,
+                            grid: { color: '#e9ecef' },
+                            pointLabels: {
+                                font: { size: 10, weight: 'bold' }
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    </script>
+
+</body>
+</html>

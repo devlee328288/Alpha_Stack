@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>클래스 비율 (Class Ratio / Imbalance Ratio) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .badge-purple {
+            background-color: #6f42c1;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+
+        .highlight-box {
+            background-color: #f8f9fa;
+            border: 2px solid #0d6efd;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📊 클래스 비율 (Class Ratio / Imbalance Ratio)</h1>
+    <p>
+        <strong>클래스 비율</strong>은 분류(Classification) 문제에서 <strong>각 클래스(Label)가 전체 데이터셋에서 차지하는 비율</strong>을 의미합니다.
+        이진 분류(Binary Classification)에서는 주로 <strong>양성 클래스(Positive, 관심 사건)의 비율</strong>과 <strong>음성 클래스(Negative)의
+            비율</strong>로 표현됩니다.
+    </p>
+    <p>
+        이 비율은 <strong>혼동 행렬(Confusion Matrix)의 행(Row) 합계</strong>에서 직접 파생됩니다.
+        즉, <strong>양성 비율 = (TP + FN) / 전체</strong>, <strong>음성 비율 = (TN + FP) / 전체</strong>로,
+        앞서 정의한 혼동 행렬의 TP, TN, FP, FN 값과 완전히 연동(Interlocked)되어 있습니다.
+    </p>
+    <p>
+        클래스 비율은 단순한 통계 이상으로, <strong>PR-AUC의 무작위 기준선(Base Rate)</strong>을 결정하고,
+        <strong>Accuracy의 함정</strong>을 이해하며, <strong>Balanced Accuracy나 MCC</strong> 같은 보정 지표를 사용해야 하는지 판단하는
+        <strong>모든 불균형 학습(Imbalanced Learning)의 출발점</strong>입니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 클래스 비율 기본 수식 (혼동 행렬 연동)</h2>
+
+    <div class="formula-box">
+        <span class="math">양성 비율 (Positive Rate)</span> =
+        <span style="font-size: 1.2rem;">(</span> <span style="color:#198754;">TP</span> + <span
+            style="color:#dc3545;">FN</span> <span style="font-size: 1.2rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span style="font-size: 1.1rem;">( TP + FN + TN + FP )</span>
+        <br>
+        <span class="math">음성 비율 (Negative Rate)</span> =
+        <span style="font-size: 1.2rem;">(</span> <span style="color:#198754;">TN</span> + <span
+            style="color:#dc3545;">FP</span> <span style="font-size: 1.2rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span style="font-size: 1.1rem;">( TP + FN + TN + FP )</span>
+        <br>
+        <span class="sub">
+            (단, 양성 비율 + 음성 비율 = <strong>1 (100%)</strong>)
+        </span>
+    </div>
+
+    <h2>📐 불균형 비율 (Imbalance Ratio) 계산</h2>
+    <div class="sub-formula-box">
+        <span class="math">불균형 비율</span> =
+        <span style="font-size:1.1rem;">(음성 개수) / (양성 개수)</span>
+        <span style="font-size:1.2rem;"> = </span>
+        <span style="font-size:1.1rem;">(TN + FP) / (TP + FN)</span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ 값이 <strong>1에 가까울수록 균형</strong>, <strong>클수록 불균형(Imbalance)</strong>이 심함을 의미합니다.
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 혼동 행렬 연동</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>양성 비율</strong></td>
+                <td><span class="math">P_rate</span> 또는 <span class="math">Base Rate</span></td>
+                <td>
+                    <span class="badge badge-purple">연동값</span>
+                    전체 데이터 중 <strong>실제 양성(Positive) 클래스</strong>가 차지하는 비율.
+                    <br>공식: <span style="font-family:monospace;">(TP + FN) / Total</span>
+                    <br><strong>PR-AUC의 무작위 기준선</strong>이 바로 이 값입니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>음성 비율</strong></td>
+                <td><span class="math">N_rate</span></td>
+                <td>
+                    <span class="badge badge-purple">연동값</span>
+                    전체 데이터 중 <strong>실제 음성(Negative) 클래스</strong>가 차지하는 비율.
+                    <br>공식: <span style="font-family:monospace;">(TN + FP) / Total</span>
+                    <br><strong>1 - P_rate</strong>와 동일합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>불균형 비율</strong></td>
+                <td><span class="math">IR</span></td>
+                <td>
+                    <span class="badge badge-dark">파생값</span>
+                    다수 클래스(음성)가 소수 클래스(양성)보다 <strong>몇 배나 많은지</strong>를 나타내는 지표.
+                    <br>공식: <span style="font-family:monospace;">(TN + FP) / (TP + FN)</span>
+                    <br>예: IR=10이면 음성이 양성보다 10배 많음.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>전체 샘플 수</strong></td>
+                <td><span class="math">Total</span></td>
+                <td>
+                    <span class="badge badge-blue">기본값</span>
+                    혼동 행렬의 모든 요소의 합: <span style="font-family:monospace;">TP + TN + FP + FN</span>.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 (혼동 행렬과 직접 연동) ==================== -->
+    <h2>🧮 계산 예시 (이전 혼동 행렬 데이터와 동일)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 데이터 (총 100개 거래 신호)</strong></p>
+        <ul>
+            <li>혼동 행렬 결과: <strong>TP=50, TN=30, FP=10, FN=10</strong> (총 100개)</li>
+        </ul>
+
+        <div style="background-color:#f8f9fa; padding:10px; border-radius:6px; margin:10px 0;">
+            <p style="margin:5px 0;"><strong>👉 1) 클래스 비율 계산 (혼동 행렬 행 합계)</strong></p>
+            <ul style="margin-top:0;">
+                <li><strong>실제 양성(Actual Positive)</strong> = TP + FN = 50 + 10 = <strong>60개</strong></li>
+                <li><strong>실제 음성(Actual Negative)</strong> = TN + FP = 30 + 10 = <strong>40개</strong></li>
+                <li><strong>양성 비율 (Base Rate)</strong> = 60 / 100 = <strong>0.60 (60%)</strong></li>
+                <li><strong>음성 비율</strong> = 40 / 100 = <strong>0.40 (40%)</strong></li>
+                <li><strong>불균형 비율 (IR)</strong> = 40 / 60 ≈ <strong>0.67</strong> (오히려 양성이 더 많아 약간 역불균형)</li>
+            </ul>
+        </div>
+
+        <div
+            style="background-color:#fff3cd; padding:10px; border-radius:6px; margin:10px 0; border-left:4px solid #ffc107;">
+            <p style="margin:5px 0;"><strong>⚠️ 진짜 문제가 되는 극단적 불균형 예시 (사기 탐지)</strong></p>
+            <ul style="margin-top:0;">
+                <li>가정: 총 1,000개, TP=10, FN=5 (양성 15개), TN=850, FP=130 (음성 985개)</li>
+                <li><strong>양성 비율</strong> = 15 / 1000 = <strong>1.5%</strong></li>
+                <li><strong>불균형 비율 (IR)</strong> = 985 / 15 ≈ <strong>65.7</strong> (음성이 양성보다 65배 많음!)</li>
+                <li>👉 이 환경에서 <strong>Accuracy는 86%</strong>로 높게 나오지만, <strong>Balanced Accuracy는 52.5%</strong>에 불과합니다.
+                </li>
+                <li>👉 즉, <strong>클래스 비율을 보면 Accuracy를 신뢰할 수 없는 이유</strong>를 바로 알 수 있습니다.</li>
+            </ul>
+        </div>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 클래스 비율은 혼동 행렬에서 단순히 <strong>행(Row)의 합계</strong>를 구하면 바로 산출됩니다.
+            따라서 혼동 행렬만 있으면 클래스 비율은 <strong>부가적인 계산 없이 즉시 파생</strong>될 수 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 클래스 비율 및 불균형 수준 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🟢 0.4 ≤ 양성 비율 ≤ 0.6</strong> : <strong>균형(Balanced) 데이터</strong>. Accuracy, ROC-AUC 등 모든 지표를
+                신뢰할 수 있습니다.</li>
+            <li><strong>🟡 0.2 ≤ 양성 비율 &lt; 0.4 또는 0.6 &lt; 양성 비율 ≤ 0.8</strong> : <strong>약한 불균형</strong>. Accuracy에
+                주의가 필요하며, F1-Score를 기본으로 봐야 합니다.</li>
+            <li><strong>🟠 0.05 ≤ 양성 비율 &lt; 0.2 또는 0.8 &lt; 양성 비율 ≤ 0.95</strong> : <strong>심한 불균형(Moderate
+                    Imbalance)</strong>. <strong>Accuracy는 절대 사용 금지</strong>. PR-AUC, Balanced Accuracy가 필수입니다.</li>
+            <li><strong>🔴 양성 비율 &lt; 0.05 또는 &gt; 0.95</strong> : <strong>극도로 심한 불균형(Extreme Imbalance)</strong>. 일반적인
+                머신러닝이 통하지 않습니다. <strong>오버샘플링(SMOTE)이나 언더샘플링</strong>이 선행되어야 합니다.</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            💡 <strong>프로젝트 실무 팁</strong>: 데이터 로딩 후 <strong>가장 먼저 이 클래스 비율을 체크</strong>하세요.
+            비율이 9:1을 넘어가면, Accuracy는 즉시 무시하고 <strong>PR-AUC와 MCC를 메인 지표</strong>로 삼아야 합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 클래스 비율이 다른 지표에 미치는 영향 비교 ==================== -->
+    <h2>📊 클래스 비율에 따른 주요 지표 변화 (균형 vs 불균형)</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">균형 데이터 (양성 50%)</th>
+                <th style="text-align: left; padding: 8px;">불균형 데이터 (양성 5%)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>Accuracy 기준선</strong></td>
+                <td style="padding: 8px;">50% (무작위)</td>
+                <td style="padding: 8px;"><strong>95% (다수 클래스 찍어도 높음)</strong> ⚠️</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>PR-AUC 기준선</strong></td>
+                <td style="padding: 8px;">0.50</td>
+                <td style="padding: 8px;"><strong>0.05 (극도로 낮음, 엄격해짐)</strong></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>Balanced Accuracy 기준선</strong></td>
+                <td style="padding: 8px;">0.50</td>
+                <td style="padding: 8px;"><strong>0.50 (불변, 신뢰할 수 있음)</strong> ✅</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>추천 지표</strong></td>
+                <td style="padding: 8px;">Accuracy, ROC-AUC</td>
+                <td style="padding: 8px;"><strong>PR-AUC, MCC, Balanced Accuracy</strong> (필수)</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ 클래스 비율 해석 시 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>비율 자체는 '잘못'이 아닙니다</strong>: 불균형은 데이터의 현실적 특성(예: 사기 발생률 1%)을 반영한 것입니다.
+                문제는 <strong>이 비율을 무시하고 Accuracy 같은 부적합한 지표를 사용하는 것</strong>에 있습니다.
+            </li>
+            <li>
+                <strong>샘플링(Sampling) 전에 반드시 확인</strong>: 오버샘플링이나 언더샘플링을 적용하기 전에 원본 데이터의 클래스 비율을 기록해 두어야,
+                샘플링 후의 성능 향상이 <strong>실제 모델 개선 때문인지, 단순히 분포를 맞춘 때문인지</strong> 판단할 수 있습니다.
+            </li>
+            <li>
+                <strong>비용(Cost)과의 결합</strong>: 양성 비율이 1%라도 FP(허위 경보)의 비용이 FN(놓친 탐지)보다 훨씬 크다면,
+                비율만 보고 "불균형이니 무조건 샘플링하자"고 결정해서는 안 됩니다. <strong>비용 행렬(Cost Matrix)과 함께</strong> 고려해야 합니다.
+            </li>
+            <li>
+                <strong>다중 클래스(Multi-class)에서의 확장</strong>: 3개 이상의 클래스가 있다면, 각 클래스별 비율을 모두 체크해야 합니다.
+                이때는 <strong>가장 희귀한 클래스(Min 클래스)와 가장 많은 클래스(Maj 클래스)의 비율 차이</strong>를 보는 것이 핵심입니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 클래스 비율 주요 활용 분야 (프로젝트 연동)</h2>
+    <ul>
+        <li><strong>데이터 탐색(EDA)의 첫 단계</strong>: 프로젝트 시작 시 Target 변수의 분포를 확인하여 불균형 여부를 진단합니다.</li>
+        <li><strong>평가 지표(Metric) 선정의 기준</strong>: 비율이 9:1을 넘으면 PR-AUC와 MCC를 메인으로, 7:3 정도면 F1-Score를 메인으로 선정합니다.</li>
+        <li><strong>혼동 행렬(Confusion Matrix) 해석의 전제</strong>: "TP가 80개"라는 숫자만 보고 좋아하지 말고, <strong>"전체 양성이 100개 중 80개"인지,
+                "1000개 중 80개"인지</strong>를 클래스 비율로 확인해야 합니다.</li>
+        <li><strong>샘플링 전략(Sampling Strategy) 수립</strong>: 불균형 비율(IR)이 10을 넘으면 SMOTE, 5~10이면 언더샘플링, 5 미만이면 가중치(Class
+            Weight) 조정으로 전략을 차별화합니다.</li>
+    </ul>
+
+    <footer>
+        <p>클래스 비율 (Class Ratio / Imbalance Ratio) - 혼동 행렬 연동 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>
