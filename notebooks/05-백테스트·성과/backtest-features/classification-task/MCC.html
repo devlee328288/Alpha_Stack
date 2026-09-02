@@ -117,6 +117,14 @@
             border-radius: 4px;
         }
 
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
         .badge {
             display: inline-block;
             background-color: #6c757d;
@@ -148,12 +156,36 @@
             background-color: #343a40;
         }
 
-        .compare-box {
-            background-color: #e2d9f3;
-            border-left: 5px solid #6f42c1;
+        .code-box {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 8px;
             padding: 15px 20px;
-            margin: 20px 0;
-            border-radius: 4px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            overflow-x: auto;
+            border: 1px solid #333;
+        }
+
+        .code-box .comment {
+            color: #6a9955;
+        }
+
+        .code-box .keyword {
+            color: #569cd6;
+        }
+
+        .code-box .func {
+            color: #dcdcaa;
+        }
+
+        .code-box .string {
+            color: #ce9178;
+        }
+
+        .code-box .number {
+            color: #b5cea8;
         }
 
         footer {
@@ -184,7 +216,7 @@
     </p>
 
     <!-- ==================== 수식 ==================== -->
-    <h2>📐 MCC 기본 수식</h2>
+    <h2>📐 MCC 기본 수식 (이진 분류)</h2>
 
     <div class="formula-box">
         <span class="math">MCC</span> =
@@ -292,7 +324,7 @@
     </table>
 
     <!-- ==================== 계산 예시 ==================== -->
-    <h2>🧮 계산 예시 (Example)</h2>
+    <h2>🧮 계산 예시 (Example) - 이진 분류</h2>
 
     <div class="example-box">
         <p><strong>📌 예시 상황 (불균형한 100개의 주가 방향성 예측 데이터)</strong></p>
@@ -346,6 +378,202 @@
         </p>
     </div>
 
+    <!-- ==================== 다중 분류 MCC 섹션 (NEW) ==================== -->
+    <h2>🔀 다중 분류(Multi-class)에서의 MCC 확장</h2>
+
+    <p>
+        MCC는 기본적으로 <strong>이진 분류(Binary Classification)</strong>를 위해 설계되었습니다.
+        하지만 <strong>3개 이상의 클래스(예: 상승/하락/보합)를 분류</strong>해야 하는 경우,
+        <strong>Macro 평균</strong>과 <strong>Micro 평균</strong> 방식을 활용하여 MCC를 확장할 수 있습니다.
+    </p>
+
+    <h3 style="margin-top:25px;">📌 Macro 평균 MCC (Macro-averaged MCC)</h3>
+    <p>
+        각 클래스를 <strong>1대 나머지(One-vs-Rest)</strong> 방식으로 이진 분류 문제로 변환한 후,
+        각 클래스별로 MCC를 계산하고 <strong>모든 클래스의 산술 평균</strong>을 구합니다.
+    </p>
+    <div class="sub-formula-box" style="text-align:left; padding:15px 20px;">
+        <strong>수식:</strong><br>
+        <span style="font-size:1.1rem;">
+            MCC<sub>Macro</sub> = (MCC<sub>class1</sub> + MCC<sub>class2</sub> + ... + MCC<sub>classK</sub>) / K
+        </span>
+        <br>
+        <span style="font-size:0.9rem; color:#495057;">
+            (K = 전체 클래스 개수)
+        </span>
+        <ul style="margin-top:8px; font-size:0.95rem;">
+            <li><strong>장점:</strong> 모든 클래스를 <strong>동등하게</strong> 취급하므로, 소수 클래스의 성능 저하를 놓치지 않음.</li>
+            <li><strong>단점:</strong> 클래스별 샘플 수가 극도로 불균형할 때, 소수 클래스의 변동성에 전체 점수가 크게 영향받을 수 있음.</li>
+        </ul>
+    </div>
+
+    <h3 style="margin-top:25px;">📌 Micro 평균 MCC (Micro-averaged MCC)</h3>
+    <p>
+        모든 클래스의 혼동 행렬 요소(TP, TN, FP, FN)를 <strong>전체적으로 합산(aggregate)</strong>한 뒤,
+        하나의 통합된 이진 혼동 행렬을 만들고 <strong>단일 MCC</strong>를 계산합니다.
+    </p>
+    <div class="sub-formula-box" style="text-align:left; padding:15px 20px;">
+        <strong>수식:</strong><br>
+        <span style="font-size:1.0rem;">
+            TP<sub>total</sub> = Σ TP<sub>i</sub>, &nbsp; TN<sub>total</sub> = Σ TN<sub>i</sub>, &nbsp;
+            FP<sub>total</sub> = Σ FP<sub>i</sub>, &nbsp; FN<sub>total</sub> = Σ FN<sub>i</sub>
+        </span>
+        <br>
+        <span style="font-size:1.0rem;">
+            MCC<sub>Micro</sub> = (TP<sub>total</sub>·TN<sub>total</sub> − FP<sub>total</sub>·FN<sub>total</sub>) /
+            √((TP<sub>total</sub>+FP<sub>total</sub>)·(TP<sub>total</sub>+FN<sub>total</sub>)·(TN<sub>total</sub>+FP<sub>total</sub>)·(TN<sub>total</sub>+FN<sub>total</sub>))
+        </span>
+        <ul style="margin-top:8px; font-size:0.95rem;">
+            <li><strong>장점:</strong> 전체 데이터 샘플을 기준으로 평가하므로, <strong>다수 클래스의 성능</strong>이 전체 점수에 반영됨.</li>
+            <li><strong>단점:</strong> 소수 클래스의 오류가 전체 점수에 거의 반영되지 않아 <strong>희귀 클래스 탐지 능력을 과대평가</strong>할 위험이 있음.</li>
+        </ul>
+    </div>
+
+    <!-- ==================== 다중 분류 계산 예시 ==================== -->
+    <h2>🧮 다중 분류 MCC 계산 예시 (3개 클래스: 상승/하락/보합)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시: 3x3 혼동 행렬 (총 150개 샘플)</strong></p>
+        <table
+            style="width:100%; border-collapse:collapse; background:white; border-radius:6px; overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,0.05);">
+            <thead>
+                <tr style="background-color:#0d6efd; color:white;">
+                    <th style="padding:8px; text-align:center;">실제 \ 예측</th>
+                    <th style="padding:8px; text-align:center;">상승</th>
+                    <th style="padding:8px; text-align:center;">하락</th>
+                    <th style="padding:8px; text-align:center;">보합</th>
+                    <th style="padding:8px; text-align:center;">합계</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">상승</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">40 (TP)</td>
+                    <td style="padding:8px; text-align:center;">5 (FN)</td>
+                    <td style="padding:8px; text-align:center;">5 (FN)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">50</td>
+                </tr>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">하락</td>
+                    <td style="padding:8px; text-align:center;">8 (FP)</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">30 (TP)</td>
+                    <td style="padding:8px; text-align:center;">2 (FN)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">40</td>
+                </tr>
+                <tr style="background-color:#f8f9fa;">
+                    <td style="padding:8px; font-weight:bold;">보합</td>
+                    <td style="padding:8px; text-align:center;">4 (FP)</td>
+                    <td style="padding:8px; text-align:center;">6 (FP)</td>
+                    <td style="padding:8px; text-align:center; background-color:#d1e7dd;">50 (TP)</td>
+                    <td style="padding:8px; text-align:center; font-weight:bold;">60</td>
+                </tr>
+                <tr style="background-color:#e9ecef; font-weight:bold;">
+                    <td style="padding:8px;">합계</td>
+                    <td style="padding:8px; text-align:center;">52</td>
+                    <td style="padding:8px; text-align:center;">41</td>
+                    <td style="padding:8px; text-align:center;">57</td>
+                    <td style="padding:8px; text-align:center;">150</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top:15px;"><strong>👉 Step 1: 각 클래스별 이진 MCC 계산 (One-vs-Rest)</strong></p>
+        <ul style="font-size:0.95rem;">
+            <li><strong>클래스 '상승'</strong> (Positive=상승, Negative=하락+보합)
+                <br>TP=40, TN=(30+2)+(6+50)=88, FP=8+4=12, FN=5+5=10
+                <br>MCC<sub>상승</sub> = (40×88 − 12×10) / √((40+12)(40+10)(88+12)(88+10)) = (3520−120) / √(52×50×100×98)
+                = 3400 / √25,480,000 ≈ 3400 / 5048 ≈ <strong>0.673</strong>
+            </li>
+            <li style="margin-top:6px;"><strong>클래스 '하락'</strong> (Positive=하락, Negative=상승+보합)
+                <br>TP=30, TN=(40+5)+(4+50)=99, FP=5+2=7, FN=8+6=14
+                <br>MCC<sub>하락</sub> = (30×99 − 7×14) / √((30+7)(30+14)(99+7)(99+14)) = (2970−98) / √(37×44×106×113) =
+                2872 / √19,489,784 ≈ 2872 / 4415 ≈ <strong>0.650</strong>
+            </li>
+            <li style="margin-top:6px;"><strong>클래스 '보합'</strong> (Positive=보합, Negative=상승+하락)
+                <br>TP=50, TN=(40+5)+(8+30)=83, FP=5+2=7, FN=4+6=10
+                <br>MCC<sub>보합</sub> = (50×83 − 7×10) / √((50+7)(50+10)(83+7)(83+10)) = (4150−70) / √(57×60×90×93) =
+                4080 / √28,607,400 ≈ 4080 / 5348 ≈ <strong>0.763</strong>
+            </li>
+        </ul>
+
+        <p style="margin-top:15px;"><strong>👉 Step 2: Macro 평균 MCC 계산</strong></p>
+        <p>
+            MCC<sub>Macro</sub> = (0.673 + 0.650 + 0.763) / 3 = 2.086 / 3 ≈ <strong
+                style="color:#0d6efd;">0.695</strong>
+        </p>
+
+        <p style="margin-top:10px;"><strong>👉 Step 3: Micro 평균 MCC 계산 (전체 합산)</strong></p>
+        <ul style="font-size:0.95rem;">
+            <li>TP<sub>total</sub> = 40 + 30 + 50 = <strong>120</strong></li>
+            <li>TN<sub>total</sub> = (30+2+6+50) + (40+5+4+50) + (40+5+8+30) = 88 + 99 + 83 = <strong>270</strong></li>
+            <li>FP<sub>total</sub> = (8+4) + (5+2) + (5+2) = 12 + 7 + 7 = <strong>26</strong></li>
+            <li>FN<sub>total</sub> = (5+5) + (8+6) + (4+6) = 10 + 14 + 10 = <strong>34</strong></li>
+        </ul>
+        <p>
+            MCC<sub>Micro</sub> = (120×270 − 26×34) / √((120+26)(120+34)(270+26)(270+34))
+            <br>= (32400 − 884) / √(146 × 154 × 296 × 304)
+            <br>= 31516 / √(146×154=22,484, 296×304=89,984 → 22,484×89,984 ≈ 2,022,000,000)
+            <br>= 31516 / √2,022,000,000 ≈ 31516 / 44,966 ≈ <strong style="color:#0d6efd;">0.701</strong>
+        </p>
+
+        <p style="margin-top:10px; font-size:0.95rem; color:#495057;">
+            ✅ <strong>해석:</strong> 이 모델의 Macro MCC는 <strong>0.695</strong>, Micro MCC는 <strong>0.701</strong>로,
+            두 방식 모두 <strong>0.6~0.8 구간(우수한 예측력)</strong>에 해당합니다.
+            Macro와 Micro 값이 유사하므로, <strong>클래스 간 성능 편차가 크지 않음</strong>을 알 수 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== Python 코드 예제 ==================== -->
+    <h2>🐍 Python으로 Macro/Micro MCC 계산하기</h2>
+
+    <div class="code-box">
+        <span class="comment"># sklearn을 이용한 Macro/Micro MCC 계산 예제</span><br>
+        <span class="keyword">from</span> sklearn.metrics <span class="keyword">import</span> matthews_corrcoef<br>
+        <span class="keyword">import</span> numpy <span class="keyword">as</span> np<br>
+        <span class="keyword">from</span> sklearn.preprocessing <span class="keyword">import</span> label_binarize<br>
+        <br>
+        <span class="comment"># 실제 레이블과 예측 레이블 (3개 클래스: 0=상승, 1=하락, 2=보합)</span><br>
+        y_true = np.array([0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2]) <span class="comment"># 간단한 예시</span><br>
+        y_pred = np.array([0, 1, 2, 0, 0, 2, 1, 1, 2, 0, 1, 2])<br>
+        <br>
+        <span class="comment"># 1) Macro MCC: 각 클래스를 One-vs-Rest로 이진화하여 MCC 계산 후 평균</span><br>
+        classes = np.unique(y_true)<br>
+        mcc_list = []<br>
+        <span class="keyword">for</span> cls <span class="keyword">in</span> classes:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;y_true_bin = (y_true == cls).astype(int)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;y_pred_bin = (y_pred == cls).astype(int)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;mcc_list.append(matthews_corrcoef(y_true_bin, y_pred_bin))<br>
+        macro_mcc = np.mean(mcc_list)<br>
+        <br>
+        <span class="comment"># 2) Micro MCC: 모든 클래스의 TP/TN/FP/FN을 합산하여 단일 MCC 계산</span><br>
+        <span class="comment"># → sklearn의 matthews_corrcoef는 이진 분류만 지원하므로, 직접 구현하거나</span><br>
+        <span class="comment"># 'sklearn.metrics.multilabel_confusion_matrix'와 'confusion_matrix' 활용</span><br>
+        <span class="keyword">from</span> sklearn.metrics <span class="keyword">import</span> confusion_matrix,
+        multilabel_confusion_matrix<br>
+        <br>
+        <span class="comment"># Micro MCC 직접 계산 함수 (예시)</span><br>
+        <span class="keyword">def</span> <span class="func">micro_mcc</span>(y_true, y_pred):<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;classes = np.unique(y_true)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;TP_total = TN_total = FP_total = FN_total = 0<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">for</span> cls <span class="keyword">in</span> classes:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;y_true_bin = (y_true == cls).astype(int)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;y_pred_bin = (y_pred == cls).astype(int)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tn, fp, fn, tp = confusion_matrix(y_true_bin,
+        y_pred_bin).ravel()<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;TP_total += tp; TN_total += tn; FP_total += fp; FN_total +=
+        fn<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;numerator = TP_total * TN_total - FP_total * FN_total<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;denominator =
+        ((TP_total+FP_total)*(TP_total+FN_total)*(TN_total+FP_total)*(TN_total+FN_total)) ** 0.5<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="keyword">return</span> numerator / denominator <span
+            class="keyword">if</span> denominator != 0 <span class="keyword">else</span> 0<br>
+        <br>
+        micro_mcc_value = micro_mcc(y_true, y_pred)<br>
+        <br>
+        print(<span class="string">f"Macro MCC: {macro_mcc:.4f}"</span>)<br>
+        print(<span class="string">f"Micro MCC: {micro_mcc_value:.4f}"</span>)<br>
+    </div>
+
     <!-- ==================== MCC vs Accuracy 비교 ==================== -->
     <h2>📊 MCC vs Accuracy (정확도) 비교</h2>
 
@@ -386,7 +614,8 @@
         <ul>
             <li>
                 <strong>다중 분류(Multi-class)에는 직접 적용 불가</strong>: MCC는 기본적으로 <strong>이진 분류(Binary)</strong> 전용입니다.
-                다중 분류로 확장하려면 <strong>Macro/Micro 평균 MCC</strong>를 별도로 계산해야 합니다.
+                다중 분류로 확장하려면 위에서 설명한 <strong>Macro/Micro 평균 MCC</strong>를 별도로 계산해야 하며,
+                이는 공식 표준이라기보다 <strong>널리 통용되는 실무적 관행</strong>에 가깝습니다.
             </li>
             <li>
                 <strong>분모가 0이 되는 경우</strong>: 특정 클래스의 예측이 전혀 없을 때(예: TP+FP=0) 분모가 0이 되어 계산이 불가능합니다.
@@ -400,6 +629,10 @@
                 <strong>임계값(Threshold) 의존성</strong>: 분류 임계값을 조정하면 TP/FP/TN/FN이 모두 변하므로,
                 <strong>MCC는 임계값에 따라 변동</strong>이 심합니다. 다양한 임계값에서의 평균 MCC를 보는 것이 좋습니다.
             </li>
+            <li>
+                <strong>Macro vs Micro 선택 시 주의</strong>: Macro는 소수 클래스에 민감하고, Micro는 다수 클래스에 치우칩니다.
+                <strong>두 값을 모두 보고 차이를 분석</strong>하거나, 분석 목적에 맞게 하나를 선택해야 합니다.
+            </li>
         </ul>
     </div>
 
@@ -410,6 +643,7 @@
         <li><strong>부도/도산 예측 (Credit Scoring)</strong>: 부도율이 극도로 낮은 데이터에서 모델의 진짜 탐지력을 평가.</li>
         <li><strong>이상 거래 탐지 (Fraud Detection)</strong>: 정상 거래가 99%인 환경에서 이상 거래를 얼마나 잘 찾는지 측정.</li>
         <li><strong>바이너리 옵션/차익 거래 시그널</strong>: 매수/매도 신호의 정확도를 Accuracy 대신 MCC로 엄격하게 평가.</li>
+        <li><strong>3분류 이상의 멀티클래스 전략</strong>: 상승/하락/보합 등 3개 이상의 클래스에서 Macro/Micro MCC로 종합 성능 평가.</li>
     </ul>
 
     <footer>

@@ -80,8 +80,9 @@ class MigrationError(RuntimeError):
 #
 #      v5  반입 (inbox_batch · inbox_accepted · inbox_quarantine)   ← 2026-09-01 적용
 #      v6  공시 시점정합 (dart_financial · dart_disclosure)          ← 2026-09-02 적용
-#      v7  거시 통계 (macro_series)                                  예약
-#      v8  다음 빈 번호
+#      v7  거시 통계 (macro_series)                                  ← 2026-09-02 적용
+#      v8  수집 실행 기록 (ingest_run · ingest_run_stage)            ← 2026-09-02 적용
+#      v9  다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -447,6 +448,132 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             # "이 날 무엇이 공시됐나" — 시점정합 검증과 뉴스 대조에 쓴다.
             "CREATE INDEX IF NOT EXISTS idx_dart_disc_date "
             "ON dart_disclosure(rcept_dt)",
+        ),
+    ),
+    (
+        "v7: 거시 통계 — 기준월이 아니라 공표된 날로 세운다",
+        (
+            # ── 거시 시계열 ─────────────────────────────────────────────
+            # 한국은행 ECOS 에서 받는 국내 거시지표 9종을 **긴 형식(long)** 으로 담는다.
+            # 지표마다 칸을 만들지 않는 이유는 주기가 섞여 있기 때문이다 — 일별 4종과
+            # 월별 5종을 한 표에 넓은 형식으로 두면 월별 칸이 대부분 빈다.
+            #
+            # 🔴 **`known_at` 이 이 표의 존재 이유다.**
+            #
+            # ECOS 응답에는 **발표일이 없다.** 실측으로 확인했다 — `StatisticSearch` 의
+            # 14칸(STAT_CODE·TIME·DATA_VALUE 등), `StatisticTableList` 의 6칸,
+            # `StatisticMeta` 어디에도 "이 값이 언제 공개됐는지" 가 없다.
+            #
+            # 대신 월별 지표를 **기준월 1일**로 준다(2026년 7월 물가 → `2026-07-01`).
+            # 그 날짜를 그대로 붙이면 **7월 물가를 7월 1일에 아는 셈**이 된다. 실제로는
+            # 8월 4일에 발표됐다 — 34일치 미래다. 경기지수는 더 심해서 7월분이 8월 31일에
+            # 나오므로 61일이 샌다. 그리고 이 오류는 **예외를 내지 않고 성능만 올린다.**
+            #
+            # 그래서 값과 별개로 "언제부터 알 수 있었나" 를 계산해 함께 담는다.
+            # 규칙은 `ingest/clients/ecos_data.py` 의 `RELEASE_RULES` 에 있고,
+            # 실제 공표일정에 안전 여유를 더한 값이다. 규칙이 바뀌면 이 표를 다시 채운다.
+            #
+            # `period` 는 ECOS 원문 그대로 둔다(일별 `20260901` · 월별 `202607`).
+            # 주기마다 형식이 다른 것을 여기서 통일하지 않는 이유는, 통일하면 어느 것이
+            # 원본이었는지 되찾을 수 없어 재수집 때 대조가 불가능해지기 때문이다.
+            """
+            CREATE TABLE IF NOT EXISTS macro_series (
+              indicator_id TEXT NOT NULL,
+              period       TEXT NOT NULL,
+              cycle        TEXT NOT NULL,
+              value        REAL,
+              known_at     TEXT NOT NULL,
+              stat_code    TEXT NOT NULL,
+              item_code    TEXT,
+              unit         TEXT,
+              collected_at TEXT NOT NULL,
+              -- 한 지표는 하나의 (통계표, 항목) 조합에 고정돼 있으므로 기간마다 값이
+              -- 하나뿐이다. 그래서 두 칸으로 충분하다.
+              -- ⚠️ 재무에서 `account_detail` 을 PK 에 빠뜨려 6.4%가 조용히 사라진 적이
+              --    있다. 여기서도 "행 수가 맞으니 됐다" 로 넘기지 않고, 수집 뒤에
+              --    지표×기간 조합이 실제로 유일한지 세어서 확인한다.
+              PRIMARY KEY (indicator_id, period),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              CHECK (cycle IN ('D', 'M', 'Q', 'A')),
+              -- 알게 된 날은 반드시 YYYYMMDD 여야 한다. 형식이 섞이면 시점 비교가
+              -- 문자열 비교로 조용히 어긋난다.
+              CHECK (length(known_at) = 8),
+              -- 값이 없을 수는 있어도(ECOS 가 '-' 를 준다) 언제 알았는지는 늘 있어야 한다.
+              CHECK (known_at <> '')
+            )
+            """,
+            # as_of 조회가 "이 날짜에 알 수 있었던 거시" 를 고를 때 쓴다.
+            # 시점을 앞에 두는 이유는 v6 과 같다 — 지표를 좁히기 전에 시점을 자른다.
+            "CREATE INDEX IF NOT EXISTS idx_macro_asof "
+            "ON macro_series(known_at, indicator_id)",
+            # 한 지표의 시계열을 기간 순으로 훑을 때. PK 가 (지표, 기간) 이라 앞은
+            # 겹치지만, 이쪽은 값까지 담아 표를 다시 읽지 않게 한다(커버링 인덱스).
+            "CREATE INDEX IF NOT EXISTS idx_macro_series_value "
+            "ON macro_series(indicator_id, period, value)",
+        ),
+    ),
+    (
+        "v8: 수집 실행 기록 — 지금 돌고 있는지 밖에서 볼 수 있게",
+        (
+            # ── 실행 ────────────────────────────────────────────────────
+            # `python -m pipelines.ingest` 한 번이 한 줄이다.
+            #
+            # **왜 `collect_log` 로 부족한가.** 그 표는 *"무엇을 어디까지 받았나"* 를
+            # 대상별로 담는다(종목·날짜·지표). 반면 여기는 *"언제 돌렸고 지금 어디쯤인가"* 다.
+            # 대장만 보면 **지금 돌고 있는 중인지 죽은 것인지 구별할 수 없다** — 둘 다
+            # "마지막 성공이 좀 됐다" 로 보인다. 대시보드가 알아야 하는 것이 그 구별이다.
+            #
+            # `args` 에 실행 인자를 그대로 남긴다. 나중에 "이 숫자가 어떤 조건에서
+            # 나왔나" 를 답하려면 명령줄이 남아 있어야 한다.
+            """
+            CREATE TABLE IF NOT EXISTS ingest_run (
+              run_id      TEXT NOT NULL,
+              started_at  TEXT NOT NULL,
+              finished_at TEXT,
+              status      TEXT NOT NULL,
+              args        TEXT,
+              note        TEXT,
+              PRIMARY KEY (run_id),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              --   running  돌고 있다. `finished_at` 이 비어 있다
+              --   ok       전 단계가 끝났다
+              --   partial  일부 단계가 실패했지만 나머지는 끝났다
+              --   error    시작하자마자 못 돌았다
+              --   dry_run  무엇을 할지만 보고 실제로 받지는 않았다
+              CHECK (status IN ('running', 'ok', 'partial', 'error', 'dry_run'))
+            )
+            """,
+            # 대시보드가 "가장 최근 실행" 을 뽑을 때. 시작 시각 역순이 곧 최신순이다.
+            "CREATE INDEX IF NOT EXISTS idx_ingest_run_started "
+            "ON ingest_run(started_at DESC)",
+
+            # ── 단계 ────────────────────────────────────────────────────
+            # 실행 하나 안의 price · financial · macro 각각.
+            #
+            # 실행 표와 나눈 이유는 **폴링 때문**이다. 한 표에 JSON 으로 뭉쳐 두면
+            # 대시보드가 단계 하나의 진행을 보려고 매번 문자열을 파싱해야 하고,
+            # 파싱은 언젠가 실패한다. 칸으로 두면 SQL 이 직접 고른다.
+            """
+            CREATE TABLE IF NOT EXISTS ingest_run_stage (
+              run_id      TEXT    NOT NULL,
+              stage       TEXT    NOT NULL,
+              status      TEXT    NOT NULL,
+              rows        INTEGER NOT NULL DEFAULT 0,
+              started_at  TEXT    NOT NULL,
+              finished_at TEXT,
+              note        TEXT,
+              PRIMARY KEY (run_id, stage),
+              --   running  이 단계가 돌고 있다
+              --   ok       끝났다
+              --   error    실패했다. `note` 에 무엇이 실패했는지 남긴다
+              --   skipped  `--only` 로 건너뛴 단계다. **실패가 아니다**
+              --   dry_run  무엇을 할지만 셌다
+              CHECK (status IN ('running', 'ok', 'error', 'skipped', 'dry_run'))
+            )
+            """,
+            # 한 실행의 단계들을 순서대로 뽑을 때 (대시보드가 가장 자주 하는 조회).
+            "CREATE INDEX IF NOT EXISTS idx_ingest_stage_run "
+            "ON ingest_run_stage(run_id, started_at)",
         ),
     ),
 )

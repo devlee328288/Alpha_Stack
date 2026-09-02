@@ -42,7 +42,7 @@ def build_readme(manifest: dict) -> str:
     )
     bulk_row = (
         "| `bulk/` | 재무정보 일괄다운로드 묶음 (2015~2026 전 상장사, 분기·반기 포함) "
-        "| ❌ 없음 | EDA·대조·참조만. **학습 금지** |"
+        "| ❌ 없음 | EDA·대조·참조만. **학습 금지** — 상세는 `bulk/README.md` |"
     )
     return f"""---
 license: other
@@ -60,6 +60,10 @@ tags: [finance, korea, dart, financial-statements]
 |---|---|---|---|
 {pit_row}
 {bulk_row}
+
+홀드아웃 경계는 재논의 중입니다(#60) — dev/holdout 분할본을 따로 두지 않고,
+**pit/ 를 원하는 경계로 잘라** 쓰세요. 재무의 시점은 `bsns_year` 가 아니라
+`rcept_dt` 로 가릅니다.
 
 ## 🔴 왜 bulk/ 를 학습에 쓰면 안 되나
 
@@ -115,7 +119,13 @@ def main() -> int:
         return 1
     print(f"토큰 출처: {source}")
 
-    from huggingface_hub import CommitOperationCopy, CommitOperationDelete, HfApi
+    from huggingface_hub import (
+        CommitOperationAdd,
+        CommitOperationCopy,
+        CommitOperationDelete,
+        HfApi,
+        hf_hub_download,
+    )
 
     api = HfApi(token=token)
 
@@ -135,6 +145,14 @@ def main() -> int:
     for f in to_move:
         print(f"   {f}  →  bulk/{f}")
 
+    # 기존 루트 README 는 bulk 묶음 상세 문서(칸 22개 설명·원본 TSV 이력)다.
+    # 루트 README 를 2층 안내로 갈아끼우면 그 내용이 git 이력에만 남으므로,
+    # 같은 커밋에서 bulk/README.md 로 함께 보존한다. README 는 LFS 가 아니라
+    # CommitOperationCopy 를 못 쓴다 — 내려받아 Add 로 넣는다.
+    preserve_readme = "README.md" in existing and "bulk/README.md" not in existing
+    if preserve_readme:
+        print("루트 README.md → bulk/README.md 보존 예정 (bulk 묶음 상세 문서)")
+
     # ── 2. pit/ 업로드 계획 ─────────────────────────────────────────
     pit_files = sorted((root / "pit").glob("*.parquet"))
     total_mb = sum(p.stat().st_size for p in pit_files) / 1024 / 1024
@@ -146,17 +164,23 @@ def main() -> int:
         return 0
 
     # ── 실행 1: 이동 (복사+삭제 한 커밋 — LFS 재업로드 없음) ────────
-    if to_move:
+    if to_move or preserve_readme:
         ops = []
         for f in to_move:
             ops.append(CommitOperationCopy(src_path_in_repo=f, path_in_repo=f"bulk/{f}"))
+        if preserve_readme:
+            old_readme = hf_hub_download(
+                repo_id=REPO, filename="README.md", repo_type="dataset", token=token)
+            ops.append(CommitOperationAdd(
+                path_in_repo="bulk/README.md", path_or_fileobj=old_readme))
         for f in to_move:
             ops.append(CommitOperationDelete(path_in_repo=f))
         api.create_commit(
             repo_id=REPO, repo_type="dataset", operations=ops,
-            commit_message=f"일괄다운로드 묶음 {len(to_move)}개를 bulk/ 로 이동",
+            commit_message=f"일괄다운로드 묶음 {len(to_move)}개를 bulk/ 로 이동 (README 보존 포함)",
         )
-        print(f"✅ bulk/ 이동 완료 ({len(to_move)}개)")
+        print(f"✅ bulk/ 이동 완료 ({len(to_move)}개"
+              f"{' + README 보존' if preserve_readme else ''})")
 
     # ── 실행 2: pit/ + MANIFEST + README 업로드 ─────────────────────
     (root / "README.md").write_text(build_readme(manifest), encoding="utf-8")

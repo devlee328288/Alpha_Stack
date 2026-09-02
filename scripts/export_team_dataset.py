@@ -81,7 +81,12 @@ BAND_INDEX = NEUTRAL_BAND
 #: 이 값에서 클래스가 30.12/37.90/31.98 로 갈린다(전 종목 실측).
 BAND_STOCK = 0.02
 
-#: 개발구간 상한. 홀드아웃 경계를 바꿀 때 별도 상수가 과거 값에 남지 않도록 계산한다.
+#: 개발구간 상한. `HOLDOUT_START` 하루 전까지 담는다 (`bas_dd <= DEV_END`).
+#:
+#: 🔴 **값을 여기에 적지 않는다.** 전에는 "20210831" 이 박혀 있어서, 봉인 시작을 옮기면
+#: 두 값이 조용히 어긋났다 — 경계 하루가 개발구간과 봉인구간 양쪽에 들어가거나
+#: 어느 쪽에도 안 들어가는데, 행 수만 세는 검사로는 잡히지 않는다.
+#: 봉인 시작은 `evaluation/horizon.HOLDOUT_START` 하나뿐이고 여기서는 빼서 쓴다.
 DEV_END = (
     datetime.strptime(HOLDOUT_START, "%Y%m%d") - timedelta(days=1)
 ).strftime("%Y%m%d")
