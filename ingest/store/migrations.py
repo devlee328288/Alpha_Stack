@@ -79,7 +79,7 @@ class MigrationError(RuntimeError):
 #    그래서 번호를 **미리 배정하고 그 순서대로 직렬로만 합친다.**
 #
 #      v5  반입 (inbox_batch · inbox_accepted · inbox_quarantine)   ← 2026-09-01 적용
-#      v6  공시 시점정합 (dart_disclosure · dart_financial)          예약
+#      v6  공시 시점정합 (dart_financial · dart_disclosure)          ← 2026-09-02 적용
 #      v7  거시 통계 (macro_series)                                  예약
 #      v8  다음 빈 번호
 #
@@ -322,6 +322,131 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             """,
             "CREATE INDEX IF NOT EXISTS idx_inbox_quarantine_kind "
             "ON inbox_quarantine(kind, batch_id)",
+        ),
+    ),
+    (
+        "v6: 공시 시점정합 — 결산기가 아니라 알게 된 날로 세운다",
+        (
+            # ── 재무제표 ────────────────────────────────────────────────
+            # 칸 이름과 기본키는 `ingest/inbox/schemas/financial.json` 을 **그대로**
+            # 따른다. 그 규격이 스스로 이렇게 적어 두었다.
+            #
+            #     "compareWith": null,
+            #     "대조할 표가 아직 없다. 재무 적재 표는 이 규격이 선 뒤에 만든다."
+            #
+            # 여기가 그 표다. 규격과 표가 갈라지면 우리가 만든 파일이 우리 정문에서
+            # 격리되는 일이 다시 생긴다 — 이슈 #43 이 정확히 그것이었다.
+            #
+            # 🔴 시점 기준은 `rcept_dt`(공시 접수일) 하나뿐이다. `bsns_year` 는 결산기이지
+            #    세상이 알게 된 날이 아니다. 2020년 4분기 실적은 2021년 3월에 나오므로,
+            #    결산기에 값을 붙이면 **석 달치 미래**를 학습에 넣고도 예외는 나지 않고
+            #    성능만 좋아진다. 그래서 규격이 `has_time_anchor` 를 error 로 걸어 두었다.
+            #
+            # ⚠️ `ord` 와 `account_detail` 을 기본키에 넣으면서 NOT NULL 로 못박는다.
+            #    SQLite 는 rowid 표의 PRIMARY KEY 에 NULL 을 허용해서(역사적 호환),
+            #    빠뜨리면 같은 계정이 여러 줄 쌓이는데 UNIQUE 위반도 안 난다.
+            #
+            # 🔴 **`account_detail` 이 기본키에 있어야 하는 이유 — 실측으로 찾았다.**
+            #
+            #    규격(`financial.json`)의 primaryKey 를 그대로 쓰면 자본변동표(SCE)에서
+            #    행이 **조용히 사라진다.** 삼성전자 2023 연결 176줄을 넣었더니 135줄만
+            #    남았다 (41줄 손실). 예외도 경고도 없다 — `INSERT OR REPLACE` 가 덮어썼다.
+            #
+            #    SCE 는 "자본금·주식발행초과금·이익잉여금·비지배지분…" 열마다 한 줄씩
+            #    주는데, 그 열을 가리키는 칸이 `account_detail` 뿐이다. 계정명도 ord 도
+            #    account_id 도 전부 같다.
+            #
+            #        '기초자본' ord=4 가 8줄이고 값이 전부 다르다
+            #          연결재무제표 [member]        354,749,604 백만
+            #          지배기업 소유주 지분          345,186,142 백만
+            #          비지배지분                     9,563,462 백만
+            #          이익잉여금                   337,946,407 백만
+            #          자본금                           897,514 백만
+            #
+            #    무엇을 더해야 갈라지는지도 실측했다 — `account_id`·`thstrm_nm` 은
+            #    소용이 없었고(135줄 그대로) `account_detail` 만 176줄을 지켰다.
+            #
+            #    ⚠️ 빈 값을 NULL 로 두면 안 된다. SQLite 는 PK 안의 NULL 을 서로 다른
+            #       값으로 보므로 같은 계정이 여러 줄 쌓인다. 그래서 `NOT NULL DEFAULT ''`
+            #       로 두고 저장하는 쪽도 None 이 아니라 빈 문자열을 넣는다.
+            """
+            CREATE TABLE IF NOT EXISTS dart_financial (
+              corp_code        TEXT    NOT NULL,
+              stock_code       TEXT,
+              corp_name        TEXT,
+              bsns_year        INTEGER NOT NULL,
+              reprt_code       TEXT    NOT NULL,
+              fs_div           TEXT    NOT NULL,
+              sj_div           TEXT    NOT NULL,
+              account_id       TEXT,
+              account_nm       TEXT    NOT NULL,
+              account_detail   TEXT    NOT NULL DEFAULT '',
+              ord              INTEGER NOT NULL DEFAULT 0,
+              currency         TEXT,
+              thstrm_nm        TEXT,
+              thstrm_amount    REAL,
+              frmtrm_amount    REAL,
+              bfefrmtrm_amount REAL,
+              rcept_no         TEXT,
+              rcept_dt         TEXT,
+              report_nm        TEXT,
+              rm               TEXT,
+              collected_at     TEXT    NOT NULL,
+              PRIMARY KEY (corp_code, bsns_year, reprt_code, fs_div, sj_div,
+                           account_nm, ord, account_detail),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              -- 값 목록은 규격의 enum 을 그대로 옮긴 것이다.
+              CHECK (reprt_code IN ('11011', '11012', '11013', '11014')),
+              CHECK (fs_div IN ('CFS', 'OFS')),
+              CHECK (sj_div IN ('BS', 'IS', 'CIS', 'CF', 'SCE'))
+            )
+            """,
+            # as_of 조회가 "이 날짜에 알 수 있었던 재무" 를 고를 때 쓴다.
+            # 접수일이 앞에 오는 이유는 그것이 **거르는 칸**이기 때문이다 — 회사를 먼저
+            # 좁히는 것이 아니라 시점을 먼저 자른다.
+            "CREATE INDEX IF NOT EXISTS idx_dart_fin_asof "
+            "ON dart_financial(rcept_dt, corp_code)",
+            # 한 회사의 연도별 추이를 뽑을 때.
+            "CREATE INDEX IF NOT EXISTS idx_dart_fin_corp_year "
+            "ON dart_financial(corp_code, bsns_year, reprt_code)",
+            # 종목코드로 시세와 잇는 경로. 비상장 법인은 이 칸이 비어 있다.
+            "CREATE INDEX IF NOT EXISTS idx_dart_fin_stock "
+            "ON dart_financial(stock_code, bsns_year)",
+
+            # ── 공시 목록 ───────────────────────────────────────────────
+            # `list.json` 의 응답을 원본 이름 그대로 담는다.
+            #
+            # **왜 따로 두는가 — 콜을 아끼기 위해서다.** 재무제표 응답
+            # (`fnlttSinglAcntAll`)에는 접수번호는 있어도 **접수일이 없다.** 그래서
+            # 접수일을 되찾으려면 회사·보고서마다 `list.json` 을 한 번 더 불러야 한다
+            # (350종 × 5개년이면 1,750콜). 그런데 그 응답에는 그 구간의 공시가 통째로
+            # 딸려 온다 — 접수일 한 칸만 뽑고 버리면 같은 자료를 다음에 또 사야 한다.
+            #
+            # 🔴 접수번호 앞 8자리를 잘라 쓰지 않는다. 정기공시 4,800건 실측에서
+            #    3건(0.062%)이 어긋났고 그중 둘은 접수일을 **3일 앞당겨** 읽는다.
+            #    틀리는 방향이 전부 우리에게 유리한 쪽이면 잡음이 아니라 **편향**이고,
+            #    예외는 나지 않는다.
+            """
+            CREATE TABLE IF NOT EXISTS dart_disclosure (
+              rcept_no     TEXT NOT NULL,
+              corp_code    TEXT NOT NULL,
+              corp_name    TEXT,
+              stock_code   TEXT,
+              corp_cls     TEXT,
+              report_nm    TEXT,
+              flr_nm       TEXT,
+              rcept_dt     TEXT NOT NULL,
+              rm           TEXT,
+              collected_at TEXT NOT NULL,
+              PRIMARY KEY (rcept_no)
+            )
+            """,
+            # 접수번호로 접수일을 되찾는 조회 (재무 수집기가 매번 쓴다).
+            "CREATE INDEX IF NOT EXISTS idx_dart_disc_corp "
+            "ON dart_disclosure(corp_code, rcept_dt)",
+            # "이 날 무엇이 공시됐나" — 시점정합 검증과 뉴스 대조에 쓴다.
+            "CREATE INDEX IF NOT EXISTS idx_dart_disc_date "
+            "ON dart_disclosure(rcept_dt)",
         ),
     ),
 )
