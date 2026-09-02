@@ -18,6 +18,7 @@ def build_random_forest_baseline(
     random_state: int = DEFAULT_RANDOM_STATE,
     n_estimators: int = DEFAULT_N_ESTIMATORS,
     n_jobs: int = DEFAULT_N_JOBS,
+    class_weight: str | dict[int, float] | None = None,
 ) -> RandomForestClassifier:
     """3분류 방향 예측용 RandomForest 모델을 만듭니다.
 
@@ -34,6 +35,8 @@ def build_random_forest_baseline(
             RandomForest를 구성할 결정트리의 개수입니다.
         n_jobs:
             학습에 사용할 CPU 코어 개수입니다. -1은 모든 코어를 의미합니다.
+        class_weight:
+            클래스별 학습 가중치입니다. 기본값 ``None``은 기존 모델과 같습니다.
 
     Returns:
         아직 학습되지 않은 RandomForestClassifier입니다.
@@ -49,6 +52,9 @@ def build_random_forest_baseline(
 
         # 로컬 CPU 코어를 활용해 여러 결정트리를 병렬로 학습합니다.
         n_jobs=n_jobs,
+
+        # 각 폴드의 학습 라벨 빈도를 반영할지 선택합니다.
+        class_weight=class_weight,
     )
 
     # 아직 학습되지 않은 RandomForest 모델을 반환합니다.

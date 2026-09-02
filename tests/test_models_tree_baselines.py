@@ -143,3 +143,33 @@ def test_트리_기준_모델들이_같은_난수값에서_같은_결과를_반�
             second_model.predict_proba(x_valid),
             err_msg=model_name,
         )
+
+
+def test_트리_기준_모델들이_balanced_가중치를_선택적으로_받는다():
+    """기존 기본값은 유지하고 balanced를 선택했을 때만 적용하는지 확인합니다."""
+
+    for model_name, builder in MODEL_BUILDERS:
+        default_model = builder()
+        balanced_model = builder(class_weight="balanced")
+
+        assert default_model.class_weight is None, model_name
+        assert balanced_model.class_weight == "balanced", model_name
+
+
+def test_balanced_트리_기준_모델들이_불균형_데이터를_학습한다():
+    """XGBoost의 표본 가중치 변환까지 포함해 balanced 학습 경로를 검사합니다."""
+
+    x_train, y_train = _make_training_data()
+    x_valid = _make_validation_data()
+
+    # 중립 클래스만 더 반복해 의도적으로 불균형한 학습 폴드를 만듭니다.
+    neutral_rows = x_train[y_train == 0]
+    x_imbalanced = np.vstack((x_train, neutral_rows, neutral_rows))
+    y_imbalanced = np.concatenate((y_train, np.zeros(len(neutral_rows) * 2, dtype=int)))
+
+    for model_name, builder in MODEL_BUILDERS:
+        model = builder(class_weight="balanced")
+        model.fit(x_imbalanced, y_imbalanced)
+
+        assert model.predict(x_valid).shape == (3,), model_name
+        assert model.predict_proba(x_valid).shape == (3, 3), model_name
