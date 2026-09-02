@@ -53,7 +53,8 @@ from urllib.request import Request, urlopen
 from common import secrets
 
 HF_BASE_URL = "https://router.huggingface.co/hf-inference/models"
-REQUEST_TIMEOUT = 20                 # 콜드스타트 실측 3.65초 — 여유를 두되 서버리스 60초는 넘기지 않는다
+# 콜드스타트 실측 3.65초 — 여유를 두되 서버리스 60초는 넘기지 않는다.
+REQUEST_TIMEOUT = 20
 CACHE_TTL = 3600                     # 같은 공시 제목은 하루 종일 같은 감성이다. 1시간이면 충분하다
 MAX_BATCH = 64                       # 한 번에 보낼 텍스트 수 (그보다 많으면 나눠 부른다)
 

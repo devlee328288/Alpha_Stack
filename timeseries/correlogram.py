@@ -88,8 +88,16 @@ def acf(values: Sequence, nlags: int = 40, alpha: float = 0.05) -> Dict:
         "n": int(n),
         "method": "bartlett",
         "alpha": alpha,
-        "significant_lags": [k for k, r, u in zip(range(1, nlags + 1), values_out, upper, strict=False)
-                             if abs(r) > u],
+        "significant_lags": [
+            k
+            for k, r, u in zip(
+                range(1, nlags + 1),
+                values_out,
+                upper,
+                strict=False,
+            )
+            if abs(r) > u
+        ],
         "note": "신뢰띠는 Bartlett 공식이라 시차가 커질수록 넓어집니다. "
                 "띠 안쪽 값은 0과 구별되지 않습니다.",
     }

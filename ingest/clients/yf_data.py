@@ -151,7 +151,10 @@ def _cached(key: Tuple, producer):
     return value
 
 
-def price_bounds(prices: List[Optional[float]], margin: float = Y_AXIS_MARGIN) -> Tuple[float, float]:
+def price_bounds(
+    prices: List[Optional[float]],
+    margin: float = Y_AXIS_MARGIN,
+) -> Tuple[float, float]:
     """가격 목록에서 Y축 최소·최대를 계산한다 (위아래 `margin` 만큼 여백).
 
     0 부터 그리면 5개 값이 다 비슷해 보여 변화가 안 보인다.
