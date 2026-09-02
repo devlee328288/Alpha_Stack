@@ -32,13 +32,14 @@
         .formula-box {
             background-color: #e9ecef;
             border-radius: 8px;
-            padding: 20px 25px;
+            padding: 25px 25px;
             margin: 20px 0;
             font-size: 1.2rem;
             text-align: center;
             font-weight: bold;
             border: 1px solid #ced4da;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            overflow-x: auto;
         }
 
         .formula-box .math {
@@ -50,16 +51,19 @@
             font-size: 1rem;
             font-weight: normal;
             color: #495057;
+            display: block;
+            margin-top: 10px;
         }
 
         .sub-formula-box {
             background-color: #f1f3f5;
             border-radius: 8px;
-            padding: 15px 20px;
+            padding: 20px 20px;
             margin: 15px 0 20px 0;
-            font-size: 1.05rem;
+            font-size: 1.1rem;
             text-align: center;
             border: 1px dashed #6c757d;
+            overflow-x: auto;
         }
 
         .variable-table {
@@ -178,37 +182,77 @@
     <p>
         IC는 일반적으로 <strong>피어슨 상관계수(Pearson IC)</strong> 또는 <strong>스피어만 순위 상관계수(Rank IC)</strong>로 계산되며,
         Rank IC는 이상치(Outlier)에 덜 민감하여 실무에서 더 자주 사용됩니다.
-        월간 또는 분기별로 IC를 측정하여 <strong>전략의 예측력이 지속적으로 유효한지</strong> 검증하는 데 활용됩니다.
     </p>
 
-    <!-- ==================== 수식 ==================== -->
-    <h2>📐 IC 기본 수식 (Pearson Correlation)</h2>
+    <!-- ==================== 1. 피어슨 IC (실제 수식) ==================== -->
+    <h2>📐 1. 피어슨 IC (Pearson Correlation) - 실제 계산 수식</h2>
+    <p>
+        <strong>피어슨 IC</strong>는 예측값(\(P_i\))과 실제 수익률(\(R_i\)) 간의 <strong>선형 상관관계</strong>를 측정합니다.
+        아래 수식은 각 변수에서 평균을 빼고, 그 곱의 합을 표준편차의 곱으로 나눈 것입니다.
+    </p>
 
     <div class="formula-box">
-        <span class="math">IC</span> =
-        <span style="font-size: 1.6rem;">(</span>
-        <span class="math">Correlation</span>
-        <span style="font-size: 1.6rem;">)</span>
+        <span class="math">IC<sub>Pearson</sub></span>
         <span style="font-size: 1.2rem;"> = </span>
-        <span style="font-size: 1.1rem;">
-            &rho; ( <span class="math">Predicted Returns</span> , <span class="math">Actual Returns</span> )
+        <span style="font-size: 1.4rem;">
+            <span style="font-size:1.8rem;">(</span>
+            <span style="font-size:1.0rem;">Σ</span><sub style="font-size:0.9rem;">i=1</sub><sup
+                style="font-size:0.9rem;">N</sup>
+            ( <span class="math">P<sub>i</sub></span> − <span class="math">\bar{P}</span> ) · ( <span
+                class="math">R<sub>i</sub></span> − <span class="math">\bar{R}</span> )
+            <span style="font-size:1.8rem;">)</span>
         </span>
-        <br>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span style="font-size: 1.4rem;">
+            √<span style="font-size:1.2rem;">(</span>
+            <span style="font-size:1.0rem;">Σ</span><sub style="font-size:0.9rem;">i=1</sub><sup
+                style="font-size:0.9rem;">N</sup>
+            ( <span class="math">P<sub>i</sub></span> − <span class="math">\bar{P}</span> )<sup>2</sup>
+            ·
+            <span style="font-size:1.0rem;">Σ</span><sub style="font-size:0.9rem;">i=1</sub><sup
+                style="font-size:0.9rem;">N</sup>
+            ( <span class="math">R<sub>i</sub></span> − <span class="math">\bar{R}</span> )<sup>2</sup>
+            <span style="font-size:1.2rem;">)</span>
+        </span>
         <span class="sub">
-            (단, <strong>피어슨 상관계수</strong> 기준, 값의 범위는 <strong>-1 ~ +1</strong>)
+            📌 <span class="math">P<sub>i</sub></span> = i번째 자산의 예측값, <span class="math">R<sub>i</sub></span> = i번째 자산의
+            실제 수익률, <span class="math">\bar{P}</span> = 예측값의 평균, <span class="math">\bar{R}</span> = 실제 수익률의 평균, <span
+                class="math">N</span> = 자산(종목)의 총 개수
         </span>
     </div>
 
-    <h2>📐 세부 계산 수식 (Rank IC - 실무 표준)</h2>
+    <!-- ==================== 2. 랭크 IC (실제 수식) ==================== -->
+    <h2>📐 2. 랭크 IC (Rank IC - 실무 표준) - 실제 계산 수식</h2>
+    <p>
+        <strong>랭크 IC</strong>는 실제 숫자 대신 <strong>순위(Rank)</strong>를 사용하여 상관관계를 측정합니다.
+        이상치(Outlier)의 영향을 제거할 수 있어 퀀트 실무에서 가장 널리 쓰입니다.
+        아래는 중복 순위(Tie)가 없을 때 사용하는 간편식(스피어만 공식)입니다.
+    </p>
+
     <div class="sub-formula-box">
-        <span class="math">Rank IC</span> =
-        <span style="font-size:1.2rem;">
-            &rho;<sub>s</sub> ( <span class="math">Rank(Predicted)</span> , <span class="math">Rank(Actual)</span> )
+        <span style="font-size:1.1rem;">
+            <span class="math">d<sub>i</sub></span> = <span class="math">Rank( P<sub>i</sub> )</span> − <span
+                class="math">Rank( R<sub>i</sub> )</span>
         </span>
-        <br>
-        <span class="sub" style="font-size:0.9rem;">
-            ※ <span class="math">Rank(Predicted)</span> = 예측값의 순위, <span class="math">Rank(Actual)</span> = 실제 수익률의 순위,
-            <span class="math">&rho;<sub>s</sub></span> = 스피어만 순위 상관계수 (Spearman's Rank Correlation)
+        <br><br>
+        <span class="math" style="font-size:1.4rem;">Rank IC</span>
+        <span style="font-size: 1.2rem;"> = </span>
+        <span style="font-size: 1.4rem;">
+            1 −
+            <span style="font-size:1.8rem;">(</span>
+            <span style="font-size:1.2rem;">6 · </span><span style="font-size:1.0rem;">Σ</span><sub
+                style="font-size:0.9rem;">i=1</sub><sup style="font-size:0.9rem;">N</sup> <span
+                class="math">d<sub>i</sub></span><sup>2</sup>
+            <span style="font-size:1.8rem;">)</span>
+            <span style="font-size: 1.2rem;"> / </span>
+            <span style="font-size:1.4rem;">
+                <span style="font-size:1.0rem;">(</span> N · ( N<sup>2</sup> − 1 ) <span
+                    style="font-size:1.0rem;">)</span>
+            </span>
+        </span>
+        <span class="sub" style="font-size:0.95rem; margin-top:15px;">
+            ⚠️ <strong>※ 중복 순위(Tie)가 존재할 경우</strong>: 위의 간편식 대신, <strong>순위를 변환한 값들( Rank(P), Rank(R) )을 피어슨 공식(위 1번)에
+                대입</strong>하여 계산합니다. (즉, Rank IC = 피어슨 상관계수(순위값, 순위값))
         </span>
     </div>
 
@@ -225,13 +269,19 @@
         </thead>
         <tbody>
             <tr>
-                <td><strong>정보 계수</strong></td>
-                <td><span class="math">IC</span> 또는 <span class="math">Rank IC</span></td>
+                <td><strong>정보 계수 (피어슨)</strong></td>
+                <td><span class="math">IC<sub>Pearson</sub></span></td>
                 <td>
                     <span class="badge badge-red">결과값</span>
-                    <strong>예측력의 강도와 방향</strong>을 나타내는 상관계수.
-                    <strong>+1</strong>에 가까울수록 예측이 완벽함, <strong>0</strong>은 무작위 추측,
-                    <strong>-1</strong>은 예측이 정반대로 틀림을 의미합니다.
+                    -1 ~ +1 범위. 숫자 간의 <strong>선형 관계</strong>를 측정.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>정보 계수 (순위)</strong></td>
+                <td><span class="math">Rank IC</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    -1 ~ +1 범위. <strong>순위 간의 일치도</strong>를 측정 (실무 표준).
                 </td>
             </tr>
             <tr>
@@ -239,8 +289,7 @@
                 <td><span class="math">P<sub>i</sub></span></td>
                 <td>
                     <span class="badge badge-green">입력값</span>
-                    모델 또는 팩터가 산출한 <strong>i번째 자산의 예측 점수/수익률</strong>.
-                    (예: 모멘텀 점수, 밸류에이션 스코어 등)
+                    모델이 산출한 <strong>i번째 자산의 예측 점수/수익률</strong>.
                 </td>
             </tr>
             <tr>
@@ -248,8 +297,16 @@
                 <td><span class="math">R<sub>i</sub></span></td>
                 <td>
                     <span class="badge badge-green">입력값</span>
-                    이후 기간 동안 <strong>실제로 관측된 i번째 자산의 수익률</strong>.
-                    (예: 다음 달 수익률)
+                    이후 기간에 <strong>실제로 관측된 i번째 자산의 수익률</strong>.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>순위 차이</strong></td>
+                <td><span class="math">d<sub>i</sub></span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    <span class="math">Rank(P<sub>i</sub>) − Rank(R<sub>i</sub>)</span>.
+                    랭크 IC 계산에 핵심적으로 사용됩니다.
                 </td>
             </tr>
             <tr>
@@ -259,15 +316,6 @@
                     <span class="badge badge-blue">옵션</span>
                     분석에 포함된 <strong>전체 자산(종목)의 개수</strong>.
                     표본 크기가 작을수록 IC의 신뢰도가 떨어집니다.
-                </td>
-            </tr>
-            <tr>
-                <td><strong>순위 (Rank)</strong></td>
-                <td><span class="math">Rank(·)</span></td>
-                <td>
-                    <span class="badge badge-warning">변환값</span>
-                    실제 숫자 대신 <strong>크기 순서대로 매긴 순위</strong> (1등, 2등, ...).
-                    이상치 영향을 줄이기 위해 Rank IC를 사용합니다.
                 </td>
             </tr>
         </tbody>
@@ -287,17 +335,17 @@
         </ul>
         <p style="margin-top:10px;">
             <strong>👉 1) 피어슨 IC (상관계수) 계산</strong><br>
-            예측값 [12, 8, 5, 15, 3]과 실제값 [10, 9, 4, 12, 1]의 상관관계를 계산하면<br>
+            위의 피어슨 공식에 대입하여 계산하면<br>
             <span class="math">Pearson IC ≈ <strong style="color:#0d6efd;">0.96</strong></span> (매우 강한 양의 상관관계)
         </p>
         <p>
             <strong>👉 2) Rank IC (순위 상관계수) 계산</strong><br>
-            예측 순위: [2등, 3등, 4등, 1등, 5등] , 실제 순위: [2등, 3등, 4등, 1등, 5등] → <strong>완벽 일치</strong><br>
+            예측 순위: [2등, 3등, 4등, 1등, 5등] , 실제 순위: [2등, 3등, 4등, 1등, 5등] → <strong>완벽 일치</strong> (모든 d<sub>i</sub>=0)<br>
             <span class="math">Rank IC = <strong style="color:#0d6efd;">1.0</strong></span> (이상적인 예측력)
         </p>
         <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
             ✅ 해석: 이 모델은 예측 순위와 실제 수익률 순위가 완벽하게 일치하므로, <strong>매우 뛰어난 예측력</strong>을 가지고 있습니다.
-            <br>(실제로는 시장 노이즈로 인해 IC가 0.1~0.2 수준에서도 훌륭한 팩터로 인정받습니다.)
+            <br>(실제로는 시장 노이즈로 인해 IC가 0.05~0.10 수준에서도 훌륭한 팩터로 인정받습니다.)
         </p>
     </div>
 
@@ -385,7 +433,7 @@
     </ul>
 
     <footer>
-        <p>Information Coefficient (IC) - 정보 계수 설명 | © 2026</p>
+        <p>Information Coefficient (IC) - 정보 계수 설명 (실제 계산 수식 포함) | © 2026</p>
     </footer>
 
 </body>
