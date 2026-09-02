@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Information Coefficient (IC) 정보 계수 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📊 Information Coefficient (IC) - 정보 계수</h1>
+    <p>
+        <strong>정보 계수(Information Coefficient, IC)</strong>는 퀀트 투자 및 팩터 모델링에서 가장 핵심적인 평가 지표로,
+        <strong>예측값(점수)과 실제 수익률 간의 상관관계(Correlation)</strong>를 측정합니다.
+        쉽게 말해, <strong>"내가 만든 예측 모델이 실제 주가 방향을 얼마나 잘 맞추는가"</strong>를 숫자로 나타냅니다.
+    </p>
+    <p>
+        IC는 일반적으로 <strong>피어슨 상관계수(Pearson IC)</strong> 또는 <strong>스피어만 순위 상관계수(Rank IC)</strong>로 계산되며,
+        Rank IC는 이상치(Outlier)에 덜 민감하여 실무에서 더 자주 사용됩니다.
+        월간 또는 분기별로 IC를 측정하여 <strong>전략의 예측력이 지속적으로 유효한지</strong> 검증하는 데 활용됩니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 IC 기본 수식 (Pearson Correlation)</h2>
+
+    <div class="formula-box">
+        <span class="math">IC</span> =
+        <span style="font-size: 1.6rem;">(</span>
+        <span class="math">Correlation</span>
+        <span style="font-size: 1.6rem;">)</span>
+        <span style="font-size: 1.2rem;"> = </span>
+        <span style="font-size: 1.1rem;">
+            &rho; ( <span class="math">Predicted Returns</span> , <span class="math">Actual Returns</span> )
+        </span>
+        <br>
+        <span class="sub">
+            (단, <strong>피어슨 상관계수</strong> 기준, 값의 범위는 <strong>-1 ~ +1</strong>)
+        </span>
+    </div>
+
+    <h2>📐 세부 계산 수식 (Rank IC - 실무 표준)</h2>
+    <div class="sub-formula-box">
+        <span class="math">Rank IC</span> =
+        <span style="font-size:1.2rem;">
+            &rho;<sub>s</sub> ( <span class="math">Rank(Predicted)</span> , <span class="math">Rank(Actual)</span> )
+        </span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ <span class="math">Rank(Predicted)</span> = 예측값의 순위, <span class="math">Rank(Actual)</span> = 실제 수익률의 순위,
+            <span class="math">&rho;<sub>s</sub></span> = 스피어만 순위 상관계수 (Spearman's Rank Correlation)
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>정보 계수</strong></td>
+                <td><span class="math">IC</span> 또는 <span class="math">Rank IC</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>예측력의 강도와 방향</strong>을 나타내는 상관계수.
+                    <strong>+1</strong>에 가까울수록 예측이 완벽함, <strong>0</strong>은 무작위 추측,
+                    <strong>-1</strong>은 예측이 정반대로 틀림을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>예측 수익률</strong></td>
+                <td><span class="math">P<sub>i</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    모델 또는 팩터가 산출한 <strong>i번째 자산의 예측 점수/수익률</strong>.
+                    (예: 모멘텀 점수, 밸류에이션 스코어 등)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>실제 수익률</strong></td>
+                <td><span class="math">R<sub>i</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    이후 기간 동안 <strong>실제로 관측된 i번째 자산의 수익률</strong>.
+                    (예: 다음 달 수익률)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>자산 수</strong></td>
+                <td><span class="math">N</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    분석에 포함된 <strong>전체 자산(종목)의 개수</strong>.
+                    표본 크기가 작을수록 IC의 신뢰도가 떨어집니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>순위 (Rank)</strong></td>
+                <td><span class="math">Rank(·)</span></td>
+                <td>
+                    <span class="badge badge-warning">변환값</span>
+                    실제 숫자 대신 <strong>크기 순서대로 매긴 순위</strong> (1등, 2등, ...).
+                    이상치 영향을 줄이기 위해 Rank IC를 사용합니다.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (5개 종목, 다음 달 수익률 예측)</strong></p>
+        <ul>
+            <li><strong>종목 A</strong>: 예측 12% → 실제 10%</li>
+            <li><strong>종목 B</strong>: 예측 8% → 실제 9%</li>
+            <li><strong>종목 C</strong>: 예측 5% → 실제 4%</li>
+            <li><strong>종목 D</strong>: 예측 15% → 실제 12%</li>
+            <li><strong>종목 E</strong>: 예측 3% → 실제 1%</li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 피어슨 IC (상관계수) 계산</strong><br>
+            예측값 [12, 8, 5, 15, 3]과 실제값 [10, 9, 4, 12, 1]의 상관관계를 계산하면<br>
+            <span class="math">Pearson IC ≈ <strong style="color:#0d6efd;">0.96</strong></span> (매우 강한 양의 상관관계)
+        </p>
+        <p>
+            <strong>👉 2) Rank IC (순위 상관계수) 계산</strong><br>
+            예측 순위: [2등, 3등, 4등, 1등, 5등] , 실제 순위: [2등, 3등, 4등, 1등, 5등] → <strong>완벽 일치</strong><br>
+            <span class="math">Rank IC = <strong style="color:#0d6efd;">1.0</strong></span> (이상적인 예측력)
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 이 모델은 예측 순위와 실제 수익률 순위가 완벽하게 일치하므로, <strong>매우 뛰어난 예측력</strong>을 가지고 있습니다.
+            <br>(실제로는 시장 노이즈로 인해 IC가 0.1~0.2 수준에서도 훌륭한 팩터로 인정받습니다.)
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 IC (정보 계수) 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 IC &lt; 0.0</strong> : 예측이 실제와 <strong>반대 방향</strong>으로 움직임 (전략 폐기 권장).</li>
+            <li><strong>🟡 0.0 ≤ IC &lt; 0.03</strong> : 거의 <strong>무작위 수준</strong> (예측력 없음).</li>
+            <li><strong>🟢 0.03 ≤ IC &lt; 0.05</strong> : <strong>약한 예측력</strong> (개선이 필요한 수준).</li>
+            <li><strong>⭐ 0.05 ≤ IC &lt; 0.10</strong> : <strong>양호한 예측력</strong> (실무에서 충분히 활용 가능).</li>
+            <li><strong>🚀 IC ≥ 0.10</strong> : <strong>매우 우수한 예측력</strong> (퀀트 업계에서도 찾기 힘든 고성능 팩터).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>IC는 표본 수(N)에 영향을 받습니다</strong>. 종목이 10개 미만이면 우연에 의한 높은 IC가 나올 수 있으므로,
+            충분한 표본(보통 30~50개 이상)에서 측정해야 합니다.
+        </p>
+    </div>
+
+    <!-- ==================== Pearson vs Rank IC 비교 ==================== -->
+    <h2>📊 Pearson IC vs Rank IC 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">Pearson IC (일반 상관)</th>
+                <th style="text-align: left; padding: 8px;">Rank IC (순위 상관)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>계산 방식</strong></td>
+                <td style="padding: 8px;">실제 숫자(수익률) 간의 <strong>선형 상관관계</strong></td>
+                <td style="padding: 8px;">숫자를 <strong>순위로 변환</strong>한 뒤 상관관계 측정</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>이상치 영향</strong></td>
+                <td style="padding: 8px;">극단값(Outlier)에 <strong>매우 민감</strong></td>
+                <td style="padding: 8px;">극단값에 <strong>강건(Robust)</strong>하여 영향이 적음</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>실무 선호도</strong></td>
+                <td style="padding: 8px;">선형 관계가 명확할 때 사용 (드물게 사용)</td>
+                <td style="padding: 8px;"><strong>가장 널리 사용</strong>되는 표준 IC 측정법</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>해석 난이도</strong></td>
+                <td style="padding: 8px;">크기까지 반영하므로 해석이 다소 복잡함</td>
+                <td style="padding: 8px;">순서만 보므로 <strong>직관적이고 해석이 용이</strong></td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ IC (정보 계수) 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>룩어헤드 바이어스 (Look-ahead Bias)</strong>: 미래 데이터를 예측에 사용했다면 IC가 심각하게 왜곡됩니다.
+                반드시 <strong>과거 데이터만으로 예측</strong>했는지 검증해야 합니다.
+            </li>
+            <li>
+                <strong>생존자 편향 (Survivorship Bias)</strong>: 현재 존재하는 종목만으로 백테스트하면 IC가 과대평가됩니다.
+                <strong>청산/상장폐지된 종목</strong>까지 포함해야 합니다.
+            </li>
+            <li>
+                <strong>비정상성 (Non-stationarity)</strong>: 과거에 높던 IC가 미래에도 지속된다는 보장은 없습니다.
+                <strong>롤링 윈도우(Rolling Window)</strong>로 IC의 추세를 지속적으로 모니터링해야 합니다.
+            </li>
+            <li>
+                <strong>표본 수 부족</strong>: 종목 수가 너무 적으면(예: 10개 미만) 통계적 유의성이 떨어집니다.
+                최소 <strong>30~50개 이상의 표본</strong>으로 측정하는 것이 바람직합니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 IC (정보 계수) 주요 활용 분야</h2>
+    <ul>
+        <li><strong>팩터 투자 (Factor Investing)</strong>: 모멘텀, 밸류, 퀄리티 등 각 팩터의 예측력을 정량적으로 평가.</li>
+        <li><strong>멀티팩터 모델 구축</strong>: 여러 팩터를 결합할 때, IC가 높은 팩터에 더 높은 가중치를 부여.</li>
+        <li><strong>머신러닝 기반 예측 모델</strong>: AI/딥러닝 모델의 예측 성능을 전통적인 통계 지표로 검증.</li>
+        <li><strong>퀀트 펀드 성과 평가</strong>: 월간/분기별 IC 추이를 통해 매니저의 예측 능력을 지속적으로 추적.</li>
+    </ul>
+
+    <footer>
+        <p>Information Coefficient (IC) - 정보 계수 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCC (Matthews Correlation Coefficient) 매튜스 상관계수 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📊 MCC (Matthews Correlation Coefficient) - 매튜스 상관계수</h1>
+    <p>
+        <strong>MCC (매튜스 상관계수)</strong>는 이진 분류(Binary Classification) 모델의 성능을 평가하는
+        <strong>가장 균형 잡히고 신뢰할 수 있는 지표</strong> 중 하나입니다.
+        혼동 행렬(Confusion Matrix)의 네 가지 요소(TP, TN, FP, FN)를 모두 활용하여
+        <strong>-1에서 +1 사이의 값</strong>을 반환하며, 데이터가 극도로 불균형(Imbalanced)한 상황에서도
+        정확도(Accuracy)의 함정에 빠지지 않고 모델의 진짜 예측력을 평가할 수 있습니다.
+    </p>
+    <p>
+        금융 분야에서는 <strong>주가 상승/하락 방향성 예측, 부도/도산 예측, 이상 거래 탐지</strong> 등에서
+        클래스 불균형이 심각한 경우가 많기 때문에, MCC는 이러한 모델들의 실전 성능을 검증하는
+        <strong>필수적인 보조 지표</strong>로 자리 잡고 있습니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 MCC 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">MCC</span> =
+        <span style="font-size: 1.4rem;">
+            <span style="font-size:1.6rem;">(</span> TP · TN − FP · FN <span style="font-size:1.6rem;">)</span>
+        </span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span style="font-size: 1.4rem;">
+            √<span style="font-size:1.2rem;">(</span> (TP + FP) · (TP + FN) · (TN + FP) · (TN + FN) <span
+                style="font-size:1.2rem;">)</span>
+        </span>
+        <br>
+        <span class="sub">
+            (단, TP = True Positive, TN = True Negative, FP = False Positive, FN = False Negative)
+        </span>
+    </div>
+
+    <h2>📐 세부 계산 수식 (혼동 행렬 기반)</h2>
+    <div class="sub-formula-box">
+        <span class="math">MCC</span> =
+        <span style="font-size:1.1rem;">
+            <span style="font-size:1.2rem;">(</span>
+            <span style="color:#198754;">TP</span> × <span style="color:#198754;">TN</span>
+            −
+            <span style="color:#dc3545;">FP</span> × <span style="color:#dc3545;">FN</span>
+            <span style="font-size:1.2rem;">)</span>
+        </span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span style="font-size: 1.1rem;">
+            √<span style="font-size:1.0rem;">(</span>
+            ( <span style="color:#198754;">TP</span> + <span style="color:#dc3545;">FP</span> )
+            ·
+            ( <span style="color:#198754;">TP</span> + <span style="color:#dc3545;">FN</span> )
+            ·
+            ( <span style="color:#198754;">TN</span> + <span style="color:#dc3545;">FP</span> )
+            ·
+            ( <span style="color:#198754;">TN</span> + <span style="color:#dc3545;">FN</span> )
+            <span style="font-size:1.0rem;">)</span>
+        </span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ 모든 혼동 행렬 요소(TP, TN, FP, FN)를 <strong>동시에 고려</strong>하여 단일 점수로 평가합니다.
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>매튜스 상관계수</strong></td>
+                <td><span class="math">MCC</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>-1 ~ +1</strong> 범위의 무차원 수치.
+                    <strong>+1</strong> = 완벽한 예측, <strong>0</strong> = 무작위 추측 수준,
+                    <strong>-1</strong> = 예측이 실제와 완전히 반대임을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>TP (진짜 양성)</strong></td>
+                <td><span class="math">TP</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    실제 <strong>양성(Positive)</strong>이고, 모델도 <strong>양성</strong>으로 맞춘 개수.
+                    (예: 실제 상승장을 상승으로 맞춤)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>TN (진짜 음성)</strong></td>
+                <td><span class="math">TN</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    실제 <strong>음성(Negative)</strong>이고, 모델도 <strong>음성</strong>으로 맞춘 개수.
+                    (예: 실제 하락장을 하락으로 맞춤)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>FP (거짓 양성)</strong></td>
+                <td><span class="math">FP</span></td>
+                <td>
+                    <span class="badge badge-warning">입력값</span>
+                    실제는 <strong>음성</strong>이지만, 모델이 잘못 <strong>양성</strong>으로 예측한 개수.
+                    (예: 실제 하락장을 상승으로 잘못 예측 - <strong>1종 오류</strong>)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>FN (거짓 음성)</strong></td>
+                <td><span class="math">FN</span></td>
+                <td>
+                    <span class="badge badge-warning">입력값</span>
+                    실제는 <strong>양성</strong>이지만, 모델이 잘못 <strong>음성</strong>으로 예측한 개수.
+                    (예: 실제 상승장을 하락으로 잘못 예측 - <strong>2종 오류</strong>)
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (불균형한 100개의 주가 방향성 예측 데이터)</strong></p>
+        <ul>
+            <li><strong>실제 상승장(양성)</strong>: 50개, <strong>실제 하락장(음성)</strong>: 50개 (의도적 균형)</li>
+            <li>혼동 행렬 결과:
+                <ul>
+                    <li>TP (상승을 상승으로 맞춤): <strong>45개</strong></li>
+                    <li>TN (하락을 하락으로 맞춤): <strong>40개</strong></li>
+                    <li>FP (하락을 상승으로 예측): <strong>10개</strong></li>
+                    <li>FN (상승을 하락으로 예측): <strong>5개</strong></li>
+                </ul>
+            </li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 분자 계산 (TP·TN − FP·FN)</strong><br>
+            (45 × 40) − (10 × 5) = 1800 − 50 = <strong>1,750</strong>
+        </p>
+        <p>
+            <strong>👉 2) 분모 계산 (√((TP+FP)(TP+FN)(TN+FP)(TN+FN)))</strong><br>
+            (45+10) × (45+5) × (40+10) × (40+5) = 55 × 50 × 50 × 45 = 6,187,500<br>
+            √6,187,500 ≈ <strong>2,487.5</strong>
+        </p>
+        <p>
+            <strong>👉 3) MCC 최종 계산</strong><br>
+            <span class="math">MCC = 1,750 / 2,487.5 ≈ <strong style="color:#0d6efd;">0.703</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: MCC ≈ <strong>0.70</strong>으로, 이 모델은 상승과 하락을 모두 고려했을 때
+            <strong>우수한 수준(Strong)</strong>의 예측력을 가지고 있습니다.
+            동일한 데이터의 정확도(Accuracy)는 (45+40)/100 = 85%로 매우 높아 보이지만,
+            MCC는 양성/음성 모두의 오차를 균형 있게 반영하여 <strong>더 엄격하고 신뢰할 수 있는 평가</strong>를 제공합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 MCC 해석 가이드 (일반적 기준)</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 MCC &lt; 0.0</strong> : 예측이 실제와 <strong>반대 방향</strong> (모델을 폐기해야 함).</li>
+            <li><strong>🟡 0.0 ≤ MCC &lt; 0.2</strong> : <strong>무작위 추측 수준</strong> (예측력 없음).</li>
+            <li><strong>🟡 0.2 ≤ MCC &lt; 0.4</strong> : <strong>약한 예측력</strong> (개선이 필요한 수준).</li>
+            <li><strong>🟢 0.4 ≤ MCC &lt; 0.6</strong> : <strong>양호한 예측력</strong> (실무에서 활용 가능).</li>
+            <li><strong>⭐ 0.6 ≤ MCC &lt; 0.8</strong> : <strong>우수한 예측력</strong> (매우 신뢰할 수 있음).</li>
+            <li><strong>🚀 MCC ≥ 0.8</strong> : <strong>매우 뛰어난 예측력</strong> (완벽에 가까운 분류 성능).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>MCC는 0.3 이상만 되어도 실무에서 의미 있는 수준</strong>으로 간주됩니다.
+            특히 금융 데이터는 노이즈가 심하기 때문에, 0.2~0.3 수준의 MCC라도 전략적 우위를 제공할 수 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== MCC vs Accuracy 비교 ==================== -->
+    <h2>📊 MCC vs Accuracy (정확도) 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">MCC (매튜스 상관계수)</th>
+                <th style="text-align: left; padding: 8px;">Accuracy (정확도)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>사용 요소</strong></td>
+                <td style="padding: 8px;"><strong>TP, TN, FP, FN</strong> 모두 활용 (균형 잡힘)</td>
+                <td style="padding: 8px;"><strong>TP, TN</strong>만 사용 (맞춘 것만 봄)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>불균형 데이터</strong></td>
+                <td style="padding: 8px;">불균형에 <strong>강건(Robust)</strong>하여 속지 않음</td>
+                <td style="padding: 8px;">불균형에 <strong>취약</strong> (예: 99%가 0인 데이터는 99% 찍어도 높음)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>결과 범위</strong></td>
+                <td style="padding: 8px;"><strong>-1 ~ +1</strong> (음수 값으로 '반대 예측'까지 알려줌)</td>
+                <td style="padding: 8px;"><strong>0 ~ 1</strong> (음수가 없어 방향성 평가 불가)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>실무 활용</strong></td>
+                <td style="padding: 8px;">신뢰도 높은 <strong>최종 검증 지표</strong>로 활용</td>
+                <td style="padding: 8px;">기초 참고용 (MCC와 항상 같이 봄)</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ MCC (매튜스 상관계수) 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>다중 분류(Multi-class)에는 직접 적용 불가</strong>: MCC는 기본적으로 <strong>이진 분류(Binary)</strong> 전용입니다.
+                다중 분류로 확장하려면 <strong>Macro/Micro 평균 MCC</strong>를 별도로 계산해야 합니다.
+            </li>
+            <li>
+                <strong>분모가 0이 되는 경우</strong>: 특정 클래스의 예측이 전혀 없을 때(예: TP+FP=0) 분모가 0이 되어 계산이 불가능합니다.
+                이 경우 MCC는 정의되지 않음(Undefined)으로 처리해야 합니다.
+            </li>
+            <li>
+                <strong>확률적 해석의 어려움</strong>: 0.5가 '보통'이다라는 직관적인 기준이 없어,
+                <strong>도메인 지식(해당 업계의 평균 MCC)</strong>과 함께 해석해야 합니다.
+            </li>
+            <li>
+                <strong>임계값(Threshold) 의존성</strong>: 분류 임계값을 조정하면 TP/FP/TN/FN이 모두 변하므로,
+                <strong>MCC는 임계값에 따라 변동</strong>이 심합니다. 다양한 임계값에서의 평균 MCC를 보는 것이 좋습니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 MCC (매튜스 상관계수) 주요 활용 분야</h2>
+    <ul>
+        <li><strong>주가 방향성 예측 모델</strong>: 상승/하락 이진 분류 모델의 실전 적합성을 MCC로 최종 검증.</li>
+        <li><strong>부도/도산 예측 (Credit Scoring)</strong>: 부도율이 극도로 낮은 데이터에서 모델의 진짜 탐지력을 평가.</li>
+        <li><strong>이상 거래 탐지 (Fraud Detection)</strong>: 정상 거래가 99%인 환경에서 이상 거래를 얼마나 잘 찾는지 측정.</li>
+        <li><strong>바이너리 옵션/차익 거래 시그널</strong>: 매수/매도 신호의 정확도를 Accuracy 대신 MCC로 엄격하게 평가.</li>
+    </ul>
+
+    <footer>
+        <p>MCC (Matthews Correlation Coefficient) - 매튜스 상관계수 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

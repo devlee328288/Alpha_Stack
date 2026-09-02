@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sortino Ratio (소르티노 지수) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.1rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-blue { background-color: #0d6efd; }
+        .badge-green { background-color: #198754; }
+        .badge-red { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        .badge-dark { background-color: #343a40; }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📉 Sortino Ratio (소르티노 지수)</h1>
+    <p>
+        <strong>소르티노 지수(Sortino Ratio)</strong>는 1991년 프랭크 소르티노(Frank A. Sortino)가 제안한 지표로,
+        <strong>하방 변동성(Downside Deviation, σ<sub>d</sub>)만을 위험으로 간주</strong>하여
+        <strong>위험(하락 위험) 1단위당 초과 수익률</strong>을 측정합니다.
+    </p>
+    <p>
+        샤프 지수는 상승 변동성(좋은 변동성)까지 위험(분모)에 포함시켜 <strong>좋은 성과를 과소평가</strong>하는 경향이 있는 반면,
+        소르티노 지수는 <strong>목표 수익률(MAR) 미달 시점의 변동성만</strong> 분모에 반영하여, 실질적인 <strong>하방 리스크 대비 성과</strong>를 더 정확히 평가할 수 있습니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 Sortino Ratio 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">Sortino Ratio</span> =
+        <span style="font-size: 1.6rem;">(</span>
+        <span class="math">R<sub>p</sub></span>
+        <span style="font-size: 1.2rem;"> − </span>
+        <span class="math">MAR</span>
+        <span style="font-size: 1.6rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">σ<sub>d</sub></span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">MAR</span> = Minimum Acceptable Return, 최소 요구 수익률)
+        </span>
+    </div>
+
+    <h2>📐 하방 변동성(Downside Deviation) 세부 수식</h2>
+    <div class="sub-formula-box">
+        <span class="math">σ<sub>d</sub></span> =
+        <span style="font-size:1.4rem;">√</span>
+        <span style="font-size:1.2rem;">(</span>
+        <span style="font-size:1.1rem;">1 / N</span>
+        <span style="font-size:1.2rem;"> × </span>
+        <span style="font-size:1.1rem;">Σ</span>
+        <sub style="font-size:0.9rem;">t=1</sub>
+        <sup style="font-size:0.9rem;">N</sup>
+        <span class="math">min</span>
+        <span style="font-size:1.2rem;">(</span>
+        <span style="font-size:1.1rem;">0</span>
+        <span style="font-size:1.2rem;">,</span>
+        <span class="math">R<sub>t</sub></span>
+        <span style="font-size:1.2rem;"> − </span>
+        <span class="math">MAR</span>
+        <span style="font-size:1.2rem;">)</span>
+        <sup style="font-size:1.2rem;">2</sup>
+        <span style="font-size:1.2rem;">)</span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ <span class="math">R<sub>t</sub></span>는 각 시점(t)의 수익률, <span class="math">min(0, ...)</span>은 음수(하락)만 취함.
+        </span>
+    </div>
+
+    <!-- ==================== 연환산 수식 ==================== -->
+    <h2>📐 연환산(Annualized) Sortino Ratio 수식</h2>
+    <div class="formula-box" style="font-size:1.1rem;">
+        <span class="math">Sortino<sub>annual</sub></span> =
+        <span style="font-size:1.4rem;">√</span><span class="math">N</span>
+        <span style="font-size: 1.2rem;"> × </span>
+        <span style="font-size:1.4rem;">(</span>
+        <span class="math">R<sub>p</sub></span>
+        <span style="font-size: 1.2rem;"> − </span>
+        <span class="math">MAR</span>
+        <span style="font-size:1.4rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">σ<sub>d</sub></span>
+        <br>
+        <span class="sub">(여기서 <span class="math">N</span>은 1년 동안의 기간 수: 일간=252, 주간=52, 월간=12)</span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>소르티노 지수</strong></td>
+                <td><span class="math">Sortino Ratio</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>하방 위험 대비 초과 수익률</strong>. 단위가 없는(무차원) 수치이며,
+                    <strong>값이 클수록 하락장에서의 방어력과 효율이 우수</strong>함을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>포트폴리오 수익률</strong></td>
+                <td><span class="math">R<sub>p</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    분석 기간 동안의 <strong>평균 수익률 (또는 기대 수익률)</strong>.
+                    <br>샤프 지수와 동일하게 <strong>수익률 시계열의 산술 평균</strong>을 사용합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>최소 요구 수익률</strong></td>
+                <td><span class="math">MAR</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    투자자가 목표로 하는 <strong>최소한의 기준 수익률</strong> (Threshold).
+                    <br>🔹 <strong>일반적 설정</strong>: <strong>0%</strong> (원금 보호 기준) 또는 <strong>무위험 수익률(R<sub>f</sub>)</strong>
+                    <br>🔹 <strong>고급 설정</strong>: 물가상승률, 벤치마크 수익률, 또는 개인 목표 수익률 등
+                    <br><small>※ <strong>MAR을 0%로 설정</strong>하면, 마이너스 수익만 하방 위험으로 간주합니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>하방 편차</strong></td>
+                <td><span class="math">σ<sub>d</sub></span> (Downside Deviation)</td>
+                <td>
+                    <span class="badge badge-warning">중간값/입력값</span>
+                    <strong>MAR을 하회한 수익률(음수)</strong>들만 추려서 계산한 <strong>표준편차</strong>.
+                    <br>즉, <strong>하락 구간의 변동성</strong>만을 측정합니다.
+                    <br><small>※ 분모가 작을수록(하방 변동성이 낮을수록) 소르티노 지수가 높아집니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>시점별 수익률</strong></td>
+                <td><span class="math">R<sub>t</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    분석 기간 내 각 시점(일/월/주)의 <strong>수익률 데이터</strong>.
+                    <br>하방 편차 계산에 사용되는 원시 데이터입니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>전체 관측치 수</strong></td>
+                <td><span class="math">N</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    분석에 사용된 <strong>전체 데이터 포인트 수</strong>.
+                    <br>연환산 시에는 1년 기준 기간 수(252, 52, 12)로 대체됩니다.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (월간 데이터, MAR = 0%)</strong></p>
+        <ul>
+            <li>월간 평균 포트폴리오 수익률 (<span class="math">R<sub>p</sub></span>): <strong>1.2%</strong> (0.012)</li>
+            <li>최소 요구 수익률 (<span class="math">MAR</span>): <strong>0%</strong> (0.00)</li>
+            <li>월간 수익률 데이터: <strong>+3%, +1%, -2%, +4%, -5%, +2%</strong> (6개월)</li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 하방 편차 (σ<sub>d</sub>) 계산</strong><br>
+            음수(하락) 구간만 추출: <strong>-2%, -5%</strong><br>
+            <span class="math">σ<sub>d</sub> = √[ ( (-0.02)² + (-0.05)² ) / 6 ] = √[ (0.0004 + 0.0025) / 6 ] = √(0.0029/6) = √0.000483 ≈ <strong>0.0220 (2.20%)</strong></span>
+        </p>
+        <p>
+            <strong>👉 2) Sortino Ratio 계산</strong><br>
+            <span class="math">Sortino = (0.012 − 0.00) / 0.0220 = 0.012 / 0.0220 ≈ <strong style="color:#0d6efd;">0.545</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 이 포트폴리오는 하방 위험(하락 변동성) 1단위당 약 <strong>0.545의 초과 수익</strong>을 창출하고 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 Sortino Ratio 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 Sortino &lt; 0</strong> : MAR보다 수익률이 낮음 (투자 매력 없음).</li>
+            <li><strong>🟡 0 ≤ Sortino &lt; 0.5</strong> : 보통 수준 (하방 위험 관리가 평범).</li>
+            <li><strong>🟢 0.5 ≤ Sortino &lt; 1.0</strong> : 양호한 수준 (하락장 방어력 우수).</li>
+            <li><strong>⭐ Sortino ≥ 1.0</strong> : 매우 우수한 수준 (탁월한 하방 리스크 대비 성과).</li>
+            <li><strong>🚀 Sortino ≥ 2.0</strong> : 최상위 수준 (극도로 안정적인 하방 변동성 대비 고수익).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>샤프 지수보다 Sortino 지수가 높은 경우</strong>는 상승 변동성이 컸음을 의미하며, 이는 해당 전략이 <strong>상승장에서의 변동성(좋은 변동성)이 컸다</strong>는 뜻입니다.
+        </p>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ Sortino Ratio 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>MAR 설정에 민감</strong>: MAR을 0%로 하느냐, 무위험수익률로 하느냐에 따라 값이 크게 달라집니다.
+            </li>
+            <li>
+                <strong>하방 변동성만 고려</strong>: 상승 변동성은 완전히 무시하므로, <strong>상승 랠리에서의 기회 비용</strong>을 반영하지 않습니다.
+            </li>
+            <li>
+                <strong>과거 지표일 뿐</strong>: 미래의 하방 위험을 보장하지 않습니다.
+            </li>
+            <li>
+                <strong>정규 분포 가정 없음</strong>: 샤프 지수와 달리 정규성을 가정하지 않으므로, <strong>비대칭적 수익률 분포</strong>에 더 적합합니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 Sortino Ratio 주요 활용 분야</h2>
+    <ul>
+        <li><strong>헤지펀드 / 대체투자 평가</strong>: 하방 리스크가 중요한 전략(예: 롱-숏, CTA)에 적합.</li>
+        <li><strong>은퇴자금 / 연금 포트폴리오</strong>: 원금 보호가 중요한 투자자에게 적합.</li>
+        <li><strong>하방 보호 전략(옵션 헷지 등)</strong>: 손실 제한 전략의 효율성 평가.</li>
+        <li><strong>샤프 지수와 함께 비교 분석</strong>: 상승 변동성 vs 하방 변동성의 비율을 파악 가능.</li>
+    </ul>
+
+    <footer>
+        <p>Sortino Ratio (소르티노 지수) 설명 | © 2026</p>
+    </footer>
+
+</body>
+</html>

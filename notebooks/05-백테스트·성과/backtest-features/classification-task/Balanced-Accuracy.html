@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balanced Accuracy (밸런스드 정확도) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>⚖️ Balanced Accuracy - 밸런스드 정확도</h1>
+    <p>
+        <strong>Balanced Accuracy (밸런스드 정확도)</strong>는 이진 분류(Binary Classification) 모델의 성능을 평가하는 지표로,
+        <strong>민감도(Sensitivity, True Positive Rate)와 특이도(Specificity, True Negative Rate)의 산술 평균</strong>입니다.
+        즉, <strong>양성(Positive)과 음성(Negative) 클래스 각각에 대한 정확도를 동등한 가중치로 평균</strong>내어,
+        데이터 불균형(Imbalanced Data) 상황에서 발생하는 <strong>정확도(Accuracy)의 함정을 보완</strong>합니다.
+    </p>
+    <p>
+        예를 들어, 전체 데이터의 90%가 음성인 경우, 모델이 모든 것을 음성으로 예측해도 정확도는 90%가 나오지만,
+        Balanced Accuracy는 50% (양성은 0%, 음성은 100% → 평균 50%)로 계산되어 <strong>모델이 전혀 예측력이 없음을 정확히 지적</strong>합니다.
+        따라서 금융 분야에서는 <strong>부도 예측, 사기 탐지, 희귀 상승장 예측</strong> 등에서 Accuracy 대신 기본적인 검증 지표로 널리 사용됩니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 Balanced Accuracy 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">Balanced Accuracy</span> =
+        <span style="font-size: 1.2rem;">(</span>
+        <span class="math">Sensitivity</span>
+        <span style="font-size: 1.2rem;"> + </span>
+        <span class="math">Specificity</span>
+        <span style="font-size: 1.2rem;">)</span>
+        <span style="font-size: 1.2rem;"> / 2</span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">Sensitivity</span> = TP/(TP+FN), <span class="math">Specificity</span> = TN/(TN+FP))
+        </span>
+    </div>
+
+    <h2>📐 세부 계산 수식 (혼동 행렬 기반)</h2>
+    <div class="sub-formula-box">
+        <span class="math">Balanced Accuracy</span> =
+        <span style="font-size:1.0rem;">
+            <span style="font-size:1.2rem;">[</span>
+            <span style="color:#198754;">TP</span> / ( <span style="color:#198754;">TP</span> + <span
+                style="color:#dc3545;">FN</span> )
+            <span style="font-size:1.2rem;"> + </span>
+            <span style="color:#198754;">TN</span> / ( <span style="color:#198754;">TN</span> + <span
+                style="color:#dc3545;">FP</span> )
+            <span style="font-size:1.2rem;">]</span>
+            <span style="font-size:1.2rem;"> / 2</span>
+        </span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ <span style="color:#198754;">초록색</span>은 모델이 맞춘 것, <span style="color:#dc3545;">빨간색</span>은 모델이 틀린 것입니다.
+            두 클래스 모두 동등하게 50%씩 가중치를 부여합니다.
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>밸런스드 정확도</strong></td>
+                <td><span class="math">Balanced Accuracy</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>0 ~ 1</strong> 범위의 무차원 수치.
+                    <strong>0.5</strong>는 무작위 추측 수준, <strong>1.0</strong>은 완벽한 분류를 의미합니다.
+                    (데이터 불균형에 관계없이 항상 0.5가 기준선입니다.)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>민감도 (Sensitivity / TPR)</strong></td>
+                <td><span class="math">Recall</span> 또는 <span class="math">TPR</span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    실제 <strong>양성(Positive)</strong> 중 모델이 정확히 맞춘 비율.
+                    <br>공식: TP / (TP + FN) — <strong>실제 양성을 놓치지 않았는가</strong>를 측정합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>특이도 (Specificity / TNR)</strong></td>
+                <td><span class="math">TNR</span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    실제 <strong>음성(Negative)</strong> 중 모델이 정확히 맞춘 비율.
+                    <br>공식: TN / (TN + FP) — <strong>실제 음성을 얼마나 잘 배제(거짓 경보 회피)했는가</strong>를 측정합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>TP / TN / FP / FN</strong></td>
+                <td><span class="math">혼동 행렬</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    이전 MCC 페이지에서 정의된 동일한 혼동 행렬 요소들입니다.
+                    (TP: 진짜 양성, TN: 진짜 음성, FP: 거짓 양성, FN: 거짓 음성)
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (극도로 불균형한 1,000개 데이터, 실제 양성 10% = 100개)</strong></p>
+        <ul>
+            <li><strong>모델 A (무식한 모델)</strong>: 모든 데이터를 <strong>음성(Negative)</strong>으로 예측함.
+                <ul>
+                    <li>TP = 0, FN = 100 (양성을 모두 놓침)</li>
+                    <li>TN = 900, FP = 0 (음성은 모두 맞춤)</li>
+                </ul>
+            </li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 정확도 (Accuracy) 계산 (함정)</strong><br>
+            Accuracy = (TP + TN) / 전체 = (0 + 900) / 1000 = <strong style="color:#dc3545;">0.90 (90%)</strong><br>
+            👉 매우 높아 보이지만, 모델은 전혀 예측을 못 하고 있습니다!
+        </p>
+        <p>
+            <strong>👉 2) Balanced Accuracy 계산 (진짜 평가)</strong><br>
+            Sensitivity (TPR) = TP / (TP + FN) = 0 / (0 + 100) = <strong>0.0</strong><br>
+            Specificity (TNR) = TN / (TN + FP) = 900 / (900 + 0) = <strong>1.0</strong><br>
+            <span class="math">Balanced Accuracy = (0.0 + 1.0) / 2 = <strong style="color:#0d6efd;">0.50
+                    (50%)</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: Balanced Accuracy는 <strong>0.50</strong>으로, 이 모델이 무작위 추측(동전 던지기) 수준임을 정확히 지적합니다.
+            이처럼 Balanced Accuracy는 <strong>데이터 비율에 상관없이 항상 0.5를 무작위 기준선</strong>으로 사용하여,
+            불균형 데이터에서 속지 않도록 도와줍니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 Balanced Accuracy 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 Balanced Accuracy &lt; 0.5</strong> : <strong>무작위 추측보다 나쁨</strong> (모델이 의도적으로 반대로 예측 중).</li>
+            <li><strong>🟡 0.5</strong> : <strong>무작위 추측 수준</strong> (전혀 예측력 없음).</li>
+            <li><strong>🟡 0.5 &lt; BA &lt; 0.7</strong> : <strong>약한 예측력</strong>. 다수 클래스만 편향되어 있을 가능성이 큼.</li>
+            <li><strong>🟢 0.7 ≤ BA &lt; 0.8</strong> : <strong>양호한 예측력</strong>. 실무에서 의미 있는 수준.</li>
+            <li><strong>⭐ 0.8 ≤ BA &lt; 0.9</strong> : <strong>우수한 예측력</strong>. 양성과 음성을 모두 훌륭히 구분함.</li>
+            <li><strong>🚀 BA ≥ 0.9</strong> : <strong>매우 뛰어난 예측력</strong> (거의 완벽한 분류).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            💡 <strong>핵심 포인트</strong>: Balanced Accuracy는 데이터의 양성 비율이 1%이든 99%이든 <strong>항상 0.5가 무작위 기준선</strong>입니다.
+            따라서 불균형이 심할수록 Accuracy보다 Balanced Accuracy가 <strong>훨씬 더 엄격하고 신뢰할 수 있는 평가</strong>를 제공합니다.
+        </p>
+    </div>
+
+    <!-- ==================== Balanced Accuracy vs Accuracy 비교 ==================== -->
+    <h2>📊 Balanced Accuracy vs Accuracy (정확도) 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">Balanced Accuracy</th>
+                <th style="text-align: left; padding: 8px;">Accuracy (정확도)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>계산 방식</strong></td>
+                <td style="padding: 8px;"><strong>(TPR + TNR) / 2</strong> (클래스별 평균)</td>
+                <td style="padding: 8px;"><strong>(TP + TN) / 전체</strong> (전체 중 맞춘 비율)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>클래스 불균형</strong></td>
+                <td style="padding: 8px;"><strong>강건(Robust)</strong> — 양성/음성 모두 동등하게 봄</td>
+                <td style="padding: 8px;"><strong>취약</strong> — 다수 클래스만 잘 맞춰도 높게 나옴</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>무작위 기준선</strong></td>
+                <td style="padding: 8px;"><strong>항상 0.5 (50%)</strong> (데이터와 무관)</td>
+                <td style="padding: 8px;"><strong>데이터의 다수 클래스 비율</strong> (예: 90%)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>실무 활용</strong></td>
+                <td style="padding: 8px;">불균형 데이터의 <strong>최종 검증 지표</strong>로 필수 사용</td>
+                <td style="padding: 8px;">클래스 균형이 완벽할 때만 신뢰 가능</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ Balanced Accuracy 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>정밀도(Precision)를 직접 고려하지 않음</strong>: Balanced Accuracy는 FP(거짓 양성)를 Specificity를 통해 간접적으로만 반영합니다.
+                FP가 매우 많아도 TN이 많으면 Specificity가 높게 유지될 수 있으므로, <strong>F1-Score나 MCC와 함께 보는 것이 필수</strong>입니다.
+            </li>
+            <li>
+                <strong>임계값(Threshold) 의존성</strong>: 다른 분류 지표와 마찬가지로, 확률 출력의 임계값을 어떻게 설정하느냐에 따라 Balanced Accuracy가 크게
+                변동합니다.
+                <strong>고정된 임계값보다는 PR-AUC 등 곡선 기반 지표와 병행</strong>하는 것이 좋습니다.
+            </li>
+            <li>
+                <strong>다중 클래스(Multi-class)로의 확장</strong>: 이진 분류 전용입니다. 다중 클래스로 확장하려면 <strong>Macro Balanced
+                    Accuracy</strong> (각 클래스의 Recall 평균)를 별도로 계산해야 합니다.
+            </li>
+            <li>
+                <strong>의미 없는 '0.5' 돌파에 대한 과신</strong>: 0.51이 0.5보다 높다고 해서 반드시 실전에서 쓸모 있는 것은 아닙니다.
+                <strong>통계적 유의성 검정(예: McNemar's test)</strong>을 통해 0.5와의 차이가 우연인지 검증해야 합니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 Balanced Accuracy 주요 활용 분야</h2>
+    <ul>
+        <li><strong>부도/도산 예측 모델 (Credit Default)</strong>: 부도율이 1~2%인 환경에서 Accuracy 대신 기본 성능 지표로 사용.</li>
+        <li><strong>사기 탐지 (Fraud Detection)</strong>: 정상 거래가 99.9%인 데이터에서 사기 탐지 모델의 최소 성능 기준을 설정.</li>
+        <li><strong>의료 진단 (희귀 질환)</strong>: 환자군이 극소수인 경우, 민감도와 특이도를 동시에 만족하는지 평가.</li>
+        <li><strong>퀀트 상승/하락 방향성 예측</strong>: 상승장이 드문 시기에, 단순히 하락만 맞추는 전략을 필터링하는 1차 관문으로 활용.</li>
+    </ul>
+
+    <footer>
+        <p>Balanced Accuracy - 밸런스드 정확도 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

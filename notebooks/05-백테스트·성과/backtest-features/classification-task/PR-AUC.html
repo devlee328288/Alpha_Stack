@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PR-AUC (Precision-Recall AUC) 정밀도-재현율 곡선 면적 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📉 PR-AUC (Precision-Recall Area Under the Curve) - 정밀도-재현율 곡선 면적</h1>
+    <p>
+        <strong>PR-AUC (정밀도-재현율 곡선 아래 면적)</strong>은 이진 분류 모델의 성능을 평가하는 지표로,
+        <strong>정밀도(Precision)와 재현율(Recall)의 관계를 다양한 임계값(Threshold)에서 측정한 곡선(PR Curve)의 아래 면적</strong>을 의미합니다.
+    </p>
+    <p>
+        PR-AUC는 <strong>ROC-AUC와 달리 양성(Positive) 클래스의 예측 성능에 집중</strong>하기 때문에,
+        <strong>데이터 불균형(Imbalanced Data)</strong>이 심각한 금융/퀀트 환경(예: 사기 탐지, 드문 상승장 예측, 부도 예측)에서
+        <strong>모델의 실전 적합성을 평가하는 가장 신뢰할 수 있는 지표</strong>로 꼽힙니다.
+        (참고: PR-AUC의 무작위 추측 기준선은 0.5가 아닌 <strong>데이터 내 양성(Positive) 클래스의 비율</strong>입니다.)
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 PR-AUC 기본 수식 (정의)</h2>
+
+    <div class="formula-box">
+        <span class="math">PR-AUC</span> =
+        <span style="font-size: 1.4rem;">∫</span><sub style="font-size:0.9rem;">0</sub><sup
+            style="font-size:0.9rem;">1</sup>
+        <span class="math">Precision</span> ( <span class="math">Recall</span> )
+        <span style="font-size: 1.2rem;"> · d(</span><span class="math">Recall</span><span
+            style="font-size: 1.2rem;">)</span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">Precision</span> = TP/(TP+FP), <span class="math">Recall</span> = TP/(TP+FN))
+        </span>
+    </div>
+
+    <h2>📐 세부 계산 수식 (사다리꼴 적분 근사법)</h2>
+    <div class="sub-formula-box">
+        <span class="math">PR-AUC</span> ≈
+        <span style="font-size:1.0rem;">
+            Σ<sub>i=2</sub><sup>N</sup> ( Recall<sub>i</sub> − Recall<sub>i-1</sub> ) ×
+            <span style="font-size:0.9rem;">( Precision<sub>i</sub> + Precision<sub>i-1</sub> ) / 2</span>
+        </span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ PR 곡선의 각 임계값(Threshold) 지점에서 <strong>사다리꼴 넓이</strong>를 모두 합산하여 근사합니다.
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>PR 곡선 면적</strong></td>
+                <td><span class="math">PR-AUC</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>0 ~ 1</strong> 범위의 무차원 수치.
+                    <strong>1</strong>에 가까울수록 완벽한 분류 성능을 의미합니다.
+                    (단, 데이터의 양성 비율이 10%라면 무작위 추측 기준선은 0.1입니다.)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>정밀도 (Precision)</strong></td>
+                <td><span class="math">Precision</span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    모델이 <strong>양성(Positive)으로 예측한 것 중 실제 양성인 비율</strong>.
+                    <br>공식: TP / (TP + FP) — <strong>거짓 경보(FP)를 얼마나 피했는가</strong>를 측정합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>재현율 (Recall)</strong></td>
+                <td><span class="math">Recall</span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    실제 <strong>양성(Positive) 중 모델이 맞춘 비율</strong>.
+                    <br>공식: TP / (TP + FN) — <strong>실제 양성을 얼마나 놓치지 않고 찾았는가</strong>를 측정합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>임계값 (Threshold)</strong></td>
+                <td><span class="math">τ</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    모델의 확률 출력값을 0/1로 변환하는 <strong>결정 경계(Decision Boundary)</strong>.
+                    임계값을 낮추면 Recall은 증가하지만 Precision이 감소하는 <strong>Trade-off</strong>가 발생합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>양성 비율 (Base Rate)</strong></td>
+                <td><span class="math">P / (P+N)</span></td>
+                <td>
+                    <span class="badge badge-dark">기준선</span>
+                    데이터 내에서 <strong>양성 클래스가 차지하는 비율</strong>.
+                    <br>PR-AUC의 <strong>무작위 추측 기준선</strong>이 바로 이 값입니다 (0.5가 아님!).
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (극도로 불균형한 1,000개 데이터, 실제 상승장 10% = 100개)</strong></p>
+        <ul>
+            <li><strong>실제 양성(Positive)</strong>: 100개, <strong>실제 음성(Negative)</strong>: 900개</li>
+            <li>모델 예측 결과 (특정 임계값 기준):
+                <ul>
+                    <li>TP (상승을 상승으로 맞춤): <strong>80개</strong></li>
+                    <li>FP (하락을 상승으로 예측): <strong>50개</strong></li>
+                    <li>FN (상승을 하락으로 예측): <strong>20개</strong></li>
+                    <li>TN (하락을 하락으로 맞춤): <strong>850개</strong></li>
+                </ul>
+            </li>
+            <li><strong>여러 임계값에서의 PR 곡선 적분 결과</strong>: 모든 임계값을 고려한 PR-AUC ≈ <strong>0.72</strong></li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 해당 임계값에서의 Precision / Recall 계산</strong><br>
+            Precision = 80 / (80 + 50) = 80 / 130 ≈ <strong>0.615 (61.5%)</strong><br>
+            Recall = 80 / (80 + 20) = 80 / 100 = <strong>0.800 (80.0%)</strong>
+        </p>
+        <p>
+            <strong>👉 PR-AUC 최종 결과 및 해석</strong><br>
+            <span class="math">PR-AUC ≈ <strong style="color:#0d6efd;">0.72</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 이 모델의 PR-AUC는 <strong>0.72</strong>입니다. <br>
+            📌 <strong>동일한 데이터의 ROC-AUC는 0.93</strong>으로 매우 높게 나오지만, PR-AUC는 0.72로 더 엄격하게 평가합니다.
+            이는 데이터의 양성 비율이 10%이므로 무작위 추측 기준선이 0.1임을 고려할 때, <strong>매우 우수한 성능</strong>이라고 판단할 수 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 PR-AUC 해석 가이드 (불균형 데이터 기준)</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 PR-AUC ≤ 양성 비율 (Base Rate)</strong> : <strong>무작위 추측 수준</strong> 이하 (모델 폐기).</li>
+            <li><strong>🟡 Base Rate < PR-AUC ≤ 0.5</strong> : <strong>약한 예측력</strong>. 양성 클래스 탐지 능력이 부족함.</li>
+            <li><strong>🟢 0.5 < PR-AUC ≤ 0.7</strong> : <strong>양호한 예측력</strong>. 실무에서 어느 정도 활용 가능.</li>
+            <li><strong>⭐ 0.7 < PR-AUC ≤ 0.9</strong> : <strong>우수한 예측력</strong>. 드문 이벤트를 훌륭히 포착함.</li>
+            <li><strong>🚀 PR-AUC > 0.9</strong> : <strong>매우 뛰어난 예측력</strong> (거의 완벽에 가까운 양성 탐지).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>절대 0.5를 기준으로 삼지 마세요!</strong> PR-AUC의 하한선은 데이터의 양성 비율입니다.
+            예를 들어, 양성이 5%인 데이터에서 PR-AUC가 0.4라면 이는 <strong>매우 훌륭한 성능</strong>입니다 (무작위는 0.05이므로).
+        </p>
+    </div>
+
+    <!-- ==================== PR-AUC vs ROC-AUC 비교 ==================== -->
+    <h2>📊 PR-AUC vs ROC-AUC (수신자 운영 특성 곡선) 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">PR-AUC (정밀도-재현율)</th>
+                <th style="text-align: left; padding: 8px;">ROC-AUC</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>초점</strong></td>
+                <td style="padding: 8px;"><strong>양성(Positive) 클래스</strong>의 예측 성능에 집중</td>
+                <td style="padding: 8px;">양성과 음성 클래스 모두를 <strong>균형 있게</strong> 평가</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>불균형 데이터</strong></td>
+                <td style="padding: 8px;"><strong>매우 민감</strong>하게 반응하여 진짜 성능을 보여줌</td>
+                <td style="padding: 8px;"><strong>둔감</strong>하여 실제보다 높게(낙관적) 평가하는 경향</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>무작위 기준선</strong></td>
+                <td style="padding: 8px;"><strong>양성 비율 (Base Rate)</strong> (예: 0.05, 0.1 등)</td>
+                <td style="padding: 8px;"><strong>항상 0.5</strong> (데이터와 무관)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>실무 활용</strong></td>
+                <td style="padding: 8px;">사기 탐지, 부도 예측, <strong>희귀 상승장 탐색</strong> 시 <strong>필수</strong></td>
+                <td style="padding: 8px;">클래스 균형이 맞는 일반 분류 문제에 적합</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ PR-AUC (정밀도-재현율 곡선 면적) 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>음성 클래스의 성능을 완전히 무시하지는 않지만 간접적</strong>: PR-AUC는 양성 탐지에 집중하므로,
+                음성 클래스를 잘 분류하는지는 Precision을 통해 간접적으로만 반영됩니다 (FP가 많으면 Precision 하락).
+            </li>
+            <li>
+                <strong>임계값(Threshold)에 대한 의존성</strong>: PR 곡선은 임계값 변화에 따라 급격히 변동할 수 있습니다.
+                <strong>평균 정밀도(Average Precision, AP)</strong>와 혼용하여 사용하는 경우가 많습니다.
+            </li>
+            <li>
+                <strong>곡선 아래 면적의 직관적 해석 부족</strong>: ROC-AUC처럼 "임의의 양성 하나가 음성보다 높을 확률"이라는
+                직관적인 확률 해석이 불가능합니다. (단순히 성능의 순위 비교로만 사용해야 함).
+            </li>
+            <li>
+                <strong>매우 희귀한 이벤트(예: 0.1%)에서는 값이 극도로 낮게 나옴</strong>: 이런 경우 PR-AUC가 0.1~0.2 수준이더라도
+                실제로는 훌륭한 모델일 수 있으므로, <strong>절대값보다는 다른 모델과의 상대 비교</strong>에 중점을 두어야 합니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 PR-AUC (정밀도-재현율 곡선 면적) 주요 활용 분야</h2>
+    <ul>
+        <li><strong>이상 거래 탐지 (Fraud Detection)</strong>: 정상 거래 99.9% 환경에서 극소수 사기 거래를 얼마나 놓치지 않고 찾는지 평가.</li>
+        <li><strong>부도/도산 예측 모델</strong>: 부도율이 1~2%인 기업 데이터에서 실제 부도 기업을 얼마나 정확히 선별하는지 측정.</li>
+        <li><strong>퀀트 상승장 예측 (드문 이벤트)</strong>: 전체 장 중 10~20%만 상승장일 때, 상승 신호의 정밀도와 재현율을 동시에 최적화.</li>
+        <li><strong>의료/바이오 진단</strong>: 희귀 질환 양성 판정의 오탐(FP)과 미탐(FN)의 심각한 비용을 고려한 모델 검증.</li>
+    </ul>
+
+    <footer>
+        <p>PR-AUC (Precision-Recall Area Under the Curve) - 정밀도-재현율 곡선 아래 면적 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

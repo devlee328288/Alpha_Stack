@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDD (Maximum Drawdown) 지표 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-blue { background-color: #0d6efd; }
+        .badge-green { background-color: #198754; }
+        .badge-red { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+        .highlight-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        /* 예시 내부 테이블 스타일 */
+        .example-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+        }
+        .example-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 10px 12px;
+            text-align: center;
+        }
+        .example-table td {
+            padding: 10px 12px;
+            text-align: center;
+            border-bottom: 1px solid #e9ecef;
+        }
+        .example-table tr:last-child td {
+            border-bottom: none;
+        }
+        .example-table .highlight-row td {
+            background-color: #f1f3f5;
+            font-weight: 500;
+        }
+        .example-table .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📉 MDD (Maximum Drawdown) 지표</h1>
+    <p>
+        <strong>MDD</strong>는 <strong>최대 낙폭</strong>이라고도 불리며, 투자 자산이나 포트폴리오가
+        특정 기간 동안 <strong>고점(Peak) 대비 저점(Trough)까지 하락한 최대 폭</strong>을 백분율(%)로 나타낸
+        <strong>하방 위험(Downside Risk) 지표</strong>입니다.
+    </p>
+    <p>
+        MDD는 "가장 나쁜 상황에서 얼마나 잃을 수 있는가?"를 알려주므로, 투자 전략의 <strong>리스크 관리</strong>와
+        <strong>심리적 안정성</strong>을 평가하는 데 핵심적인 지표로 활용됩니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 MDD 수식 (두 가지 동치 표현)</h2>
+
+    <div class="formula-box">
+        <span style="font-size:1.1rem; font-weight:normal; color:#495057;">① 가격(Price) 기준</span><br>
+        <span class="math">MDD</span> =
+        <span style="font-size: 1.4rem;">max</span>
+        <sub style="font-size: 0.9rem;">t ∈ [0, T]</sub>
+        <span style="font-size: 1.2rem;">(</span>
+        <span class="math">(V<sub>peak</sub> − V<sub>t</sub>) / V<sub>peak</sub></span>
+        <span style="font-size: 1.2rem;">)</span>
+        <br>
+        <span style="font-size: 1rem; font-weight: normal; color: #495057;">
+            = <span class="math">(V<sub>trough</sub> − V<sub>peak</sub>) / V<sub>peak</sub></span>
+        </span>
+        <br><br>
+        <span style="font-size:1.1rem; font-weight:normal; color:#495057;">② 누적 수익률(Cumulative Return) 기준 (동치)</span><br>
+        <span class="math">MDD</span> =
+        <span style="font-size: 1.4rem;">max</span>
+        <sub style="font-size: 0.9rem;">t ∈ [0, T]</sub>
+        <span style="font-size: 1.2rem;">(</span>
+        <span class="math">(MaxCR<sub>t</sub> − CR<sub>t</sub>) / (1 + MaxCR<sub>t</sub>)</span>
+        <span style="font-size: 1.2rem;">)</span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">MaxCR<sub>t</sub></span> = 시점 t까지의 <strong>누적 수익률 최고점</strong>,
+            <span class="math">CR<sub>t</sub></span> = 시점 t의 <strong>현재 누적 수익률</strong>)
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">설명</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>최대 낙폭</strong></td>
+                <td><span class="math">MDD</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    전체 기간 동안 발생한 최대 손실률. <strong>0 ~ 1 (또는 0% ~ 100%)</strong> 사이의 값으로 표현되며,
+                    <strong>음수</strong>로 표시하기도 함.
+                    <br><small>※ 값이 클수록 위험이 큰 전략</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>시점</strong></td>
+                <td><span class="math">t</span></td>
+                <td>
+                    <span class="badge badge-blue">인덱스</span>
+                    분석 대상 기간 내의 <strong>특정 시점</strong> (일, 월, 분기 등).
+                </td>
+            </tr>
+            <tr>
+                <td><strong>전체 기간</strong></td>
+                <td><span class="math">[0, T]</span></td>
+                <td>
+                    <span class="badge badge-blue">범위</span>
+                    MDD를 계산할 <strong>전체 분석 기간</strong>. 시작(0)부터 종료(T)까지.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>고점 가치</strong></td>
+                <td><span class="math">V<sub>peak</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    특정 기간 동안의 <strong>최고 자산 가치</strong> (Peak).
+                </td>
+            </tr>
+            <tr>
+                <td><strong>현재(저점) 가치</strong></td>
+                <td><span class="math">V<sub>t</sub></span> 또는 <span class="math">V<sub>trough</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    고점 이후 <strong>특정 시점 또는 최저 자산 가치</strong> (Trough).
+                </td>
+            </tr>
+            <tr>
+                <td><strong>누적 수익률 (현재)</strong></td>
+                <td><span class="math">CR<sub>t</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    시점 <span class="math">t</span>까지의 <strong>누적 수익률</strong>.
+                    <br><small>예: 기준가 100 → 150이면 CR = 0.5 (50%)</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>누적 수익률 최고점</strong></td>
+                <td><span class="math">MaxCR<sub>t</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    시점 <span class="math">t</span>까지의 누적 수익률 중 <strong>가장 높은 값 (고점)</strong>.
+                    <br><small>※ CR 기준 MDD 공식의 분모에 해당</small>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 (표 추가됨) ==================== -->
+    <h2>🧮 계산 예시 (두 공식의 동치 확인)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (구간별 자산가치 및 누적 수익률)</strong></p>
+
+        <!-- 사용자 요청 표 -->
+        <table class="example-table">
+            <thead>
+                <tr>
+                    <th>구간</th>
+                    <th>자산가치 (V)</th>
+                    <th>누적 수익률 (CR)</th>
+                    <th>비고</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>시작</strong></td>
+                    <td>100</td>
+                    <td>0.00</td>
+                    <td>기준점</td>
+                </tr>
+                <tr class="highlight-row">
+                    <td><strong>고점 (Peak)</strong></td>
+                    <td><strong>150</strong></td>
+                    <td><strong>+0.50</strong></td>
+                    <td><span class="math">MaxCR = 0.50</span></td>
+                </tr>
+                <tr class="highlight-row">
+                    <td><strong>하락 후 저점 (Trough)</strong></td>
+                    <td><strong>90</strong></td>
+                    <td><strong>-0.10</strong></td>
+                    <td>현재 시점의 CR</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top:10px;">
+            <strong>👉 ① 가격 기준 MDD 계산</strong><br>
+            <span class="math">MDD = (V<sub>peak</sub> − V<sub>trough</sub>) / V<sub>peak</sub></span><br>
+            <span class="math">= (150 − 90) / 150 = 60 / 150 = <strong style="color:#198754;">0.4 ( = 40% )</strong></span>
+        </p>
+
+        <p>
+            <strong>👉 ② 누적 수익률(CR) 기준 MDD 계산 (동치 확인)</strong><br>
+            <span class="math">MDD = (MaxCR − CR<sub>t</sub>) / (1 + MaxCR)</span><br>
+            <span class="math">= (0.50 − (-0.10)) / (1 + 0.50) = 0.60 / 1.50 = <strong style="color:#198754;">0.4 ( = 40% )</strong></span>
+        </p>
+
+        <div class="highlight-box" style="margin-top:10px;">
+            ✅ <strong>두 공식의 결과가 완전히 일치</strong>합니다 (-40% = -0.4, 40% = 0.4).<br>
+            즉, <strong>CR 기준 공식은 가격 기준 공식을 초기 투자금(100)으로 나누어 준 것</strong>과 동일하며,
+            고점 대비 현재 하락률을 정확히 측정합니다.
+        </div>
+
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            💡 <strong>해석</strong>: 이 포트폴리오는 분석 기간 동안 <strong>최대 40%의 손실</strong>을 경험한 적이 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 추가 설명: CR 공식이 헷갈리지 않는 이유 ==================== -->
+    <h2>📌 누적 수익률(CR) 기준 MDD가 헷갈리지 않는 이유</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>CR은 "원금 대비 증가율"</strong>을 나타냅니다. <br>
+                예: CR = +0.50 → 원금(1) 대비 1.5배가 된 상태 (고점). <br>
+                CR = -0.10 → 원금 대비 0.9배가 된 상태 (저점).
+            </li>
+            <li>
+                <strong>분모 (1 + MaxCR)</strong>는 <strong>고점 시점의 절대 가치(배율)</strong>을 의미합니다.<br>
+                즉, 고점을 1(100%)로 재조정(리베이싱)하여 현재 가치가 고점 대비 얼마나 떨어졌는지를 계산합니다.
+            </li>
+            <li>
+                위 예시에서 고점(1.5배)과 저점(0.9배)의 차이(0.6)를 고점 배율(1.5)로 나누면 <strong>0.4 (40% 하락)</strong>이 나옵니다.
+            </li>
+            <li>
+                따라서 <strong>CR 기준 공식은 절대 가격을 몰라도</strong> 누적 수익률만으로도 MDD를 정확히 계산할 수 있는 <strong>동치 표현</strong>입니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 주의사항 ==================== -->
+    <h2>⚠️ MDD 해석 시 주의사항</h2>
+
+    <div class="note-box" style="background-color:#fff3cd; border-left-color:#ffc107;">
+        <ul>
+            <li>
+                <strong>MDD는 과거 데이터 기반</strong>이며, <strong>미래 손실을 보장하지 않습니다</strong>.
+            </li>
+            <li>
+                <strong>회복에 필요한 수익률</strong>: -50% 손실을 만회하려면 <strong>+100%</strong>의 수익이 필요합니다.
+            </li>
+            <li>
+                <strong>MDD가 낮을수록</strong> 안정적인 전략으로 평가되지만, <strong>수익률과의 균형</strong>을 고려해야 합니다.
+            </li>
+            <li>
+                MDD는 <strong>샤프지수(Sharpe Ratio)</strong>, <strong>칼마비율(Calmar Ratio)</strong> 등 다른 지표와 함께
+                종합적으로 활용됩니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 MDD가 활용되는 분야</h2>
+    <ul>
+        <li><strong>퀀트 투자 / 백테스트</strong>: 전략의 위험-수익 프로파일 평가</li>
+        <li><strong>헤지펀드 성과평가</strong>: 하방 리스크 측정</li>
+        <li><strong>자산 배분 / 리밸런싱</strong>: MDD가 큰 자산군 비중 조정</li>
+        <li><strong>투자자 심리 분석</strong>: 공포 심리와 손실 인내도 측정</li>
+    </ul>
+
+    <footer>
+        <p>MDD(Maximum Drawdown) 지표 설명 (표 포함 수정 완료) | © 2026</p>
+    </footer>
+
+</body>
+</html>

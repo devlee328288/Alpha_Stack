@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sterling Ratio (스털링 비율) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📊 Sterling Ratio (스털링 비율)</h1>
+    <p>
+        <strong>스털링 비율(Sterling Ratio)</strong>은 포트폴리오의 <strong>연간 수익률</strong>을
+        <strong>평균 최대 낙폭(Average Maximum Drawdown)</strong>으로 나눈 <strong>위험-수익 조정 지표</strong>입니다.
+    </p>
+    <p>
+        MDD(Maximum Drawdown)는 자산 가치가 고점 대비 최대로 하락한 폭을 의미하며,
+        스털링 비율은 <strong>"MDD 1%당 얼마의 연 수익을 내는가?"</strong>를 측정합니다.
+        <strong>값이 클수록 적은 낙폭으로 높은 수익을 내는 효율적인 전략</strong>으로 평가됩니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 Sterling Ratio 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">Sterling Ratio</span> =
+        <span style="font-size: 1.6rem;">(</span>
+        <span class="math">Annualized Return</span>
+        <span style="font-size: 1.6rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">Avg. Maximum Drawdown</span>
+        <br>
+        <span class="sub">
+            (단, 분모는 일반적으로 <strong>가장 큰 3~5개 MDD의 평균</strong> 또는 <strong>전체 기간 평균 MDD</strong>를 사용)
+        </span>
+    </div>
+
+    <h2>📐 세부 변형 수식 (일반적 관행)</h2>
+    <div class="sub-formula-box">
+        <span class="math">Sterling Ratio</span> =
+        <span style="font-size:1.2rem;">(</span>
+        <span class="math">R<sub>annual</sub></span>
+        <span style="font-size:1.2rem;">)</span>
+        <span style="font-size:1.2rem;"> / </span>
+        <span style="font-size:1.1rem;">(</span>
+        <span class="math">MDD<sub>1</sub> + MDD<sub>2</sub> + MDD<sub>3</sub></span>
+        <span style="font-size:1.1rem;">) / 3</span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ 최근 3개 MDD의 평균을 사용하는 것이 가장 보편적인 방법입니다. 1개를 사용하면 칼마 비율이 됩니다.
+        </span>
+    </div>
+
+    <!-- ==================== 연환산 수익률 ==================== -->
+    <h2>📐 연환산 수익률(Annualized Return) 계산</h2>
+    <div class="formula-box" style="font-size:1.1rem;">
+        <span class="math">R<sub>annual</sub></span> =
+        <span style="font-size:1.4rem;">(</span>
+        <span style="font-size:1.1rem;">1 + R<sub>total</sub></span>
+        <span style="font-size:1.4rem;">)</span>
+        <sup style="font-size:1.1rem;">(1 / Y)</sup>
+        <span style="font-size:1.2rem;"> − 1</span>
+        <br>
+        <span class="sub">(여기서 <span class="math">R<sub>total</sub></span> = 전체 기간 누적 수익률, <span class="math">Y</span> =
+            투자 기간(년 수))</span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>스털링 비율</strong></td>
+                <td><span class="math">Sterling Ratio</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>MDD 대비 연간 수익률</strong>. 단위가 없는(무차원) 수치이며,
+                    <strong>값이 클수록 낙폭 대비 수익 효율이 우수</strong>함을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>연간 수익률</strong></td>
+                <td><span class="math">R<sub>annual</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    투자 기간 동안의 <strong>연평균 복리 수익률(CAGR)</strong>.
+                    <br>누적 수익률과 투자 기간(년)으로 계산합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>평균 최대 낙폭</strong></td>
+                <td><span class="math">Avg. MDD</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    분석 기간 동안 발생한 <strong>최대 낙폭(MDD)들의 평균</strong>.
+                    <br>🔹 <strong>보편적 방법</strong>: 가장 큰 <strong>3개 MDD의 평균</strong> (이상치 제거 효과)
+                    <br>🔹 <strong>간단한 방법</strong>: <strong>단일 최대 MDD</strong> (보수적 평가)
+                    <br>🔹 <strong>대안</strong>: <strong>전체 MDD의 평균</strong> (모든 하락 구간 반영)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>개별 MDD</strong></td>
+                <td><span class="math">MDD<sub>i</sub></span></td>
+                <td>
+                    <span class="badge badge-warning">중간값</span>
+                    각 하락 구간별 <strong>고점(Peak) 대비 저점(Trough)까지의 하락률</strong>.
+                    <br><span class="math">MDD<sub>i</sub> = (V<sub>trough</sub> − V<sub>peak</sub>) /
+                        V<sub>peak</sub></span>
+                    <br><small>※ 일반적으로 <strong>음수(-)</strong>로 표시되나, 분모에는 <strong>절댓값(양수)</strong>을 사용합니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>누적 총 수익률</strong></td>
+                <td><span class="math">R<sub>total</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    전체 투자 기간 동안의 <strong>최종 누적 수익률</strong>.
+                    <br>예: 100 → 150이면 <strong>0.5 (50%)</strong>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>투자 기간(년)</strong></td>
+                <td><span class="math">Y</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    분석 기간의 <strong>총 연수</strong> (소수점 가능).
+                    <br>예: 3년 6개월 → 3.5년
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (3년 투자 기간)</strong></p>
+        <ul>
+            <li>초기 자산: <strong>100</strong> → 최종 자산: <strong>157.6</strong> (누적 수익률 <strong>57.6%</strong>)</li>
+            <li>투자 기간: <strong>3년</strong></li>
+            <li>발생한 MDD 목록 (하락률): <strong>-12%, -8%, -15%, -5%, -10%</strong></li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 연간 수익률 (CAGR) 계산</strong><br>
+            <span class="math">R<sub>annual</sub> = (1 + 0.576)<sup>(1/3)</sup> − 1 = (1.576)<sup>0.333</sup> − 1 ≈
+                1.164 − 1 = <strong>0.164 (16.4%)</strong></span>
+        </p>
+        <p>
+            <strong>👉 2) 평균 MDD 계산 (상위 3개 사용)</strong><br>
+            상위 3개 MDD: <strong>-15%, -12%, -10%</strong> (절댓값: 0.15, 0.12, 0.10)<br>
+            <span class="math">Avg. MDD = (0.15 + 0.12 + 0.10) / 3 = 0.37 / 3 = <strong>0.1233 (12.33%)</strong></span>
+        </p>
+        <p>
+            <strong>👉 3) Sterling Ratio 계산</strong><br>
+            <span class="math">Sterling = 0.164 / 0.1233 ≈ <strong style="color:#0d6efd;">1.33</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 이 포트폴리오는 평균 MDD 1%당 연간 약 <strong>1.33%의 수익</strong>을 창출하고 있습니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 Sterling Ratio 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 Sterling &lt; 0.5</strong> : 낙폭 대비 수익률이 낮음 (투자 매력 부족).</li>
+            <li><strong>🟡 0.5 ≤ Sterling &lt; 1.0</strong> : 보통 수준 (MDD 관리가 평범).</li>
+            <li><strong>🟢 1.0 ≤ Sterling &lt; 2.0</strong> : 양호한 수준 (낙폭 대비 좋은 수익).</li>
+            <li><strong>⭐ Sterling ≥ 2.0</strong> : 매우 우수한 수준 (탁월한 MDD 대비 효율).</li>
+            <li><strong>🚀 Sterling ≥ 3.0</strong> : 최상위 수준 (극도로 안정적인 하락 관리).</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>칼마 비율(Calmar Ratio)</strong>과 유사하지만, 칼마는 <strong>단일 최대 MDD</strong>를 사용하고,
+            스털링은 <strong>평균 MDD(보통 상위 3개)</strong>를 사용하여 <strong>이상치에 덜 민감</strong>합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ Sterling Ratio 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>MDD 정의에 따라 값이 크게 달라짐</strong>: 상위 3개 vs 전체 평균 vs 단일 최대값 중 어떤 것을 쓰느냐에 따라 결과가 완전히 달라집니다.
+            </li>
+            <li>
+                <strong>수익률 산출 방식</strong>: 산술 평균 수익률을 쓰는 경우 CAGR과 차이가 발생할 수 있습니다.
+            </li>
+            <li>
+                <strong>MDD는 과거 기준</strong>: 미래의 최대 낙폭을 예측하지 못합니다.
+            </li>
+            <li>
+                <strong>단기 투자에는 부적합</strong>: 1년 미만의 단기 성과 평가에는 MDD의 통계적 유의성이 떨어집니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 Sterling Ratio 주요 활용 분야</h2>
+    <ul>
+        <li><strong>CTA / 매크로 헤지펀드 평가</strong>: 추세 추종 전략의 하락 방어력 측정.</li>
+        <li><strong>장기 투자 전략 백테스트</strong>: MDD가 중요한 전략(예: 레버리지 전략)의 안전성 평가.</li>
+        <li><strong>연금 / 기관 포트폴리오</strong>: 큰 낙폭을 감당할 수 없는 자금의 성과 측정.</li>
+        <li><strong>칼마 비율(Calmar)과 함께 비교</strong>: 단일 MDD vs 평균 MDD의 차이를 통해 이상치 영향을 파악.</li>
+    </ul>
+
+    <footer>
+        <p>Sterling Ratio (스털링 비율) 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deflated Sharpe Ratio (디플레이티드 샤프 비율) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.15rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            overflow-x: auto;
+        }
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+            overflow-x: auto;
+        }
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-blue { background-color: #0d6efd; }
+        .badge-green { background-color: #198754; }
+        .badge-red { background-color: #dc3545; }
+        .badge-warning { background-color: #ffc107; color: #212529; }
+        .badge-dark { background-color: #343a40; }
+        .badge-purple { background-color: #6f42c1; }
+        .concept-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>📉 Deflated Sharpe Ratio (디플레이티드 샤프 비율)</h1>
+    <p>
+        <strong>디플레이티드 샤프 비율(Deflated Sharpe Ratio, DSR)</strong>은 David H. Bailey와 Marcos López de Prado가 2014년에 제안한 지표로[reference:2],
+        <strong>수많은 백테스트 중에서 가장 높은 샤프 비율을 선택할 때 발생하는 선택 편향(Selection Bias)과 다중 검정(Multiple Testing) 문제를 교정</strong>한 <strong>통계적 검정 지표</strong>입니다[reference:3][reference:4].
+    </p>
+    <p>
+        일반적인 샤프 비율은 <strong>"하나의 전략만 테스트했다"</strong>는 가정하에 계산됩니다. 하지만 실제 퀀트 투자에서는 수백~수천 개의 파라미터 조합을 테스트한 후 <strong>가장 높은 샤프 비율을 보인 전략을 선택</strong>하는 것이 일반적입니다. 이때 <strong>"우연히" 가장 높은 샤프 비율이 나올 확률</strong>을 고려하지 않으면, <strong>데이터 마이닝(Data Mining)으로 인해 과대평가된 성과</strong>를 진짜 실력(Alpha)으로 오인할 위험이 있습니다[reference:5].
+    </p>
+    <p>
+        DSR은 이러한 문제를 해결하기 위해 <strong>Probabilistic Sharpe Ratio (PSR)</strong>의 개념을 확장하여, <strong>귀무가설(무능력, No Skill) 하에서 기대할 수 있는 최대 샤프 비율</strong>을 벤치마크로 삼아 관측된 최고 샤프 비율을 <strong>"디플레이트(Deflate)"</strong>합니다[reference:6][reference:7].
+    </p>
+
+    <!-- ==================== 핵심 개념 ==================== -->
+    <h2>💡 핵심 개념: 다중 검정 문제 (Multiple Testing Problem)</h2>
+
+    <div class="concept-box">
+        <p>
+            <strong>하나의 전략</strong>을 테스트하여 샤프 비율 2.0이 나왔다면 이는 강력한 Alpha의 증거입니다.
+            하지만 <strong>1,000개의 전략</strong>을 테스트하고 그중 <strong>가장 높은 샤프 비율</strong>을 선택했다면,
+            샤프 비율 2.0은 <strong>순수한 랜덤 노이즈에서 기대할 수 있는 최대값</strong>에 불과할 수 있습니다[reference:8].
+        </p>
+        <p style="margin-top:10px;">
+            <strong>👉 무능력(No Skill) 가정 하에서 N개의 독립적 시행 중 기대되는 최대 샤프 비율</strong><br>
+            <span class="math">E[max(SR̂)] ≈ √(2 ln N) × (1 − γ / (2 ln N)) + γ / √(2 ln N)</span><br>
+            <span class="sub" style="font-size:0.9rem;">
+                (여기서 <span class="math">γ ≈ 0.5772</span>는 오일러-마스케로니 상수, <span class="math">N</span>은 시행 횟수)[reference:9]
+            </span>
+        </p>
+        <p style="margin-top:10px; font-size:0.95rem;">
+            예를 들어, <strong>N=1,000</strong>이라면 무작위 노이즈만으로도 <strong>약 3.7의 샤프 비율</strong>이 기대될 수 있습니다.
+            따라서 단순히 높은 샤프 비율만으로는 <strong>진짜 실력인지 우연인지 판단할 수 없습니다</strong>.
+        </p>
+    </div>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 Deflated Sharpe Ratio (DSR) 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">DSR</span> =
+        <span class="math">PŜR</span>
+        <span style="font-size:1.4rem;">[</span>
+        <span class="math">SR<sup>*</sup></span>
+        <span style="font-size:1.4rem;">]</span>
+        <span style="font-size:1.2rem;"> = </span>
+        <span class="math">Z</span>
+        <span style="font-size:1.4rem;">(</span>
+        <span style="font-size:1.1rem;">(</span>
+        <span class="math">SR̂<sup>*</sup></span>
+        <span style="font-size:1.2rem;"> − </span>
+        <span class="math">SR<sub>0</sub></span>
+        <span style="font-size:1.1rem;">)</span>
+        <span style="font-size:1.1rem;">√</span>
+        <span style="font-size:1.1rem;">(T − 1)</span>
+        <span style="font-size:1.2rem;"> / </span>
+        <span style="font-size:1.4rem;">√</span>
+        <span style="font-size:1.4rem;">(</span>
+        <span style="font-size:1.1rem;">1 − γ̂<sub>3</sub> · SR̂<sup>*</sup> + ((γ̂<sub>4</sub> − 1) / 4) · SR̂<sup>*2</sup></span>
+        <span style="font-size:1.4rem;">)</span>
+        <span style="font-size:1.4rem;">)</span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">Z(·)</span>는 표준 정규 분포의 CDF, <span class="math">SR<sub>0</sub></span>는 귀무가설 하의 기대 최대 샤프 비율)[reference:10][reference:11]
+        </span>
+    </div>
+
+    <h2>📐 귀무가설 하 기대 최대 샤프 비율 (<span class="math">SR<sub>0</sub></span>)</h2>
+    <div class="sub-formula-box">
+        <span class="math">SR<sub>0</sub></span> =
+        <span style="font-size:1.1rem;">√</span>
+        <span style="font-size:1.1rem;">Var( { SR̂<sub>n</sub> } )</span>
+        <span style="font-size:1.2rem;"> × </span>
+        <span style="font-size:1.4rem;">(</span>
+        <span style="font-size:1.1rem;">(1 − γ) · Z<sup>−1</sup>[1 − 1/N] + γ · Z<sup>−1</sup>[1 − 1/(N · e)]</span>
+        <span style="font-size:1.4rem;">)</span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ <span class="math">γ ≈ 0.5772</span> (오일러-마스케로니 상수), <span class="math">e ≈ 2.71828</span> (오일러 상수),
+            <span class="math">N</span> = 백테스트된 전략(시행)의 수, <span class="math">Z<sup>−1</sup></span> = 표준 정규 분포의 역 CDF[reference:12][reference:13]
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:20%;">변수명</th>
+                <th style="width:25%;">기호</th>
+                <th style="width:55%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>디플레이티드 샤프 비율</strong></td>
+                <td><span class="math">DSR</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>0 ~ 1 사이의 확률값</strong>으로, <strong>관측된 최고 샤프 비율이 다중 검정을 고려했을 때도 진짜 실력(Alpha)일 확률</strong>을 의미합니다[reference:14].
+                    <br>🔹 <strong>DSR ≥ 0.95</strong> : 95% 신뢰 수준에서 유의미한 Alpha 존재
+                    <br>🔹 <strong>DSR &lt; 0.95</strong> : 우연(데이터 마이닝)에 의한 결과일 가능성 높음
+                </td>
+            </tr>
+            <tr>
+                <td><strong>관측된 최고 샤프 비율</strong></td>
+                <td><span class="math">SR̂<sup>*</sup></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>N개의 백테스트 중 가장 높은(최대) 샤프 비율</strong>.
+                    <br>일반적으로 <strong>연율화(Annualized)된 샤프 비율</strong>을 사용합니다[reference:15].
+                </td>
+            </tr>
+            <tr>
+                <td><strong>귀무가설 하 기대 최대 샤프</strong></td>
+                <td><span class="math">SR<sub>0</sub></span></td>
+                <td>
+                    <span class="badge badge-purple">중간값</span>
+                    <strong>실력(Alpha)이 전혀 없는 상태</strong>에서 <strong>N번의 독립적 시행 중 기대되는 최대 샤프 비율</strong>.
+                    <br>🔹 <strong>N(시행 횟수)</strong>이 클수록 <span class="math">SR<sub>0</sub></span>도 커집니다.
+                    <br><small>※ DSR은 이 값을 벤치마크(분모)로 삼아 관측된 샤프를 "디플레이트"합니다[reference:16].</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>백테스트 시행 횟수</strong></td>
+                <td><span class="math">N</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>실제로 백테스트(시뮬레이션)한 전략/파라미터 조합의 총 개수</strong>.
+                    <br>🔹 파라미터 최적화, 여러 전략 백테스트 등 <strong>모든 시행 횟수</strong>를 포함해야 합니다[reference:17].
+                    <br><small>※ N이 클수록 DSR은 더 엄격해집니다(더 낮은 값이 나옴).</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>수익률 관측치 수</strong></td>
+                <td><span class="math">T</span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>수익률 시계열의 데이터 포인트 수</strong> (예: 일간 수익률 252개).
+                    <br><span class="math">T−1</span>은 <strong>자유도(Degrees of Freedom)</strong>를 의미합니다[reference:18].
+                    <br><small>※ T가 클수록(데이터가 많을수록) DSR이 높아지는 경향이 있습니다.</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>왜도 (Skewness)</strong></td>
+                <td><span class="math">γ̂<sub>3</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>수익률 분포의 비대칭도</strong>.
+                    <br>🔹 <strong>γ̂<sub>3</sub> &gt; 0</strong> : 우측으로 긴 꼬리 (큰 수익이 드물게 발생)
+                    <br>🔹 <strong>γ̂<sub>3</sub> &lt; 0</strong> : 좌측으로 긴 꼬리 (큰 손실이 드물게 발생)[reference:19]
+                </td>
+            </tr>
+            <tr>
+                <td><strong>첨도 (Kurtosis)</strong></td>
+                <td><span class="math">γ̂<sub>4</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    <strong>수익률 분포의 꼬리 두께</strong> (뾰족한 정도).
+                    <br>🔹 <strong>정규 분포</strong>의 첨도는 <strong>3</strong>입니다.
+                    <br>🔹 <strong>γ̂<sub>4</sub> &gt; 3</strong> : 정규 분포보다 <strong>두꺼운 꼬리</strong> (극단값 발생 빈도 높음)[reference:20]
+                    <br><small>※ 왜도와 첨도는 <strong>비정규 수익률</strong>을 반영하기 위해 DSR에 포함됩니다[reference:21].</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>표준 정규 CDF</strong></td>
+                <td><span class="math">Z(·)</span></td>
+                <td>
+                    <span class="badge badge-blue">함수</span>
+                    <strong>표준 정규 분포의 누적 분포 함수(Cumulative Distribution Function)</strong>.
+                    <br>계산된 Z-점수를 <strong>확률값(0~1)</strong>으로 변환합니다[reference:22].
+                </td>
+            </tr>
+            <tr>
+                <td><strong>오일러-마스케로니 상수</strong></td>
+                <td><span class="math">γ</span></td>
+                <td>
+                    <span class="badge badge-blue">상수</span>
+                    <strong>≈ 0.5772156649...</strong>
+                    <br>극한값 이론(Extreme Value Theory)에서 <strong>기대 최대값</strong>을 계산할 때 사용됩니다[reference:23].
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황</strong></p>
+        <ul>
+            <li><strong>백테스트 시행 횟수 (N)</strong>: <strong>500</strong> (500개의 파라미터 조합 테스트)</li>
+            <li><strong>관측된 최고 샤프 비율 (SR̂<sup>*</sup>)</strong>: <strong>2.5</strong> (연율화)</li>
+            <li><strong>수익률 관측치 수 (T)</strong>: <strong>252</strong> (일간, 1년치 데이터)</li>
+            <li><strong>왜도 (γ̂<sub>3</sub>)</strong>: <strong>-0.5</strong> (약간의 좌측 꼬리)</li>
+            <li><strong>첨도 (γ̂<sub>4</sub>)</strong>: <strong>4.2</strong> (정규 분포보다 두꺼운 꼬리)</li>
+        </ul>
+
+        <p style="margin-top:10px;">
+            <strong>👉 1) 귀무가설 하 기대 최대 샤프 비율 (SR<sub>0</sub>) 계산</strong><br>
+            <span class="math">SR<sub>0</sub> ≈ √(2 × ln(500)) × (1 − 0.5772/(2 × ln(500))) + 0.5772/√(2 × ln(500))</span><br>
+            <span class="math">≈ √(12.44) × (1 − 0.5772/12.44) + 0.5772/3.527</span><br>
+            <span class="math">≈ 3.527 × (1 − 0.0464) + 0.1637 ≈ 3.527 × 0.9536 + 0.1637 ≈ <strong>3.526</strong></span>
+            <br><small>※ 즉, 실력이 전혀 없어도 500번의 시행 중 <strong>약 3.53의 샤프 비율</strong>이 우연히 나올 수 있습니다.</small>
+        </p>
+
+        <p>
+            <strong>👉 2) Z-점수 계산</strong><br>
+            <span class="math">Z = (2.5 − 3.526) × √(252 − 1) / √(1 − (−0.5)×2.5 + (4.2−1)/4 × 2.5²)</span><br>
+            <span class="math">= (−1.026) × √251 / √(1 + 1.25 + 0.8 × 6.25)</span><br>
+            <span class="math">= (−1.026) × 15.843 / √(1 + 1.25 + 5.0) = −16.255 / √7.25</span><br>
+            <span class="math">= −16.255 / 2.692 ≈ <strong>−6.04</strong></span>
+        </p>
+
+        <p>
+            <strong>👉 3) DSR (확률값) 계산</strong><br>
+            <span class="math">DSR = Z(−6.04) ≈ <strong style="color:#dc3545;">0.0000000015</strong> (≈ 0%)</span>
+        </p>
+
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ <strong>해석</strong>: 관측된 샤프 비율 2.5는 <strong>500번의 백테스트를 고려할 때 순수한 우연으로 설명될 수 있는 수준</strong>입니다.
+            DSR이 <strong>0.95(95%)</strong>에 한참 못 미치므로, 이 전략의 성과는 <strong>데이터 마이닝의 결과일 가능성이 매우 높습니다</strong>.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 Deflated Sharpe Ratio 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 DSR &lt; 0.90</strong> : 90% 신뢰 수준에서도 유의미하지 않음 — <strong>우연(데이터 마이닝)일 가능성 매우 높음</strong>.</li>
+            <li><strong>🟡 0.90 ≤ DSR &lt; 0.95</strong> : 90% 신뢰 수준에서는 유의하나, <strong>95% 기준에는 미달</strong>.</li>
+            <li><strong>🟢 DSR ≥ 0.95</strong> : <strong>95% 신뢰 수준에서 유의미한 Alpha</strong> — 다중 검정을 고려해도 진짜 실력일 가능성 높음[reference:24].</li>
+            <li><strong>⭐ DSR ≥ 0.99</strong> : <strong>매우 강력한 증거</strong> — 백테스트 과적합(Overfitting)의 위험이 거의 없음.</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>DSR은 확률값(0~1)이므로</strong> 일반적인 샤프 비율처럼 "클수록 좋다"기보다는 <strong>임계값(보통 0.95)을 넘는지</strong>가 중요합니다.
+        </p>
+    </div>
+
+    <!-- ==================== Probabilistic Sharpe Ratio (PSR)와의 관계 ==================== -->
+    <h2>🔗 Probabilistic Sharpe Ratio (PSR)와의 관계</h2>
+
+    <div class="concept-box">
+        <p>
+            <strong>Probabilistic Sharpe Ratio (PSR)</strong>는 관측된 샤프 비율이 <strong>특정 벤치마크 샤프 비율(SR<sup>*</sup>)을 초과할 확률</strong>을 계산합니다[reference:25].
+        </p>
+        <p style="margin-top:10px;">
+            <span class="math">PŜR[SR<sup>*</sup>] = Z[ (SR̂ − SR<sup>*</sup>) × √(T−1) / √(1 − γ̂<sub>3</sub>·SR̂ + (γ̂<sub>4</sub>−1)/4 · SR̂²) ]</span>
+        </p>
+        <p style="margin-top:10px;">
+            <strong>Deflated Sharpe Ratio는 PSR의 특수한 경우</strong>로, <strong>벤치마크 SR<sup>*</sup>를 귀무가설 하의 기대 최대 샤프 비율(SR<sub>0</sub>)로 설정</strong>한 것입니다[reference:26][reference:27].
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            즉, <strong>DSR = PSR[SR<sub>0</sub>]</strong>이며, "N번의 백테스트 중 최고 성과가 우연히 나올 수 있는 수준을 고려했을 때, 관측된 성과가 진짜일 확률"을 묻는 것입니다.
+        </p>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ Deflated Sharpe Ratio 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>N(시행 횟수)의 정의가 모호</strong>: 실제로는 <strong>독립적인 시행</strong>의 수를 알아야 하지만, 파라미터 간 상관관계가 높은 경우 <strong>유효 시행 횟수(Effective N)</strong>를 추정해야 합니다[reference:28].
+            </li>
+            <li>
+                <strong>정규 분포 가정에 의존</strong>: PSR과 마찬가지로 <strong>근사적 정규성</strong>을 가정하지만, 극단적인 수익률 분포에서는 정확도가 떨어질 수 있습니다[reference:29].
+            </li>
+            <li>
+                <strong>과거 데이터에만 의존</strong>: DSR은 <strong>과거 백테스트 결과</strong>를 기반으로 하므로, <strong>미래 성과를 보장하지 않습니다</strong>.
+            </li>
+            <li>
+                <strong>계산의 복잡성</strong>: 왜도, 첨도, 극한값 이론을 활용하므로 <strong>일반 투자자가 직접 계산하기는 어렵습니다</strong>.
+            </li>
+            <li>
+                <strong>학계 내 논란</strong>: 일부 학자들은 DSR의 이론적 기반에 대해 <strong>근본적인 문제</strong>를 제기하기도 합니다[reference:30].
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 Deflated Sharpe Ratio 주요 활용 분야</h2>
+    <ul>
+        <li><strong>퀀트 전략 백테스트 검증</strong>: 수백~수천 개의 파라미터 조합 중 <strong>과적합(Overfitting)된 전략</strong>을 걸러내는 최종 관문(Gate)[reference:31].</li>
+        <li><strong>헤지펀드 / 운용사 성과 평가</strong>: <strong>데이터 마이닝으로 포장된 성과</strong>와 진짜 Alpha를 구분.</li>
+        <li><strong>머신러닝 기반 투자 전략</strong>: 하이퍼파라미터 최적화 과정에서 발생하는 <strong>선택 편향</strong> 교정.</li>
+        <li><strong>학술 연구</strong>: 백테스트 결과의 <strong>통계적 유의성</strong>을 입증하는 도구로 활용.</li>
+    </ul>
+
+    <footer>
+        <p>Deflated Sharpe Ratio (디플레이티드 샤프 비율) 설명 | Based on Bailey &amp; López de Prado (2014) | © 2026</p>
+    </footer>
+
+</body>
+</html>

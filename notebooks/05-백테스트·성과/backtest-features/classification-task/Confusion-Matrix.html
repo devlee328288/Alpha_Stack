@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>혼동 행렬 (Confusion Matrix) - TP, TN, FP, FN 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        /* 혼동 행렬 표 전용 스타일 */
+        .confusion-matrix {
+            width: 100%;
+            max-width: 450px;
+            margin: 10px auto;
+            border-collapse: collapse;
+            font-size: 1.1rem;
+            text-align: center;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .confusion-matrix th {
+            background-color: #343a40;
+            color: white;
+            padding: 12px 5px;
+            font-weight: 600;
+        }
+
+        .confusion-matrix td {
+            padding: 20px 10px;
+            border: 1px solid #dee2e6;
+            font-weight: 600;
+        }
+
+        .confusion-matrix .tp {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        /* 초록 계열 */
+        .confusion-matrix .tn {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        /* 초록 계열 */
+        .confusion-matrix .fp {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+
+        /* 빨강 계열 */
+        .confusion-matrix .fn {
+            background-color: #f8d7da;
+            color: #842029;
+        }
+
+        /* 빨강 계열 */
+        .confusion-matrix .label-true {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+
+        .confusion-matrix .label-pred {
+            background-color: #e9ecef;
+            font-weight: bold;
+        }
+
+        .confusion-matrix .empty {
+            background-color: #f8f9fa;
+            border: none;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📊 혼동 행렬 (Confusion Matrix) - TP, TN, FP, FN</h1>
+    <p>
+        <strong>혼동 행렬(Confusion Matrix)</strong>은 분류 모델(Classification Model)의 성능을 평가하는 가장 기본적이고 직관적인 도구로,
+        <strong>실제값(Actual)과 예측값(Predicted)을 2x2 행렬로 교차하여 4가지 경우(TP, TN, FP, FN)로 나눈 표</strong>입니다.
+    </p>
+    <p>
+        이 4가지 요소는 모든 분류 평가 지표(<strong>Accuracy, Precision, Recall, F1-Score, MCC, Balanced Accuracy</strong> 등)의
+        <strong>기초가 되는 원자재(Atom) 데이터</strong>입니다. 특히 금융/퀀트 분야에서는
+        <strong>False Positive(거짓 양성, 허위 매수 신호)와 False Negative(거짓 음성, 놓친 매수 기회)</strong> 중
+        어느 것이 전략에 더 치명적인지 판단하는 출발점이 됩니다.
+    </p>
+
+    <!-- ==================== 혼동 행렬 시각화 ==================== -->
+    <h2>📋 혼동 행렬 기본 구조 (2x2)</h2>
+
+    <div class="formula-box" style="background-color: #f8f9fa; padding: 10px;">
+        <table class="confusion-matrix">
+            <tr>
+                <th colspan="2" rowspan="2"
+                    style="background-color: #f8f9fa; color: #212529; border: none; font-size: 0.9rem;"></th>
+                <th colspan="2" style="background-color: #0d6efd; color: white;">예측값 (Predicted)</th>
+            </tr>
+            <tr>
+                <th style="background-color: #0d6efd; color: white;">양성 (Positive)</th>
+                <th style="background-color: #0d6efd; color: white;">음성 (Negative)</th>
+            </tr>
+            <tr>
+                <th rowspan="2" style="background-color: #e9ecef; color: #212529; width: 15%;">실제값<br>(Actual)</th>
+                <th style="background-color: #e9ecef; color: #212529; width: 15%;">양성</th>
+                <td class="tp"><strong>TP</strong><br><span style="font-size:0.8rem; font-weight:normal;">진짜 양성</span>
+                </td>
+                <td class="fn"><strong>FN</strong><br><span style="font-size:0.8rem; font-weight:normal;">거짓
+                        음성</span><br><span style="font-size:0.7rem; color:#dc3545;">(2종 오류)</span></td>
+            </tr>
+            <tr>
+                <th style="background-color: #e9ecef; color: #212529;">음성</th>
+                <td class="fp"><strong>FP</strong><br><span style="font-size:0.8rem; font-weight:normal;">거짓
+                        양성</span><br><span style="font-size:0.7rem; color:#dc3545;">(1종 오류)</span></td>
+                <td class="tn"><strong>TN</strong><br><span style="font-size:0.8rem; font-weight:normal;">진짜 음성</span>
+                </td>
+            </tr>
+        </table>
+        <div class="sub" style="margin-top: 10px;">
+            <span style="background-color:#d1e7dd; padding:2px 10px; border-radius:4px;">✅ 초록색 = 모델이 맞춤</span>
+            <span style="background-color:#f8d7da; padding:2px 10px; border-radius:4px; margin-left:10px;">❌ 빨간색 = 모델이
+                틀림</span>
+        </div>
+    </div>
+
+    <!-- ==================== 각 요소 정의 ==================== -->
+    <h2>📐 4가지 요소 (TP, TN, FP, FN) 상세 정의</h2>
+
+    <div class="sub-formula-box">
+        <span style="font-size:1.1rem; font-weight:bold; color:#0d6efd;">TP (True Positive)</span> = 실제 <span
+            style="color:#198754; font-weight:bold;">양성</span>이고, 예측도 <span
+            style="color:#198754; font-weight:bold;">양성</span> (정답)<br>
+        <span style="font-size:1.1rem; font-weight:bold; color:#0d6efd;">TN (True Negative)</span> = 실제 <span
+            style="color:#198754; font-weight:bold;">음성</span>이고, 예측도 <span
+            style="color:#198754; font-weight:bold;">음성</span> (정답)<br>
+        <span style="font-size:1.1rem; font-weight:bold; color:#dc3545;">FP (False Positive)</span> = 실제 <span
+            style="color:#dc3545; font-weight:bold;">음성</span>인데, 예측을 <span
+            style="color:#dc3545; font-weight:bold;">양성</span>으로 함 (1종 오류 / 거짓 경보)<br>
+        <span style="font-size:1.1rem; font-weight:bold; color:#dc3545;">FN (False Negative)</span> = 실제 <span
+            style="color:#dc3545; font-weight:bold;">양성</span>인데, 예측을 <span
+            style="color:#dc3545; font-weight:bold;">음성</span>으로 함 (2종 오류 / 놓친 기회)
+        <br>
+        <span class="sub" style="font-size:0.9rem; margin-top:10px; display:block;">
+            ※ <strong>1종 오류 (FP)</strong>: "실제는 아닌데 있다고 함" (허위 매수 신호) <br>
+            ※ <strong>2종 오류 (FN)</strong>: "실제는 있는데 없다고 함" (놓친 매수 기회 / 손실 회피 실패)
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 금융적 의미</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>진짜 양성</strong></td>
+                <td><span class="math">TP</span></td>
+                <td>
+                    <span class="badge badge-green">정답</span>
+                    모델이 <strong>상승(또는 이상거래)</strong>을 정확히 예측하여 실제로 수익을 낸 경우.
+                    <br><small>👉 매니저의 핵심 실력</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>진짜 음성</strong></td>
+                <td><span class="math">TN</span></td>
+                <td>
+                    <span class="badge badge-green">정답</span>
+                    모델이 <strong>하락(또는 정상거래)</strong>을 정확히 예측하여 손실을 피한 경우.
+                    <br><small>👉 방어 능력의 핵심</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>거짓 양성 (1종 오류)</strong></td>
+                <td><span class="math">FP</span></td>
+                <td>
+                    <span class="badge badge-red">위험 (허위 경보)</span>
+                    실제는 하락장인데, 모델이 <strong>상승(매수) 신호</strong>를 잘못 내어 손실을 본 경우.
+                    <br><small>👉 전략의 <strong>과매수/거짓 경보</strong> 비용</small>
+                </td>
+            </tr>
+            <tr>
+                <td><strong>거짓 음성 (2종 오류)</strong></td>
+                <td><span class="math">FN</span></td>
+                <td>
+                    <span class="badge badge-red">위험 (기회 상실)</span>
+                    실제는 상승장인데, 모델이 <strong>하락(매도/관망)</strong>으로 잘못 예측하여 수익을 놓친 경우.
+                    <br><small>👉 전략의 <strong>놓친 기회 비용 (Opportunity Cost)</strong></small>
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (주식 방향성 예측)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (100개의 거래 신호, 실제 상승장 60개 / 하락장 40개)</strong></p>
+        <ul>
+            <li><strong>모델 예측 결과</strong>:
+                <ul>
+                    <li>TP (상승을 상승으로 맞춤): <strong>50개</strong></li>
+                    <li>TN (하락을 하락으로 맞춤): <strong>30개</strong></li>
+                    <li>FP (하락을 상승으로 예측 → <span style="color:#dc3545;">손실</span>): <strong>10개</strong></li>
+                    <li>FN (상승을 하락으로 예측 → <span style="color:#dc3545;">기회 상실</span>): <strong>10개</strong></li>
+                </ul>
+            </li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 해당 혼동 행렬을 기반으로 파생되는 주요 지표</strong><br>
+            Accuracy = (50+30) / 100 = <strong>0.80 (80%)</strong><br>
+            Precision = 50 / (50+10) = <strong>0.833 (83.3%)</strong> (매수 신호의 정확도)<br>
+            Recall (TPR) = 50 / (50+10) = <strong>0.833 (83.3%)</strong> (실제 상승을 놓치지 않은 비율)<br>
+            Specificity (TNR) = 30 / (30+10) = <strong>0.75 (75%)</strong> (실제 하락을 잘 피한 비율)<br>
+            Balanced Accuracy = (0.833 + 0.75) / 2 = <strong>0.7915 (약 79.2%)</strong>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: FP(10개)는 잘못된 매수로 인한 <strong>실제 손실</strong>을 의미하고, FN(10개)는 놓친 상승장으로 인한 <strong>기회 비용</strong>을 의미합니다.
+            전략의 성격에 따라 <strong>FP를 줄일지(보수적), FN을 줄일지(공격적)</strong>를 이 혼동 행렬을 보고 결정합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 가이드 ==================== -->
+    <h2>📈 혼동 행렬 해석 가이드 (금융 관점)</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔵 TP (진짜 양성)가 높을수록</strong>: <strong>수익 기회를 잘 포착</strong>하는 우수한 전략입니다.</li>
+            <li><strong>🟢 TN (진짜 음성)가 높을수록</strong>: <strong>하락장을 잘 방어</strong>하는 안정적인 전략입니다.</li>
+            <li><strong>🔴 FP (거짓 양성)이 높을수록</strong>: <strong>잦은 허위 매수 신호</strong>로 인해 거래 비용과 손실이 누적됩니다. (과민한 전략)</li>
+            <li><strong>🟠 FN (거짓 음성)이 높을수록</strong>: <strong>큰 상승장을 놓치는</strong> 비용이 발생합니다. (지나치게 보수적인 전략)</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            💡 <strong>트레이드 오프(Trade-off)</strong>: FP를 줄이려고 임계값을 높이면 FN이 증가하고, FN을 줄이려고 임계값을 낮추면 FP가 증가합니다.
+            자신의 투자 철학(손실 회피 vs 수익 추구)에 따라 <strong>어느 오류를 더 용인할지</strong>를 혼동 행렬로 정량화해야 합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 1종 오류 vs 2종 오류 비교 ==================== -->
+    <h2>📊 1종 오류 (FP) vs 2종 오류 (FN) 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">1종 오류 (FP / False Positive)</th>
+                <th style="text-align: left; padding: 8px;">2종 오류 (FN / False Negative)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>별칭</strong></td>
+                <td style="padding: 8px;"><span style="color:#dc3545;">거짓 경보 (False Alarm)</span></td>
+                <td style="padding: 8px;"><span style="color:#dc3545;">놓친 발견 (Miss)</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>금융 예시</strong></td>
+                <td style="padding: 8px;">하락장인데 <strong>"매수"</strong> 신호를 냄 → <span style="color:#dc3545;">실제 손실
+                        발생</span></td>
+                <td style="padding: 8px;">상승장인데 <strong>"매도/관망"</strong> 신호를 냄 → <span style="color:#dc3545;">수익 기회
+                        상실</span></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>비용 성격</strong></td>
+                <td style="padding: 8px;"><strong>명시적 비용</strong> (실현 손실, 거래 수수료)</td>
+                <td style="padding: 8px;"><strong>암묵적 비용</strong> (기회 비용, 상대 수익률 하락)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>대응 전략</strong></td>
+                <td style="padding: 8px;">임계값(Threshold)을 <strong>높여</strong> 보수적으로 운영</td>
+                <td style="padding: 8px;">임계값(Threshold)을 <strong>낮춰</strong> 공격적으로 운영</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ 혼동 행렬 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>이진 분류(Binary) 전용</strong>: 다중 클래스(Multi-class) 문제는 2x2가 아닌 더 큰 행렬이 필요하며,
+                각 클래스 쌍별로 1대1(One-vs-Rest) 방식으로 확장해야 합니다.
+            </li>
+            <li>
+                <strong>임계값(Threshold) 의존성</strong>: 혼동 행렬의 숫자는 분류 임계값에 따라 크게 달라집니다.
+                따라서 <strong>고정된 임계값 하나만 보고 판단하지 말고</strong>, PR-AUC나 ROC-AUC 같은 곡선 기반 지표와 함께 봐야 합니다.
+            </li>
+            <li>
+                <strong>클래스 불균형 시 왜곡된 해석</strong>: 음성이 99%인 데이터에서 FP가 0이고 FN이 100이면 TN은 엄청 많아 보이지만,
+                실제로는 양성을 전혀 찾지 못한 것입니다. 반드시 <strong>비율(Precision, Recall)로 환산</strong>하여 해석해야 합니다.
+            </li>
+            <li>
+                <strong>비용(Cost) 정보 부재</strong>: FP 1개와 FN 1개의 금전적 비용이 동일하지 않을 수 있습니다.
+                예를 들어, 레버리지 전략에서 FP(손실)는 FN(기회 상실)보다 훨씬 치명적일 수 있습니다.
+                이러한 <strong>비용 정보는 혼동 행렬 외부에서 별도로 정의</strong>해야 합니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 혼동 행렬 (TP, TN, FP, FN) 주요 활용 분야</h2>
+    <ul>
+        <li><strong>모든 분류 모델의 1차 진단 도구</strong>: 머신러닝/딥러닝 모델을 개발할 때 가장 먼저 출력하여 오류의 패턴을 분석합니다.</li>
+        <li><strong>임계값(Threshold) 튜닝</strong>: FP와 FN의 비용을 고려하여 최적의 분류 경계선을 찾는 과정의 기초 자료로 사용됩니다.</li>
+        <li><strong>전략 성과 원인 분석</strong>: 퀀트 전략이 손실난 이유가 "잦은 허위 매수(FP)" 때문인지, "상승장을 못 탐(FN)" 때문인지 근본 원인을 추적합니다.</li>
+        <li><strong>불균형 데이터 처리</strong>: 오버샘플링(Over-sampling)이나 언더샘플링(Under-sampling) 전에 현재 데이터의 FP/FN 분포를 파악하는 출발점이
+            됩니다.</li>
+    </ul>
+
+    <footer>
+        <p>혼동 행렬 (Confusion Matrix) - TP, TN, FP, FN 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>

@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ICIR (정보 계수 정보 비율) 설명</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 850px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #212529;
+            line-height: 1.7;
+        }
+
+        h1 {
+            color: #0d6efd;
+            border-bottom: 3px solid #0d6efd;
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            color: #495057;
+            margin-top: 30px;
+            border-left: 5px solid #0d6efd;
+            padding-left: 15px;
+        }
+
+        .formula-box {
+            background-color: #e9ecef;
+            border-radius: 8px;
+            padding: 20px 25px;
+            margin: 20px 0;
+            font-size: 1.2rem;
+            text-align: center;
+            font-weight: bold;
+            border: 1px solid #ced4da;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .formula-box .math {
+            font-family: 'Times New Roman', serif;
+            font-style: italic;
+        }
+
+        .formula-box .sub {
+            font-size: 1rem;
+            font-weight: normal;
+            color: #495057;
+        }
+
+        .sub-formula-box {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin: 15px 0 20px 0;
+            font-size: 1.05rem;
+            text-align: center;
+            border: 1px dashed #6c757d;
+        }
+
+        .variable-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+
+        .variable-table th {
+            background-color: #0d6efd;
+            color: white;
+            font-weight: 600;
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        .variable-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .variable-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .variable-table tr:hover {
+            background-color: #f1f3f5;
+        }
+
+        .example-box {
+            background-color: #d1e7dd;
+            border-left: 5px solid #198754;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note-box {
+            background-color: #fff3cd;
+            border-left: 5px solid #ffc107;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .interpret-box {
+            background-color: #cfe2ff;
+            border-left: 5px solid #0d6efd;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .badge-blue {
+            background-color: #0d6efd;
+        }
+
+        .badge-green {
+            background-color: #198754;
+        }
+
+        .badge-red {
+            background-color: #dc3545;
+        }
+
+        .badge-warning {
+            background-color: #ffc107;
+            color: #212529;
+        }
+
+        .badge-dark {
+            background-color: #343a40;
+        }
+
+        .compare-box {
+            background-color: #e2d9f3;
+            border-left: 5px solid #6f42c1;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #dee2e6;
+            font-size: 0.9rem;
+            color: #6c757d;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>📈 ICIR (Information Coefficient Information Ratio) - 정보 계수 정보 비율</h1>
+    <p>
+        <strong>ICIR (정보 계수 정보 비율)</strong>은 <strong>정보 계수(IC) 시계열의 평균을 표준편차로 나눈 값</strong>으로,
+        <strong>"팩터의 예측력(IC)이 시간이 지나도 얼마나 일관되게 유지되는가"</strong>를 측정합니다.
+        쉽게 말해, IC의 <strong>샤프지수(Sharpe Ratio)</strong>라고 생각하면 됩니다.
+    </p>
+    <p>
+        단순히 평균 IC가 높더라도, 그 값이 매월 극심하게 출렁인다면 전략을 신뢰하기 어렵습니다.
+        ICIR은 이러한 <strong>예측력의 변동성(노이즈) 대비 수익률(시그널)의 효율성</strong>을 평가하여,
+        <strong>실전 운용에서 가장 신뢰할 수 있는 팩터를 선별</strong>하는 핵심 지표로 사용됩니다.
+    </p>
+
+    <!-- ==================== 수식 ==================== -->
+    <h2>📐 ICIR 기본 수식</h2>
+
+    <div class="formula-box">
+        <span class="math">ICIR</span> =
+        <span style="font-size: 1.6rem;">(</span>
+        <span class="math">Mean ( IC )</span>
+        <span style="font-size: 1.6rem;">)</span>
+        <span style="font-size: 1.2rem;"> / </span>
+        <span class="math">Std ( IC )</span>
+        <br>
+        <span class="sub">
+            (단, <span class="math">Std(IC)</span>는 IC 시계열의 <strong>표준편차</strong>)
+        </span>
+    </div>
+
+    <h2>📐 세부 계산 수식</h2>
+    <div class="sub-formula-box">
+        <span class="math">ICIR</span> =
+        <span style="font-size:1.2rem;">
+            <span style="font-size:1.1rem;">(1 / T) · Σ<sub>t=1</sub><sup>T</sup> IC<sub>t</sub></span>
+        </span>
+        <span style="font-size:1.2rem;"> / </span>
+        <span style="font-size:1.2rem;">
+            <span style="font-size:1.1rem;">√( (1 / T) · Σ<sub>t=1</sub><sup>T</sup> ( IC<sub>t</sub> − 평균(IC) )²
+                )</span>
+        </span>
+        <br>
+        <span class="sub" style="font-size:0.9rem;">
+            ※ <span class="math">IC<sub>t</sub></span> = t 시점의 정보 계수, <span class="math">T</span> = 전체 측정 기간(개월/분기 수)
+        </span>
+    </div>
+
+    <!-- ==================== 변수 설명 ==================== -->
+    <h2>🔍 변수(Variables) 상세 설명</h2>
+
+    <table class="variable-table">
+        <thead>
+            <tr>
+                <th style="width:22%;">변수명</th>
+                <th style="width:28%;">기호</th>
+                <th style="width:50%;">상세 설명 및 입력값</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>정보 계수 정보 비율</strong></td>
+                <td><span class="math">ICIR</span></td>
+                <td>
+                    <span class="badge badge-red">결과값</span>
+                    <strong>팩터 예측력의 일관성(안정성)</strong>을 나타내는 무차원 수치.
+                    <strong>값이 높을수록 예측력이 일정하게 유지됨</strong>을 의미합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>평균 IC</strong></td>
+                <td><span class="math">Mean(IC)</span> 또는 <span class="math">μ<sub>IC</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    전체 측정 기간 동안의 <strong>IC(정보 계수) 산술 평균</strong>.
+                    예측력의 <strong>방향과 크기</strong>를 나타냅니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>IC 표준편차</strong></td>
+                <td><span class="math">Std(IC)</span> 또는 <span class="math">σ<sub>IC</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    IC 값들이 평균 주변에서 <strong>흩어진 정도(변동성)</strong>.
+                    값이 작을수록 예측력이 <strong>안정적(일관성 있음)</strong>을 뜻합니다.
+                </td>
+            </tr>
+            <tr>
+                <td><strong>정보 계수 시계열</strong></td>
+                <td><span class="math">IC<sub>t</sub></span></td>
+                <td>
+                    <span class="badge badge-green">입력값</span>
+                    각 시점(월/분기)별로 계산된 <strong>정보 계수(IC)의 시계열 데이터</strong>.
+                    (예: 2023년 1월~12월까지의 월간 IC 12개)
+                </td>
+            </tr>
+            <tr>
+                <td><strong>측정 기간(개수)</strong></td>
+                <td><span class="math">T</span></td>
+                <td>
+                    <span class="badge badge-blue">옵션</span>
+                    IC를 측정한 <strong>전체 기간(샘플 수)</strong>.
+                    보통 24~36개월(2~3년) 이상의 장기 데이터를 사용합니다.
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- ==================== 계산 예시 ==================== -->
+    <h2>🧮 계산 예시 (Example)</h2>
+
+    <div class="example-box">
+        <p><strong>📌 예시 상황 (두 개의 팩터, 12개월 월간 IC 데이터)</strong></p>
+        <ul>
+            <li><strong>팩터 A</strong> (평균은 높지만 변동성 큼): IC 시계열 = [0.15, -0.10, 0.20, -0.05, 0.18, -0.08, 0.22, -0.12,
+                0.16, -0.06, 0.19, -0.09]</li>
+            <li><strong>팩터 B</strong> (평균은 낮지만 변동성 작음): IC 시계열 = [0.06, 0.05, 0.07, 0.04, 0.06, 0.05, 0.07, 0.06, 0.05,
+                0.04, 0.06, 0.07]</li>
+        </ul>
+        <p style="margin-top:10px;">
+            <strong>👉 1) 팩터 A 계산</strong><br>
+            평균 IC (μ) = (합계) / 12 = <strong>0.05</strong><br>
+            표준편차 (σ) ≈ <strong>0.134</strong><br>
+            <span class="math">ICIR<sub>A</sub> = 0.05 / 0.134 ≈ <strong style="color:#0d6efd;">0.37</strong></span>
+        </p>
+        <p>
+            <strong>👉 2) 팩터 B 계산</strong><br>
+            평균 IC (μ) = (합계) / 12 = <strong>0.057</strong><br>
+            표준편차 (σ) ≈ <strong>0.010</strong><br>
+            <span class="math">ICIR<sub>B</sub> = 0.057 / 0.010 ≈ <strong style="color:#0d6efd;">5.7</strong></span>
+        </p>
+        <p style="margin-top:5px; font-size:0.95rem; color:#495057;">
+            ✅ 해석: 팩터 A는 평균 IC가 0.05로 비슷하지만 변동성이 너무 커서 <strong>예측을 신뢰하기 어렵습니다</strong>.
+            반면, 팩터 B는 평균 IC는 미미하게 높지만 <strong>변동성이 극도로 낮아 매월 일관된 예측력을 보여주므로</strong> 실전 운용에 훨씬 적합합니다.
+        </p>
+    </div>
+
+    <!-- ==================== 해석 기준 ==================== -->
+    <h2>📈 ICIR 해석 가이드</h2>
+
+    <div class="interpret-box">
+        <ul>
+            <li><strong>🔴 ICIR &lt; 0.0</strong> : 평균 IC 자체가 음수 → <strong>전략 폐기</strong>.</li>
+            <li><strong>🟡 0.0 ≤ ICIR &lt; 0.3</strong> : 예측력이 매우 불안정하여 <strong>실전 활용이 어려움</strong>.</li>
+            <li><strong>🟢 0.3 ≤ ICIR &lt; 0.5</strong> : <strong>보통 수준</strong>의 일관성. 추가 개선 여지가 있음.</li>
+            <li><strong>⭐ 0.5 ≤ ICIR &lt; 1.0</strong> : <strong>우수한 일관성</strong>. 실전에서 충분히 신뢰할 수 있는 수준.</li>
+            <li><strong>🚀 ICIR ≥ 1.0</strong> : <strong>매우 뛰어난 일관성</strong>. 업계 최상위 팩터 수준.</li>
+        </ul>
+        <p style="margin-top:10px; font-size:0.9rem; color:#495057;">
+            ⚠️ <strong>ICIR은 과거 데이터 기반이므로 미래를 보장하지 않습니다</strong>.
+            또한, IC 자체가 매우 낮은데 표준편차가 극도로 작아 ICIR이 높게 나오는 경우(예: IC=0.01, σ=0.001 → ICIR=10)가 있을 수 있으므로,
+            <strong>평균 IC의 절대적 크기와 함께 해석</strong>해야 합니다.
+        </p>
+    </div>
+
+    <!-- ==================== IC vs ICIR 비교 ==================== -->
+    <h2>📊 IC (정보 계수) vs ICIR (정보 계수 비율) 비교</h2>
+
+    <div class="compare-box">
+        <table style="width:100%; border-collapse: collapse; background: transparent;">
+            <tr style="border-bottom: 2px solid #6f42c1;">
+                <th style="text-align: left; padding: 8px;">구분</th>
+                <th style="text-align: left; padding: 8px;">IC (정보 계수)</th>
+                <th style="text-align: left; padding: 8px;">ICIR (정보 계수 비율)</th>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>측정 대상</strong></td>
+                <td style="padding: 8px;"><strong>단일 시점</strong>의 예측력 (강도)</td>
+                <td style="padding: 8px;"><strong>여러 시점</strong>에 걸친 예측력의 <strong>일관성</strong></td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>수식</strong></td>
+                <td style="padding: 8px;">Corr(예측, 실제)</td>
+                <td style="padding: 8px;">Mean(IC) / Std(IC)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>중요한 점</strong></td>
+                <td style="padding: 8px;">"이번 달 예측이 맞았는가?" (정확도)</td>
+                <td style="padding: 8px;">"매월 꾸준히 맞추는가?" (신뢰도)</td>
+            </tr>
+            <tr>
+                <td style="padding: 8px;"><strong>활용 방향</strong></td>
+                <td style="padding: 8px;">팩터의 <strong>존재 여부</strong> 확인</td>
+                <td style="padding: 8px;">팩터의 <strong>실전 투입 가능성</strong> 평가</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ==================== 주의사항 및 한계 ==================== -->
+    <h2>⚠️ ICIR 한계 및 주의사항</h2>
+
+    <div class="note-box">
+        <ul>
+            <li>
+                <strong>평균 IC의 절대값을 무시한 오판</strong>: ICIR이 높더라도 평균 IC가 0.01에 불과하면 의미가 없습니다.
+                반드시 <strong>평균 IC와 ICIR을 함께</strong> 봐야 합니다.
+            </li>
+            <li>
+                <strong>비정상성 (Non-stationarity)</strong>: 시장 환경이 변하면 IC의 평균과 표준편차 자체가 달라집니다.
+                <strong>롤링 윈도우(Rolling ICIR)</strong>로 추세를 지속 추적해야 합니다.
+            </li>
+            <li>
+                <strong>표본 수(T)의 중요성</strong>: ICIR은 T(샘플 수)에 따라 민감합니다.
+                12개월 미만의 단기 데이터로 계산한 ICIR은 통계적 유의성이 떨어집니다.
+            </li>
+            <li>
+                <strong>과적합(Overfitting)의 덫</strong>: 백테스트에서 ICIR이 높게 나오도록 파라미터를 튜닝하면
+                <strong>오히려 실전 성과가 나빠지는</strong> 현상이 발생할 수 있습니다.
+            </li>
+        </ul>
+    </div>
+
+    <!-- ==================== 활용 분야 ==================== -->
+    <h2>📚 ICIR 주요 활용 분야</h2>
+    <ul>
+        <li><strong>팩터 포트폴리오 구축</strong>: ICIR이 높은 팩터에 더 높은 가중치를 부여하여 전략의 안정성을 확보.</li>
+        <li><strong>멀티팩터 모델 최적화</strong>: 변동성이 큰 팩터를 걸러내고, 꾸준한 팩터만 선별.</li>
+        <li><strong>퀀트 매니저 성과 평가</strong>: 매니저의 예측력이 일정한지, 아니면 운에 의존하는지 평가.</li>
+        <li><strong>알고리즘 트레이딩 전략 검증</strong>: 백테스트에서 높은 CAGR보다 높은 ICIR을 목표로 전략을 개선.</li>
+    </ul>
+
+    <footer>
+        <p>ICIR (Information Coefficient Information Ratio) - 정보 계수 정보 비율 설명 | © 2026</p>
+    </footer>
+
+</body>
+
+</html>
