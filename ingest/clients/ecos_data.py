@@ -117,6 +117,115 @@ INDICATOR_BY_ID: Dict[str, Dict] = {item["id"]: item for item in INDICATORS}
 CYCLE_FORMATS: Dict[str, str] = {"D": "%Y%m%d", "M": "%Y%m", "Q": "quarter", "A": "%Y"}
 CYCLE_NAMES: Dict[str, str] = {"D": "일별", "M": "월별", "Q": "분기별", "A": "연간"}
 
+# --------------------------------------------------
+# 공표 시차 — "이 값을 언제부터 알 수 있었나"
+# --------------------------------------------------
+# 🔴 **ECOS 는 발표일을 주지 않는다.** 세 서비스를 전부 두드려 확인했다(2026-09-02):
+# `StatisticSearch` 는 14칸(STAT_CODE·TIME·DATA_VALUE 등), `StatisticTableList` 는
+# 6칸, `StatisticMeta` 는 META_DATA 가 대부분 비어 있다. 어디에도 공표일이 없다.
+#
+# 그런데 월별 지표는 **기준월 1일**로 온다 — 2026년 7월 물가가 `2026-07-01` 이다.
+# 그 날짜를 그대로 쓰면 7월 물가를 7월 1일에 아는 셈이고, 실제 발표는 8월 4일이었으니
+# **34일치 미래**가 학습에 들어간다. 경기지수는 7월분이 8월 31일에 나오므로 61일이다.
+# 그리고 이 오류는 예외를 내지 않고 성능만 올린다 — 가장 찾기 어려운 종류다.
+#
+# 그래서 규칙으로 계산해 붙인다. 업계 표준도 같은 처방이다 — 정확한 공표일을 모르면
+# *"즉시 이용 가능"* 을 가정하지 말고 **보수적 시차를 적용하라**(point-in-time 관행).
+#
+# 아래 값은 **실제 공표일정을 조사하고 거기에 여유를 더한 것**이다 (2026-09-02 조사).
+#
+#   지표              실측 공표일          여기서 쓰는 값     여유를 두는 이유
+#   ---------------  -------------------  ---------------  ----------------------------
+#   일별 4종          당일~익영업일         기준일 +1일       국고채가 익영업일에 반영된다
+#   base_rate        금통위 당일           익월 1일          월별 시계열이라 월중 시점 불명
+#   cpi              익월 2~6일           익월 10일         주말 밀림 + ECOS 반영 지연
+#   ppi              익월 18~24일         익월 말일         공표일 변동폭이 일주일이다
+#   leading/coincident 익월 29~31일       익익월 5일        월말 발표라 달을 넘긴다
+#
+# 근거가 된 실측:
+#   · 2026년 7월분 CPI → 8.4(화) 발표 (국가데이터처 공표일정)
+#   · 2026년 7월분 PPI → 8.21(금) 06:00 (한국은행 공표일정)
+#   · 2026년 7월분 산업활동동향(경기지수) → 8.31(월) 발표
+#   · 8월분 CPI 는 오늘(9/2) 발표됐는데 **ECOS 최신은 아직 202607** 이었다.
+#     즉 보도자료보다 ECOS 반영이 늦다 — 여유가 필요한 직접적인 이유다.
+#
+# ⚠️ 거래일 달력에 맞추지 않는다. `known_at` 이 토요일이어도 `known_at <= 기준일` 로
+#    거르면 다음 거래일 조회에서 그대로 잡힌다. 달력에 맞추면 하루 더 늦어지기만 하고,
+#    아직 오지 않은 날짜(미래 known_at)에서 달력 범위 밖 예외가 난다.
+#
+# 규칙을 바꾸면 `macro_series` 를 **다시 채워야 한다** — 이미 담긴 known_at 은 옛 규칙이다.
+RELEASE_RULES: Dict[str, Dict[str, object]] = {
+    # 일별 — 기준일로부터 며칠 뒤
+    "ktb3y": {"days": 1},
+    "ktb10y": {"days": 1},
+    "usdkrw": {"days": 1},
+    "jpykrw": {"days": 1},
+    # 월별 — 기준월로부터 몇 달 뒤의 며칠. `day="end"` 는 그 달의 말일이다.
+    "base_rate": {"months": 1, "day": 1},
+    "cpi": {"months": 1, "day": 10},
+    "ppi": {"months": 1, "day": "end"},
+    "leading": {"months": 2, "day": 5},
+    "coincident": {"months": 2, "day": 5},
+}
+
+
+def _month_end(year: int, month: int) -> int:
+    """그 달의 마지막 날. 윤년은 표를 두지 않고 다음 달 1일에서 하루 빼서 구한다."""
+    if month == 12:
+        first_of_next = datetime(year + 1, 1, 1)
+    else:
+        first_of_next = datetime(year, month + 1, 1)
+    return (first_of_next - timedelta(days=1)).day
+
+
+def known_at(indicator_id: str, period: str) -> str:
+    """`period` 의 값을 **언제부터 알 수 있었는지**를 `YYYYMMDD` 로 돌려준다.
+
+    `period` 는 ECOS 원문 그대로다 — 일별 `20260901`, 월별 `202607`.
+
+    이 함수가 `macro_series.known_at` 을 만든다. 값 자체가 아니라 **시점**을 정하는
+    자리라, 여기서 하루를 당기면 그만큼 미래가 학습에 샌다.
+    """
+    spec = INDICATOR_BY_ID.get((indicator_id or "").strip().lower())
+    if not spec:
+        raise EcosError(
+            f"'{indicator_id}' 는 없는 지표라 공표 시차를 정할 수 없습니다. "
+            f"쓸 수 있는 것: {' · '.join(INDICATOR_BY_ID)}", status=422)
+
+    rule = RELEASE_RULES.get(spec["id"])
+    if not rule:
+        raise EcosError(
+            f"'{spec['id']}' 의 공표 시차 규칙이 없습니다.\n"
+            f"  왜 세우나: 규칙 없이 기준월을 그대로 쓰면 최대 두 달치 미래가 학습에 샙니다.\n"
+            f"  할 일: ecos_data.RELEASE_RULES 에 이 지표의 실제 공표일정을 조사해 넣으세요.",
+            status=500)
+
+    text = str(period).strip()
+
+    # ── 일별 — 기준일에서 며칠 뒤 ──
+    if "days" in rule:
+        if len(text) != 8 or not text.isdigit():
+            raise EcosError(
+                f"일별 지표 '{spec['id']}' 의 기간이 YYYYMMDD 가 아닙니다: {period!r}",
+                status=502)
+        base = datetime.strptime(text, "%Y%m%d")
+        return (base + timedelta(days=int(rule["days"]))).strftime("%Y%m%d")
+
+    # ── 월별 — 기준월에서 몇 달 뒤의 며칠 ──
+    if len(text) != 6 or not text.isdigit():
+        raise EcosError(
+            f"월별 지표 '{spec['id']}' 의 기간이 YYYYMM 이 아닙니다: {period!r}",
+            status=502)
+    year, month = int(text[:4]), int(text[4:])
+    # 달을 더한다. 0-based 로 바꿔 더하고 되돌리면 12월 넘김을 따로 다루지 않아도 된다.
+    total = (year * 12 + (month - 1)) + int(rule["months"])
+    year, month = divmod(total, 12)
+    month += 1
+    day = rule["day"]
+    if day == "end":
+        day = _month_end(year, month)
+    return f"{year:04d}{month:02d}{int(day):02d}"
+
 # 시계열 캐시. {(종류, 인자...): (저장시각, 값)}
 _cache: Dict[Tuple, Tuple[float, dict]] = {}
 _cache_lock = threading.Lock()
