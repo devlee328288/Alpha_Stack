@@ -28,6 +28,21 @@
 안에서만** 만든다 — `features/` 에는 한 줄도 쓰지 않는다. 규칙은 새로 정하지 않고
 `evaluation.horizon` 의 기존 공개 함수·상수를 그대로 따르며, 값이 같은지 아래
 `verify_labels` 가 매번 대조한다. 피처 계층이 제대로 만들어지면 그쪽으로 갈아끼운다.
+
+🔴 종목의 피처·라벨은 수정주가로 잰다
+-----------------------------------
+2026-09-03 까지 이 스크립트는 종목도 원문 `close`·`open` 으로 피처와 라벨을 계산했다.
+원문에는 액면분할이 반영돼 있지 않아 **분할일 하루가 폭락으로 읽힌다.** 삼성전자
+2018-05-04(50:1) 의 5거래일 수익률이 -97.90%(하락) 로 나왔는데 실제로는 +5.12%(상승) 다.
+
+표본 30종목 실측: 분할·병합이 있던 종목 18/30, 라벨이 뒤집힌 행 370(0.448%),
+`rsi_14` 는 삼성전자 분할 한 건에 198행(5.49%)·`atr_14` 는 186행이 어긋났다.
+지수이동평균 계열이 단순이동평균보다 오래 끈다 — `sma_5` 는 4행인데 `rsi_14` 는 198행이다.
+
+가격 칸을 고르는 것은 `price_basis` 하나뿐이고, 종목이면 `adj_*`·지수면 원문이다.
+지수는 분할이라는 사건 자체가 없고 `index_price` 에 수정 칸도 없다.
+**칸 이름은 바꾸지 않았다** — `sma_5` 는 그대로 `sma_5` 이고 안의 값만 기준이 바뀐다.
+받아 쓰던 팀원 코드가 그대로 돌아야 하기 때문이다.
 """
 
 from __future__ import annotations
@@ -45,6 +60,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from common.export_profile import write_profile  # noqa: E402
 from evaluation.horizon import (  # noqa: E402
     HOLDOUT_START,
     NEUTRAL_BAND,
@@ -225,6 +241,48 @@ def verify_labels(rows: List[Dict], day_index: Dict[str, int], band: float) -> D
 #: 어차피 nan 이라 `dropna` 로 떨어진다. 몇 행이 왜 사라졌는지 세어 보고한다.
 LONGEST_WARMUP = 60
 
+#: 피처와 라벨을 **어느 가격으로 재는가**. 칸 이름을 여기서 한 번만 고른다.
+#:
+#: 🔴 종목은 분할이 조정된 값이 정답이다. 원문 `close` 는 KRX 가 준 그대로라 액면분할이
+#:    반영돼 있지 않고, 분할일 하루가 폭락으로 읽힌다. 삼성전자 2018-05-04(50:1) 을
+#:    원문으로 재면 5거래일 수익률이 **-97.90%(하락)** 인데 실제로는 **+5.12%(상승)** 다.
+#:    라벨이 정반대로 붙는다.
+#:
+#:    창이 긴 지표는 분할일 하루가 지나간 뒤로도 오래 오염된다. 표본 30종목 실측에서
+#:    라벨은 370행(0.448%)이 뒤집혔고, 삼성전자 분할 한 건에 `rsi_14` 는 198행(5.49%)·
+#:    `atr_14` 는 186행이 어긋났다. 이동평균보다 지수이동평균 계열이 훨씬 오래 끈다.
+#:
+#: 지수에는 분할이라는 사건 자체가 없고 `index_price` 에 수정 칸도 없다. 원문이 정답이다.
+PRICE_BASIS_ADJ = {"open": "adj_open", "high": "adj_high",
+                   "low": "adj_low", "close": "adj_close"}
+PRICE_BASIS_RAW = {"open": "open", "high": "high", "low": "low", "close": "close"}
+
+
+def price_basis(frame: pd.DataFrame) -> Dict[str, str]:
+    """이 표를 어느 가격으로 계산할지 고른다. 수정 칸이 있으면 그쪽이다."""
+    return PRICE_BASIS_ADJ if "adj_close" in frame.columns else PRICE_BASIS_RAW
+
+
+def rows_on_basis(frame: pd.DataFrame, basis: Dict[str, str]) -> List[Dict]:
+    """`open` 이라는 **이름 자리에** 계산 기준 시가를 앉힌 행 목록을 만든다.
+
+    왜 값을 옮겨 담나 — `evaluation.horizon` 의 공개 함수들이 `rows[i]["open"]` 이라는
+    이름으로 읽기 때문이다. 그 계층은 평가 담당(강민석 팀원) 것이라 이쪽에서 고치지
+    않는다. 이름만 맞춰 주면 **같은 함수가 그대로 수정주가로 센다.**
+
+    🔴 거래정지일의 수정 시가는 `NaN` 인데, 그쪽 걸러내기는 `if not entry.get("open")`
+       이라 **`NaN` 을 못 거른다** (`not float("nan")` 은 `False`). 원문에서 정지일
+       시가가 `0` 이라 걸러지던 것과 같은 규약이 되도록 `0` 으로 바꿔 담는다.
+       지금은 `training_frame` 이 정지일을 이미 덜어내 결측이 0행이지만(실측),
+       그쪽이 바뀌어도 라벨이 조용히 틀리지 않게 여기서 막는다.
+    """
+    if basis is PRICE_BASIS_RAW:
+        return frame.to_dict("records")
+    사본 = frame.copy()
+    for 표준, 실제 in basis.items():
+        사본[표준] = 사본[실제].fillna(0)
+    return 사본.to_dict("records")
+
 
 def build_feature_frame(frame: pd.DataFrame, *, band: float,
                         day_index: Dict[str, int]) -> Tuple[pd.DataFrame, Dict]:
@@ -233,14 +291,19 @@ def build_feature_frame(frame: pd.DataFrame, *, band: float,
     피처는 `features/` 의 **공개 함수 14개를 전부** 쓴다. 우리가 가진 지표가 무엇인지
     팀원이 표만 보고도 알 수 있어야 하기 때문이다. 창(window)은 흔히 쓰는 값으로 두되
     고정한다 — 창을 고르는 것 자체가 시도 횟수라, 여기서 여러 개를 흔들면 안 된다.
+
+    가격은 `price_basis` 가 고른다 — 종목이면 분할이 조정된 값, 지수면 원문이다.
+    칸 이름(`sma_5` 등)은 그대로 두고 **안의 값만** 그 기준으로 계산한다.
     """
     if frame.empty:
         return frame.copy(), {"rows": 0, "labeled": 0, "unlabeled": 0,
-                              "distribution": {}, "dropped_warmup": 0}
+                              "distribution": {}, "dropped_warmup": 0,
+                              "price_basis": PRICE_BASIS_RAW["close"]}
 
-    close = frame["close"].astype(float).to_numpy()
-    high = frame["high"].astype(float).to_numpy()
-    low = frame["low"].astype(float).to_numpy()
+    기준 = price_basis(frame)
+    close = frame[기준["close"]].astype(float).to_numpy()
+    high = frame[기준["high"]].astype(float).to_numpy()
+    low = frame[기준["low"]].astype(float).to_numpy()
     vol = frame["volume"].astype(float).to_numpy()
 
     out = frame.copy()
@@ -280,12 +343,13 @@ def build_feature_frame(frame: pd.DataFrame, *, band: float,
     out["vol_roc_5"] = volume_roc(vol, 5)
 
     # 라벨 — 먼저 기존 함수와 대조해 보고, 통과한 뒤에만 붙인다
-    rows = frame.to_dict("records")
+    rows = rows_on_basis(frame, 기준)
     stats = verify_labels(rows, day_index, band)
     out["fwd_return_5d"] = forward_returns_aligned(rows, day_index)
     out["label"] = label_3class(out["fwd_return_5d"].tolist(), band)
 
     stats["dropped_warmup"] = LONGEST_WARMUP - 1
+    stats["price_basis"] = 기준["close"]
     return out, stats
 
 
@@ -523,9 +587,11 @@ def main() -> int:
                                               day_index=day_index)
     idx_fit = ready_to_fit(idx_feat)
     _write_csv(idx_fit, small / "features_labels_kospi200_dev.csv", files,
-               f"피처 {len(FEATURE_COLUMNS)}칸 + 라벨. 바로 fit 된다 (밴드 ±{BAND_INDEX:.1%})")
+               f"피처 {len(FEATURE_COLUMNS)}칸 + 라벨. 바로 fit 된다 (밴드 ±{BAND_INDEX:.1%}) "
+               f"· 지수는 분할이 없어 원문 가격 기준")
     stats["kospi200"] = {**idx_stats, "fit_rows": int(len(idx_fit))}
-    print(f"     분포 {idx_stats['distribution']} · dropna 후 {len(idx_fit):,}행")
+    print(f"     분포 {idx_stats['distribution']} · dropna 후 {len(idx_fit):,}행"
+          f" · 가격 기준 {idx_stats['price_basis']}")
 
     print()
     print("[작은 벌] 종목 표본")
@@ -536,6 +602,7 @@ def main() -> int:
     ctx = market_context()
     raw_parts, train_parts, feat_parts = [], [], []
     종목분포 = {"상승": 0, "중립": 0, "하락": 0}
+    종목기준 = set()
     for code in codes:
         원시 = _price_dev(code)
         if not 원시.empty:
@@ -550,6 +617,12 @@ def main() -> int:
             feat_parts.append(준비)
         for k, v in s["distribution"].items():
             종목분포[k] += v
+        종목기준.add(s["price_basis"])
+
+    # 🔴 종목마다 기준이 갈리면 한 파일 안에서 어떤 행은 원문·어떤 행은 수정주가가 된다.
+    #    행 수만 세는 검사로는 절대 안 잡히므로 여기서 못 박는다.
+    if len(종목기준) > 1:
+        raise AssertionError(f"종목마다 가격 기준이 다르다 — {sorted(종목기준)}")
 
     stocks_raw = (pd.concat(raw_parts, ignore_index=True) if raw_parts
                   else pd.DataFrame())
@@ -563,9 +636,12 @@ def main() -> int:
     _write_csv(stocks_train, small / "stocks_sample30_train_dev.csv", files,
                "표본 종목 학습용 — 정리매매·신규상장·거래정지를 덜어냈다")
     _write_csv(stocks_feat, small / "features_labels_stocks30_dev.csv", files,
-               f"표본 종목 피처+라벨. 바로 fit 된다 (밴드 ±{BAND_STOCK:.1%})")
-    stats["stocks30"] = {"codes": codes, "선정": 표본메타, "distribution": 종목분포}
-    print(f"     분포 {종목분포}")
+               f"표본 종목 피처+라벨. 바로 fit 된다 (밴드 ±{BAND_STOCK:.1%}) "
+               f"· 🔴 피처·라벨 모두 수정주가(adj_*) 기준")
+    기준 = 종목기준.pop() if 종목기준 else PRICE_BASIS_ADJ["close"]
+    stats["stocks30"] = {"codes": codes, "선정": 표본메타,
+                         "distribution": 종목분포, "price_basis": 기준}
+    print(f"     분포 {종목분포} · 가격 기준 {기준}")
 
     (small / "sample_codes.json").write_text(
         json.dumps(표본메타, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -611,6 +687,17 @@ def main() -> int:
     )
     print()
     print(f"MANIFEST.json 기록 — 파일 {len(files)}개")
+
+    # ── 칸마다 무엇이 들었나 ─────────────────────────────────────────
+    #
+    # MANIFEST 는 칸 **이름**과 행 수까지다. 받는 사람이 매번 직접 `describe()` 를
+    # 돌리지 않도록, 결측률·값 범위·분포를 여기서 재서 남긴다. 데이터셋 카드도 이
+    # 파일을 읽어 만들기 때문에, 카드에 손으로 적은 숫자가 자료와 어긋날 자리가 없다.
+    print()
+    print("[칸별 통계] PROFILE.json")
+    프로필 = write_profile(root)
+    print(f"  ✅ 파일 {len(프로필['files'])}개 · "
+          f"칸 {sum(f['칸수'] for f in 프로필['files'])}개")
     return 0
 
 
