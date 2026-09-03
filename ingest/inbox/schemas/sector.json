@@ -1,0 +1,241 @@
+{
+  "name": "sector",
+  "title": "업종분류 현황 (KRX · 손으로 받은 스냅샷)",
+  "description": "KRX Data Marketplace 화면 [통계 > 기본 통계 > 주식 > 세부안내 > 업종분류 현황] 을 사람이 내려받은 CSV. 그날 상장 종목 하나마다 업종명 한 줄이다. 🔴 우리 자료 어디에도 종목→업종이 없어서(daily_price.sector 는 KOSPI 100% 빈 값이고 KOSDAQ 은 소속부다) 이 스냅샷이 유일한 출처다. 홈페이지 이용약관 제10조 ② 가 자동화 수집을 금지하므로 코드로 받지 않고, 제12조 ② 로 재배포하지 않는다 — 파일은 커밋도 HF 업로드도 하지 않는다. 🔴 화면 CSV 에는 기준일 칸이 없고 파일명의 날짜는 내려받은 날이다. scripts/normalize_manual.py 가 종가 30종을 daily_price 와 맞춰 기준일을 되짚어 `기준일자` 칸을 앞에 붙인 변환본을 만들고, 반입은 그 변환본을 받는다.",
+  "fields": [
+    {
+      "name": "bas_dd",
+      "type": "date",
+      "format": "%Y%m%d",
+      "title": "기준일자",
+      "description": "스냅샷의 날짜. 원본 CSV 에는 없고 normalize_manual.py 가 종가 대조로 되짚어 붙인 칸이다 — 되짚지 못한 파일은 변환본이 만들어지지 않으므로 여기 오는 파일은 전부 이 칸이 있다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "code",
+      "type": "string",
+      "title": "종목코드",
+      "description": "여섯 자리. 앞 네 자리 숫자, 뒤 두 자리 숫자 또는 대문자 — ohlcv_stock 과 같은 근거(실측 84종의 영문 자리)로 같은 패턴을 쓴다. 엑셀이 앞자리 0 을 지운 다섯 자리는 zfill6 이 되살린다.",
+      "constraints": {
+        "required": true,
+        "pattern": "^[0-9]{4}[0-9A-Z]{2}$"
+      }
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "title": "종목명"
+    },
+    {
+      "name": "market",
+      "type": "string",
+      "title": "시장구분",
+      "description": "화면 CSV 에 있으면 그대로, 없으면 normalize_manual.py 가 종가가 맞은 daily_price 행의 시장으로 채운다.",
+      "constraints": {
+        "enum": [
+          "KOSPI",
+          "KOSDAQ",
+          "KONEX"
+        ]
+      }
+    },
+    {
+      "name": "sector_nm",
+      "type": "string",
+      "title": "업종명",
+      "description": "KRX 업종 이름 문자열 그대로 — '전기·전자' 의 가운뎃점, '농업, 임업 및 어업' 의 쉼표까지 이름의 일부다. enum 을 걸지 않는다: 2024-07-01 체계 개편으로 'IT 서비스'·'부동산'·'오락·문화' 가 새로 생겼고 KOSDAQ 은 32종→24종으로 바뀌었다. 못 박으면 개편 뒤 파일이 통째로 격리된다. index_price 지수명과 어긋나는 셋(은행·증권·보험·기타금융→금융, 전기·전자→전기전자, 기타제조→제조)은 여기서 고치지 않고 supply.sector.index_name_for 가 조인할 때 바꾼다.",
+      "constraints": {
+        "required": true
+      }
+    },
+    {
+      "name": "close",
+      "type": "integer",
+      "title": "종가",
+      "description": "원 단위. 기준일 되짚기에 쓴 값이라 daily_price.close 와 정확히 같아야 한다 — 다르면 되짚기가 틀린 것이다.",
+      "constraints": {
+        "minimum": 0
+      }
+    },
+    {
+      "name": "change",
+      "type": "integer",
+      "title": "전일대비"
+    },
+    {
+      "name": "change_rate",
+      "type": "number",
+      "title": "등락률",
+      "constraints": {
+        "minimum": -100.0,
+        "maximum": 1000.0
+      }
+    },
+    {
+      "name": "market_cap",
+      "type": "integer",
+      "title": "시가총액",
+      "description": "원 단위 전체 시총. daily_price.market_cap 과 같은 정의다 (실측 2026-09-01 삼성전자 1,525,878,716,688,000 원 일치). 지수용 유동시총(억 원·지수표기)과는 다르다.",
+      "constraints": {
+        "minimum": 0
+      }
+    }
+  ],
+  "primaryKey": [
+    "bas_dd",
+    "code"
+  ],
+  "missingValues": [
+    "",
+    "-",
+    "NA",
+    "N/A",
+    "N.A.",
+    "None",
+    "null",
+    "nan",
+    "NaN",
+    "#N/A"
+  ],
+  "x-alphastack": {
+    "version": "1.0",
+    "target": {
+      "compareWith": "daily_price",
+      "description": "합격분의 (기준일, 종목코드) 는 daily_price 와 같은 열쇠다. 종가·시가총액을 맞대면 되짚은 기준일이 옳았는지 적재 뒤에 다시 확인할 수 있다."
+    },
+    "aliases": {
+      "bas_dd": [
+        "기준일자",
+        "기준일",
+        "날짜",
+        "일자",
+        "조회일자",
+        "date",
+        "BAS_DD",
+        "TRD_DD"
+      ],
+      "code": [
+        "종목코드",
+        "단축코드",
+        "종목 코드",
+        "code",
+        "ticker",
+        "ISU_SRT_CD"
+      ],
+      "name": [
+        "종목명",
+        "종목약명",
+        "한글종목약명",
+        "name",
+        "ISU_ABBRV"
+      ],
+      "market": [
+        "시장구분",
+        "시장",
+        "market",
+        "MKT_TP_NM"
+      ],
+      "sector_nm": [
+        "업종명",
+        "업종",
+        "산업",
+        "지수업종명",
+        "sector",
+        "industry",
+        "IDX_IND_NM"
+      ],
+      "close": [
+        "종가",
+        "현재가",
+        "close",
+        "TDD_CLSPRC"
+      ],
+      "change": [
+        "대비",
+        "전일대비",
+        "전일비",
+        "change",
+        "CMPPREVDD_PRC"
+      ],
+      "change_rate": [
+        "등락률",
+        "등락율",
+        "change_rate",
+        "FLUC_RT"
+      ],
+      "market_cap": [
+        "시가총액",
+        "상장시가총액",
+        "시총",
+        "market_cap",
+        "MKTCAP"
+      ]
+    },
+    "ambiguousNames": {},
+    "cleaners": {
+      "bas_dd": [
+        "strip",
+        "to_yyyymmdd"
+      ],
+      "code": [
+        "strip",
+        "upper",
+        "zfill6"
+      ],
+      "name": [
+        "strip"
+      ],
+      "market": [
+        "strip",
+        "upper",
+        "map_market"
+      ],
+      "sector_nm": [
+        "strip"
+      ],
+      "close": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "change": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ],
+      "change_rate": [
+        "strip",
+        "strip_comma",
+        "strip_percent",
+        "to_float"
+      ],
+      "market_cap": [
+        "strip",
+        "strip_comma",
+        "to_int"
+      ]
+    },
+    "rowRules": [
+      {
+        "id": "not_future",
+        "expr": "bas_dd is null or bas_dd <= today",
+        "severity": "error",
+        "note": "오늘보다 뒤인 기준일은 되짚기가 틀린 것이다."
+      },
+      {
+        "id": "is_business_day",
+        "expr": "bas_dd is null or bas_dd is weekday",
+        "severity": "warn",
+        "note": "주말 기준일. 되짚기는 daily_price 의 실제 거래일에서만 나오므로 원칙적으로 걸릴 수 없다 — 걸리면 되짚기 자체를 의심한다."
+      }
+    ],
+    "lookahead": {
+      "knownAtRule": "bas_dd 의 다음 거래일 (실측 달력 · stock_base_info 와 같은 규칙)",
+      "enforcedAt": "supply 계층",
+      "enforcedBy": "supply.sector.snapshots · supply.sector.industry_as_of · supply.sector.attach_industry",
+      "note": "업종분류 현황은 그날 마감 뒤 확정되는 표라 그날 안에는 알 수 없었다고 본다. 스냅샷이 연 1회라 날짜 d 의 업종은 'd 이전 가장 최근 스냅샷' 에서 읽고, 뒤의 스냅샷을 앞으로 당겨 쓰지 않는다 — 2026년 분류로 2015년을 판정하면 미래참조이고 에러는 나지 않는다."
+    }
+  }
+}
