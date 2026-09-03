@@ -242,3 +242,38 @@ def test_표_이름에_이상한_것이_오면_거부한다(tmp_path):
             mig.column_names(conn, "t; DROP TABLE daily_price")
     finally:
         conn.close()
+
+
+# ── 배정표 정합 — 세 곳이 조용히 어긋나지 않게 ─────────────────────────────
+
+def test_다음_번호_상수가_실제_최신과_맞는다():
+    """`sqlite_db.NEXT_MIGRATION_VERSION` 은 사람이 손으로 적는 값이라 잊기 쉽다.
+
+    이 상수는 *"다음 갈래가 어느 번호를 선점할지"* 를 알리는 유일한 자리인데, 코드
+    어디서도 쓰이지 않아 **어긋나도 아무 일이 안 일어난다.** 그러다 두 갈래가 같은
+    번호를 잡으면, 그 번호를 이미 적용한 DB 는 나중에 그 자리에 들어온 항목을
+    **영원히 건너뛴다** — 예외도 경고도 없다. 그래서 여기서 잠근다.
+    """
+    from ingest.store.sqlite_db import NEXT_MIGRATION_VERSION
+
+    assert NEXT_MIGRATION_VERSION == mig.LATEST_VERSION + 1, (
+        f"배정표가 어긋났다 — 코드의 최신은 v{mig.LATEST_VERSION} 인데 "
+        f"'다음 빈 번호' 는 v{NEXT_MIGRATION_VERSION} 로 적혀 있다.\n"
+        "  할 일: 마이그레이션을 더했으면 배정표 세 곳을 함께 고친다.\n"
+        "    ① ingest/store/migrations.py 의 MIGRATIONS 위 주석표\n"
+        "    ② ingest/store/sqlite_db.py 의 docstring 표\n"
+        "    ③ ingest/store/sqlite_db.py 의 NEXT_MIGRATION_VERSION"
+    )
+
+
+def test_마이그레이션_이름이_자기_번호를_말한다():
+    """`MIGRATIONS[i]` 의 이름은 `v{i+1}:` 로 시작해야 한다.
+
+    번호는 인덱스라 이름과 어긋나도 동작한다 — 그래서 로그·오류 문구만 거짓말을 하고
+    사람이 잘못된 번호를 믿게 된다.
+    """
+    for 인덱스, 항목 in enumerate(mig.MIGRATIONS):
+        이름 = 항목[0]
+        assert 이름.startswith(f"v{인덱스 + 1}:"), (
+            f"{인덱스}번째 항목의 이름이 '{이름}' 인데 v{인덱스 + 1} 자리다"
+        )

@@ -105,7 +105,8 @@ def _add_column(table: str, column: str, definition: str) -> Callable:
 #      v8  수집 실행 기록 (ingest_run · ingest_run_stage)            ← 2026-09-02 적용
 #      v9  수정주가 4칸 · 거래일 달력 (daily_price.adj_* · trading_calendar)
 #                                                                   ← 2026-09-02 적용
-#      v10 다음 빈 번호
+#      v10 종목 신원 · 법인 개요 (stock_identity · corp_profile)      ← 2026-09-03 적용
+#      v11 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -672,6 +673,122 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             # 먼저 좁히지 못한다.
             "CREATE INDEX IF NOT EXISTS idx_calendar_market_date "
             "ON trading_calendar(market, bas_dd)",
+        ),
+    ),
+    (
+        "v10: 종목 신원 · 법인 개요 (공공데이터포털 금융위)",
+        (
+            # ── 종목 신원 ───────────────────────────────────────────────
+            # 우리는 종목을 **KRX 종목코드**로만 안다. 그 코드로는 DART(고유번호)·
+            # 공공데이터포털(법인등록번호)·해외 자료(ISIN) 어디에도 못 붙는다.
+            # 이 표가 그 **다리**다. 시세를 담으려는 게 아니다 — 시세는 KRX 가 정본이고
+            # 이쪽은 20칸뿐이라 가져올 이유가 없다.
+            #
+            # 🔴 **기본키가 (bas_dd, code) 인 이유.** 종목명은 바뀌고(쓰리원 → UCI),
+            #    코드는 재사용되기도 한다. 날짜를 키에서 빼면 "지금 이 코드가 누구인가"
+            #    만 남고 **"그때는 누구였나"** 를 잃는다. 그러면 과거 시점 조인이 조용히
+            #    현재 이름을 붙인다 — 행 수는 그대로라 어떤 검사에도 안 걸린다.
+            #    재무 수집에서 `account_detail` 을 키에서 빼는 바람에 자본변동표의
+            #    6.4%가 덮어써져 사라진 적이 있다. 같은 종류의 사고다.
+            """
+            CREATE TABLE IF NOT EXISTS stock_identity (
+              bas_dd    TEXT NOT NULL,          -- 기준일 YYYYMMDD
+              -- 🔴 응답의 `srtnCd` 는 'A000020' 처럼 **A 접두사**가 붙어 온다. 여기에는
+              --    뗀 값을 넣는다. 안 떼면 `daily_price.code` 와 조인이 **0행**이 되는데,
+              --    조인은 0행이어도 에러가 나지 않는다 — 그냥 아무것도 안 나온다.
+              code      TEXT NOT NULL,
+              isin_cd   TEXT,                   -- 국제 표준 식별자 (KR7000020008)
+              crno      TEXT,                   -- 법인등록번호 — 기업기본정보 조회 키
+              corp_nm   TEXT,                   -- 법인명. 종목명과 다를 수 있다
+              item_nm   TEXT,                   -- 종목명
+              market    TEXT,                   -- KOSPI / KOSDAQ / KONEX
+              -- 이 사실을 **언제부터 알 수 있었나**. 포털은 발표 시각을 주지 않아
+              -- `bas_dd` 의 다음 영업일로 계산한다. 계산값이라는 것을 잊으면 안 된다.
+              known_at  TEXT NOT NULL,
+              -- 어떤 규칙으로 `known_at` 을 냈는지. 규칙을 바꾸면 **재수집**해야 하는데,
+              -- 무엇으로 계산했는지 안 남기면 어느 행이 옛 규칙인지 알 수 없다.
+              known_rule TEXT NOT NULL,
+              fetched_at TEXT NOT NULL,
+              PRIMARY KEY (bas_dd, code),
+              CHECK (length(bas_dd) = 8),
+              -- 🔴 **코드 전체가 숫자라고 단정하지 않는다.** 5·6번째 자리에 영문이 오는
+              --    종목이 84종 있다(`0001A0`·`00088K` 등 신형우선주 · 실측 2026-09-03,
+              --    고유 3,677종 중). `code GLOB '[0-9]*'` 로 막으면 그 84종이 통째로
+              --    격리되는데, 격리는 조용해서 한참 뒤에나 눈치챈다.
+              --
+              --    대신 **앞 4자리는 항상 숫자**다(3,677종 전수 확인). 이건 접두사를
+              --    안 뗀 값을 잡아 준다 — `A000020` 을 6자로 자른 `A00002` 가 걸린다.
+              --    접두사가 그대로면 7자라 아래 길이 검사에서 먼저 걸린다.
+              CHECK (length(code) = 6),
+              CHECK (code GLOB '[0-9][0-9][0-9][0-9]*')
+            )
+            """,
+            # 코드로 "이 종목의 신원이 언제 어떻게 바뀌었나" 를 훑을 때. PK 가
+            # (날짜, 코드) 라 코드로 먼저 좁히지 못한다.
+            "CREATE INDEX IF NOT EXISTS idx_identity_code "
+            "ON stock_identity(code, bas_dd)",
+            # 법인등록번호로 `corp_profile` 에 붙일 때. NULL 인 행이 많아 부분 인덱스다.
+            "CREATE INDEX IF NOT EXISTS idx_identity_crno "
+            "ON stock_identity(crno) WHERE crno IS NOT NULL",
+            # 시점 경계(`supply`)가 "그때 알 수 있었던 것" 만 고를 때.
+            "CREATE INDEX IF NOT EXISTS idx_identity_known "
+            "ON stock_identity(known_at)",
+
+            # ── 법인 개요 ───────────────────────────────────────────────
+            # 상장일·폐지일·감사의견·종업원수. 시세로는 알 수 없는 것들이다.
+            #
+            # **상장폐지일이 특히 값지다.** 지금 우리는 "어느 날부터 시세가 안 나온다"
+            # 로 폐지를 추정하는데, 그건 장기 거래정지와 구별되지 않는다. 실측해 보니
+            # 2020년 목록에 있다 2025년에 사라진 법인 8곳 **전부** `enpXchgLstgAbolDt`
+            # 가 채워져 왔다 (메리츠화재 23/02/21 · DL건설 24/03/04 · 롯데푸드 22/07/20).
+            #
+            # 🔴 **기본키가 (crno, fst_opeg_dt) 인 이유 — 응답에 기준일이 없다.**
+            #    설계 문서는 `(crno, bas_dd)` 로 잡았지만, 실제 응답에는 `basDt` 칸이
+            #    아예 없다. 대신 `fstOpegDt`~`lastOpegDt` 가 **그 스냅샷이 유효한 구간**
+            #    이고, 한 법인의 여러 행이 겹치지 않게 이어진다 (동화약품 17행 · 표본
+            #    12개 법인 182행에서 겹침 0 · 빈값 0 · 실측 2026-09-03).
+            #
+            #    이게 우리에게 이득인 이유: `known_at` 이 **계산값이 아니라 관측값**이 된다.
+            #    거시(ECOS)는 발표일을 안 줘서 "기준일의 다음 영업일" 로 계산할 수밖에
+            #    없었고, 그래서 규칙을 바꾸면 재수집해야 하는 짐이 남았다. 여기서는
+            #    출처가 직접 "이 값은 이 날부터 유효했다" 를 말해 준다.
+            #
+            #    부수 효과로 **날짜별 반복 호출이 필요 없다.** 한 번 부르면 그 법인의
+            #    전 이력이 온다 — 법인 수만큼만 부르면 된다.
+            """
+            CREATE TABLE IF NOT EXISTS corp_profile (
+              crno                TEXT NOT NULL,   -- 법인등록번호
+              -- 이 스냅샷이 유효해진 날 (`fstOpegDt`). 기준일이 아니라 **유효 시작일**이다.
+              fst_opeg_dt         TEXT NOT NULL,
+              -- 유효 끝난 날 (`lastOpegDt`). 가장 최근 행은 계속 밀린다.
+              last_opeg_dt        TEXT,
+              corp_nm             TEXT,
+              sic_nm              TEXT,            -- 표준산업분류 (대부분 비어 온다)
+              estb_dt             TEXT,            -- 설립일 (YYYYMMDD 로 정규화한 값)
+              stac_mm             TEXT,            -- 결산월 ('12' 같은 두 자리)
+              xchg_lstg_dt        TEXT,            -- 유가증권시장 상장일 (정규화)
+              xchg_lstg_abol_dt   TEXT,            -- 유가증권시장 상장폐지일 (정규화)
+              kosdaq_lstg_dt      TEXT,
+              kosdaq_lstg_abol_dt TEXT,
+              audt_rpt_opnn       TEXT,            -- 감사의견 (`audtRptOpnnCtt`)
+              actn_audpn          TEXT,            -- 회계감사인 (`actnAudpnNm`)
+              empe_cnt            INTEGER,         -- 종업원수 (`enpEmpeCnt`)
+              pn1_avg_slry_amt    INTEGER,         -- 1인평균급여 (`enpPn1AvgSlryAmt`)
+              smenp_yn            TEXT,            -- 중소기업 여부 (대부분 비어 온다)
+              -- 🔴 여기서는 **계산값이 아니다** — `fst_opeg_dt` 를 그대로 쓴다.
+              --    출처가 "이 값은 이 날부터 유효했다" 를 직접 말해 주기 때문이다.
+              known_at            TEXT NOT NULL,
+              known_rule          TEXT NOT NULL,
+              fetched_at          TEXT NOT NULL,
+              PRIMARY KEY (crno, fst_opeg_dt),
+              CHECK (length(fst_opeg_dt) = 8)
+            )
+            """,
+            # 상장일·폐지일로 "이 구간에 살아 있던 법인" 을 고를 때.
+            "CREATE INDEX IF NOT EXISTS idx_profile_lstg "
+            "ON corp_profile(xchg_lstg_dt, xchg_lstg_abol_dt)",
+            "CREATE INDEX IF NOT EXISTS idx_profile_known "
+            "ON corp_profile(known_at)",
         ),
     ),
 )
