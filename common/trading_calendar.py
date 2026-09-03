@@ -12,8 +12,9 @@
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
 from datetime import date, datetime, timedelta, timezone
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 # 한국 시간 기준으로 거래일을 계산한다.
 # UTC 보다 9시간 빠른 고정 오프셋 — 한국은 서머타임이 없어 이렇게 단순히 표현할 수 있다.
@@ -94,9 +95,42 @@ def to_krx(iso: str) -> str:
 _SESSION_CACHE: Optional[frozenset] = None
 _SESSION_SPAN: Optional[tuple] = None
 
+#: 같은 날짜들을 **정렬한 사본**. 집합은 "그 날이 거래일인가" 에 빠르지만
+#: "그 다음 거래일은 언제인가" 에는 못 쓴다 — 순서가 없기 때문이다.
+#:
+#: 예전에는 `min(d for d in days if d > bas_dd)` 로 매번 4,102개를 훑었다. 이 함수는
+#: 행마다 불린다(재무의 `next_business_day`, 뉴스의 `eff_dd`, 새 수집원의 `known_at`).
+#: 12,306행짜리 수집이면 5천만 번의 비교가 된다. 정렬해 두고 이분탐색하면 12번이다.
+#:
+#: 날짜는 `YYYYMMDD` 고정폭 문자열이라 **사전순 = 시간순** 이다. 그래서 문자열
+#: 그대로 이분탐색해도 맞는다 (자릿수가 다르면 이 전제가 깨진다).
+_SESSION_SORTED: Optional[Tuple[str, ...]] = None
+
+#: `_SESSION_SORTED` 를 **어느 집합에서** 만들었는지. 정렬본이 낡았는지 판정하는 근거다.
+#:
+#: 🔴 테스트는 `_SESSION_CACHE` 를 monkeypatch 로 갈아 끼운다(`test_inbox_derive.py` ·
+#:    `test_inbox_engine.py`). 정렬본을 갱신하는 책임을 갈아 끼우는 쪽에 맡기면, 새로
+#:    끼우는 자리마다 잊을 수 있고 그때 **에러 없이 옛 달력으로 답한다.** 그래서
+#:    "집합이 바뀌었으면 다시 정렬한다" 를 읽는 쪽 한 곳에서 지킨다.
+_SORTED_FOR: Optional[frozenset] = None
+
 
 class CalendarOutOfRange(LookupError):
     """물어본 날짜가 우리가 가진 달력 밖이다 — 답을 지어내지 않고 세운다."""
+
+
+def _sorted_days(days: frozenset) -> Tuple[str, ...]:
+    """`days` 를 정렬한 사본. 같은 집합이면 지난번 것을 그대로 준다.
+
+    같은 집합인지는 **동일성(`is`)** 으로 본다. 내용 비교는 4,102개를 다시 훑는 것이라
+    아끼려던 비용이 그대로 돌아오고, 크기 비교는 크기가 같으면서 내용이 다른 경우를
+    놓친다.
+    """
+    global _SESSION_SORTED, _SORTED_FOR
+    if _SORTED_FOR is not days or _SESSION_SORTED is None:
+        _SESSION_SORTED = tuple(sorted(days))
+        _SORTED_FOR = days
+    return _SESSION_SORTED
 
 
 def load_session_days(db_path=None, *, refresh: bool = False) -> frozenset:
@@ -144,7 +178,8 @@ def load_session_days(db_path=None, *, refresh: bool = False) -> frozenset:
             "  할 일: python scripts/fetch_krx.py 로 시세를 먼저 받는다."
         )
     _SESSION_CACHE = days
-    _SESSION_SPAN = (min(days), max(days))
+    정렬본 = _sorted_days(days)          # 여기서 만들어 두면 첫 `next_session` 이 안 기다린다
+    _SESSION_SPAN = (정렬본[0], 정렬본[-1])
     return days
 
 
@@ -186,8 +221,13 @@ def next_session(bas_dd: str, db_path=None, *, inclusive: bool = False) -> str:
     if inclusive and bas_dd in days:
         return bas_dd
 
-    later = [d for d in days if d > bas_dd]
-    if not later:
+    # 정렬본에서 `bas_dd` 보다 **큰** 첫 자리를 이분탐색으로 찾는다. 예전에는 4,102개를
+    # 전부 훑어 새 목록을 만들고 그 최솟값을 구했다 — 답은 같고 비교 횟수만 다르다.
+    # 이 함수는 행마다 불린다(재무의 `next_business_day`, 뉴스의 `eff_dd`, 새 수집원의
+    # `known_at`). 만 단위 수집이면 그 차이가 그대로 시간이 된다.
+    정렬본 = _sorted_days(days)
+    자리 = bisect_right(정렬본, bas_dd)
+    if 자리 >= len(정렬본):
         raise CalendarOutOfRange(
             f"{bas_dd} 다음 거래일을 모른다 — 달력이 {last} 까지밖에 없다.\n"
             "  왜 세우나: 다음 거래일을 지어내면 아직 열리지 않은 장에 자료를 붙이게 된다.\n"
@@ -200,4 +240,4 @@ def next_session(bas_dd: str, db_path=None, *, inclusive: bool = False) -> str:
             f"{bas_dd} 는 달력 시작({first})보다 이르다 — 그 사이 거래일을 우리는 모른다.\n"
             "  할 일: 더 이른 구간을 받거나, 그 행을 격리한다."
         )
-    return min(later)
+    return 정렬본[자리]

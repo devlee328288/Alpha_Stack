@@ -1,0 +1,168 @@
+{
+ "measured_at_kst": "2026-09-03T11:26:27+09:00",
+ "method": "GitHub GraphQL 1 call (gh api graphql) · aliases r00..r17 · rateLimit cost 1",
+ "rows": [
+  {
+   "repo": "edumgt/quant-test-20260828",
+   "stars": 0,
+   "license": null,
+   "pushed_at": "2026-08-28T08:46:20Z",
+   "language": "Python",
+   "archived": false,
+   "description": "FastAPI와 AG Grid로 KRX KOSPI 일별매매정보를 조회하는 웹 애플리케이션"
+  },
+  {
+   "repo": "AI4Finance-Foundation/FinRL",
+   "stars": 16200,
+   "license": "MIT",
+   "pushed_at": "2026-07-13T23:02:18Z",
+   "language": "Jupyter Notebook",
+   "archived": false,
+   "description": "FinRL®:  Financial Reinforcement Learning. 🔥"
+  },
+  {
+   "repo": "AminHP/gym-anytrading",
+   "stars": 2388,
+   "license": "MIT",
+   "pushed_at": "2024-03-14T04:33:05Z",
+   "language": "Python",
+   "archived": false,
+   "description": "The most simple, flexible, and comprehensive OpenAI Gym trading environment (Approved by OpenAI Gym)"
+  },
+  {
+   "repo": "Farama-Foundation/Gymnasium",
+   "stars": 12451,
+   "license": "MIT",
+   "pushed_at": "2026-08-29T17:38:39Z",
+   "language": "Python",
+   "archived": false,
+   "description": "A standard API for single-agent reinforcement learning environments, with popular reference environments and related utilities (formerly Gym)"
+  },
+  {
+   "repo": "microsoft/qlib",
+   "stars": 48214,
+   "license": "MIT",
+   "pushed_at": "2026-09-02T18:23:05Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Qlib is an AI-oriented Quant investment platform that aims to use AI tech to empower Quant Research, from exploring ideas to implementing productions. Qlib supp"
+  },
+  {
+   "repo": "fastapi/fastapi",
+   "stars": 102040,
+   "license": "MIT",
+   "pushed_at": "2026-09-01T20:59:55Z",
+   "language": "Python",
+   "archived": false,
+   "description": "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
+  },
+  {
+   "repo": "streamlit/streamlit",
+   "stars": 45671,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-09-03T02:15:24Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Streamlit — A faster way to build and share data apps."
+  },
+  {
+   "repo": "huggingface/huggingface_hub",
+   "stars": 3867,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-09-02T13:59:15Z",
+   "language": "Python",
+   "archived": false,
+   "description": "The official CLI and Python client for the Hugging Face Hub."
+  },
+  {
+   "repo": "urchade/GLiNER",
+   "stars": 3601,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-08-10T09:21:43Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Generalist and Lightweight Model for Named Entity Recognition (Extract any entity types from texts)"
+  },
+  {
+   "repo": "ProsusAI/finBERT",
+   "stars": 2219,
+   "license": "Apache-2.0",
+   "pushed_at": "2022-09-09T20:15:11Z",
+   "language": "Jupyter Notebook",
+   "archived": false,
+   "description": "Financial Sentiment Analysis with BERT"
+  },
+  {
+   "repo": "FinanceData/FinanceDataReader",
+   "stars": 1537,
+   "license": "MIT",
+   "pushed_at": "2026-05-13T19:12:11Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Financial data reader"
+  },
+  {
+   "repo": "nektos/act",
+   "stars": 71765,
+   "license": "MIT",
+   "pushed_at": "2026-08-09T22:50:11Z",
+   "language": "Go",
+   "archived": false,
+   "description": "Run your GitHub Actions locally 🚀"
+  },
+  {
+   "repo": "tox-dev/filelock",
+   "stars": 975,
+   "license": "MIT",
+   "pushed_at": "2026-09-01T15:55:27Z",
+   "language": "Python",
+   "archived": false,
+   "description": "A platform-independent file lock for Python."
+  },
+  {
+   "repo": "PrefectHQ/prefect",
+   "stars": 23765,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-09-03T00:27:39Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Prefect is a workflow orchestration framework for building resilient data pipelines in Python."
+  },
+  {
+   "repo": "unionai-oss/pandera",
+   "stars": 4447,
+   "license": "MIT",
+   "pushed_at": "2026-09-02T13:18:20Z",
+   "language": "Python",
+   "archived": false,
+   "description": "A light-weight, flexible, and expressive statistical data testing library"
+  },
+  {
+   "repo": "fivetran/great_expectations",
+   "stars": 11766,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-09-02T22:25:36Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Always know what to expect from your data."
+  },
+  {
+   "repo": "FinanceData/OpenDartReader",
+   "stars": 473,
+   "license": "MIT",
+   "pushed_at": "2026-08-10T17:06:07Z",
+   "language": "Python",
+   "archived": false,
+   "description": "Open DART Reader"
+  },
+  {
+   "repo": "huggingface/text-embeddings-inference",
+   "stars": 5036,
+   "license": "Apache-2.0",
+   "pushed_at": "2026-07-24T13:47:50Z",
+   "language": "Rust",
+   "archived": false,
+   "description": "A blazing fast inference solution for text embeddings models"
+  }
+ ]
+}

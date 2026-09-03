@@ -22,13 +22,22 @@
 `python-docx` 의 기본 템플릿은 한글 폰트(eastAsia)가 잡혀 있지 않아 Word 에서
 글꼴이 어긋난다. 그래서 **기존 계획서 docx 를 열어 본문만 비우고 다시 채운다.**
 
+## HTML 도 같이 굽는다 (v3.0 부터)
+
+docx 는 Word 가 있어야 열리고 `git diff` 가 안 읽힌다. 같은 내용을 **HTML 로도** 내면
+브라우저에서 바로 보이고 diff 도 읽힌다. 두 산출물이 어긋나지 않도록 부록은
+`appendix_blocks()` 한 목록을 두 렌더러가 읽는다 — 프로즈를 두 벌 적지 않는다.
+
 실행:
-    python scripts/build_project_plan.py
+    python scripts/build_project_plan.py          # docx + html
 """
 
 from __future__ import annotations
 
 import argparse
+import html
+import os
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import List, Sequence, Tuple
 
@@ -50,7 +59,7 @@ W_SCHEDULE = (Emu(660_000), Emu(940_000), Emu(880_000), Emu(940_000),
               Emu(900_000), Emu(1_080_675))
 W_ASSET = (Emu(1_700_000), Emu(560_000), Emu(3_140_675))
 W_MEASURED = (Emu(1_060_000), Emu(1_440_000), Emu(940_000), Emu(1_960_675))
-W_ROADMAP = (Emu(700_000), Emu(2_180_000), Emu(2_520_675))
+W_ROADMAP = (Emu(600_000), Emu(1_600_000), Emu(1_500_000), Emu(1_700_675))
 W_QFRS = (Emu(1_100_000), Emu(1_640_000), Emu(560_000), Emu(2_100_675))
 
 #: 본문 한글 글꼴. Word 가 eastAsia 를 따로 보기 때문에 둘 다 지정해야 한다.
@@ -70,7 +79,10 @@ BASE_DOCX = Path("docs/계획서/version1.0/프로젝트계획서.docx")
 
 #: 산출물. 버전 폴더가 곧 개정 이력이라 파일명에는 버전을 적지 않는다.
 #: 다음 버전을 팔 때는 이 상수를 올리고 `변경사항.md` 를 함께 쓴다.
-OUT_DOCX = Path("docs/계획서/version2.1/프로젝트계획서.docx")
+OUT_DOCX = Path("docs/계획서/version3.0/프로젝트계획서.docx")
+#: HTML 산출물. docx 와 같은 폴더 · 같은 이름. 그림은 DIAGRAM_DIR 의 PNG 를 상대 경로로 가리킨다.
+OUT_HTML = OUT_DOCX.with_suffix(".html")
+KST = timezone(timedelta(hours=9))
 
 
 # ── docx 원시 조작 ─────────────────────────────────────────────────────────
@@ -309,9 +321,10 @@ OUTPUTS = [
     "⑤ 2·3차가 그대로 가져다 쓰는 성과 검증 엔진",
 ]
 
+#: 2026-09-03 확정. 1안 AlphaStack 은 착수 시점 이름이라 저장소·패키지 이름에 남아 있다.
 PROJECT_NAME = [
-    "1안) AlphaStack (알파스택) — 신호·검증·화면을 층으로 쌓는다",
-    "2안) Qurious (큐리어스) — 팀명과 통일",
+    "Qurious (큐리어스) — 팀명과 같다. 신호·검증·화면을 층으로 쌓는 1차 프로젝트",
+    "※ 저장소 이름 Alpha_Stack 은 착수 시점(8/24)의 이름이라 그대로 둔다",
 ]
 
 PERIOD = ["2026.09.01 ~ 2026.09.15 (발표장소 : koreaIT노원 B강의실)"]
@@ -320,7 +333,7 @@ MAIN_ROWS: List[Tuple[str, Sequence[str], str]] = [
     ("팀명", ["Qurious (큐리어스)"], "Quant + Curious"),
     ("팀원(역할)", MEMBERS, "주담당일 뿐\n교차 검수 (부록 B)"),
     ("기간", PERIOD, "6주 3개 중 1차"),
-    ("프로젝트 명", PROJECT_NAME, "킥오프에서 확정"),
+    ("프로젝트 명", PROJECT_NAME, "2026-09-03 확정"),
     ("주제 선정 이유", REASON, "숫자는 모두 실측"),
     ("프로젝트 목표", GOALS, "④⑤⑥ 팀원 제안\n세부는 부록 A"),
     ("분석 방법", METHODS, "세부는 부록 A"),
@@ -351,12 +364,25 @@ SCOPE_ROWS = [
     ["필수", "⑨ Streamlit 시연 화면", "강민석", "발표 시연"],
     ["선택", "⑩ 시장 균열 스코어 (변동성 예측용)",
      "신장환", "방향 예측 증분은 실측상 0에 가까웠다"],
-    ["선택", "⑪ 뉴스·공시 수집과 텍스트 피처",
-     "이동원", "약관 검토가 먼저 (부록 F)"],
+    ["선택", "⑪ 공시 제목 텍스트 신호 — HF 인코더 원격 추론",
+     "이동원", "뉴스는 약관 미결(부록 G ④) · 공시는 제한 없음\n"
+               "후보 21종 실측 → 6종 (데이터파트 v3.2)"],
     ["선택", "⑫ Keras LSTM/GRU 비교",
      "오준영", "수업 진도가 9월 중 여기까지 나간다"],
     ["선택", "⑬ 표에 없는 기능",
      "제안자", "주제 안에 있고 설명할 수 있으면 넣는다"],
+    ["선택",
+     "⑭ 버튼 갱신 파이프라인 — 수집→게이트→판정→HF\n한 명령 · 잠금",
+     "이동원·강민석",
+     "판정이 '재배포 필요' 일 때만 HF\n버튼 배선은 화면 파트"],
+    ["2·3차\n계약",
+     "⑮ 비LLM 에이전트 관측 규격\n(W×F 배열 · 명세만)",
+     "이동원",
+     "supply 정문 재사용\n→ 2·3차에 데이터 코드 무수정"],
+    ["선택",
+     "⑯ GitHub Actions 검사용 CI\n(봇 커밋 없음)",
+     "이동원\n(팀 합의 후)",
+     "계정 제한 리서치\nact 로컬 검증 뒤 도입"],
 ]
 
 ROLE_ROWS = [
@@ -377,7 +403,7 @@ ROLE_RULES = [
     "결과를 아는 것은 책임이다.",
     "③ 매일 진행 상황을 짧게 공유한다. 막히면 하루를 넘기지 않고 말한다.",
     "④ 주요 결정은 한 장짜리 기록으로 남긴다 — 무엇을, 왜, 어떤 대안을 버렸는지.",
-    "⑤ 발표자는 신장환 또는 강민석 중에서 킥오프에 정한다.",
+    "⑤ 발표는 신장환·강민석이 함께 한다 (2026-09-03 확정).",
 ]
 
 SCHEDULE_ROWS = [
@@ -385,25 +411,28 @@ SCHEDULE_ROWS = [
      "신장환 · 피처·품질", "그날의 완료 기준"],
     ["9/1(화)\n킥오프", "미결 8건 · 담당 경계 · 환경 통일", "〃", "〃", "〃",
      "전원 로컬 테스트 통과\nKRX 키 이용신청"],
-    ["9/2(수)", "품질 게이트", "베이스라인 골격", "워크포워드 그룹 인식",
+    ["9/2(수)", "수정주가 v9 · 거래일 달력\nHF 재배포 (실적)",
+     "베이스라인 골격", "워크포워드 그룹 인식",
      "지표 6종 골격", "품질 리포트가 나온다"],
-    ["9/3(목)", "시세 공급 함수", "학습 루프", "5트랙 중첩 설계",
+    ["9/3(목)", "고도화 설계 (HF·갱신·관측)\n반출 원가격 결함 수정 (실적)",
+     "학습 루프", "5트랙 중첩 설계",
      "지표 완성·shift 검사", "팀원이 공급 API 로 시세를 꺼낸다"],
-    ["9/4(금)", "섹터 매핑", "레이블 생성기", "비용 모델 4수준",
+    ["9/4(금)", "HF 토큰 권한 · 6종 재실측\n공공데이터포털 v10 착수",
+     "레이블 생성기", "비용 모델 4수준",
      "유동 밴드 부 실험", "데이터셋 스키마 확정"],
-    ["9/5(토)", "유니버스·유동성 필터", "데이터셋 생성", "기준선 3종 + ARIMA",
+    ["9/5(토)", "갱신 파이프라인 refresh + 잠금", "데이터셋 생성", "기준선 3종 + ARIMA",
      "예측가능성 통계", "학습용 자료가 나온다"],
-    ["9/6(일)", "예비일 · 문서", "LogReg 기준선", "폴드 커버리지 실측",
+    ["9/6(일)", "예비일 · CI 로컬 검증(act)", "LogReg 기준선", "폴드 커버리지 실측",
      "종목 1차 선별", "베이스라인이 기준선 대비 수치를 낸다"],
-    ["9/7(월)\n★인수", "데이터 인수 지점", "모델 2종", "성과지표 완성",
+    ["9/7(월)\n★인수", "데이터 인수 지점\n(HF 배포본은 9/2 선인수)", "모델 2종", "성과지표 완성",
      "선별 결과 고정", "아무도 저장소를 직접 부르지 않는다"],
-    ["9/8(화)\n★점검", "중간 점검", "모델 4종", "시도 횟수 계측",
+    ["9/8(화)\n★점검", "중간 점검\n텍스트 신호 v11 착수", "모델 4종", "시도 횟수 계측",
      "포지션 규칙 3안", "선택 범위를 한 번만 결정한다"],
-    ["9/9(수)", "뉴스·공시 수집(선택)", "하이퍼파라미터", "5트랙 백테스트",
+    ["9/9(수)", "공시 제목 감성 신호 (선택 ⑪)", "하이퍼파라미터", "5트랙 백테스트",
      "과적합 점검", "모델 비교표 초안"],
-    ["9/10(목)", "수집 현황 화면", "모델 확정", "자산곡선·MDD",
+    ["9/10(목)", "API ⑩ (/runs · /refresh)\n화면 배선은 강민석", "모델 확정", "자산곡선·MDD",
      "피처 중요도", "비교표 완성"],
-    ["9/11(금)", "문서 정리", "지수·종목 통합", "Streamlit 착수",
+    ["9/11(금)", "문서 정리 · 관측 규격 명세 ⑮", "지수·종목 통합", "Streamlit 착수",
      "지표 기여도", "검증 엔진이 닫힌다"],
     ["9/12(토)", "리포트 원고", "예비일", "Streamlit 완성",
      "예비일", "화면에서 신호와 성과를 함께 본다"],
@@ -413,23 +442,25 @@ SCHEDULE_ROWS = [
     ["9/15(화)", "발표", "", "", "", "—"],
 ]
 
+#: 착수 시점(8/25 이관) → 2026-09-03 실측. 줄 수는 `wc -l` · 조사용 `_*.py` 제외.
 ASSET_ROWS = [
-    ["계층", "줄 수", "상태"],
-    ["ingest/ — 수집·적재", "7,488",
-     "동작 중. KRX 920만 행이 이 경로로 들어왔다"],
-    ["evaluation/ — 성과 검증", "772",
-     "동작 중. 모델 없이 단독으로 돈다. 테스트 55개"],
-    ["supply/ — 시점정합 공급", "228",
-     "동작 중. 미래 자료 접근을 테스트가 막는다"],
-    ["common/ — 설정·경로·예산·robots", "2,348",
-     "절반 동작. 나머지는 정리 대상"],
-    ["timeseries/ — ARIMA·ADF·ACF", "2,063",
+    ["계층", "줄 수 (8/25 → 9/3)", "상태 (2026-09-03)"],
+    ["ingest/ — 수집·반입·적재", "7,488 → 12,368",
+     "동작 중. 시세 9,223,644행 · 재무 662,933행 · 거시 17,851행 · 수정주가 v9"],
+    ["evaluation/ — 성과 검증", "772 → 3,067",
+     "동작 중. 강민석 지표 2편 합류"],
+    ["supply/ — 시점정합 공급", "228 → 683",
+     "동작 중. 문 둘(예측·학습) · 홀드아웃 2년"],
+    ["common/ — 설정·예산·robots·달력", "2,348 → 3,227",
+     "동작 중. 거래일 달력 12,306행 · 반출 프로파일"],
+    ["timeseries/ — ARIMA·ADF·ACF", "2,063 → 2,085",
      "코드는 있으나 아직 호출처가 없다"],
-    ["scripts/ — 실행 CLI", "2,523", "동작 중 (수집·품질·실측 10종)"],
-    ["tests/", "3,017", "216개 · 8초"],
-    ["features/ — 피처", "35", "비어 있다. 2주에 만들 곳"],
-    ["models/ — 모델", "34", "비어 있다. 2주에 만들 곳"],
-    ["pipelines/ — 오케스트레이션", "0", "비어 있다. 2주에 만들 곳"],
+    ["scripts/ — 실행 CLI", "2,523 → 7,934", "동작 중 (수집·품질·반출·HF·키 점검 27종)"],
+    ["tests/", "3,017 → 9,547", "848 passed · 3 xfailed · 291초"],
+    ["features/ — 피처", "35 → 712", "지표 22칸 (신장환)"],
+    ["models/ — 모델", "34 → 435", "4종 팩토리 (오준영)"],
+    ["pipelines/ — 오케스트레이션", "0 → 305", "ingest 구현 · refresh 는 설계(v3.2)"],
+    ["api/ — 최소 API", "0 → 28", "빈 껍데기 — 강사님 FastAPI 골격으로 ⑩"],
 ]
 
 #: QFRS 준수 현황. 논문 서지는 QFRS_CITE 참조.
@@ -480,8 +511,8 @@ QFRS_CITE = (
 
 MEASURED_ROWS = [
     ["무엇", "값", "구간", "왜 중요한가"],
-    ["데이터 규모", "9,209,812행 · 3,677종목\n4,097거래일",
-     "2010-01-04 ~\n2026-08-25", "16년 전수. 부분 표본이 아니다"],
+    ["데이터 규모", "9,223,644행 · 3,677종목\n4,102거래일 (2026-09-03)",
+     "2010-01-04 ~\n2026-09-01", "16년 전수. 부분 표본이 아니다"],
     ["중도 소멸 종목", "910종목", "전 구간",
      "상장폐지가 자료에 남아 있다 → 생존편향 방어"],
     ["정리매매 급락", "-30.5% 이하 1,224행 중\n1,197행(97.8%)이 정리매매",
@@ -507,23 +538,26 @@ MEASURED_ROWS = [
 ]
 
 ROADMAP_ROWS = [
-    ["차수", "무엇을 새로 만드나", "1차에서 그대로 가져가는 것"],
-    ["1차\n9/1~9/15", "지표 기반 등락 예측 + 성과 검증 엔진", "—"],
-    ["2차", "한 종목 신호를 여러 종목 배분으로 넓힌다",
-     "검증 엔진·수집 계층·시점정합 규칙"],
+    ["차수", "무엇을 새로 만드나", "1차에서 그대로 가져가는 것", "데이터 계층 계약 (v3.0)"],
+    ["1차\n9/1~9/15", "지표 기반 등락 예측 + 성과 검증 엔진", "—",
+     "supply 정문 · HF 반출 · 갱신 파이프라인 · 텍스트 신호(공시 제목)"],
+    ["2차", "한 종목 신호를 여러 종목 배분으로 넓힌다\n(비LLM 에이전트 · 강화학습 후보)",
+     "검증 엔진·수집 계층·시점정합 규칙",
+     "관측 배열 규격 (W×F) — 환경이 그대로 읽는다 · 뉴스(약관 판단 후)"],
     ["3차", "기성 지표(RSI·MACD) 자리를 우리가 만든 지표로 바꾼다",
-     "검증 엔진·피처 계약·실험 기록 규약"],
+     "검증 엔진·피처 계약·실험 기록 규약",
+     "텍스트 신호 확장(본문) · 대안데이터 팩터 게이트(GitHub 활동)"],
 ]
 
+#: 닫힌 것은 뺀다 — ① 프로젝트명(Qurious) · ② 발표자(신장환·강민석 공동)는 2026-09-03 확정.
 OPEN_ITEMS = [
-    "① 프로젝트명 — 1안 AlphaStack / 2안 Qurious",
-    "② 발표자 — 신장환 또는 강민석",
-    "③ 산업 분류 기준 — KRX 업종 / GICS / 직접 매핑 "
+    "① 산업 분류 기준 — KRX 업종 / GICS / 직접 매핑 "
     "(수업 자료에 KRX 업종분류·WICS 수집 코드가 이미 있다)",
-    "④ 뉴스 제목·요약을 로컬 DB 에 저장해도 되는가 — 네이버 약관이 "
-    "“저장(캐시 포함)”을 금지한다. 법적 판단이라 팀에서 함께 결정한다",
-    "⑤ 동영상 수집 대상 채널 목록",
-    "⑥ 방향정확도 합격선을 54.99%로 둘 것인가 — 이 값은 관측이 서로 독립이라는 "
+    "② 뉴스 제목·요약을 로컬 DB 에 저장해도 되는가 — 네이버 약관이 "
+    "“저장(캐시 포함)”을 금지한다. 법적 판단이라 팀에서 함께 결정한다. "
+    "데이터 파트는 그동안 공시 제목(제한 없음)으로 텍스트 신호를 만든다",
+    "③ 동영상 수집 대상 채널 목록",
+    "④ 방향정확도 합격선을 54.99%로 둘 것인가 — 이 값은 관측이 서로 독립이라는 "
     "가정에서 나왔는데, 5일 레이블을 매일 만들면 이웃 예측이 4일을 공유해 "
     "독립이 아니다. 보정하면 57.22%다(실효 표본 1,217일 → 322일). "
     "사전등록 ADR은 방향정확도에 애초에 합격선을 걸지 않았으므로 두 문서가 "
@@ -531,119 +565,263 @@ OPEN_ITEMS = [
 ]
 
 
-def build_main_table(doc: Document) -> None:
+def main_table_rows() -> List[List[str]]:
     rows = [["구분", "내용", "비고"]]
     for label, body, note in MAIN_ROWS:
         rows.append([label, "\n".join(body), note])
-    _table(doc, rows, COL_WIDTHS, size=9.0)
+    return rows
+
+
+def build_main_table(doc: Document) -> None:
+    _table(doc, main_table_rows(), COL_WIDTHS, size=9.0)
+
+
+# ── 문서 모형 — docx 와 HTML 이 같은 목록을 읽는다 ─────────────────────────
+#: 부록의 문단·표·그림을 한 목록으로 둔다. 산출물이 둘이 됐을 때 프로즈를 두 벌 적으면
+#: 언젠가 한쪽만 고쳐진다 — "정본은 코드" 라는 이 파일의 이유가 사라진다.
+#:   ("heading", 제목) · ("para", 글, 크기pt, 굵게) · ("table", 행들, 열너비, 크기pt)
+#:   ("picture", 이름, 캡션, 너비EMU) · ("blank",)
+Block = Tuple
+
+
+def appendix_blocks() -> List[Block]:
+    b: List[Block] = [("blank",), ("para", "부록", 14.0, True)]
+
+    b += [
+        ("heading", "부록 A. 필수 범위와 선택 범위"),
+        ("para", "필수 범위는 2주 안에 반드시 끝낸다. 선택 범위는 9/8 중간 "
+                 "점검에서 한 번만 결정하고, 그 뒤로는 늘리지 않는다. "
+                 "⑭~⑯ 은 v3.0 에서 더한 데이터 파트 고도화(설계 완료 · 구현은 합의 후)다.",
+         9.5, False),
+        ("table", SCOPE_ROWS, W_SCOPE, 8.5),
+
+        ("heading", "부록 B. 역할과 교차 검수 규약"),
+        ("para", "아래 담당은 “무엇을 했는지 말할 수 있게” 나눈 것이지 벽을 세운 "
+                 "것이 아니다. 각자 자기 영역을 끌고 가되 옆 담당의 산출물을 "
+                 "한 번 더 확인한다.", 9.5, False),
+        ("table", ROLE_ROWS, W_ROLE, 8.5),
+        ("blank",),
+    ]
+    b += [("para", rule, 9.0, False) for rule in ROLE_RULES]
+
+    b += [
+        ("heading", "부록 C. 2주 일정"),
+        ("table", SCHEDULE_ROWS, W_SCHEDULE, 7.5),
+        ("blank",),
+        ("para", "★ 세 지점이 축이다 — 9/7 데이터 인수, 9/8 선택 범위 결정, "
+                 "9/13 검증구간 개봉.", 9.0, False),
+        ("para", "※ 검증구간은 9/13 에 단 한 번 연다. 그 전에 열면 사전에 정해 "
+                 "둔 검정 절차가 무의미해지고, 성능을 보고 설계를 고쳤다는 의심을 "
+                 "벗을 수 없다.", 9.0, False),
+        ("para", "※ 주말(9/5·6, 9/12·13)을 일정에 포함했다. 실제 배분은 "
+                 "킥오프에서 조정한다.", 9.0, False),
+        ("para", "※ v3.0 — 이동원 열의 9/2·9/3 은 실적으로, 9/4 이후는 고도화 설계 "
+                 "순서로 고쳤다. 다른 세 열은 각 담당이 갱신하기 전까지 v2.1 그대로다.",
+         9.0, False),
+        ("blank",),
+        ("picture", "일정간트", "[그림 1] 2주 일정", 5_300_000),
+
+        ("heading", "부록 D. 착수 자산"),
+        ("para", "착수 시점(8/25 이관)의 자산과 2026-09-03 실측을 나란히 적는다. "
+                 "비어 있던 피처·모델은 팀원이 채웠고, 파이프라인은 수집만 서 있다. "
+                 "남은 빈 곳은 갱신 파이프라인·API 다.", 9.5, False),
+        ("table", ASSET_ROWS, W_ASSET, 8.5),
+        ("blank",),
+        ("para", "설치·확인 완료 — scikit-learn 1.9.0 · LightGBM 4.7.0 · "
+                 "XGBoost 3.4.1 · scipy 1.18.1 · pandas 3.0.5 · numpy 2.5.1 · "
+                 "huggingface_hub 1.29.0 · nbclient 0.11.0 (실측 2026-09-03)", 9.0, False),
+        ("para", "화면 스택은 Streamlit 으로 합의(킥오프) — 설치·버전은 화면 담당(강민석)이 "
+                 "정한다.", 9.0, False),
+
+        ("heading", "부록 E. 실측 근거"),
+        ("para", "아래는 모두 우리 자료로 직접 잰 값이다. 인용이 아니다. "
+                 "재현: python scripts/measure_horizon.py · "
+                 "measure_stock_horizon.py", 9.5, False),
+        ("table", MEASURED_ROWS, W_MEASURED, 8.0),
+        ("blank",),
+        ("para", "※ 손익분기는 “방향 적중 여부와 수익 크기가 서로 무관하다”는 "
+                 "가정 위에 있다. 큰 변동일이 예측하기 더 어렵다면 실제로 필요한 "
+                 "정확도는 더 높다.", 9.0, False),
+        ("para", "※ 처음에는 두 트랙에 같은 비용을 적용해 “종목이 지수보다 유리”"
+                 "하다는 결론을 냈다. 국내 상장 ETF 는 증권거래세가 면제되고 "
+                 "개별주는 매도 시 0.20%를 낸다는 비대칭을 반영하니 부호가 "
+                 "뒤집혔다. 종목 트랙은 수익 크기가 2.6배 크지만 그 이점을 "
+                 "거래세가 상쇄하고 남는다 — 지수보다 약 1.7%p 불리하다. "
+                 "그래도 유의 임계(54.99%) 언저리라 불가능하지는 않다.", 9.0, False),
+        ("para", "※ v3.0 — 홀드아웃 경계가 2026-09-02 에 2년(2024-09-01)으로 옮겨져 "
+                 "(ADR-0005) 개발구간은 3,618 거래일이다. 위 표의 기준선·유의 임계·"
+                 "클래스 분포는 v2.0 시점(5년 홀드아웃) 실측이고, 라벨을 -1/0/1 로 두고 "
+                 "포지션을 {0,+1} 로 잡으면 기준선이 42.50% 로 달라진다(이슈 #33·#37). "
+                 "본표 “주제 선정 이유” 의 숫자와 함께 고쳐야 해서, 기준선을 다시 재는 "
+                 "다음 판(v3.1)에서 교체한다.", 9.0, False),
+
+        ("heading", "부록 F. QFRS 준수 현황"),
+        ("para", "2026년 8월 Artificial Intelligence Review 에 실린 QFRS 는 AI 기반 "
+                 "금융 예측·트레이딩 연구가 지켜야 할 7개 보고 표준이다. 저자가 "
+                 "Scopus 색인 논문 41편을 감사했더니 7개를 모두 충족한 논문이 "
+                 "한 편도 없었다(평균 4.22개). 특히 경제적 백테스트는 87.8%가, "
+                 "인과적 스케일링은 68.3%가 실패했다.", 9.5, False),
+        ("para", "이 프로젝트의 논지가 “어떻게 검증했나”이므로 그 기준을 그대로 "
+                 "가져와 우리 현황을 표로 놓는다. 지금 5개 충족·2개 부분이고, "
+                 "부분 2개는 2주 안에 닫는다.", 9.5, False),
+        ("table", QFRS_ROWS, W_QFRS, 7.5),
+        ("blank",),
+        ("para", "출처: " + QFRS_CITE, 8.5, False),
+        ("para", "※ 이 논문은 온라인 선공개(accepted manuscript) 상태라 권·호·"
+                 "페이지가 아직 없다. 위 형식이 원문이 지정한 인용 방식이다. "
+                 "Open Access(CC-BY)라 전문을 볼 수 있다.", 8.5, False),
+
+        ("heading", "부록 G. 아직 열린 것"),
+        ("para", "프로젝트명(Qurious)과 발표자(신장환·강민석 공동)는 2026-09-03 에 닫혀 "
+                 "본표와 부록 B 로 올라갔다. 남은 것은 넷이다.", 9.0, False),
+    ]
+    b += [("para", item, 9.0, False) for item in OPEN_ITEMS]
+
+    b += [
+        ("heading", "부록 H. 3개 프로젝트 확장 로드맵"),
+        ("para", "세 차수의 주제가 모두 “개발 및 성과 검증”으로 끝난다. 매번 "
+                 "새로 만드는 것은 앞쪽이고 검증하는 방법은 같다. 1차에서 검증 "
+                 "엔진을 재사용 가능하게 분리하는 것이 6주 전체의 효율을 "
+                 "좌우한다. v3.0 에서 “데이터 계층 계약” 열을 더했다 — 2·3차의 "
+                 "에이전트·텍스트가 데이터 코드를 고치지 않고 붙는 자리다.", 9.5, False),
+        ("table", ROADMAP_ROWS, W_ROADMAP, 8.5),
+
+        ("heading", "부록 I. 아키텍처"),
+        ("para", "자료는 반드시 시점정합 공급 계층을 지나야 한다. 이 문을 지나지 "
+                 "않는 조회는 테스트가 막는다. “그때 알 수 있었던 것”만 모델에 "
+                 "들어가게 하는 구조적 장치다.", 9.5, False),
+        ("para", "문은 둘이다. 예측 경로는 as_of 시점에 알 수 있었던 행만 주고, "
+                 "학습 경로는 전 구간을 보고 정리매매·신규상장 구간을 덜어낸다. "
+                 "정리매매 판정은 “이 뒤로 체결이 끊긴다”라서 그 시점에는 알 수 "
+                 "없는 사실이기 때문이다. 손잡이로 켜고 끄면 언젠가 켜진 채로 "
+                 "예측에 들어가므로 이름으로 갈랐다 — 예측 코드가 학습용 문을 "
+                 "부르면 이름만으로 리뷰에 걸린다.", 9.5, False),
+        # ⚠️ 계층아키텍처(.mmd)는 supply 를 **문 하나**로 그린다. PR #10 이 문을 둘로
+        #    가르기 전의 그림이라 부록에 실으면 정반대로 읽힌다. 그래서 문 둘을 그린
+        #    시스템아키텍처(HTML→PNG)로 바꿨다. 발표 자료와도 같은 그림이 된다.
+        ("picture", "시스템아키텍처", "[그림 2] 시스템 구성 — supply 문 둘과 시점정합",
+         5_300_000),
+        ("blank",),
+        ("para", "역할별로 파이프라인을 나눠 4명이 병렬로 작업한다. 1차에는 LLM "
+                 "을 쓰지 않으므로 역할별 워커와 오케스트레이션이며, RAG·에이전트"
+                 "로의 승격은 2·3차에서 다룬다.", 9.5, False),
+        ("picture", "역할파이프라인", "[그림 3] 역할별 파이프라인 분리", 5_300_000),
+    ]
+    return b
 
 
 def build_appendices(doc: Document) -> None:
-    _para(doc)
-    _para(doc, "부록", size=14, bold=True)
+    """부록 목록을 docx 로 푼다."""
+    for blk in appendix_blocks():
+        kind = blk[0]
+        if kind == "blank":
+            _para(doc)
+        elif kind == "heading":
+            _heading(doc, blk[1])
+        elif kind == "para":
+            _para(doc, blk[1], size=blk[2], bold=blk[3])
+        elif kind == "table":
+            _table(doc, blk[1], blk[2], size=blk[3])
+        elif kind == "picture":
+            _picture(doc, blk[1], blk[2], blk[3])
 
-    _heading(doc, "부록 A. 필수 범위와 선택 범위")
-    _para(doc, "필수 범위는 2주 안에 반드시 끝낸다. 선택 범위는 9/8 중간 "
-               "점검에서 한 번만 결정하고, 그 뒤로는 늘리지 않는다.", size=9.5)
-    _table(doc, SCOPE_ROWS, W_SCOPE, size=8.5)
 
-    _heading(doc, "부록 B. 역할과 교차 검수 규약")
-    _para(doc, "아래 담당은 “무엇을 했는지 말할 수 있게” 나눈 것이지 벽을 세운 "
-               "것이 아니다. 각자 자기 영역을 끌고 가되 옆 담당의 산출물을 "
-               "한 번 더 확인한다.", size=9.5)
-    _table(doc, ROLE_ROWS, W_ROLE, size=8.5)
-    _para(doc)
-    for rule in ROLE_RULES:
-        _para(doc, rule, size=9.0)
+# ── HTML 렌더러 ─────────────────────────────────────────────────────────────
 
-    _heading(doc, "부록 C. 2주 일정")
-    _table(doc, SCHEDULE_ROWS, W_SCHEDULE, size=7.5)
-    _para(doc)
-    _para(doc, "★ 세 지점이 축이다 — 9/7 데이터 인수, 9/8 선택 범위 결정, "
-               "9/13 검증구간 개봉.", size=9.0)
-    _para(doc, "※ 검증구간은 9/13 에 단 한 번 연다. 그 전에 열면 사전에 정해 "
-               "둔 검정 절차가 무의미해지고, 성능을 보고 설계를 고쳤다는 의심을 "
-               "벗을 수 없다.", size=9.0)
-    _para(doc, "※ 주말(9/5·6, 9/12·13)을 일정에 포함했다. 실제 배분은 "
-               "킥오프에서 조정한다.", size=9.0)
-    _para(doc)
-    _picture(doc, "일정간트", "[그림 1] 2주 일정")
+HTML_HEAD = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>
+  /* 정본은 scripts/build_project_plan.py — 이 파일은 산출물이다. 손으로 고치지 않는다. */
+  :root { --ink:#10243f; --soft:#5b7290; --line:#d5deea; --bg:#f6f9fc; --panel:#fff;
+          --brand:#1b4f9c; --head:#d9e2f3; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:"Pretendard","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",
+                     system-ui,sans-serif;
+         word-break:keep-all; line-break:strict; -webkit-font-smoothing:antialiased; }
+  .sheet { max-width:1040px; margin:0 auto; padding:36px 40px 60px;
+           background:var(--panel);
+           border-left:1px solid var(--line); border-right:1px solid var(--line); }
+  h1 { font-size:22px; text-align:center; margin:0 0 6px; letter-spacing:-0.4px; }
+  .meta { text-align:center; color:var(--soft); font-size:12px; margin-bottom:26px; }
+  .meta code { background:var(--bg); padding:1px 6px; border-radius:6px; }
+  h2 { font-size:16px; color:var(--brand); margin:34px 0 8px; padding-top:14px;
+       border-top:1px solid var(--line); }
+  p { line-height:1.62; margin:8px 0; }
+  table { border-collapse:collapse; width:100%; margin:8px 0 14px; }
+  th, td { border:1px solid #999; padding:6px 8px; vertical-align:top; line-height:1.5;
+           text-align:left; }
+  th { background:var(--head); font-weight:700; }
+  td:first-child { white-space:nowrap; }
+  figure { margin:14px 0 20px; text-align:center; }
+  figure img { max-width:100%; height:auto; border:1px solid var(--line); background:#fff; }
+  figcaption { color:#666; font-size:12px; margin-top:6px; }
+  .part { font-size:19px; font-weight:800; margin-top:44px; color:var(--brand); }
+  @media print { body { background:#fff; } .sheet { border:0; padding:0; max-width:none; }
+                 h2 { break-after:avoid; } table, figure { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+"""
 
-    _heading(doc, "부록 D. 착수 자산")
-    _para(doc, "팀장이 사전에 개발해 둔 부분을 팀 저장소로 이관해 두었다. "
-               "데이터와 검증 엔진은 서 있고, 둘을 잇는 피처·모델·파이프라인이 "
-               "비어 있다. 2주에 만들 곳이 바로 거기다.", size=9.5)
-    _table(doc, ASSET_ROWS, W_ASSET, size=8.5)
-    _para(doc)
-    _para(doc, "설치·확인 완료 — scikit-learn 1.9.0 · LightGBM 4.7.0 · "
-               "XGBoost 3.4.1 · scipy 1.18.1 · pandas 3.0.5 · numpy 2.5.1",
-          size=9.0)
-    _para(doc, "설치 예정 — streamlit · matplotlib "
-               "(대시보드 담당과 킥오프에서 확정)", size=9.0)
+HTML_TAIL = """
+</div>
+</body>
+</html>
+"""
 
-    _heading(doc, "부록 E. 실측 근거")
-    _para(doc, "아래는 모두 우리 자료로 직접 잰 값이다. 인용이 아니다. "
-               "재현: python scripts/measure_horizon.py · "
-               "measure_stock_horizon.py", size=9.5)
-    _table(doc, MEASURED_ROWS, W_MEASURED, size=8.0)
-    _para(doc)
-    _para(doc, "※ 손익분기는 “방향 적중 여부와 수익 크기가 서로 무관하다”는 "
-               "가정 위에 있다. 큰 변동일이 예측하기 더 어렵다면 실제로 필요한 "
-               "정확도는 더 높다.", size=9.0)
-    _para(doc, "※ 처음에는 두 트랙에 같은 비용을 적용해 “종목이 지수보다 유리”"
-               "하다는 결론을 냈다. 국내 상장 ETF 는 증권거래세가 면제되고 "
-               "개별주는 매도 시 0.20%를 낸다는 비대칭을 반영하니 부호가 "
-               "뒤집혔다. 종목 트랙은 수익 크기가 2.6배 크지만 그 이점을 "
-               "거래세가 상쇄하고 남는다 — 지수보다 약 1.7%p 불리하다. "
-               "그래도 유의 임계(54.99%) 언저리라 불가능하지는 않다.", size=9.0)
 
-    _heading(doc, "부록 F. QFRS 준수 현황")
-    _para(doc, "2026년 8월 Artificial Intelligence Review 에 실린 QFRS 는 AI 기반 "
-               "금융 예측·트레이딩 연구가 지켜야 할 7개 보고 표준이다. 저자가 "
-               "Scopus 색인 논문 41편을 감사했더니 7개를 모두 충족한 논문이 "
-               "한 편도 없었다(평균 4.22개). 특히 경제적 백테스트는 87.8%가, "
-               "인과적 스케일링은 68.3%가 실패했다.", size=9.5)
-    _para(doc, "이 프로젝트의 논지가 “어떻게 검증했나”이므로 그 기준을 그대로 "
-               "가져와 우리 현황을 표로 놓는다. 지금 5개 충족·2개 부분이고, "
-               "부분 2개는 2주 안에 닫는다.", size=9.5)
-    _table(doc, QFRS_ROWS, W_QFRS, size=7.5)
-    _para(doc)
-    _para(doc, "출처: " + QFRS_CITE, size=8.5)
-    _para(doc, "※ 이 논문은 온라인 선공개(accepted manuscript) 상태라 권·호·"
-               "페이지가 아직 없다. 위 형식이 원문이 지정한 인용 방식이다. "
-               "Open Access(CC-BY)라 전문을 볼 수 있다.", size=8.5)
+def _h(text) -> str:
+    """HTML 로 안전하게. 셀 안의 줄바꿈은 <br> 로."""
+    return html.escape(str(text)).replace("\n", "<br>")
 
-    _heading(doc, "부록 G. 킥오프에서 정할 것")
-    for item in OPEN_ITEMS:
-        _para(doc, item, size=9.0)
 
-    _heading(doc, "부록 H. 3개 프로젝트 확장 로드맵")
-    _para(doc, "세 차수의 주제가 모두 “개발 및 성과 검증”으로 끝난다. 매번 "
-               "새로 만드는 것은 앞쪽이고 검증하는 방법은 같다. 1차에서 검증 "
-               "엔진을 재사용 가능하게 분리하는 것이 6주 전체의 효율을 "
-               "좌우한다.", size=9.5)
-    _table(doc, ROADMAP_ROWS, W_ROADMAP, size=8.5)
+def _html_table(rows: Sequence[Sequence[str]], size: float) -> str:
+    head = "".join(f"<th>{_h(c)}</th>" for c in rows[0])
+    body = "".join("<tr>" + "".join(f"<td>{_h(c)}</td>" for c in r) + "</tr>"
+                   for r in rows[1:])
+    return (f'<table style="font-size:{size + 1.5:.1f}pt"><thead><tr>{head}</tr></thead>'
+            f"<tbody>{body}</tbody></table>")
 
-    _heading(doc, "부록 I. 아키텍처")
-    _para(doc, "자료는 반드시 시점정합 공급 계층을 지나야 한다. 이 문을 지나지 "
-               "않는 조회는 테스트가 막는다. “그때 알 수 있었던 것”만 모델에 "
-               "들어가게 하는 구조적 장치다.", size=9.5)
-    _para(doc, "문은 둘이다. 예측 경로는 as_of 시점에 알 수 있었던 행만 주고, "
-               "학습 경로는 전 구간을 보고 정리매매·신규상장 구간을 덜어낸다. "
-               "정리매매 판정은 “이 뒤로 체결이 끊긴다”라서 그 시점에는 알 수 "
-               "없는 사실이기 때문이다. 손잡이로 켜고 끄면 언젠가 켜진 채로 "
-               "예측에 들어가므로 이름으로 갈랐다 — 예측 코드가 학습용 문을 "
-               "부르면 이름만으로 리뷰에 걸린다.", size=9.5)
-    # ⚠️ 계층아키텍처(.mmd)는 supply 를 **문 하나**로 그린다. PR #10 이 문을 둘로
-    #    가르기 전의 그림이라 부록에 실으면 정반대로 읽힌다. 그래서 문 둘을 그린
-    #    시스템아키텍처(HTML→PNG)로 바꿨다. 발표 자료와도 같은 그림이 된다.
-    _picture(doc, "시스템아키텍처", "[그림 2] 시스템 구성 — supply 문 둘과 시점정합",
-             5_300_000)
-    _para(doc)
-    _para(doc, "역할별로 파이프라인을 나눠 4명이 병렬로 작업한다. 1차에는 LLM "
-               "을 쓰지 않으므로 역할별 워커와 오케스트레이션이며, RAG·에이전트"
-               "로의 승격은 2·3차에서 다룬다.", size=9.5)
-    _picture(doc, "역할파이프라인", "[그림 3] 역할별 파이프라인 분리")
+
+def render_html(out: Path) -> str:
+    """docx 와 같은 내용을 HTML 한 장으로. 그림은 PNG 를 상대 경로로 가리킨다."""
+    parts: List[str] = [f"<h1>{_h(TITLE)}</h1>"]
+    parts.append(
+        f'<p class="meta">Qurious · 계획서 {_h(out.parent.name)} · '
+        f"생성 {datetime.now(KST):%Y-%m-%d %H:%M} KST · 정본 "
+        f"<code>scripts/build_project_plan.py</code> · docx 와 같은 내용</p>")
+    parts.append(_html_table(main_table_rows(), 9.0))
+
+    for blk in appendix_blocks():
+        kind = blk[0]
+        if kind == "blank":
+            continue
+        if kind == "heading":
+            parts.append(f"<h2>{_h(blk[1])}</h2>")
+        elif kind == "para":
+            if blk[3]:
+                parts.append(f'<p class="part">{_h(blk[1])}</p>')
+            else:
+                parts.append(f'<p style="font-size:{blk[2] + 1.5:.1f}pt">{_h(blk[1])}</p>')
+        elif kind == "table":
+            parts.append(_html_table(blk[1], blk[3]))
+        elif kind == "picture":
+            path = DIAGRAM_DIR / (blk[1] + ".png")
+            rel = os.path.relpath(path, out.parent).replace(os.sep, "/")
+            if path.exists():
+                parts.append(f'<figure><img src="{rel}" alt="{_h(blk[2])}">'
+                             f"<figcaption>{_h(blk[2])}</figcaption></figure>")
+            else:
+                parts.append(f"<figure><figcaption>{_h(blk[2])} — 그림 없음 ({rel})"
+                             f"</figcaption></figure>")
+
+    return HTML_HEAD.replace("{title}", _h(TITLE)) + "\n".join(parts) + HTML_TAIL
 
 
 def main() -> int:
@@ -651,7 +829,10 @@ def main() -> int:
     ap.add_argument("--base", type=Path, default=BASE_DOCX,
                     help="스타일을 가져올 기존 docx (한글 글꼴·용지 설정)")
     ap.add_argument("--out", type=Path, default=OUT_DOCX)
+    ap.add_argument("--html", type=Path, default=None,
+                    help="HTML 산출 경로 (기본: --out 과 같은 폴더·이름의 .html)")
     args = ap.parse_args()
+    out_html = args.html or args.out.with_suffix(".html")
 
     if not args.base.exists():
         print("🔴 스타일 기반 파일이 없습니다: " + str(args.base))
@@ -671,6 +852,10 @@ def main() -> int:
     print("✅ " + str(args.out))
     print("   표 " + str(len(doc.tables)) + "개 · 문단 "
           + str(len(doc.paragraphs)) + "개")
+
+    page = render_html(out_html)
+    out_html.write_text(page, encoding="utf-8")
+    print("✅ " + str(out_html) + f"  ({len(page.encode('utf-8')) / 1024:.1f} KB)")
     return 0
 
 
