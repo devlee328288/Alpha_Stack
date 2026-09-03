@@ -10,6 +10,51 @@ from sklearn.metrics import (
     matthews_corrcoef,
     recall_score,
 )
+from huggingface_hub import hf_hub_download
+import pandas as pd
+
+# 실제 데이터 불러오기
+
+path = hf_hub_download(
+    repo_id="qurious-quant/alphastack-krx-dev",
+    filename="small/features_labels_kospi200_dev.csv",
+    repo_type="dataset",
+)
+df = pd.read_csv(path)
+
+FEATURES = [
+    c
+    for c in df.columns
+    if c
+    not in (
+        "bas_dd",
+        "date",
+        "index_name",
+        "index_class",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "change_rate",
+        "volume",
+        "value",
+        "market_cap",
+        "fwd_return_5d",
+        "label",
+    )
+]
+
+X = df[FEATURES]
+
+# 실제 분류 정답
+# 데이터의 label 값:
+#   상승 / 중립 / 하락
+y_class = df["label"]
+
+# 실제 회귀 정답
+# 5일 후 미래수익률
+y_return = df["fwd_return_5d"]
 
 # ============================================================
 # 백테스트 / AI 모델 성과평가 지표 계산 모듈
@@ -1233,84 +1278,145 @@ def calculate_all_classification_metrics(
 
 
 # ============================================================
-# 5. 실행 예시
+# 5. 실제 데이터 + 임의 예측값을 이용한 실행 예시
 # ============================================================
 #
-# 현재는 함수가 정상적으로 작동하는지 확인하기 위한
-# 가상의 데이터를 사용한다.
+# 실제 데이터
+# ------------------------------------------------------------
 #
-# 실제 프로젝트에서는 이 부분을
-# 실제 모델의 결과로 교체하면 된다.
+# df
+#     → Hugging Face에서 실제 CSV를 불러온 데이터
+#
+# X
+#     → 실제 Feature
+#
+# y_class
+#     → 실제 분류 정답(label)
+#
+# y_return
+#     → 실제 미래수익률(fwd_return_5d)
+#
+#
+# 임의 데이터
+# ------------------------------------------------------------
+#
+# predictions
+#     → 임의로 생성한 회귀 예측값
+#
+# y_pred
+#     → 임의로 생성한 분류 예측값
+#
+# y_pred_proba
+#     → 임의로 생성한 분류 확률
+#
+#
+# [중요]
+# ------------------------------------------------------------
+# 이 실행부는 실제 모델의 성능을 평가하는 것이 아니다.
+#
+# 실제 데이터에 지표 계산 함수를 연결하는 구조를
+# 테스트하기 위한 실행 예시이다.
+#
+# 실제 모델을 연결할 경우 아래의
+#
+#     predictions
+#     y_pred
+#     y_pred_proba
+#
+# 만 실제 모델의 출력값으로 교체하면 된다.
 # ============================================================
 
 
 if __name__ == "__main__":
 
-    print("성과 지표 계산 예시")
+    print("📊 실제 데이터 기반 성과 지표 계산을 시작합니다.")
     print("=" * 60)
+
+    # ========================================================
+    # 0. 실제 데이터 확인
+    # ========================================================
+
+    print("\n[실제 데이터]")
+    print("-" * 60)
+
+    print(f"전체 데이터 개수 : {len(df):,}")
+    print(f"Feature 개수     : {len(FEATURES):,}")
+
+    print("\n실제 분류 클래스 분포:")
+
+    actual_class_distribution = class_distribution(
+        y_class.to_numpy(),
+        labels = ["상승", "중립", "하락"],
+    )
+
+    for cls, ratio in actual_class_distribution.items():
+        print(f"  클래스 {cls} : {ratio:.2%}")
 
     # ========================================================
     # A. 회귀 모델 평가
     # ========================================================
+    #
+    # 실제 정답
+    #     → fwd_return_5d
+    #
+    # 예측값
+    #     → 현재는 테스트를 위해 임의 생성
+    #
+    # 실제 모델 연결 시:
+    #
+    #     predictions = model.predict(X)
+    #
+    # 으로 교체한다.
+    # ========================================================
 
-    np.random.seed(42)
+    print("\n📈 회귀 모델 평가")
+    print("-" * 60)
 
-    n_samples = 100
-
-    # --------------------------------------------------------
-    # 실제 수익률을 가정한 가상 데이터
-    # --------------------------------------------------------
-
-    true_returns = np.random.normal(
-        0.001,
-        0.02,
-        n_samples,
+    # 실제 미래 5일 수익률
+    actual_returns = y_return.to_numpy(
+        dtype=float
     )
 
     # --------------------------------------------------------
-    # 가상의 예측값
+    # 유효한 실제 수익률만 사용
     # --------------------------------------------------------
     #
-    # 주의:
-    # 여기서는 함수가 정상적으로 작동하는지 확인하기 위해
-    # 실제 수익률에 노이즈를 추가하여 예측값을 만든다.
-    #
-    # 따라서 이것은 "모델의 실제 성능을 검증하는 백테스트"가
-    # 아니라 단순한 함수 실행 예시이다.
-    #
-    # 실제 모델 평가에서는 반드시
-    #
-    #     X → 모델 → predictions
-    #
-    # 과정을 거친 실제 예측값을 사용해야 한다.
+    # fwd_return_5d에 NaN 등이 존재할 경우
+    # 예측값과 실제값의 행을 동일하게 맞춘다.
     # --------------------------------------------------------
 
-    pred_returns = true_returns + np.random.normal(
-        0,
-        0.01,
-        n_samples,
+    valid_return_mask = np.isfinite(
+        actual_returns
     )
 
+    actual_returns = actual_returns[
+        valid_return_mask
+    ]
+
+    X_regression = X.loc[
+        valid_return_mask
+    ]
+
     # --------------------------------------------------------
-    # 기간별 IC 데이터
+    # 임의의 회귀 예측값 생성
     # --------------------------------------------------------
     #
-    # ICIR은 단일 IC가 아니라
-    # 여러 기간의 IC가 필요하다.
+    # 실제 모델이 없으므로
+    # 테스트를 위해 임의의 예측값을 생성한다.
     #
-    # 현재는 12개의 가상 IC를 생성한다.
+    # 실제 모델 사용 시 이 부분을:
     #
-    # 실제 사용 시:
-    #
-    #     ic_series = 실제 기간별 IC
+    #     predictions = model.predict(X_regression)
     #
     # 로 교체한다.
     # --------------------------------------------------------
 
-    ic_series = np.random.normal(
-        0.05,
-        0.03,
-        12,
+    np.random.seed(42)
+
+    predictions = np.random.normal(
+        loc=0.0,
+        scale=np.std(actual_returns),
+        size=len(actual_returns),
     )
 
     # --------------------------------------------------------
@@ -1318,156 +1424,204 @@ if __name__ == "__main__":
     # --------------------------------------------------------
 
     reg_results = calculate_all_regression_metrics(
-        predictions=pred_returns,
-        returns=true_returns,
-        ic_series=ic_series,
+        predictions=predictions,
+        returns=actual_returns,
     )
 
-    print("\n[회귀 지표]")
+    print("\n[회귀 성과 지표]")
     print("-" * 60)
 
     for key, value in reg_results.items():
-        print(f"{key:15s} : {value:.4f}")
+
+        if np.isnan(value):
+            print(f"{key:15s} : NaN")
+        else:
+            print(f"{key:15s} : {value:.6f}")
 
     # ========================================================
     # B. 분류 모델 평가
     # ========================================================
     #
-    # 예시:
+    # 실제 정답:
     #
-    # 0 = 상승
-    # 1 = 하락
-    # 2 = 보합
+    #     label
     #
-    # 실제 프로젝트에서는
+    # 예측:
     #
-    # y_true
-    #     → 실제 시장 상태
+    #     y_pred
     #
-    # y_pred
-    #     → 모델 예측 클래스
+    # 현재 y_pred는 테스트를 위해 임의 생성한다.
     #
-    # y_proba
-    #     → 모델 클래스별 예측 확률
+    # 실제 모델 연결 시:
+    #
+    #     y_pred = model.predict(X)
+    #
+    # 으로 교체한다.
+    # ========================================================
+
+    print("\n📊 분류 모델 평가")
+    print("-" * 60)
+
+    # --------------------------------------------------------
+    # 실제 분류 정답
+    # --------------------------------------------------------
+
+    actual_labels = y_class.to_numpy()
+
+    # --------------------------------------------------------
+    # 실제 label이 존재하는 행만 사용
+    # --------------------------------------------------------
+
+    valid_class_mask = pd.notna(
+        actual_labels
+    )
+
+    actual_labels = actual_labels[
+        valid_class_mask
+    ]
+
+    X_classification = X.loc[
+        valid_class_mask
+    ]
+
+    # --------------------------------------------------------
+    # 임의의 분류 예측값 생성
+    # --------------------------------------------------------
+    #
+    # 실제 모델이 없기 때문에
+    # 실제 클래스 분포를 기준으로
+    # 임의의 클래스를 생성한다.
+    #
+    # 실제 모델 사용 시:
+    #
+    #     y_pred = model.predict(X_classification)
+    #
+    # 으로 교체한다.
+    # --------------------------------------------------------
+
+    np.random.seed(42)
+
+    labels = ["상승", "중립", "하락"]
+
+    actual_probabilities = np.array(
+        [
+            np.mean(actual_labels == cls)
+            for cls in labels
+        ]
+    )
+
+    y_pred = np.random.choice(
+        labels,
+        size=len(actual_labels),
+        p=actual_probabilities,
+    )
+
+    # ========================================================
+    # C. 임의의 분류 확률 생성
+    # ========================================================
+    #
+    # Macro Average Precision을 계산하려면
+    # 클래스별 확률값이 필요하다.
+    #
+    # 실제 모델 사용 시:
+    #
+    #     y_pred_proba = model.predict_proba(X)
     #
     # 로 교체한다.
     # ========================================================
 
-    # 실제 클래스
-    y_true = np.array(
-        [
-            0,
-            1,
-            2,
-            0,
-            1,
-            2,
-            0,
-            1,
-            2,
-            0,
-            1,
-            2,
-            0,
-            1,
-            2,
-        ]
-    )
+    # --------------------------------------------------------
+    # Dirichlet 분포를 이용하여
+    # 각 행의 확률 합이 1이 되도록 생성한다.
+    # --------------------------------------------------------
 
-    # 모델 예측 클래스
-    y_pred = np.array(
-        [
-            0,
-            1,
-            2,
-            0,
-            0,
-            2,
-            1,
-            1,
-            2,
-            0,
-            1,
-            2,
-            0,
-            1,
-            2,
-        ]
+    np.random.seed(42)
+
+    y_pred_proba = np.random.dirichlet(
+        alpha=[1.0, 1.0, 1.0],
+        size=len(actual_labels),
     )
 
     # --------------------------------------------------------
-    # 모델의 클래스별 예측 확률
+    # 확률과 예측 클래스의 일관성을 맞추기 위해
+    # 가장 높은 확률의 클래스를 y_pred로 사용
     # --------------------------------------------------------
     #
-    # labels = [0, 1, 2] 기준
+    # 이렇게 하면:
     #
-    # column 0 → 클래스 0 확률
-    # column 1 → 클래스 1 확률
-    # column 2 → 클래스 2 확률
+    #     y_pred
+    #         =
+    #     argmax(y_pred_proba)
     #
-    # 실제 sklearn 모델에서는:
-    #
-    #     y_proba = model.predict_proba(X_test)
-    #
-    # 로 얻을 수 있다.
-    #
-    # 딥러닝 모델에서는 일반적으로
-    # softmax 출력값을 사용할 수 있다.
+    # 관계가 유지된다.
     # --------------------------------------------------------
 
-    y_proba = np.array(
-        [
-            [0.7, 0.2, 0.1],
-            [0.1, 0.8, 0.1],
-            [0.2, 0.2, 0.6],
-            [0.6, 0.3, 0.1],
-            [0.4, 0.4, 0.2],
-            [0.2, 0.1, 0.7],
-            [0.3, 0.5, 0.2],
-            [0.1, 0.7, 0.2],
-            [0.2, 0.3, 0.5],
-            [0.5, 0.3, 0.2],
-            [0.2, 0.6, 0.2],
-            [0.1, 0.1, 0.8],
-            [0.6, 0.2, 0.2],
-            [0.1, 0.8, 0.1],
-            [0.2, 0.2, 0.6],
-        ]
-    )
+    y_pred = np.array(labels)[
+        np.argmax(
+            y_pred_proba,
+            axis=1,
+        )
+    ]
 
-    # --------------------------------------------------------
-    # 분류 지표 계산
-    # --------------------------------------------------------
+    # ========================================================
+    # D. 분류 지표 계산
+    # ========================================================
 
     cls_results = calculate_all_classification_metrics(
-        y_true=y_true,
+        y_true=actual_labels,
         y_pred=y_pred,
-        y_pred_proba=y_proba,
-        labels=[0, 1, 2],
+        y_pred_proba=y_pred_proba,
+        labels=labels,
     )
 
-    # --------------------------------------------------------
-    # 분류 결과 출력
-    # --------------------------------------------------------
+    # ========================================================
+    # E. 분류 결과 출력
+    # ========================================================
 
-    print("\n[분류 지표]")
+    print("\n[분류 성과 지표]")
     print("-" * 60)
 
     print("Confusion Matrix:")
-    print(cls_results["Confusion Matrix"])
+    print(
+        cls_results[
+            "Confusion Matrix"
+        ]
+    )
 
-    print(f"Balanced Accuracy : " f"{cls_results['Balanced Accuracy']:.4f}")
+    print(
+        f"\nBalanced Accuracy : "
+        f"{cls_results['Balanced Accuracy']:.6f}"
+    )
 
-    print(f"Multiclass MCC    : " f"{cls_results['Multiclass MCC']:.4f}")
+    print(
+        f"Multiclass MCC    : "
+        f"{cls_results['Multiclass MCC']:.6f}"
+    )
 
-    print(f"Macro Average Precision : " f"{cls_results['Macro Average Precision']:.4f}")
+    if (
+        "Macro Average Precision"
+        in cls_results
+    ):
+        print(
+            f"Macro Average Precision : "
+            f"{cls_results['Macro Average Precision']:.6f}"
+        )
 
-    print("Class Distribution:")
+    print("\n실제 Class Distribution:")
 
-    for cls, ratio in cls_results["Class Distribution"].items():
+    for cls, ratio in cls_results[
+        "Class Distribution"
+    ].items():
 
-        print(f"  클래스 {cls} : {ratio:.2%}")
+        print(
+            f"  클래스 {cls} : "
+            f"{ratio:.2%}"
+        )
 
+    # ========================================================
+    # F. 최종 결과
+    # ========================================================
+
+    print("\n" + "=" * 60)
+    print("✅ 실제 데이터 기반 성과 지표 계산 완료")
     print("=" * 60)
-
-    print("모든 성과 지표 계산 완료.")
