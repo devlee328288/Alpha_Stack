@@ -67,7 +67,14 @@ COLUMN_NOTES: Dict[str, str] = {
     "code": "🔴 종목코드. **숫자가 아니다** — 5·6번째에 영문이 오는 종목이 84종(`0001B0`)",
     "name": "종목명. 같은 코드도 이름이 바뀐다. **코드로 잇고 이름으로 잇지 않는다**",
     "market": "`KOSPI` / `KOSDAQ`",
-    "sector": "KRX 소속부. WICS 업종과 다르고, KOSPI 는 빈 값이 대부분이다",
+    "sector": "🔴 KRX **소속부**(중견기업부·벤처기업부…)이지 산업 업종이 **아니다**. "
+              "KOSPI 는 100% 빈 값. 업종은 `industry` 를 쓴다",
+    "industry": "✅ KRX 업종명 (`전기·전자`·`IT 서비스`…). 사람이 KRX 화면에서 받은 "
+                "연 1회 업종분류 현황 스냅샷을 **그 행의 날짜 이전 가장 최근 것**으로 붙였다. "
+                "KOSPI 만 있고, 그해 스냅샷 뒤에 상장한 종목은 다음 해까지 빈다(약 1%). "
+                "업종지수와 붙일 때는 `supply.sector.index_name_for` 로 이름을 맞춘다",
+    "industry_bas_dd": "그 업종이 어느 스냅샷에서 왔나 (`YYYYMMDD`). 최대 1년 전이다",
+    "industry_known_at": "그 스냅샷을 언제부터 알 수 있었나 — 스냅샷 날짜의 다음 거래일",
     "index_name": "지수 이름",
     "index_class": "지수 구분",
     # ── 원문 가격 ──
@@ -276,6 +283,33 @@ def _missing_highlights(profile: Dict) -> str:
     if 개수 == 0:
         return "결측이 있는 칸이 **한 곳도 없습니다.**"
     return "\n".join(줄)
+
+
+#: 카드에 끼우는 "종류별 지도" 절 — identity/·financial/·macro/·calendar/ 폴더처럼 **이
+#: 스크립트가 만들지 않는 반출본**을 설명한다. 카드에 없는 폴더는 없는 것과 같다:
+#: `hf_hub_download(filename=...)` 에 적을 이름이 카드에만 있기 때문이다.
+#:
+#: 🔴 이 파일이 없으면 카드를 다시 만들 때 그 절이 **통째로 사라진다.** 2026-09-03 에
+#:    병행 세션이 손으로 끼운 절이 있는 채로 카드를 다시 만들 뻔했다. 그래서 정본을
+#:    저장소 안으로 들이고 빌더가 매번 끼운다.
+REFERENCE_BLOCK = Path(__file__).resolve().parent / "hf_card_reference_block.md"
+#: 끼우는 자리 — 이 제목 **바로 앞**. 맨 끝에 붙이면 55KB 카드의 스크롤 끝이라 아무도 못 본다.
+REFERENCE_ANCHOR = "## 🔴 가장 먼저 알아야 할 것 세 가지"
+REFERENCE_MARK = "<!-- reference-block -->"
+
+
+def with_reference_block(card: str) -> str:
+    """카드에 종류별 지도 절을 끼운다. 이미 있으면 두 번 끼우지 않는다."""
+    if REFERENCE_MARK in card:
+        return card
+    if not REFERENCE_BLOCK.exists():
+        print(f"⚠️ {REFERENCE_BLOCK.name} 이 없다 — 종류별 지도 절 없이 카드를 만든다")
+        return card
+    block = REFERENCE_BLOCK.read_text(encoding="utf-8").strip() + "\n\n"
+    if REFERENCE_ANCHOR not in card:
+        print(f"⚠️ 카드에 '{REFERENCE_ANCHOR}' 가 없어 종류별 지도 절을 끝에 붙인다")
+        return card.rstrip() + "\n\n" + block
+    return card.replace(REFERENCE_ANCHOR, block + REFERENCE_ANCHOR, 1)
 
 
 def build_dataset_card(root: Path, repo_id: str) -> str:
@@ -630,7 +664,7 @@ def main() -> int:
         있나 = (root / "README.md").exists()
         print(f"✅ 카드 생성 건너뜀 (반출본의 README.md {'있음' if 있나 else '없음'})")
     else:
-        card = build_dataset_card(root, args.repo)
+        card = with_reference_block(build_dataset_card(root, args.repo))
         (root / "README.md").write_text(card, encoding="utf-8")
         print("✅ 데이터셋 카드 생성")
 

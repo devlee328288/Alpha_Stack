@@ -1,0 +1,198 @@
+<!-- reference-block -->
+## 📚 종류별 지도 — 이 저장소에 무엇이 어디 있나 (2026-09-03 갱신)
+
+시세만으로는 "이 종목이 무슨 회사인가" 를 알 수 없습니다. 종목코드는 바뀌고, 재무는
+법인 단위로 오고, 거시는 날짜 축이 다릅니다. 그 사이를 잇는 자료를 **종류별 폴더**로
+올렸습니다.
+
+| 폴더 | 종류 | 파일 | 언제 쓰나 |
+|---|---|---|---|
+| `full/` | **시세** | 종목·지수 일봉 | 최종 학습 |
+| `small/` | **표본·피처** | 코스피200·30종목 피처+라벨 | 받자마자 `fit` |
+| `identity/` | **신원** 🆕 | 종목 신원 · 법인 개요 | 종목코드 ↔ 법인 ↔ DART 잇기 |
+| `financial/` | **재무** 🆕 | DART 재무 | 펀더멘털 피처 |
+| `macro/` | **거시** 🆕 | 금리·환율·물가·경기지수 | 시장 국면 피처 |
+| `calendar/` | **달력** 🆕 | 거래일 | 리샘플링·결측 판정 |
+
+> `full/`·`small/` 은 **경로를 바꾸지 않았습니다.** 이미 쓰고 계신 코드가 그대로 돕니다.
+> 앞으로 **새로 추가되는 자료만** 위 종류별 폴더 규칙을 따릅니다.
+
+---
+
+## 🆕 새로 들어온 자료 — 칸마다 무엇이 들었나
+
+`MANIFEST_reference.json` 에 SHA-256 과 전체 칸 목록이 있습니다.
+아래 결측률은 **개발구간 반출본을 실측한 값**입니다(전체 표가 아니라 여기 있는 파일 기준).
+
+### `identity/stock_identity_dev.parquet` — 2,871,366행 × 9칸 · 결측 0
+
+기준일마다 그날 상장돼 있던 종목의 신원입니다. **1,152 기준일 × 약 2,500종.**
+
+| 칸 | 뜻 | 고유 | 표본 |
+|---|---|---:|---|
+| `bas_dd` | 기준일 | 1,152 | `20200102` |
+| `code` | 종목코드 | 2,925 | `000020` |
+| `isin_cd` | ISIN | 2,925 | `KR7000020008` |
+| `crno` | **법인등록번호** | 2,926 | `1101110043870` |
+| `corp_nm` | 법인명 (법적 이름) | 3,450 | `동화약품(주)` |
+| `item_nm` | 종목명 (거래 이름) | 3,234 | `동화약품` |
+| `market` | 시장 | 3 | `KOSPI` / `KOSDAQ` / `KONEX` |
+| `known_at` | **이 행을 언제부터 알 수 있었나** | 1,152 | `20200103` |
+| `known_rule` | 그 규칙 | 1 | `basDt+1session` |
+
+🔴 **`known_at` 이 왜 `bas_dd` 보다 하루 뒤인가.** 포털은 기준일 데이터를 **다음
+영업일 오후**에 올립니다. `bas_dd` 로 조인하면 그날 장중에는 알 수 없던 정보를 쓰게 됩니다.
+**시점을 지켜야 하는 계산에서는 `known_at` 으로 조인하세요.**
+
+`corp_nm` ≠ `item_nm` 입니다 — 법인명은 `(주)` 가 붙고, 종목명은 거래소 표기입니다.
+고유값이 3,450 vs 3,234 로 다른 이유입니다.
+
+### `identity/corp_profile_dev.parquet` — 22,137행 × 18칸
+
+법인 3,095곳의 개요이고, 유효구간 `(fst_opeg_dt, last_opeg_dt)` 로 **이력**이 쌓입니다.
+같은 `crno` 가 여러 행이면 그 사이에 무언가 바뀐 것입니다(대표이사·주소·감사인 등).
+
+| 칸 | 뜻 | 결측 | 비고 |
+|---|---|---:|---|
+| `crno` | 법인등록번호 | 0% | `stock_identity.crno` 와 조인 |
+| `fst_opeg_dt` / `last_opeg_dt` | **유효구간 시작/끝** | 0% | 이 행이 사실이던 기간 |
+| `corp_nm` | 법인명 | 0% | |
+| `estb_dt` | 설립일 | 0.11% | 최고령 `18970925`(동화약품) |
+| `stac_mm` | 결산월 | 1.14% | 대부분 `12` |
+| `xchg_lstg_dt` | 유가 상장일 | **70.87%** | 코스닥 회사는 빈다 |
+| `kosdaq_lstg_dt` | 코스닥 상장일 | **42.30%** | 유가 회사는 빈다 |
+| `xchg_lstg_abol_dt` / `kosdaq_lstg_abol_dt` | 상장폐지일 | 99.62% / 98.55% | 안 망한 회사는 빈다 — **정상** |
+| `audt_rpt_opnn` | 감사의견 | 28.01% | `적정의견`·`예외사항없음` 등 4종 |
+| `actn_audpn` | 회계감사인 | 28.01% | 277곳 |
+| `empe_cnt` | 종업원수 | 0% | 🔴 아래 경고 |
+| `pn1_avg_slry_amt` | 1인평균급여 | 0% | 🔴 아래 경고 |
+| `sic_nm` | 업종명 | **99.88%** | 🔴 **사실상 없습니다. 쓰지 마세요** |
+| `smenp_yn` | 중소기업여부 | **99.58%** | 🔴 사실상 없습니다 |
+| `known_at` / `known_rule` | 관측 시점 · 규칙 | 0% | `fstOpegDt` |
+
+> 🔴 **`sic_nm` 으로 업종 분류를 하려던 분께.** 개발구간 반출본에서 **99.88% 가 비어
+> 있습니다**(값이 있는 행 27개 · 고유 업종 17종). 전체 표로 넓혀도 94.4% 결측이고,
+> 있는 값도 KSIC 세세분류 522종이라 KRX 21개 업종과 체계가 다릅니다.
+> **업종 매핑은 이 칸으로 만들 수 없습니다** (이슈 #92 참고).
+
+> 🔴 **`empe_cnt`·`pn1_avg_slry_amt` 의 `0` 은 "0" 과 "미기재" 를 겸합니다.**
+> 원문 1,000행을 실측했습니다 — 문자 칸은 값이 없으면 비워서 오는데(`corpEnsnNm` 60건,
+> `enpMainBizNm` 985건), **숫자 칸은 단 한 번도 비지 않고** `0`(각각 333·399건)으로 옵니다.
+> 출처가 숫자 칸에서 "모른다" 를 적을 방법이 `0` 뿐이라는 뜻입니다.
+> 실제로 **종업원이 있는데 평균급여가 0인 행이 2,760개**입니다(롯데쇼핑 8,542명 → 급여 0).
+> **평균·분포 계산에 그대로 넣지 마세요.** 쓰려면 `> 0` 인 행만 쓰고 그 사실을 남기세요.
+
+### `financial/dart_financial_dev.parquet` — 498,059행 × 20칸
+
+| 칸 | 뜻 | 비고 |
+|---|---|---|
+| `corp_code` · `stock_code` · `corp_name` | DART 고유번호 · 종목코드 · 회사명 | **338종목** |
+| `bsns_year` | 사업연도 | 2015~2023 (9개) |
+| `reprt_code` · `report_nm` | 보고서 종류 | 🔴 **`11011` 사업보고서 하나뿐** — 분기·반기 없음 |
+| `fs_div` | 연결/별도 | `CFS` · `OFS` |
+| `sj_div` | 재무제표 종류 | `BS`·`IS`·`CIS`·`CF`·`SCE` (5종) |
+| `account_id` · `account_nm` · `account_detail` | 계정 | 🔴 **`account_detail` 이 기본키의 일부입니다** |
+| `thstrm_amount` / `frmtrm_amount` / `bfefrmtrm_amount` | 당기 / 전기 / 전전기 | 결측 7.5% / 8.9% / 11.1% |
+| `rcept_no` · `rcept_dt` | 접수번호 · **접수일** | 🔴 시점 기준은 `rcept_dt` 입니다 |
+| `currency` · `ord` · `thstrm_nm` | 통화 · 순서 · 기수 | |
+| `rm` | 비고 | **100% 결측** — 무시하세요 |
+
+🔴 **`account_detail` 을 기본키에서 빼면 안 됩니다.** 자본변동표(`SCE`)는 같은 계정이
+항목별로 여러 번 나와서, 빼면 **6.4% 가 조용히 사라집니다.**
+
+🔴 **커버리지가 338종목입니다.** 전 종목 재무가 아니라 **표본**입니다.
+`daily_price` 의 3,462종에 조인하면 대부분이 빕니다. 전 종목 전제로 설계하지 마세요.
+
+🔴 **시점은 `rcept_dt`(접수일)** 로 봅니다. `bsns_year` 로 자르면 2023년 실적을
+2023년 중에 알았던 것처럼 됩니다 — 실제로는 2024년 3월에 공시됩니다.
+
+### `macro/macro_series_dev.parquet` — 15,782행 × 8칸 · 결측 0
+
+| `indicator_id` | 무엇 | 주기 | 행 |
+|---|---|---|---:|
+| `usdkrw` · `jpykrw` | 원달러 · 원엔 환율 | 일 | 각 3,721 |
+| `ktb3y` · `ktb10y` | 국고채 3년 · 10년 금리 | 일 | 각 3,721 |
+| `base_rate` | 한국은행 기준금리 | 월 | 180 |
+| `cpi` · `ppi` | 소비자·생산자 물가 | 월 | 각 180 |
+| `leading` · `coincident` | 선행 · 동행 종합지수 | 월 | 각 179 |
+
+칸: `indicator_id`, `period`(기준시점), `cycle`(`D`/`M`), `value`,
+`known_at`, `stat_code`, `item_code`, `unit`.
+
+🔴 **`known_at` 은 우리가 계산한 값입니다.** ECOS 는 발표일을 주지 않습니다.
+월별 지표는 기준월이 끝난 뒤에야 발표되므로 `period` 로 조인하면 **미래를 봅니다.**
+반드시 `known_at` 으로 조인하세요. 규칙이 바뀌면 이 칸도 바뀝니다 — 원본이 아니라
+**우리 판단**입니다.
+
+### `calendar/trading_calendar_dev.parquet` — 10,854행 × 3칸 · 결측 0
+
+`bas_dd` · `market`(`ALL`/`KOSPI`/`KOSDAQ`) · `stock_count`.
+
+**추정이 아니라 실측입니다** — 시세가 있는 날을 그대로 모았습니다. 개발구간 **3,618
+거래일**이고 `full/daily_price_dev.parquet` 의 거래일과 **정확히 일치**합니다(차이 0일).
+"이 날 데이터가 없는 게 휴장인가 결측인가" 를 판정할 때 쓰세요.
+
+---
+
+## 🆕 받는 법
+
+```python
+from huggingface_hub import hf_hub_download
+import pandas as pd
+
+def load(name):
+    return pd.read_parquet(hf_hub_download(
+        repo_id="qurious-quant/alphastack-krx-dev",
+        repo_type="dataset", filename=name))
+
+ident = load("identity/stock_identity_dev.parquet")
+prof  = load("identity/corp_profile_dev.parquet")
+fin   = load("financial/dart_financial_dev.parquet")
+macro = load("macro/macro_series_dev.parquet")
+cal   = load("calendar/trading_calendar_dev.parquet")
+```
+
+### 종목코드 → 법인 → 재무 잇기
+
+```python
+# 🔴 외국기업은 crno 가 0000000000000 입니다. 먼저 거르세요.
+ident = ident[ident["crno"] != "0000000000000"]
+
+# 그날의 신원 (시점을 지키려면 known_at 으로 자릅니다)
+today = "20240830"
+snap = ident[ident["known_at"] <= today].sort_values("bas_dd").groupby("code").tail(1)
+
+# 법인 개요 붙이기 — 유효구간 안에 있는 행만
+merged = snap.merge(prof, on="crno", suffixes=("", "_prof"))
+merged = merged[(merged["fst_opeg_dt"] <= today) & (merged["last_opeg_dt"] >= today)]
+
+# DART 재무 붙이기 — 접수일이 지난 것만 (미래를 안 봅니다)
+seen = fin[fin["rcept_dt"] <= today]
+```
+
+### 🔴 조인하기 전에 알아야 할 것 넷
+
+1. **`crno == "0000000000000"` 은 외국기업입니다.** 안 거르면 서로 다른 회사가
+   한 법인으로 묶입니다.
+2. **신원과 시세의 종목 집합이 완전히 같지 않습니다.** `20240830` 하루로 재면
+   신원 2,694종 · 시세 2,711종 · 교집합 2,573종. 시세에만 138종, 신원에만 121종입니다
+   (출처가 포털 vs KRX 로 다릅니다). **어느 쪽을 유니버스로 삼을지 먼저 정하세요.**
+3. **`known_at` 으로 조인하세요.** `bas_dd`·`period` 로 조인하면 그 시점에 알 수 없던
+   정보가 새어 듭니다. 신원은 +1영업일, 거시는 발표 지연이 있습니다.
+4. **재무는 338종목뿐입니다.** 조인 후 행이 급감하면 버그가 아니라 커버리지입니다.
+
+### 홀드아웃
+
+**전부 `20240901` 이전으로 잘려 있습니다.** 경계는 `evaluation/horizon.py` 의
+`HOLDOUT_START` 하나를 따랐고, 만든 뒤 파일을 **다시 열어** 경계 넘은 행이 0인지
+확인했습니다(5개 파일 전부 0).
+
+### 출처 표시
+
+`identity/` 두 파일은 공공데이터포털 금융위원회 자료입니다
+(KRX상장종목정보 · 기업기본정보). 활용자가이드 기준 **공공누리 제1유형(출처표시)** 이므로,
+이 자료로 만든 결과물에는 출처를 남겨 주세요.
+`financial/` 은 금융감독원 DART, `macro/` 는 한국은행 ECOS·FRED·KOSIS 입니다.
+
+---
+
