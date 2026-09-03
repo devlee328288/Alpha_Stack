@@ -1,8 +1,43 @@
 # 성과 지표
 
 from typing import Dict, List, Optional
-
 import numpy as np
+from huggingface_hub import hf_hub_download
+import pandas as pd
+
+# 실제 데이터 불러오기
+
+path = hf_hub_download(
+    repo_id="qurious-quant/alphastack-krx-dev",
+    filename="small/features_labels_kospi200_dev.csv",
+    repo_type="dataset",
+)
+df = pd.read_csv(path)
+
+FEATURES = [
+    c
+    for c in df.columns
+    if c
+    not in (
+        "bas_dd",
+        "date",
+        "index_name",
+        "index_class",
+        "open",
+        "high",
+        "low",
+        "close",
+        "change",
+        "change_rate",
+        "volume",
+        "value",
+        "market_cap",
+        "fwd_return_5d",
+        "label",
+    )
+]
+X, y = df[FEATURES], df["label"]
+
 
 # ============================================================
 # 1. Maximum Drawdown (MDD) - 최대 낙폭
@@ -193,7 +228,7 @@ def _get_drawdown_periods(returns: np.ndarray) -> List[float]:
     while i < len(drawdown_series):
         if drawdown_series[i] < 0:
             # 하락 시작 (Peak)
-            start = i   # noqa: F841
+            start = i  # noqa: F841
             max_dd = drawdown_series[i]
             # 하락이 끝날 때까지(0으로 복귀) 또는 데이터 끝까지 이동
             while i < len(drawdown_series) and drawdown_series[i] < 0:
@@ -472,48 +507,33 @@ def calculate_all_metrics(
 
 
 # ============================================================
-# 🚀 실행 예시 (Example Usage)
+# 🚀 실행 예시 (Example Usage) - 실제 데이터 적용
 # ============================================================
 if __name__ == "__main__":
 
-    # ------------------------------------------------------------
-    # 📌 [1] 예시 데이터 생성 (가상의 일간 수익률)
-    #     - 여기서는 랜덤 데이터를 생성하지만, 실제 데이터로 교체 가능
-    # ------------------------------------------------------------
     print("📊 성과 지표 계산을 시작합니다...\n")
 
-    # 🔹 예시 데이터: 3년(약 756일)치 일간 수익률 생성
-    #    - 평균 0.05% (연 12.6%), 표준편차 1.5% (연 23.8%)
-    #    - 일부러 큰 폭의 하락(-10%, -8%)을 추가하여 MDD 발생
-    np.random.seed(42)  # 재현성을 위해 시드 고정
-    daily_returns = np.random.normal(0.0005, 0.015, 756)
+    # ============================================================
+    # 🔥 [필수] 1. 데이터를 날짜 기준으로 오름차순 정렬
+    # ============================================================
+    # date 컬럼이 문자열 'YYYY-MM-DD' 형식이므로, 그대로 정렬해도 시간순이 됨
+    df = df.sort_values("date").reset_index(drop=True)
 
-    # 인위적인 큰 하락 이벤트 추가 (실제 시장의 급락 시뮬레이션)
-    daily_returns[300:310] = -0.01  # 10일 연속 1% 하락
-    daily_returns[500] = -0.08  # 하루 8% 급락
-    daily_returns[550:555] = -0.02  # 5일 연속 2% 하락
+    # 코스피 일때는 close, 종목일 때는 adj_close 사용
+    daily_returns = df["change_rate"].dropna().values / 100.0
 
-    # ------------------------------------------------------------
-    # 📌 [2] 실제 데이터를 적용하는 방법 (주석 가이드)
-    # ------------------------------------------------------------
-    # 💡 실제 투자 데이터(예: 주식, ETF, 포트폴리오)를 적용하려면:
-    #
-    # 1. pandas로 CSV/Excel 파일 읽기
-    #    import pandas as pd
-    #    df = pd.read_csv('portfolio_daily_prices.csv')
-    #
-    # 2. 수익률(returns) 컬럼 만들기 (종가 기준)
-    #    df['returns'] = df['close'].pct_change()  # 단순 수익률
-    #    # 또는 로그 수익률: df['returns'] = np.log(df['close'] / df['close'].shift(1))
-    #
-    # 3. 결측치(NaN) 제거 (첫 번째 행은 pct_change로 인해 NaN 발생)
-    #    daily_returns = df['returns'].dropna().values
-    #
-    # 4. 아래 calculate_all_metrics 함수에 daily_returns를 그대로 대입하면 됨.
-    #    (단, periods_per_year는 데이터 빈도에 맞게 설정: 일간=252, 주간=52, 월간=12)
+    # ============================================================
+    # 📌 [디버깅] 계산된 수익률의 기본 통계를 출력해 정상인지 확인
+    # ============================================================
+    print(f"📈 수익률 통계 (일간):")
+    print(f"   개수: {len(daily_returns):,}개")
+    print(f"   평균: {daily_returns.mean():.6f} ({daily_returns.mean()*100:.4f}%)")
+    print(f"   표준편차: {daily_returns.std():.6f} ({daily_returns.std()*100:.4f}%)")
+    print(f"   최소: {daily_returns.min():.6f} ({daily_returns.min()*100:.4f}%)")
+    print(f"   최대: {daily_returns.max():.6f} ({daily_returns.max()*100:.4f}%)\n")
 
     # ------------------------------------------------------------
-    # 📌 [3] 성과 지표 계산 실행
+    # 📌 성과 지표 계산 실행
     # ------------------------------------------------------------
     results = calculate_all_metrics(
         returns=daily_returns,
@@ -525,7 +545,7 @@ if __name__ == "__main__":
     )
 
     # ------------------------------------------------------------
-    # 📌 [4] 결과 출력 (Print Results)
+    # 📌 결과 출력 (Print Results)
     # ------------------------------------------------------------
     print("✅ 계산 완료! 결과는 다음과 같습니다.\n")
     print("=" * 50)
@@ -533,13 +553,10 @@ if __name__ == "__main__":
     print("=" * 50)
 
     for key, value in results.items():
-        # Deflated Sharpe Ratio는 0~1 확률이므로 퍼센트로 표시
         if key == "Deflated Sharpe Ratio":
             print(f"{key:20s} : {value:.4f}  ({value*100:.2f}%)")
-        # MDD는 퍼센트로 표시
         elif key == "MDD":
             print(f"{key:20s} : {value:.4f}  ({value*100:.2f}%)")
-        # 나머지 지표는 소수점 4자리까지 표시
         else:
             print(f"{key:20s} : {value:.4f}")
 
@@ -548,6 +565,16 @@ if __name__ == "__main__":
     # 간단한 해석 가이드 출력
     print("\n💡 해석 가이드")
     print("-" * 50)
+    # 1. 실제 연평균 복리 수익률(CAGR)과 초과 수익률 계산
+    n = len(daily_returns)  # 전체 관측치 개수
+    rf = 0.02  # calculate_all_metrics에 넣은 값과 동일
+    cagr = (np.prod(1 + daily_returns) ** (252 / n)) - 1
+    excess_cagr = cagr - rf  # ← 여기서 변수가 정의됩니다!
+
+    # 2. CAGR 관련 정보 출력
+    print(f"📈 연평균 수익률(CAGR)   : {cagr*100:.2f}%")
+    print(f"📈 연 초과수익률 (CAGR - {rf*100:.0f}%) : {excess_cagr*100:.2f}%")
+    print("-" * 50)
     print(f"📉 MDD         : 최대 손실률 {results['MDD']*100:.2f}%")
     print(
         f"📊 Sharpe      : 위험 1단위당 초과수익 {results['Sharpe Ratio']:.2f} (연율)"
@@ -555,8 +582,12 @@ if __name__ == "__main__":
     print(
         f"🔽 Sortino     : 하방위험 1단위당 초과수익 {results['Sortino Ratio']:.2f} (연율)"
     )
-    print(f"⚖️ Sterling    : 평균MDD 1%당 연수익률 {results['Sterling Ratio']:.2f}%")
-    print(f"📉 Calmar      : 최대MDD 1%당 연수익률 {results['Calmar Ratio']:.2f}%")
+    print(
+        f"⚖️ Sterling    : 연 초과수익률({excess_cagr*100:.2f}%) / 평균MDD = {results['Sterling Ratio']:.4f}"
+    )
+    print(
+        f"📉 Calmar      : 연 초과수익률({excess_cagr*100:.2f}%) / 최대MDD = {results['Calmar Ratio']:.4f}"
+    )
     print(
         f"🎯 DSR         : 이 전략이 우연이 아닐 확률 {results['Deflated Sharpe Ratio']*100:.2f}%"
     )
