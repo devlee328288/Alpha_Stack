@@ -146,6 +146,20 @@ def main() -> int:
             f"known_at 이 기준일보다 이르거나 같은 행 {이른known:,} "
             "(0이어야 한다 — 그 날 못 본 자료를 봤다는 뜻이다)")
 
+        # ── 🔴 다리가 **가짜로** 이어지는지 ──────────────────────
+        # 조인이 0행이 되는 실수는 결과가 비어서 눈에 띈다. 틀린 짝이 붙는 실수는
+        # 결과가 그럴듯해서 안 보인다. 그래서 "한 법인번호를 몇 종목이 쓰나" 를 센다.
+        # 정상 최대는 2종(보통주+우선주)이고, 자리표시자가 섞이면 수십 종이 된다.
+        뭉침 = conn.execute(
+            "SELECT crno, COUNT(DISTINCT code) n FROM stock_identity "
+            "WHERE crno IS NOT NULL GROUP BY crno ORDER BY n DESC LIMIT 1").fetchone()
+        if 뭉침:
+            번호, 종수 = 뭉침
+            print(f"\n  한 법인번호에 가장 많이 달린 종목 : {종수}종 ({번호})")
+            알림(종수 <= 5,
+                f"한 법인번호를 {종수}종목이 공유 "
+                "(정상은 보통주+우선주로 2~3종 · 수십 종이면 자리표시자를 의심한다)")
+
         # ── 5. 법인 개요 ──────────────────────────────────────────────
         개요수 = conn.execute("SELECT COUNT(*) FROM corp_profile").fetchone()[0]
         if 개요수 == 0:

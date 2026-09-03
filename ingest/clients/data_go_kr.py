@@ -406,6 +406,28 @@ _LISTED_MAP = {
 }
 
 
+def normalize_crno(raw: Optional[str]) -> Optional[str]:
+    """법인등록번호를 정리한다. 자리표시자는 `None`.
+
+    🔴 **`0000000000000` 은 번호가 아니라 "없음" 이다.** 외국기업 20종이 이 값을
+    함께 쓴다(실측 2026-09-03 · 3,409행). 그대로 두면 `corp_profile` 과 조인할 때
+    **서로 다른 20개 회사가 같은 법인 하나에 붙는다** — 실제로 그 번호로 받아 둔
+    법인 개요에 헝셩그룹유한회사와 자프코 아시아 테크놀러지 펀드 3 이 섞여 있었다.
+
+    조인이 0행이 되는 실수는 결과가 비어서 눈에 띈다. 그런데 **틀린 짝이 붙는
+    실수는 결과가 그럴듯해서 안 보인다.** 이쪽이 더 비싸다.
+
+    다음으로 많이 공유되는 번호는 2종(키움증권 보통주·우선주)으로 정상이다.
+    20종이 한 번호를 쓰는 것은 자리표시자 말고는 설명이 안 된다.
+    """
+    if raw is None:
+        return None
+    값 = str(raw).strip()
+    if not 값 or not 값.isdigit() or set(값) == {"0"}:
+        return None
+    return 값
+
+
 def parse_listed_row(item: Dict, *, known_at: str) -> Dict:
     """응답 한 줄을 `stock_identity` 한 행으로 바꾼다.
 
@@ -422,6 +444,8 @@ def parse_listed_row(item: Dict, *, known_at: str) -> Dict:
     for 원, 우리 in _LISTED_MAP.items():
         값 = item.get(원)
         행[우리] = str(값).strip() if 값 is not None and str(값).strip() else None
+    # 🔴 `crno` 만 한 번 더 거른다 — 자리표시자가 붙으면 조인이 **틀린 짝**을 만든다.
+    행["crno"] = normalize_crno(행.get("crno"))
     return 행
 
 

@@ -172,6 +172,44 @@ def test_두_자리_연도_경계가_해마다_움직이지_않는다():
 # ==================================================
 # 4. 정수 — 0 과 모름을 섞지 않는다
 # ==================================================
+def test_영뿐인_법인등록번호는_번호가_아니다():
+    """🔴 조인이 0행이 되는 실수는 눈에 띈다. **틀린 짝이 붙는 실수는 안 보인다.**
+
+    포털은 외국기업의 `crno` 에 `0000000000000` 을 준다 — 실측(2026-09-03)에서
+    외국기업 **20종이 이 번호 하나를 공유**했다(3,349행). 그대로 두면
+    `corp_profile` 과 조인할 때 서로 다른 20개 회사가 같은 법인에 붙는다.
+    실제로 그 번호로 받아 둔 법인 개요에는 헝셩그룹유한회사와
+    자프코 아시아 테크놀러지 펀드 3 이 섞여 있었다.
+
+    정상적으로 한 번호를 공유하는 최대는 **2종**(키움증권 보통주·우선주)이다.
+    """
+    assert dgk.normalize_crno("0000000000000") is None
+    assert dgk.normalize_crno("000") is None
+    assert dgk.normalize_crno("") is None
+    assert dgk.normalize_crno(None) is None
+    assert dgk.normalize_crno("1101111867948") == "1101111867948"
+    assert dgk.normalize_crno(" 1101111867948 ") == "1101111867948"
+
+
+def test_숫자가_아닌_법인등록번호는_받지_않는다():
+    """실측에서는 전부 13자리 숫자였다. 아닌 것이 오면 번호가 아니다."""
+    assert dgk.normalize_crno("abc") is None
+    assert dgk.normalize_crno("1101-111-867948") is None
+
+
+def test_상장종목_한_줄이_자리표시자를_통과시키지_않는다():
+    """`parse_listed_row` 를 거쳐도 걸러져야 한다 — 헬퍼만 고치고 배선을 빠뜨리면
+    테스트는 통과하는데 자료는 그대로 들어온다."""
+    행 = dgk.parse_listed_row(
+        {"basDt": "20260901", "srtnCd": "A900110", "isinCd": "HK0000057197",
+         "mrktCtg": "KOSDAQ", "itmsNm": "딥커머스", "crno": "0000000000000",
+         "corpNm": "딥커머스리미티드"},
+        known_at="20260902")
+    assert 행["crno"] is None
+    assert 행["code"] == "900110", "다른 칸은 그대로여야 한다"
+    assert 행["isin_cd"] == "HK0000057197"
+
+
 def test_영은_영으로_남는다():
     """`0명` 과 `모른다` 는 다른 사실이다."""
     assert dgk.normalize_int("0") == 0
