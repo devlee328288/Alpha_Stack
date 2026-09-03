@@ -3,6 +3,8 @@
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+import pandas as pd
+from huggingface_hub import hf_hub_download
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import (
     average_precision_score,
@@ -10,8 +12,6 @@ from sklearn.metrics import (
     matthews_corrcoef,
     recall_score,
 )
-from huggingface_hub import hf_hub_download
-import pandas as pd
 
 # 실제 데이터 불러오기
 
