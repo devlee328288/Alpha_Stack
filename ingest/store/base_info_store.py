@@ -222,6 +222,63 @@ def pending_days(markets: Sequence[str] = MARKETS,
     return 남은것
 
 
+def universe_rows(bas_dd: str, *, market: str = "KOSPI", common_only: bool = True,
+                  known_by: Optional[str] = None,
+                  conn: Optional[sqlite3.Connection] = None) -> List[Dict]:
+    """그 거래일의 종목 목록 + 시가총액. `as_of` 는 모른다 — `supply/` 가 씌운다.
+
+    🔴 **`stock_base_info` 를 그날 목록으로 쓰지 않고 `daily_price` 와 교집합을 낸다.**
+       시가총액이 시세에만 있어서이기도 하지만, 그보다 **거래된 종목만 남겨야** 하기
+       때문이다. 기본정보는 '상장돼 있다' 를 말할 뿐 그날 거래됐는지는 말하지 않는다.
+
+    🔴 **기본정보는 그날 것이 없으면 그 이전 가장 최근 것을 쓴다.**
+       수집이 아직 다 안 됐거나 앞으로 주기를 성기게 바꿔도 답이 나와야 한다.
+       주권종류는 실측상 15년간 바뀐 종목이 0건이라 이 대입이 안전하다. 다만
+       `known_by` 로 **그때 알 수 있었던 행만** 보게 막는다 — 안 그러면 미래의
+       스냅샷이 과거 판정에 쓰인다.
+
+    `common_only=True` 면 보통주만. 무엇이 보통주인지는 `krx_data.COMMON_STOCK_KIND`
+    하나로 정한다 — 판정 기준이 두 곳에 있으면 언젠가 갈라진다.
+    """
+    from ingest.clients.krx_data import COMMON_STOCK_KIND
+
+    # 그 종목의, 이 날짜 이하의, (알 수 있었던) 가장 최근 기본정보를 고른다.
+    # ⚠️ SQLite 는 lateral join 을 못 한다. JOIN 조건 안의 상관 서브쿼리로 쓰면
+    #    `idx_base_info_code(code, bas_dd)` 를 그대로 타서 종목당 인덱스 조회 한 번이다.
+    고른날 = ("SELECT MAX(b.bas_dd) FROM stock_base_info b "
+              " WHERE b.code = p.code AND b.bas_dd <= ?")
+    고른날값 = [bas_dd]
+    if known_by:
+        고른날 += " AND b.known_at <= ?"
+        고른날값.append(known_by)
+
+    sql = (
+        "SELECT p.bas_dd, p.code, p.name, p.market, p.close, p.adj_close, "
+        "       p.market_cap, p.listed_shares, "
+        "       i.kind_stkcert_tp_nm, i.list_dd, i.isin_cd, i.isu_abbrv, "
+        "       i.bas_dd AS info_bas_dd, i.known_at AS info_known_at "
+        "  FROM daily_price p "
+        "  LEFT JOIN stock_base_info i "
+        "         ON i.code = p.code "
+        f"       AND i.bas_dd = ({고른날}) "
+        " WHERE p.bas_dd = ? AND p.market = ? "
+        "   AND p.market_cap IS NOT NULL AND p.market_cap > 0"
+    )
+    # 파라미터는 SQL 에 나타난 순서다 — JOIN 안의 서브쿼리가 WHERE 보다 앞이다.
+    params = 고른날값 + [bas_dd, market]
+
+    ctx = nullcontext(conn) if conn is not None else connect()
+    with ctx as c:
+        c.row_factory = sqlite3.Row
+        rows = [dict(r) for r in c.execute(sql, params).fetchall()]
+
+    if common_only:
+        rows = [r for r in rows
+                if (r.get("kind_stkcert_tp_nm") or "").strip() == COMMON_STOCK_KIND]
+    rows.sort(key=lambda r: -(r["market_cap"] or 0))
+    return rows
+
+
 def status(conn: Optional[sqlite3.Connection] = None) -> Dict:
     """지금 표에 무엇이 얼마나 있나."""
     ctx = nullcontext(conn) if conn is not None else connect()
