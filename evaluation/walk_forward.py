@@ -34,6 +34,7 @@ from __future__ import annotations
 from typing import Iterator, List, Tuple
 
 import numpy as np
+import pandas as pd
 
 # 첫 학습 구간의 최소 길이. 이보다 짧으면 어떤 모델이든 추정이 무의미하다.
 # (원본 timeseries/backtest.py 가 ARIMA 기준으로 쓰던 값을 그대로 이어받았다)
@@ -173,6 +174,70 @@ def expanding_splits(n_samples: int, n_folds: int = DEFAULT_FOLDS,
             # 폴드마다 검증 길이가 달라져 분산 비교가 뜻을 잃는다.
             continue
         splits.append((np.arange(0, train_end), np.arange(valid_start, valid_end)))
+    return splits
+
+
+def expanding_group_splits(
+    groups: object,
+    n_folds: int = DEFAULT_FOLDS,
+    min_train: int = MIN_TRAIN,
+    horizon: int = 1,
+    gap: int | None = None,
+    *,
+    label_horizon: int | None = None,
+    allow_leakage: bool = False,
+) -> List[Split]:
+    """같은 시점의 행을 한 덩어리로 유지하는 확장창 분할을 만든다.
+
+    개별 종목 패널을 행 번호로 자르면 같은 거래일의 일부 종목은 학습에, 나머지는
+    검증에 들어갈 수 있다. 이 함수는 고유 그룹을 시점으로 분할한 뒤 그 시점에 속한
+    모든 원본 행을 함께 반환한다. ``min_train``·``horizon``·``gap``의 단위도 행 수가
+    아니라 고유 그룹 수다.
+
+    ``groups``는 과거부터 미래 순서로 정렬되어 있어야 하며, 같은 값은 반드시 서로
+    붙어 있어야 한다. 조건을 어긴 자료를 내부에서 임의로 정렬하면 피처·라벨 행과
+    어긋날 수 있으므로 즉시 중단한다.
+    """
+    group_values = np.asarray(groups)
+    if group_values.ndim != 1:
+        raise ValueError("groups는 행마다 값 하나를 갖는 1차원 자료여야 합니다")
+    if group_values.size == 0:
+        raise ValueError("groups가 비어 있어 분할할 수 없습니다")
+
+    group_index = pd.Index(group_values)
+    if group_index.hasnans:
+        raise ValueError("groups에는 결측값이 없어야 합니다")
+
+    group_codes, unique_groups = pd.factorize(group_index, sort=False)
+    group_starts = np.concatenate(
+        ([0], np.flatnonzero(group_codes[1:] != group_codes[:-1]) + 1)
+    )
+    if len(group_starts) != len(unique_groups):
+        raise ValueError("같은 group 값은 떨어져 반복되지 않고 연속해서 모여 있어야 합니다")
+
+    try:
+        is_sorted = pd.Index(unique_groups).is_monotonic_increasing
+    except TypeError as exc:
+        raise ValueError("groups는 서로 비교할 수 있는 같은 종류의 값이어야 합니다") from exc
+    if not is_sorted:
+        raise ValueError("groups는 과거에서 미래 순서로 정렬되어 있어야 합니다")
+
+    group_splits = expanding_splits(
+        n_samples=len(unique_groups),
+        n_folds=n_folds,
+        min_train=min_train,
+        horizon=horizon,
+        gap=gap,
+        label_horizon=label_horizon,
+        allow_leakage=allow_leakage,
+    )
+    group_ends = np.concatenate((group_starts[1:], [len(group_values)]))
+
+    splits: List[Split] = []
+    for train_groups, valid_groups in group_splits:
+        train_idx = np.arange(group_starts[train_groups[0]], group_ends[train_groups[-1]])
+        valid_idx = np.arange(group_starts[valid_groups[0]], group_ends[valid_groups[-1]])
+        splits.append((train_idx, valid_idx))
     return splits
 
 
