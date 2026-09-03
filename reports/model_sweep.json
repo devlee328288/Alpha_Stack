@@ -1,0 +1,6371 @@
+{
+  "created_at_utc": "2026-09-03T02:41:50+00:00",
+  "source": {
+    "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+    "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+    "dev_end": "20240831"
+  },
+  "selection": "Accuracy·Macro F1·하락 Recall 조화평균 최대",
+  "experiments": [
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.3674897119341564,
+        "down_recall": 0.31794871794871793,
+        "core_harmonic_mean": 0.3523862830143823,
+        "balanced_accuracy": 0.36762972605035454,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.43790849673202614,
+        "up_recall": 0.3470319634703196,
+        "predicted_down": 210,
+        "predicted_neutral": 297,
+        "predicted_up": 213,
+        "delta_sharpe_net_median": 0.2933235366614796,
+        "delta_sharpe_net_mean": 0.38684900275005346,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.425,
+        "macro_f1": 0.3660131697096678,
+        "down_recall": 0.1076923076923077,
+        "core_harmonic_mean": 0.2087566804404832,
+        "balanced_accuracy": 0.38616752871386234,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.630718954248366,
+        "up_recall": 0.4200913242009132,
+        "predicted_down": 62,
+        "predicted_neutral": 422,
+        "predicted_up": 236,
+        "delta_sharpe_net_median": 0.1526527291112233,
+        "delta_sharpe_net_mean": -0.06428838032168678,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37222222222222223,
+        "macro_f1": 0.3652853194727997,
+        "down_recall": 0.3333333333333333,
+        "core_harmonic_mean": 0.3561188785049757,
+        "balanced_accuracy": 0.366430895036858,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.40522875816993464,
+        "up_recall": 0.3607305936073059,
+        "predicted_down": 219,
+        "predicted_neutral": 274,
+        "predicted_up": 227,
+        "delta_sharpe_net_median": 0.11542753626530194,
+        "delta_sharpe_net_mean": 0.23035348463373032,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4013888888888889,
+        "macro_f1": 0.38476242690058476,
+        "down_recall": 0.2717948717948718,
+        "core_harmonic_mean": 0.34209081493982085,
+        "balanced_accuracy": 0.38532775011421266,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4869281045751634,
+        "up_recall": 0.3972602739726027,
+        "predicted_down": 189,
+        "predicted_neutral": 294,
+        "predicted_up": 237,
+        "delta_sharpe_net_median": 0.035404218342492466,
+        "delta_sharpe_net_mean": 0.014251932868187156,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35833333333333334,
+        "macro_f1": 0.34774481950870034,
+        "down_recall": 0.30256410256410254,
+        "core_harmonic_mean": 0.33439394534499656,
+        "balanced_accuracy": 0.3479224777371433,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4215686274509804,
+        "up_recall": 0.319634703196347,
+        "predicted_down": 213,
+        "predicted_neutral": 292,
+        "predicted_up": 215,
+        "delta_sharpe_net_median": -0.026400326303999883,
+        "delta_sharpe_net_mean": 0.11596205888571277,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.39861111111111114,
+        "macro_f1": 0.3498535975488797,
+        "down_recall": 0.14871794871794872,
+        "core_harmonic_mean": 0.24811459350218876,
+        "balanced_accuracy": 0.3609105789605387,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.6143790849673203,
+        "up_recall": 0.319634703196347,
+        "predicted_down": 104,
+        "predicted_neutral": 423,
+        "predicted_up": 193,
+        "delta_sharpe_net_median": 0.22607960156335236,
+        "delta_sharpe_net_mean": -0.20577429195995212,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3819444444444444,
+        "macro_f1": 0.36938860090898035,
+        "down_recall": 0.30256410256410254,
+        "core_harmonic_mean": 0.34760673458830704,
+        "balanced_accuracy": 0.3690374686345677,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.45751633986928103,
+        "up_recall": 0.3470319634703196,
+        "predicted_down": 192,
+        "predicted_neutral": 320,
+        "predicted_up": 208,
+        "delta_sharpe_net_median": 0.46857159369974555,
+        "delta_sharpe_net_mean": 0.4580364221773192,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 8
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 4
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.35921824912036016,
+        "down_recall": 0.2512820512820513,
+        "core_harmonic_mean": 0.31879373233853264,
+        "balanced_accuracy": 0.35956872387170535,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4803921568627451,
+        "up_recall": 0.3470319634703196,
+        "predicted_down": 186,
+        "predicted_neutral": 306,
+        "predicted_up": 228,
+        "delta_sharpe_net_median": -0.3476029240550253,
+        "delta_sharpe_net_mean": 0.051640727483789416,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.39444444444444443,
+        "macro_f1": 0.38388602659006593,
+        "down_recall": 0.3435897435897436,
+        "core_harmonic_mean": 0.3726430857427485,
+        "balanced_accuracy": 0.3842347523250021,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.45751633986928103,
+        "up_recall": 0.3515981735159817,
+        "predicted_down": 214,
+        "predicted_neutral": 295,
+        "predicted_up": 211,
+        "delta_sharpe_net_median": 0.2024473567173461,
+        "delta_sharpe_net_mean": 0.5385066378968872,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.41388888888888886,
+        "macro_f1": 0.35872010954946837,
+        "down_recall": 0.1282051282051282,
+        "core_harmonic_mean": 0.23070186415481822,
+        "balanced_accuracy": 0.37387480457585215,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.6372549019607843,
+        "up_recall": 0.3561643835616438,
+        "predicted_down": 90,
+        "predicted_neutral": 419,
+        "predicted_up": 211,
+        "delta_sharpe_net_median": 0.3120117694438397,
+        "delta_sharpe_net_mean": -0.05361332937146716,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.36666666666666664,
+        "macro_f1": 0.35611153963950676,
+        "down_recall": 0.28205128205128205,
+        "core_harmonic_mean": 0.33036605087443927,
+        "balanced_accuracy": 0.3563055710517435,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4215686274509804,
+        "up_recall": 0.365296803652968,
+        "predicted_down": 205,
+        "predicted_neutral": 291,
+        "predicted_up": 224,
+        "delta_sharpe_net_median": 0.2860176695273871,
+        "delta_sharpe_net_mean": 0.39860594302489966,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3861111111111111,
+        "macro_f1": 0.36999375853032784,
+        "down_recall": 0.2564102564102564,
+        "core_harmonic_mean": 0.3263467444050338,
+        "balanced_accuracy": 0.3706194572431478,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4673202614379085,
+        "up_recall": 0.3881278538812785,
+        "predicted_down": 190,
+        "predicted_neutral": 291,
+        "predicted_up": 239,
+        "delta_sharpe_net_median": -0.008811311303822678,
+        "delta_sharpe_net_mean": 0.08050430146800809,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35555555555555557,
+        "macro_f1": 0.34493708475041246,
+        "down_recall": 0.28205128205128205,
+        "core_harmonic_mean": 0.3240778865641796,
+        "balanced_accuracy": 0.34499450172294654,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.4150326797385621,
+        "up_recall": 0.3378995433789954,
+        "predicted_down": 203,
+        "predicted_neutral": 298,
+        "predicted_up": 219,
+        "delta_sharpe_net_median": 0.6794099823810353,
+        "delta_sharpe_net_mean": 0.4973673364510827,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3958333333333333,
+        "macro_f1": 0.33853627356983057,
+        "down_recall": 0.11282051282051282,
+        "core_harmonic_mean": 0.20914893628277398,
+        "balanced_accuracy": 0.35525688088137725,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.6241830065359477,
+        "up_recall": 0.3287671232876712,
+        "predicted_down": 80,
+        "predicted_neutral": 439,
+        "predicted_up": 201,
+        "delta_sharpe_net_median": 0.007205260127313341,
+        "delta_sharpe_net_mean": 0.04054300006449829,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37222222222222223,
+        "macro_f1": 0.36294172703949473,
+        "down_recall": 0.31794871794871793,
+        "core_harmonic_mean": 0.3493656574444825,
+        "balanced_accuracy": 0.36327242757540906,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.42483660130718953,
+        "up_recall": 0.3470319634703196,
+        "predicted_down": 211,
+        "predicted_neutral": 292,
+        "predicted_up": 217,
+        "delta_sharpe_net_median": 0.29464392235064824,
+        "delta_sharpe_net_mean": 0.10098119458057181,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "A",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "A",
+        "feature_columns": [
+          "rsi_14",
+          "bb_bandwidth",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3592,
+        "dataset_start": "20100201",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.38055555555555554,
+        "macro_f1": 0.36588470481564145,
+        "down_recall": 0.26153846153846155,
+        "core_harmonic_mean": 0.32664196237068527,
+        "balanced_accuracy": 0.36601674506589893,
+        "majority_accuracy": 0.425,
+        "neutral_recall": 0.45751633986928103,
+        "up_recall": 0.3789954337899543,
+        "predicted_down": 197,
+        "predicted_neutral": 298,
+        "predicted_up": 225,
+        "delta_sharpe_net_median": 0.28081287363497937,
+        "delta_sharpe_net_mean": 0.33795661817848516,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3541666666666667,
+        "macro_f1": 0.3450142618824195,
+        "down_recall": 0.29381443298969073,
+        "core_harmonic_mean": 0.3287502231589574,
+        "balanced_accuracy": 0.3450141677217098,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.40789473684210525,
+        "up_recall": 0.3333333333333333,
+        "predicted_down": 223,
+        "predicted_neutral": 271,
+        "predicted_up": 226,
+        "delta_sharpe_net_median": 0.09921637661797122,
+        "delta_sharpe_net_mean": 0.17872590779965855,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4125,
+        "macro_f1": 0.3581429456922523,
+        "down_recall": 0.12371134020618557,
+        "core_harmonic_mean": 0.22556803176859,
+        "balanced_accuracy": 0.3741950713600198,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.625,
+        "up_recall": 0.3738738738738739,
+        "predicted_down": 80,
+        "predicted_neutral": 406,
+        "predicted_up": 234,
+        "delta_sharpe_net_median": 0.27758353981566664,
+        "delta_sharpe_net_mean": 0.04927641898966655,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3875,
+        "macro_f1": 0.3803937033750698,
+        "down_recall": 0.36597938144329895,
+        "core_harmonic_mean": 0.37774360758324677,
+        "balanced_accuracy": 0.3816541039140062,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4276315789473684,
+        "up_recall": 0.35135135135135137,
+        "predicted_down": 220,
+        "predicted_neutral": 281,
+        "predicted_up": 219,
+        "delta_sharpe_net_median": 0.77205678004242,
+        "delta_sharpe_net_mean": 0.6415498506179258,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37083333333333335,
+        "macro_f1": 0.3617634200364961,
+        "down_recall": 0.33505154639175255,
+        "core_harmonic_mean": 0.3552195098791634,
+        "balanced_accuracy": 0.3623358165544818,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4276315789473684,
+        "up_recall": 0.32432432432432434,
+        "predicted_down": 217,
+        "predicted_neutral": 276,
+        "predicted_up": 227,
+        "delta_sharpe_net_median": -0.21030759131212684,
+        "delta_sharpe_net_mean": -0.0562324747589024,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3486111111111111,
+        "macro_f1": 0.3406790740514329,
+        "down_recall": 0.29896907216494845,
+        "core_harmonic_mean": 0.3279166129042541,
+        "balanced_accuracy": 0.34124992463977816,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.39144736842105265,
+        "up_recall": 0.3333333333333333,
+        "predicted_down": 209,
+        "predicted_neutral": 276,
+        "predicted_up": 235,
+        "delta_sharpe_net_median": 0.22093014781288411,
+        "delta_sharpe_net_mean": 0.1188522297891892,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3958333333333333,
+        "macro_f1": 0.3578361469647336,
+        "down_recall": 0.18041237113402062,
+        "core_harmonic_mean": 0.2761477880757779,
+        "balanced_accuracy": 0.3642310242961355,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5789473684210527,
+        "up_recall": 0.3333333333333333,
+        "predicted_down": 127,
+        "predicted_neutral": 390,
+        "predicted_up": 203,
+        "delta_sharpe_net_median": 0.24749807143037128,
+        "delta_sharpe_net_mean": 0.1760272870371724,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.39444444444444443,
+        "macro_f1": 0.3854814282804894,
+        "down_recall": 0.32989690721649484,
+        "core_harmonic_mean": 0.3676191285381615,
+        "balanced_accuracy": 0.3860245894293643,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4407894736842105,
+        "up_recall": 0.38738738738738737,
+        "predicted_down": 201,
+        "predicted_neutral": 288,
+        "predicted_up": 231,
+        "delta_sharpe_net_median": 0.8558339219444625,
+        "delta_sharpe_net_mean": 0.7063724836529669,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3736111111111111,
+        "macro_f1": 0.3653087036397631,
+        "down_recall": 0.35051546391752575,
+        "core_harmonic_mean": 0.36289158133375027,
+        "balanced_accuracy": 0.36639396450166933,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4243421052631579,
+        "up_recall": 0.32432432432432434,
+        "predicted_down": 229,
+        "predicted_neutral": 273,
+        "predicted_up": 218,
+        "delta_sharpe_net_median": -0.02159535611049851,
+        "delta_sharpe_net_mean": -0.07532762965058105,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 1
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 11
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35555555555555557,
+        "macro_f1": 0.349047155826274,
+        "down_recall": 0.33505154639175255,
+        "core_harmonic_mean": 0.34633802624624505,
+        "balanced_accuracy": 0.35027441304570983,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.39144736842105265,
+        "up_recall": 0.32432432432432434,
+        "predicted_down": 224,
+        "predicted_neutral": 276,
+        "predicted_up": 220,
+        "delta_sharpe_net_median": 0.29396247779860807,
+        "delta_sharpe_net_mean": 0.22489898566508817,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4125,
+        "macro_f1": 0.36190532525867386,
+        "down_recall": 0.14432989690721648,
+        "core_harmonic_mean": 0.24760713606155277,
+        "balanced_accuracy": 0.37465690731425944,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.6282894736842105,
+        "up_recall": 0.35135135135135137,
+        "predicted_down": 90,
+        "predicted_neutral": 418,
+        "predicted_up": 212,
+        "delta_sharpe_net_median": 0.36586499726129906,
+        "delta_sharpe_net_mean": 0.1596399050250894,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4,
+        "macro_f1": 0.38932307385341325,
+        "down_recall": 0.3402061855670103,
+        "core_harmonic_mean": 0.37462749031340614,
+        "balanced_accuracy": 0.3896289466351865,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.46381578947368424,
+        "up_recall": 0.36486486486486486,
+        "predicted_down": 210,
+        "predicted_neutral": 289,
+        "predicted_up": 221,
+        "delta_sharpe_net_median": 0.2737009840580294,
+        "delta_sharpe_net_mean": 0.42361308699975214,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "daily_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37222222222222223,
+        "macro_f1": 0.3611030517795258,
+        "down_recall": 0.33505154639175255,
+        "core_harmonic_mean": 0.3554302282870291,
+        "balanced_accuracy": 0.3618122666888266,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4440789473684211,
+        "up_recall": 0.3063063063063063,
+        "predicted_down": 225,
+        "predicted_neutral": 290,
+        "predicted_up": 205,
+        "delta_sharpe_net_median": -0.2812356327881378,
+        "delta_sharpe_net_mean": -0.08737567483035234,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 1
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 11
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3763888888888889,
+        "macro_f1": 0.36868767136643465,
+        "down_recall": 0.33505154639175255,
+        "core_harmonic_mean": 0.3591195187397469,
+        "balanced_accuracy": 0.36955685338078176,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.41776315789473684,
+        "up_recall": 0.35585585585585583,
+        "predicted_down": 216,
+        "predicted_neutral": 272,
+        "predicted_up": 232,
+        "delta_sharpe_net_median": 0.19896338500415545,
+        "delta_sharpe_net_mean": 0.34772668597538114,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4013888888888889,
+        "macro_f1": 0.3646095311149047,
+        "down_recall": 0.18041237113402062,
+        "core_harmonic_mean": 0.27837404756478173,
+        "balanced_accuracy": 0.3710470508490042,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5723684210526315,
+        "up_recall": 0.36036036036036034,
+        "predicted_down": 125,
+        "predicted_neutral": 373,
+        "predicted_up": 222,
+        "delta_sharpe_net_median": 0.10611178552039613,
+        "delta_sharpe_net_mean": 0.17556036432386646,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3611111111111111,
+        "macro_f1": 0.3511581572903834,
+        "down_recall": 0.31958762886597936,
+        "core_harmonic_mean": 0.34301462692291534,
+        "balanced_accuracy": 0.35158018164664934,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4243421052631579,
+        "up_recall": 0.3108108108108108,
+        "predicted_down": 210,
+        "predicted_neutral": 298,
+        "predicted_up": 212,
+        "delta_sharpe_net_median": 0.5497025874842706,
+        "delta_sharpe_net_mean": 0.177724557605389,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "B",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "B",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "hv_20",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.37191286066896706,
+        "down_recall": 0.3917525773195876,
+        "core_harmonic_mean": 0.3803008092691681,
+        "balanced_accuracy": 0.3746572128286724,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.40789473684210525,
+        "up_recall": 0.32432432432432434,
+        "predicted_down": 240,
+        "predicted_neutral": 260,
+        "predicted_up": 220,
+        "delta_sharpe_net_median": -0.1252191820890193,
+        "delta_sharpe_net_mean": -0.0114781724773904,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 1
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 11
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.36452075714116233,
+        "down_recall": 0.27835051546391754,
+        "core_harmonic_mean": 0.33396491973386855,
+        "balanced_accuracy": 0.36462442502187487,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4506578947368421,
+        "up_recall": 0.36486486486486486,
+        "predicted_down": 197,
+        "predicted_neutral": 292,
+        "predicted_up": 231,
+        "delta_sharpe_net_median": 0.310714971998075,
+        "delta_sharpe_net_mean": 0.3024044091767267,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4,
+        "macro_f1": 0.375121775138268,
+        "down_recall": 0.2268041237113402,
+        "core_harmonic_mean": 0.3133194642015476,
+        "balanced_accuracy": 0.37757110746123224,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5230263157894737,
+        "up_recall": 0.38288288288288286,
+        "predicted_down": 137,
+        "predicted_neutral": 344,
+        "predicted_up": 239,
+        "delta_sharpe_net_median": 0.1322520454263142,
+        "delta_sharpe_net_mean": 0.3678803179674018,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.36666666666666664,
+        "macro_f1": 0.3530380081884585,
+        "down_recall": 0.26288659793814434,
+        "core_harmonic_mean": 0.32038444428248786,
+        "balanced_accuracy": 0.3527722988859723,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4440789473684211,
+        "up_recall": 0.35135135135135137,
+        "predicted_down": 183,
+        "predicted_neutral": 324,
+        "predicted_up": 213,
+        "delta_sharpe_net_median": 0.5631207125110285,
+        "delta_sharpe_net_mean": 0.6292777914558236,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37083333333333335,
+        "macro_f1": 0.3610515390447937,
+        "down_recall": 0.3402061855670103,
+        "core_harmonic_mean": 0.3569002145313974,
+        "balanced_accuracy": 0.36174250756453685,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4342105263157895,
+        "up_recall": 0.3108108108108108,
+        "predicted_down": 213,
+        "predicted_neutral": 289,
+        "predicted_up": 218,
+        "delta_sharpe_net_median": 0.1616508724958154,
+        "delta_sharpe_net_mean": -0.09529597166957927,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 1
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 11
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.375,
+        "macro_f1": 0.3619305185626576,
+        "down_recall": 0.27835051546391754,
+        "core_harmonic_mean": 0.3325123781962893,
+        "balanced_accuracy": 0.3620264322923032,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4473684210526316,
+        "up_recall": 0.36036036036036034,
+        "predicted_down": 197,
+        "predicted_neutral": 292,
+        "predicted_up": 231,
+        "delta_sharpe_net_median": -0.12038056594794144,
+        "delta_sharpe_net_mean": 0.20471679264970702,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3861111111111111,
+        "macro_f1": 0.35738383350647956,
+        "down_recall": 0.20103092783505155,
+        "core_harmonic_mean": 0.2895082485440108,
+        "balanced_accuracy": 0.36106752438819717,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5263157894736842,
+        "up_recall": 0.35585585585585583,
+        "predicted_down": 136,
+        "predicted_neutral": 350,
+        "predicted_up": 234,
+        "delta_sharpe_net_median": 0.24251790526718137,
+        "delta_sharpe_net_mean": 0.41896844584325055,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35833333333333334,
+        "macro_f1": 0.34746282847462834,
+        "down_recall": 0.29381443298969073,
+        "core_harmonic_mean": 0.33068009791335273,
+        "balanced_accuracy": 0.3474936208590577,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4243421052631579,
+        "up_recall": 0.32432432432432434,
+        "predicted_down": 202,
+        "predicted_neutral": 302,
+        "predicted_up": 216,
+        "delta_sharpe_net_median": 0.061154181420507214,
+        "delta_sharpe_net_mean": 0.2114833028318636,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3902777777777778,
+        "macro_f1": 0.3730315480998583,
+        "down_recall": 0.30927835051546393,
+        "core_harmonic_mean": 0.35392595145813455,
+        "balanced_accuracy": 0.3733630537754249,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5,
+        "up_recall": 0.3108108108108108,
+        "predicted_down": 189,
+        "predicted_neutral": 323,
+        "predicted_up": 208,
+        "delta_sharpe_net_median": -0.2075416341263563,
+        "delta_sharpe_net_mean": -0.49034644149209927,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3763888888888889,
+        "macro_f1": 0.36258169699805753,
+        "down_recall": 0.27835051546391754,
+        "core_harmonic_mean": 0.33305880859584275,
+        "balanced_accuracy": 0.362717913246942,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.45394736842105265,
+        "up_recall": 0.35585585585585583,
+        "predicted_down": 186,
+        "predicted_neutral": 305,
+        "predicted_up": 229,
+        "delta_sharpe_net_median": 0.004325952906725897,
+        "delta_sharpe_net_mean": 0.06121968811938002,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4013888888888889,
+        "macro_f1": 0.3759499378159763,
+        "down_recall": 0.23711340206185566,
+        "core_harmonic_mean": 0.32021623024584495,
+        "balanced_accuracy": 0.377885990982844,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5361842105263158,
+        "up_recall": 0.36036036036036034,
+        "predicted_down": 143,
+        "predicted_neutral": 351,
+        "predicted_up": 226,
+        "delta_sharpe_net_median": 0.18968787323854563,
+        "delta_sharpe_net_mean": 0.29307852277715835,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 1
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 11
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37083333333333335,
+        "macro_f1": 0.35857381043991277,
+        "down_recall": 0.27835051546391754,
+        "core_harmonic_mean": 0.33046752256276335,
+        "balanced_accuracy": 0.3587369586080926,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4375,
+        "up_recall": 0.36036036036036034,
+        "predicted_down": 196,
+        "predicted_neutral": 294,
+        "predicted_up": 230,
+        "delta_sharpe_net_median": 0.11395078500940647,
+        "delta_sharpe_net_mean": 0.2424805603404642,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3875,
+        "macro_f1": 0.3676358082649655,
+        "down_recall": 0.28865979381443296,
+        "core_harmonic_mean": 0.34226984245475295,
+        "balanced_accuracy": 0.3682781737244569,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5098684210526315,
+        "up_recall": 0.3063063063063063,
+        "predicted_down": 188,
+        "predicted_neutral": 330,
+        "predicted_up": 202,
+        "delta_sharpe_net_median": -0.1777385666683992,
+        "delta_sharpe_net_mean": 0.011354010933385986,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.39305555555555555,
+        "macro_f1": 0.3814160793623323,
+        "down_recall": 0.30412371134020616,
+        "core_harmonic_mean": 0.354856822300459,
+        "balanced_accuracy": 0.38141447877611734,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.45723684210526316,
+        "up_recall": 0.38288288288288286,
+        "predicted_down": 204,
+        "predicted_neutral": 294,
+        "predicted_up": 222,
+        "delta_sharpe_net_median": 0.7455715640230647,
+        "delta_sharpe_net_mean": 0.7622471787043309,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3875,
+        "macro_f1": 0.36547483636403594,
+        "down_recall": 0.23711340206185566,
+        "core_harmonic_mean": 0.31465661200299544,
+        "balanced_accuracy": 0.3669210787021422,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.5032894736842105,
+        "up_recall": 0.36036036036036034,
+        "predicted_down": 150,
+        "predicted_neutral": 335,
+        "predicted_up": 235,
+        "delta_sharpe_net_median": 0.102342997175471,
+        "delta_sharpe_net_mean": 0.453453180173134,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37222222222222223,
+        "macro_f1": 0.36253491953817685,
+        "down_recall": 0.30927835051546393,
+        "core_harmonic_mean": 0.34569159763408447,
+        "balanced_accuracy": 0.36234874999796324,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.4309210526315789,
+        "up_recall": 0.34684684684684686,
+        "predicted_down": 191,
+        "predicted_neutral": 310,
+        "predicted_up": 219,
+        "delta_sharpe_net_median": 0.6789950510415412,
+        "delta_sharpe_net_mean": 0.505693999794408,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "C",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "C",
+        "feature_columns": [
+          "sma_gap_5_20",
+          "macd_hist_ratio",
+          "rsi_14",
+          "bb_position",
+          "hv_20",
+          "vol_ratio_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3579,
+        "dataset_start": "20100219",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3958333333333333,
+        "macro_f1": 0.38473456772772835,
+        "down_recall": 0.3556701030927835,
+        "core_harmonic_mean": 0.3779715859563229,
+        "balanced_accuracy": 0.38536956652800386,
+        "majority_accuracy": 0.4222222222222222,
+        "neutral_recall": 0.46710526315789475,
+        "up_recall": 0.3333333333333333,
+        "predicted_down": 213,
+        "predicted_neutral": 295,
+        "predicted_up": 212,
+        "delta_sharpe_net_median": -0.16475133671789632,
+        "delta_sharpe_net_mean": 0.08672408201302988,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3458333333333333,
+        "macro_f1": 0.3328802472587942,
+        "down_recall": 0.23595505617977527,
+        "core_harmonic_mean": 0.2960406099505806,
+        "balanced_accuracy": 0.3321497072016151,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3953488372093023,
+        "up_recall": 0.3651452282157676,
+        "predicted_down": 207,
+        "predicted_neutral": 262,
+        "predicted_up": 251,
+        "delta_sharpe_net_median": 0.07415910978722584,
+        "delta_sharpe_net_mean": 0.007053232918984649,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4388888888888889,
+        "macro_f1": 0.3900584795321637,
+        "down_recall": 0.17415730337078653,
+        "core_harmonic_mean": 0.28344310638137393,
+        "balanced_accuracy": 0.3984806061115793,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.6478405315614618,
+        "up_recall": 0.37344398340248963,
+        "predicted_down": 92,
+        "predicted_neutral": 383,
+        "predicted_up": 245,
+        "delta_sharpe_net_median": -0.031638068118687246,
+        "delta_sharpe_net_mean": -0.2202199076602791,
+        "all_cash_folds": 3
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3680555555555556,
+        "macro_f1": 0.3547944387793325,
+        "down_recall": 0.24719101123595505,
+        "core_harmonic_mean": 0.31312072446910955,
+        "balanced_accuracy": 0.3536045507417296,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4152823920265781,
+        "up_recall": 0.3983402489626556,
+        "predicted_down": 211,
+        "predicted_neutral": 244,
+        "predicted_up": 265,
+        "delta_sharpe_net_median": 0.018160880661472922,
+        "delta_sharpe_net_mean": -0.16094606133708103,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 6,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3388888888888889,
+        "macro_f1": 0.33055433497377673,
+        "down_recall": 0.25842696629213485,
+        "core_harmonic_mean": 0.3047044494824383,
+        "balanced_accuracy": 0.33187921571615936,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3388704318936877,
+        "up_recall": 0.3983402489626556,
+        "predicted_down": 219,
+        "predicted_neutral": 212,
+        "predicted_up": 289,
+        "delta_sharpe_net_median": -0.14652303746829087,
+        "delta_sharpe_net_mean": -0.3906140886341058,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3375,
+        "macro_f1": 0.3270392958650958,
+        "down_recall": 0.24719101123595505,
+        "core_harmonic_mean": 0.2980284217895721,
+        "balanced_accuracy": 0.3275870801618736,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.36212624584717606,
+        "up_recall": 0.37344398340248963,
+        "predicted_down": 204,
+        "predicted_neutral": 247,
+        "predicted_up": 269,
+        "delta_sharpe_net_median": -0.16239312076357731,
+        "delta_sharpe_net_mean": -0.0770813993053145,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.42083333333333334,
+        "macro_f1": 0.3811499452710412,
+        "down_recall": 0.19101123595505617,
+        "core_harmonic_mean": 0.2931069709634957,
+        "balanced_accuracy": 0.38555274978938686,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.6046511627906976,
+        "up_recall": 0.36099585062240663,
+        "predicted_down": 135,
+        "predicted_neutral": 338,
+        "predicted_up": 247,
+        "delta_sharpe_net_median": 0.1888398578641977,
+        "delta_sharpe_net_mean": -0.05805566212533567,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35,
+        "macro_f1": 0.3273515283748543,
+        "down_recall": 0.1797752808988764,
+        "core_harmonic_mean": 0.2614501466503021,
+        "balanced_accuracy": 0.32644104093632287,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.45514950166112955,
+        "up_recall": 0.34439834024896265,
+        "predicted_down": 189,
+        "predicted_neutral": 297,
+        "predicted_up": 234,
+        "delta_sharpe_net_median": -0.02194634643661808,
+        "delta_sharpe_net_mean": -0.06651256571712355,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3375,
+        "macro_f1": 0.3292307692307692,
+        "down_recall": 0.25842696629213485,
+        "core_harmonic_mean": 0.30395409758076075,
+        "balanced_accuracy": 0.3282904406326434,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3654485049833887,
+        "up_recall": 0.36099585062240663,
+        "predicted_down": 222,
+        "predicted_neutral": 219,
+        "predicted_up": 279,
+        "delta_sharpe_net_median": -0.2256196031740042,
+        "delta_sharpe_net_mean": -0.4124964419835087,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.33055555555555555,
+        "macro_f1": 0.323608861237857,
+        "down_recall": 0.2640449438202247,
+        "core_harmonic_mean": 0.302950912573859,
+        "balanced_accuracy": 0.3246214061457793,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.33222591362126247,
+        "up_recall": 0.3775933609958506,
+        "predicted_down": 233,
+        "predicted_neutral": 221,
+        "predicted_up": 266,
+        "delta_sharpe_net_median": -0.17927781255370923,
+        "delta_sharpe_net_mean": -0.1921299845309671,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4361111111111111,
+        "macro_f1": 0.3832767227049845,
+        "down_recall": 0.15730337078651685,
+        "core_harmonic_mean": 0.2664483578603332,
+        "balanced_accuracy": 0.3936943421431775,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.654485049833887,
+        "up_recall": 0.36929460580912865,
+        "predicted_down": 90,
+        "predicted_neutral": 382,
+        "predicted_up": 248,
+        "delta_sharpe_net_median": 0.14026195109082945,
+        "delta_sharpe_net_mean": -0.12267838138281484,
+        "all_cash_folds": 3
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3416666666666667,
+        "macro_f1": 0.3240767647548973,
+        "down_recall": 0.1853932584269663,
+        "core_harmonic_mean": 0.26300891798440107,
+        "balanced_accuracy": 0.32331882365168463,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.39867109634551495,
+        "up_recall": 0.38589211618257263,
+        "predicted_down": 195,
+        "predicted_neutral": 268,
+        "predicted_up": 257,
+        "delta_sharpe_net_median": -0.13558742614391694,
+        "delta_sharpe_net_mean": -0.17687388654645197,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3388888888888889,
+        "macro_f1": 0.3272747670297828,
+        "down_recall": 0.21910112359550563,
+        "core_harmonic_mean": 0.28380982051528336,
+        "balanced_accuracy": 0.3251440087065318,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3787375415282392,
+        "up_recall": 0.3775933609958506,
+        "predicted_down": 219,
+        "predicted_neutral": 226,
+        "predicted_up": 275,
+        "delta_sharpe_net_median": 0.1441153156431667,
+        "delta_sharpe_net_mean": -0.22308434816316688,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3416666666666667,
+        "macro_f1": 0.3326881465687436,
+        "down_recall": 0.25842696629213485,
+        "core_harmonic_mean": 0.306053355013049,
+        "balanced_accuracy": 0.33299123053077,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3588039867109635,
+        "up_recall": 0.3817427385892116,
+        "predicted_down": 222,
+        "predicted_neutral": 235,
+        "predicted_up": 263,
+        "delta_sharpe_net_median": -0.012555688132174933,
+        "delta_sharpe_net_mean": -0.04159433989091349,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.43333333333333335,
+        "macro_f1": 0.39228666841024856,
+        "down_recall": 0.20224719101123595,
+        "core_harmonic_mean": 0.30608206582064945,
+        "balanced_accuracy": 0.39732571227832564,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.6245847176079734,
+        "up_recall": 0.3651452282157676,
+        "predicted_down": 121,
+        "predicted_neutral": 355,
+        "predicted_up": 244,
+        "delta_sharpe_net_median": 0.03565020498364124,
+        "delta_sharpe_net_mean": -0.004190985269919419,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3472222222222222,
+        "macro_f1": 0.33652440014721013,
+        "down_recall": 0.25280898876404495,
+        "core_harmonic_mean": 0.3059005685080927,
+        "balanced_accuracy": 0.33582855145794605,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3853820598006645,
+        "up_recall": 0.36929460580912865,
+        "predicted_down": 219,
+        "predicted_neutral": 249,
+        "predicted_up": 252,
+        "delta_sharpe_net_median": 0.021786847812477472,
+        "delta_sharpe_net_mean": -0.428099169035903,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "D",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "D",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 7,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.33055555555555555,
+        "macro_f1": 0.3225651204394445,
+        "down_recall": 0.25280898876404495,
+        "core_harmonic_mean": 0.29759203879897567,
+        "balanced_accuracy": 0.32143669030356437,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3588039867109635,
+        "up_recall": 0.35269709543568467,
+        "predicted_down": 225,
+        "predicted_neutral": 218,
+        "predicted_up": 277,
+        "delta_sharpe_net_median": -0.3539679545880252,
+        "delta_sharpe_net_mean": -0.4588690059219849,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "feature_count": 3,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3625,
+        "macro_f1": 0.36030645625070484,
+        "down_recall": 0.38202247191011235,
+        "core_harmonic_mean": 0.36802216605156723,
+        "balanced_accuracy": 0.3675406190284642,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3222591362126246,
+        "up_recall": 0.3983402489626556,
+        "predicted_down": 255,
+        "predicted_neutral": 212,
+        "predicted_up": 253,
+        "delta_sharpe_net_median": 0.8268261924135348,
+        "delta_sharpe_net_mean": 0.4964607707273981,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "feature_count": 3,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4486111111111111,
+        "macro_f1": 0.3424877493576506,
+        "down_recall": 0.05056179775280899,
+        "core_harmonic_mean": 0.12035291127074203,
+        "balanced_accuracy": 0.38443456514608526,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.8039867109634552,
+        "up_recall": 0.2987551867219917,
+        "predicted_down": 32,
+        "predicted_neutral": 521,
+        "predicted_up": 167,
+        "delta_sharpe_net_median": -0.05646969074542485,
+        "delta_sharpe_net_mean": -0.10274093837138658,
+        "all_cash_folds": 4
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 9
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 3
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "feature_count": 3,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.3731746279185484,
+        "down_recall": 0.37640449438202245,
+        "core_harmonic_mean": 0.37577570320908027,
+        "balanced_accuracy": 0.3770270533306052,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3853820598006645,
+        "up_recall": 0.36929460580912865,
+        "predicted_down": 238,
+        "predicted_neutral": 251,
+        "predicted_up": 231,
+        "delta_sharpe_net_median": 0.4519236237697327,
+        "delta_sharpe_net_mean": 0.25120846416244735,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "feature_count": 3,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3125,
+        "macro_f1": 0.3075690422821293,
+        "down_recall": 0.2752808988764045,
+        "core_harmonic_mean": 0.29750230234632563,
+        "balanced_accuracy": 0.30761983653103425,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.33222591362126247,
+        "up_recall": 0.3153526970954357,
+        "predicted_down": 255,
+        "predicted_neutral": 223,
+        "predicted_up": 242,
+        "delta_sharpe_net_median": 0.5585069102302327,
+        "delta_sharpe_net_mean": -0.04744862031413675,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3541666666666667,
+        "macro_f1": 0.3476964873640051,
+        "down_recall": 0.30337078651685395,
+        "core_harmonic_mean": 0.3334853534106483,
+        "balanced_accuracy": 0.34990704210822887,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3521594684385382,
+        "up_recall": 0.3941908713692946,
+        "predicted_down": 228,
+        "predicted_neutral": 236,
+        "predicted_up": 256,
+        "delta_sharpe_net_median": 0.6163555126343833,
+        "delta_sharpe_net_mean": 0.22193373107052672,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4222222222222222,
+        "macro_f1": 0.36385035755221345,
+        "down_recall": 0.1404494382022472,
+        "core_harmonic_mean": 0.24516206025439446,
+        "balanced_accuracy": 0.3772916589543808,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.6677740863787376,
+        "up_recall": 0.3236514522821577,
+        "predicted_down": 103,
+        "predicted_neutral": 410,
+        "predicted_up": 207,
+        "delta_sharpe_net_median": -0.18111993936958004,
+        "delta_sharpe_net_mean": -0.4807607390686739,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.3712801786974249,
+        "down_recall": 0.34831460674157305,
+        "core_harmonic_mean": 0.3653452798906787,
+        "balanced_accuracy": 0.3734765621631926,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.39867109634551495,
+        "up_recall": 0.37344398340248963,
+        "predicted_down": 232,
+        "predicted_neutral": 255,
+        "predicted_up": 233,
+        "delta_sharpe_net_median": 0.7385950786359171,
+        "delta_sharpe_net_mean": 0.4080740632456717,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 5,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.36527777777777776,
+        "macro_f1": 0.3590370569654939,
+        "down_recall": 0.3258426966292135,
+        "core_harmonic_mean": 0.34916867901623355,
+        "balanced_accuracy": 0.3610002392034839,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3754152823920266,
+        "up_recall": 0.3817427385892116,
+        "predicted_down": 227,
+        "predicted_neutral": 230,
+        "predicted_up": 263,
+        "delta_sharpe_net_median": 0.11173860324605411,
+        "delta_sharpe_net_mean": -0.21797771997879675,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3472222222222222,
+        "macro_f1": 0.34107220805914623,
+        "down_recall": 0.30337078651685395,
+        "core_harmonic_mean": 0.3293725635383393,
+        "balanced_accuracy": 0.3427157066335778,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3554817275747508,
+        "up_recall": 0.36929460580912865,
+        "predicted_down": 233,
+        "predicted_neutral": 230,
+        "predicted_up": 257,
+        "delta_sharpe_net_median": 0.25501039330829917,
+        "delta_sharpe_net_mean": -0.0642598010926894,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.44027777777777777,
+        "macro_f1": 0.37044141426472493,
+        "down_recall": 0.11797752808988764,
+        "core_harmonic_mean": 0.22309865220679995,
+        "balanced_accuracy": 0.38972998196499703,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.7109634551495017,
+        "up_recall": 0.34024896265560167,
+        "predicted_down": 70,
+        "predicted_neutral": 452,
+        "predicted_up": 198,
+        "delta_sharpe_net_median": 0.16675806548206573,
+        "delta_sharpe_net_mean": -0.2506878892945756,
+        "all_cash_folds": 4
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.37777777777777777,
+        "macro_f1": 0.36644306659591225,
+        "down_recall": 0.29213483146067415,
+        "core_harmonic_mean": 0.3409450207130162,
+        "balanced_accuracy": 0.36665128598075003,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4219269102990033,
+        "up_recall": 0.38589211618257263,
+        "predicted_down": 208,
+        "predicted_neutral": 267,
+        "predicted_up": 245,
+        "delta_sharpe_net_median": 0.16457469534575278,
+        "delta_sharpe_net_mean": 0.21419284464352337,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "daily_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.32916666666666666,
+        "macro_f1": 0.3257916705897122,
+        "down_recall": 0.3258426966292135,
+        "core_harmonic_mean": 0.32692607681001534,
+        "balanced_accuracy": 0.32889885286104764,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3289036544850498,
+        "up_recall": 0.33195020746887965,
+        "predicted_down": 252,
+        "predicted_neutral": 215,
+        "predicted_up": 253,
+        "delta_sharpe_net_median": 0.0163356629878402,
+        "delta_sharpe_net_mean": -0.37147985908008585,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "five_day_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3597222222222222,
+        "macro_f1": 0.3589334709405416,
+        "down_recall": 0.4044943820224719,
+        "core_harmonic_mean": 0.3732189699878614,
+        "balanced_accuracy": 0.3678353251553932,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3089700996677741,
+        "up_recall": 0.3900414937759336,
+        "predicted_down": 246,
+        "predicted_neutral": 224,
+        "predicted_up": 250,
+        "delta_sharpe_net_median": 1.1985695774112295,
+        "delta_sharpe_net_mean": 0.5533899858893364,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "five_day_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4375,
+        "macro_f1": 0.36466175242206705,
+        "down_recall": 0.11235955056179775,
+        "core_harmonic_mean": 0.21539373677955598,
+        "balanced_accuracy": 0.38564707846736496,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.7209302325581395,
+        "up_recall": 0.3236514522821577,
+        "predicted_down": 77,
+        "predicted_neutral": 445,
+        "predicted_up": 198,
+        "delta_sharpe_net_median": -0.12594750009169248,
+        "delta_sharpe_net_mean": -0.4082483606261456,
+        "all_cash_folds": 3
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "five_day_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3763888888888889,
+        "macro_f1": 0.374295031548409,
+        "down_recall": 0.4101123595505618,
+        "core_harmonic_mean": 0.3862558851498147,
+        "balanced_accuracy": 0.3810624827070544,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3554817275747508,
+        "up_recall": 0.3775933609958506,
+        "predicted_down": 254,
+        "predicted_neutral": 236,
+        "predicted_up": 230,
+        "delta_sharpe_net_median": 1.0722963909814611,
+        "delta_sharpe_net_mean": 0.7596241654566795,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "E",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "E",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "five_day_return"
+        ],
+        "feature_count": 4,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35694444444444445,
+        "macro_f1": 0.35002377778859955,
+        "down_recall": 0.3089887640449438,
+        "core_harmonic_mean": 0.3372731020385075,
+        "balanced_accuracy": 0.35068147177726744,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.38205980066445183,
+        "up_recall": 0.36099585062240663,
+        "predicted_down": 233,
+        "predicted_neutral": 231,
+        "predicted_up": 256,
+        "delta_sharpe_net_median": 0.5140656176446777,
+        "delta_sharpe_net_mean": -0.07777706897282338,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3333333333333333,
+        "macro_f1": 0.3213471559632157,
+        "down_recall": 0.23595505617977527,
+        "core_harmonic_mean": 0.28985522452850776,
+        "balanced_accuracy": 0.32052869287868047,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3853820598006645,
+        "up_recall": 0.34024896265560167,
+        "predicted_down": 211,
+        "predicted_neutral": 263,
+        "predicted_up": 246,
+        "delta_sharpe_net_median": -0.3530556428662334,
+        "delta_sharpe_net_mean": -0.1893925341488022,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.40555555555555556,
+        "macro_f1": 0.3731318446033311,
+        "down_recall": 0.2247191011235955,
+        "core_harmonic_mean": 0.3126377148259602,
+        "balanced_accuracy": 0.3757569205212994,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.574750830564784,
+        "up_recall": 0.3278008298755187,
+        "predicted_down": 135,
+        "predicted_neutral": 347,
+        "predicted_up": 238,
+        "delta_sharpe_net_median": -0.15379881422825564,
+        "delta_sharpe_net_mean": -0.3335138678072758,
+        "all_cash_folds": 3
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3597222222222222,
+        "macro_f1": 0.34225691786374757,
+        "down_recall": 0.24157303370786518,
+        "core_harmonic_mean": 0.304839653679259,
+        "balanced_accuracy": 0.3415077884148378,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.45514950166112955,
+        "up_recall": 0.3278008298755187,
+        "predicted_down": 204,
+        "predicted_neutral": 300,
+        "predicted_up": 216,
+        "delta_sharpe_net_median": 0.35192740962996544,
+        "delta_sharpe_net_mean": 0.1493278802352941,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "feature_count": 8,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3486111111111111,
+        "macro_f1": 0.34053801201828643,
+        "down_recall": 0.2752808988764045,
+        "core_harmonic_mean": 0.3178737653398758,
+        "balanced_accuracy": 0.3405483413306188,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.3687707641196013,
+        "up_recall": 0.3775933609958506,
+        "predicted_down": 219,
+        "predicted_neutral": 220,
+        "predicted_up": 281,
+        "delta_sharpe_net_median": 0.17068143151955095,
+        "delta_sharpe_net_mean": -0.42108247158542333,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 2
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 10
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 10,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3402777777777778,
+        "macro_f1": 0.3247497197751088,
+        "down_recall": 0.20224719101123595,
+        "core_harmonic_mean": 0.2736598464069272,
+        "balanced_accuracy": 0.3247828284838738,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.38205980066445183,
+        "up_recall": 0.3900414937759336,
+        "predicted_down": 193,
+        "predicted_neutral": 267,
+        "predicted_up": 260,
+        "delta_sharpe_net_median": -0.008947835322909672,
+        "delta_sharpe_net_mean": 0.057422070366515476,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 10,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4,
+        "macro_f1": 0.3748075572484752,
+        "down_recall": 0.2696629213483146,
+        "core_harmonic_mean": 0.33797602799837306,
+        "balanced_accuracy": 0.3763463327751575,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.5481727574750831,
+        "up_recall": 0.3112033195020747,
+        "predicted_down": 174,
+        "predicted_neutral": 326,
+        "predicted_up": 220,
+        "delta_sharpe_net_median": -0.17345688316017555,
+        "delta_sharpe_net_mean": -0.13524685784047633,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 10,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3527777777777778,
+        "macro_f1": 0.3301632273514281,
+        "down_recall": 0.20786516853932585,
+        "core_harmonic_mean": 0.28104989130909175,
+        "balanced_accuracy": 0.3302764284611977,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4717607973421927,
+        "up_recall": 0.3112033195020747,
+        "predicted_down": 185,
+        "predicted_neutral": 311,
+        "predicted_up": 224,
+        "delta_sharpe_net_median": 0.043308669257908994,
+        "delta_sharpe_net_mean": -0.31712652119406376,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return",
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return",
+          "five_day_return"
+        ],
+        "feature_count": 10,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3486111111111111,
+        "macro_f1": 0.33491355153248376,
+        "down_recall": 0.24719101123595505,
+        "core_harmonic_mean": 0.3030356419250684,
+        "balanced_accuracy": 0.3339650824869955,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4186046511627907,
+        "up_recall": 0.3360995850622407,
+        "predicted_down": 199,
+        "predicted_neutral": 264,
+        "predicted_up": 257,
+        "delta_sharpe_net_median": 0.03719784077279854,
+        "delta_sharpe_net_mean": -0.3715740568612042,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 5
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 7
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3541666666666667,
+        "macro_f1": 0.3386949556918882,
+        "down_recall": 0.2303370786516854,
+        "core_harmonic_mean": 0.29651587597899626,
+        "balanced_accuracy": 0.3380289860100813,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4186046511627907,
+        "up_recall": 0.3651452282157676,
+        "predicted_down": 197,
+        "predicted_neutral": 275,
+        "predicted_up": 248,
+        "delta_sharpe_net_median": -0.44839613040412046,
+        "delta_sharpe_net_mean": -0.18479159277912335,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.40694444444444444,
+        "macro_f1": 0.3750485286124699,
+        "down_recall": 0.2303370786516854,
+        "core_harmonic_mean": 0.31695309465397975,
+        "balanced_accuracy": 0.3776295796973294,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.574750830564784,
+        "up_recall": 0.3278008298755187,
+        "predicted_down": 140,
+        "predicted_neutral": 347,
+        "predicted_up": 233,
+        "delta_sharpe_net_median": 0.013828726372182201,
+        "delta_sharpe_net_mean": -0.2477255393689306,
+        "all_cash_folds": 3
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3486111111111111,
+        "macro_f1": 0.33468326785841856,
+        "down_recall": 0.24157303370786518,
+        "core_harmonic_mean": 0.30012123776516164,
+        "balanced_accuracy": 0.3331998430230364,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4219269102990033,
+        "up_recall": 0.3360995850622407,
+        "predicted_down": 216,
+        "predicted_neutral": 272,
+        "predicted_up": 232,
+        "delta_sharpe_net_median": 0.08614940120690051,
+        "delta_sharpe_net_mean": -0.13695482355581326,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 4
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 8
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "daily_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "daily_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.3472222222222222,
+        "macro_f1": 0.3343784058751309,
+        "down_recall": 0.24157303370786518,
+        "core_harmonic_mean": 0.2996955504554897,
+        "balanced_accuracy": 0.3331952479204967,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.4053156146179402,
+        "up_recall": 0.35269709543568467,
+        "predicted_down": 202,
+        "predicted_neutral": 250,
+        "predicted_up": 268,
+        "delta_sharpe_net_median": -0.7091134793549385,
+        "delta_sharpe_net_mean": -0.7805934123376629,
+        "all_cash_folds": 1
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LightGBM"
+      },
+      "summary": {
+        "model": "LightGBM",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.35694444444444445,
+        "macro_f1": 0.34707867043097335,
+        "down_recall": 0.2752808988764045,
+        "core_harmonic_mean": 0.32204733996411733,
+        "balanced_accuracy": 0.34774427190780965,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.38205980066445183,
+        "up_recall": 0.38589211618257263,
+        "predicted_down": 210,
+        "predicted_neutral": 252,
+        "predicted_up": 258,
+        "delta_sharpe_net_median": -0.05793767349489205,
+        "delta_sharpe_net_mean": 0.02072006070174003,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 7
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 5
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "LogisticRegression"
+      },
+      "summary": {
+        "model": "LogisticRegression",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.4,
+        "macro_f1": 0.3764254744683375,
+        "down_recall": 0.2808988764044944,
+        "core_harmonic_mean": 0.34417214217894415,
+        "balanced_accuracy": 0.3778768117030757,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.5415282392026578,
+        "up_recall": 0.3112033195020747,
+        "predicted_down": 180,
+        "predicted_neutral": 323,
+        "predicted_up": 217,
+        "delta_sharpe_net_median": 0.07988883215963362,
+        "delta_sharpe_net_mean": -0.027626878433198,
+        "all_cash_folds": 2
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest"
+      },
+      "summary": {
+        "model": "RandomForest",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.34444444444444444,
+        "macro_f1": 0.32612459068540584,
+        "down_recall": 0.20224719101123595,
+        "core_harmonic_mean": 0.27487673306368576,
+        "balanced_accuracy": 0.3253480260962585,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.42524916943521596,
+        "up_recall": 0.34854771784232363,
+        "predicted_down": 191,
+        "predicted_neutral": 285,
+        "predicted_up": 244,
+        "delta_sharpe_net_median": 0.02703165360396842,
+        "delta_sharpe_net_mean": -0.22673850727338715,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 6
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 6
+        }
+      ]
+    },
+    {
+      "source": {
+        "repo_sha": "cf3759afebf73a59c8f6c9aa7265cccb56a38f27",
+        "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+        "dev_end": "20240831"
+      },
+      "experiment": {
+        "combination": "F",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "XGBoost"
+      },
+      "summary": {
+        "model": "XGBoost",
+        "combination": "F",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "sma_gap_5_20",
+          "rsi_14",
+          "macd_hist_atr",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20",
+          "five_day_return"
+        ],
+        "feature_count": 9,
+        "dataset_rows": 3343,
+        "dataset_start": "20110127",
+        "dataset_end": "20240822",
+        "oos_rows": 720,
+        "accuracy": 0.32222222222222224,
+        "macro_f1": 0.3127931548280215,
+        "down_recall": 0.23595505617977527,
+        "core_harmonic_mean": 0.28466929396346946,
+        "balanced_accuracy": 0.31139362902973067,
+        "majority_accuracy": 0.41805555555555557,
+        "neutral_recall": 0.36212624584717606,
+        "up_recall": 0.3360995850622407,
+        "predicted_down": 217,
+        "predicted_neutral": 230,
+        "predicted_up": 273,
+        "delta_sharpe_net_median": -0.26742579165411284,
+        "delta_sharpe_net_mean": -0.6246921775659131,
+        "all_cash_folds": 0
+      },
+      "weight_counts": [
+        {
+          "클래스 가중치": "None",
+          "선택 폴드 수": 3
+        },
+        {
+          "클래스 가중치": "balanced",
+          "선택 폴드 수": 9
+        }
+      ]
+    }
+  ],
+  "best_by_combination": {
+    "A": {
+      "overall_best_model": "LightGBM",
+      "models": {
+        "LogisticRegression": {
+          "variant": "both",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "A",
+            "feature_columns": [
+              "rsi_14",
+              "bb_bandwidth",
+              "hv_20",
+              "vol_ratio_20",
+              "daily_return",
+              "five_day_return"
+            ],
+            "feature_count": 6,
+            "dataset_rows": 3592,
+            "dataset_start": "20100201",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.39861111111111114,
+            "macro_f1": 0.3498535975488797,
+            "down_recall": 0.14871794871794872,
+            "core_harmonic_mean": 0.24811459350218876,
+            "balanced_accuracy": 0.3609105789605387,
+            "majority_accuracy": 0.425,
+            "neutral_recall": 0.6143790849673203,
+            "up_recall": 0.319634703196347,
+            "predicted_down": 104,
+            "predicted_neutral": 423,
+            "predicted_up": 193,
+            "delta_sharpe_net_median": 0.22607960156335236,
+            "delta_sharpe_net_mean": -0.20577429195995212,
+            "all_cash_folds": 2
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 2
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 10
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "base",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "A",
+            "feature_columns": [
+              "rsi_14",
+              "bb_bandwidth",
+              "hv_20",
+              "vol_ratio_20"
+            ],
+            "feature_count": 4,
+            "dataset_rows": 3592,
+            "dataset_start": "20100201",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.37222222222222223,
+            "macro_f1": 0.3652853194727997,
+            "down_recall": 0.3333333333333333,
+            "core_harmonic_mean": 0.3561188785049757,
+            "balanced_accuracy": 0.366430895036858,
+            "majority_accuracy": 0.425,
+            "neutral_recall": 0.40522875816993464,
+            "up_recall": 0.3607305936073059,
+            "predicted_down": 219,
+            "predicted_neutral": 274,
+            "predicted_up": 227,
+            "delta_sharpe_net_median": 0.11542753626530194,
+            "delta_sharpe_net_mean": 0.23035348463373032,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 5
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 7
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "base",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "A",
+            "feature_columns": [
+              "rsi_14",
+              "bb_bandwidth",
+              "hv_20",
+              "vol_ratio_20"
+            ],
+            "feature_count": 4,
+            "dataset_rows": 3592,
+            "dataset_start": "20100201",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.4013888888888889,
+            "macro_f1": 0.38476242690058476,
+            "down_recall": 0.2717948717948718,
+            "core_harmonic_mean": 0.34209081493982085,
+            "balanced_accuracy": 0.38532775011421266,
+            "majority_accuracy": 0.425,
+            "neutral_recall": 0.4869281045751634,
+            "up_recall": 0.3972602739726027,
+            "predicted_down": 189,
+            "predicted_neutral": 294,
+            "predicted_up": 237,
+            "delta_sharpe_net_median": 0.035404218342492466,
+            "delta_sharpe_net_mean": 0.014251932868187156,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 3
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 9
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "daily",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "A",
+            "feature_columns": [
+              "rsi_14",
+              "bb_bandwidth",
+              "hv_20",
+              "vol_ratio_20",
+              "daily_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3592,
+            "dataset_start": "20100201",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.39444444444444443,
+            "macro_f1": 0.38388602659006593,
+            "down_recall": 0.3435897435897436,
+            "core_harmonic_mean": 0.3726430857427485,
+            "balanced_accuracy": 0.3842347523250021,
+            "majority_accuracy": 0.425,
+            "neutral_recall": 0.45751633986928103,
+            "up_recall": 0.3515981735159817,
+            "predicted_down": 214,
+            "predicted_neutral": 295,
+            "predicted_up": 211,
+            "delta_sharpe_net_median": 0.2024473567173461,
+            "delta_sharpe_net_mean": 0.5385066378968872,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 5
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 7
+            }
+          ]
+        }
+      }
+    },
+    "B": {
+      "overall_best_model": "XGBoost",
+      "models": {
+        "LogisticRegression": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "B",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "hv_20",
+              "five_day_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.4013888888888889,
+            "macro_f1": 0.3646095311149047,
+            "down_recall": 0.18041237113402062,
+            "core_harmonic_mean": 0.27837404756478173,
+            "balanced_accuracy": 0.3710470508490042,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.5723684210526315,
+            "up_recall": 0.36036036036036034,
+            "predicted_down": 125,
+            "predicted_neutral": 373,
+            "predicted_up": 222,
+            "delta_sharpe_net_median": 0.10611178552039613,
+            "delta_sharpe_net_mean": 0.17556036432386646,
+            "all_cash_folds": 1
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 4
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 8
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "base",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "B",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "hv_20"
+            ],
+            "feature_count": 4,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3875,
+            "macro_f1": 0.3803937033750698,
+            "down_recall": 0.36597938144329895,
+            "core_harmonic_mean": 0.37774360758324677,
+            "balanced_accuracy": 0.3816541039140062,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.4276315789473684,
+            "up_recall": 0.35135135135135137,
+            "predicted_down": 220,
+            "predicted_neutral": 281,
+            "predicted_up": 219,
+            "delta_sharpe_net_median": 0.77205678004242,
+            "delta_sharpe_net_mean": 0.6415498506179258,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 4
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 8
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "five_day",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "B",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "hv_20",
+              "five_day_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.37777777777777777,
+            "macro_f1": 0.37191286066896706,
+            "down_recall": 0.3917525773195876,
+            "core_harmonic_mean": 0.3803008092691681,
+            "balanced_accuracy": 0.3746572128286724,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.40789473684210525,
+            "up_recall": 0.32432432432432434,
+            "predicted_down": 240,
+            "predicted_neutral": 260,
+            "predicted_up": 220,
+            "delta_sharpe_net_median": -0.1252191820890193,
+            "delta_sharpe_net_mean": -0.0114781724773904,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 1
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 11
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "B",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "hv_20",
+              "five_day_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3763888888888889,
+            "macro_f1": 0.36868767136643465,
+            "down_recall": 0.33505154639175255,
+            "core_harmonic_mean": 0.3591195187397469,
+            "balanced_accuracy": 0.36955685338078176,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.41776315789473684,
+            "up_recall": 0.35585585585585583,
+            "predicted_down": 216,
+            "predicted_neutral": 272,
+            "predicted_up": 232,
+            "delta_sharpe_net_median": 0.19896338500415545,
+            "delta_sharpe_net_mean": 0.34772668597538114,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 2
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 10
+            }
+          ]
+        }
+      }
+    },
+    "C": {
+      "overall_best_model": "XGBoost",
+      "models": {
+        "LogisticRegression": {
+          "variant": "daily",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "C",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "bb_position",
+              "hv_20",
+              "vol_ratio_20",
+              "daily_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.4013888888888889,
+            "macro_f1": 0.3759499378159763,
+            "down_recall": 0.23711340206185566,
+            "core_harmonic_mean": 0.32021623024584495,
+            "balanced_accuracy": 0.377885990982844,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.5361842105263158,
+            "up_recall": 0.36036036036036034,
+            "predicted_down": 143,
+            "predicted_neutral": 351,
+            "predicted_up": 226,
+            "delta_sharpe_net_median": 0.18968787323854563,
+            "delta_sharpe_net_mean": 0.29307852277715835,
+            "all_cash_folds": 1
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 1
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 11
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "five_day",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "C",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "bb_position",
+              "hv_20",
+              "vol_ratio_20",
+              "five_day_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.37222222222222223,
+            "macro_f1": 0.36253491953817685,
+            "down_recall": 0.30927835051546393,
+            "core_harmonic_mean": 0.34569159763408447,
+            "balanced_accuracy": 0.36234874999796324,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.4309210526315789,
+            "up_recall": 0.34684684684684686,
+            "predicted_down": 191,
+            "predicted_neutral": 310,
+            "predicted_up": 219,
+            "delta_sharpe_net_median": 0.6789950510415412,
+            "delta_sharpe_net_mean": 0.505693999794408,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 6
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 6
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "five_day",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "C",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "bb_position",
+              "hv_20",
+              "vol_ratio_20",
+              "five_day_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3958333333333333,
+            "macro_f1": 0.38473456772772835,
+            "down_recall": 0.3556701030927835,
+            "core_harmonic_mean": 0.3779715859563229,
+            "balanced_accuracy": 0.38536956652800386,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.46710526315789475,
+            "up_recall": 0.3333333333333333,
+            "predicted_down": 213,
+            "predicted_neutral": 295,
+            "predicted_up": 212,
+            "delta_sharpe_net_median": -0.16475133671789632,
+            "delta_sharpe_net_mean": 0.08672408201302988,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 3
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 9
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "C",
+            "feature_columns": [
+              "sma_gap_5_20",
+              "macd_hist_ratio",
+              "rsi_14",
+              "bb_position",
+              "hv_20",
+              "vol_ratio_20",
+              "five_day_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3579,
+            "dataset_start": "20100219",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.39305555555555555,
+            "macro_f1": 0.3814160793623323,
+            "down_recall": 0.30412371134020616,
+            "core_harmonic_mean": 0.354856822300459,
+            "balanced_accuracy": 0.38141447877611734,
+            "majority_accuracy": 0.4222222222222222,
+            "neutral_recall": 0.45723684210526316,
+            "up_recall": 0.38288288288288286,
+            "predicted_down": 204,
+            "predicted_neutral": 294,
+            "predicted_up": 222,
+            "delta_sharpe_net_median": 0.7455715640230647,
+            "delta_sharpe_net_mean": 0.7622471787043309,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 5
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 7
+            }
+          ]
+        }
+      }
+    },
+    "D": {
+      "overall_best_model": "RandomForest",
+      "models": {
+        "LogisticRegression": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "D",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "rsi_14",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20",
+              "five_day_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.43333333333333335,
+            "macro_f1": 0.39228666841024856,
+            "down_recall": 0.20224719101123595,
+            "core_harmonic_mean": 0.30608206582064945,
+            "balanced_accuracy": 0.39732571227832564,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.6245847176079734,
+            "up_recall": 0.3651452282157676,
+            "predicted_down": 121,
+            "predicted_neutral": 355,
+            "predicted_up": 244,
+            "delta_sharpe_net_median": 0.03565020498364124,
+            "delta_sharpe_net_mean": -0.004190985269919419,
+            "all_cash_folds": 2
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 4
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 8
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "base",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "D",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "rsi_14",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20"
+            ],
+            "feature_count": 6,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3680555555555556,
+            "macro_f1": 0.3547944387793325,
+            "down_recall": 0.24719101123595505,
+            "core_harmonic_mean": 0.31312072446910955,
+            "balanced_accuracy": 0.3536045507417296,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.4152823920265781,
+            "up_recall": 0.3983402489626556,
+            "predicted_down": 211,
+            "predicted_neutral": 244,
+            "predicted_up": 265,
+            "delta_sharpe_net_median": 0.018160880661472922,
+            "delta_sharpe_net_mean": -0.16094606133708103,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 4
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 8
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "base",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "D",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "rsi_14",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20"
+            ],
+            "feature_count": 6,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3388888888888889,
+            "macro_f1": 0.33055433497377673,
+            "down_recall": 0.25842696629213485,
+            "core_harmonic_mean": 0.3047044494824383,
+            "balanced_accuracy": 0.33187921571615936,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3388704318936877,
+            "up_recall": 0.3983402489626556,
+            "predicted_down": 219,
+            "predicted_neutral": 212,
+            "predicted_up": 289,
+            "delta_sharpe_net_median": -0.14652303746829087,
+            "delta_sharpe_net_mean": -0.3906140886341058,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 4
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 8
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "D",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "rsi_14",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20",
+              "five_day_return"
+            ],
+            "feature_count": 7,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3416666666666667,
+            "macro_f1": 0.3326881465687436,
+            "down_recall": 0.25842696629213485,
+            "core_harmonic_mean": 0.306053355013049,
+            "balanced_accuracy": 0.33299123053077,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3588039867109635,
+            "up_recall": 0.3817427385892116,
+            "predicted_down": 222,
+            "predicted_neutral": 235,
+            "predicted_up": 263,
+            "delta_sharpe_net_median": -0.012555688132174933,
+            "delta_sharpe_net_mean": -0.04159433989091349,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 5
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 7
+            }
+          ]
+        }
+      }
+    },
+    "E": {
+      "overall_best_model": "RandomForest",
+      "models": {
+        "LogisticRegression": {
+          "variant": "both",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "E",
+            "feature_columns": [
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "daily_return",
+              "five_day_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.4222222222222222,
+            "macro_f1": 0.36385035755221345,
+            "down_recall": 0.1404494382022472,
+            "core_harmonic_mean": 0.24516206025439446,
+            "balanced_accuracy": 0.3772916589543808,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.6677740863787376,
+            "up_recall": 0.3236514522821577,
+            "predicted_down": 103,
+            "predicted_neutral": 410,
+            "predicted_up": 207,
+            "delta_sharpe_net_median": -0.18111993936958004,
+            "delta_sharpe_net_mean": -0.4807607390686739,
+            "all_cash_folds": 2
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 7
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 5
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "five_day",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "E",
+            "feature_columns": [
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "five_day_return"
+            ],
+            "feature_count": 4,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3763888888888889,
+            "macro_f1": 0.374295031548409,
+            "down_recall": 0.4101123595505618,
+            "core_harmonic_mean": 0.3862558851498147,
+            "balanced_accuracy": 0.3810624827070544,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3554817275747508,
+            "up_recall": 0.3775933609958506,
+            "predicted_down": 254,
+            "predicted_neutral": 236,
+            "predicted_up": 230,
+            "delta_sharpe_net_median": 1.0722963909814611,
+            "delta_sharpe_net_mean": 0.7596241654566795,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 6
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 6
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "both",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "E",
+            "feature_columns": [
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "daily_return",
+              "five_day_return"
+            ],
+            "feature_count": 5,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.36527777777777776,
+            "macro_f1": 0.3590370569654939,
+            "down_recall": 0.3258426966292135,
+            "core_harmonic_mean": 0.34916867901623355,
+            "balanced_accuracy": 0.3610002392034839,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3754152823920266,
+            "up_recall": 0.3817427385892116,
+            "predicted_down": 227,
+            "predicted_neutral": 230,
+            "predicted_up": 263,
+            "delta_sharpe_net_median": 0.11173860324605411,
+            "delta_sharpe_net_mean": -0.21797771997879675,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 3
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 9
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "E",
+            "feature_columns": [
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "five_day_return"
+            ],
+            "feature_count": 4,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3597222222222222,
+            "macro_f1": 0.3589334709405416,
+            "down_recall": 0.4044943820224719,
+            "core_harmonic_mean": 0.3732189699878614,
+            "balanced_accuracy": 0.3678353251553932,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3089700996677741,
+            "up_recall": 0.3900414937759336,
+            "predicted_down": 246,
+            "predicted_neutral": 224,
+            "predicted_up": 250,
+            "delta_sharpe_net_median": 1.1985695774112295,
+            "delta_sharpe_net_mean": 0.5533899858893364,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 2
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 10
+            }
+          ]
+        }
+      }
+    },
+    "F": {
+      "overall_best_model": "LogisticRegression",
+      "models": {
+        "LogisticRegression": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LogisticRegression",
+            "combination": "F",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "sma_gap_5_20",
+              "rsi_14",
+              "macd_hist_atr",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20",
+              "five_day_return"
+            ],
+            "feature_count": 9,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.4,
+            "macro_f1": 0.3764254744683375,
+            "down_recall": 0.2808988764044944,
+            "core_harmonic_mean": 0.34417214217894415,
+            "balanced_accuracy": 0.3778768117030757,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.5415282392026578,
+            "up_recall": 0.3112033195020747,
+            "predicted_down": 180,
+            "predicted_neutral": 323,
+            "predicted_up": 217,
+            "delta_sharpe_net_median": 0.07988883215963362,
+            "delta_sharpe_net_mean": -0.027626878433198,
+            "all_cash_folds": 2
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 3
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 9
+            }
+          ]
+        },
+        "RandomForest": {
+          "variant": "base",
+          "summary": {
+            "model": "RandomForest",
+            "combination": "F",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "sma_gap_5_20",
+              "rsi_14",
+              "macd_hist_atr",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20"
+            ],
+            "feature_count": 8,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3597222222222222,
+            "macro_f1": 0.34225691786374757,
+            "down_recall": 0.24157303370786518,
+            "core_harmonic_mean": 0.304839653679259,
+            "balanced_accuracy": 0.3415077884148378,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.45514950166112955,
+            "up_recall": 0.3278008298755187,
+            "predicted_down": 204,
+            "predicted_neutral": 300,
+            "predicted_up": 216,
+            "delta_sharpe_net_median": 0.35192740962996544,
+            "delta_sharpe_net_mean": 0.1493278802352941,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 6
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 6
+            }
+          ]
+        },
+        "XGBoost": {
+          "variant": "base",
+          "summary": {
+            "model": "XGBoost",
+            "combination": "F",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "sma_gap_5_20",
+              "rsi_14",
+              "macd_hist_atr",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20"
+            ],
+            "feature_count": 8,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.3486111111111111,
+            "macro_f1": 0.34053801201828643,
+            "down_recall": 0.2752808988764045,
+            "core_harmonic_mean": 0.3178737653398758,
+            "balanced_accuracy": 0.3405483413306188,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.3687707641196013,
+            "up_recall": 0.3775933609958506,
+            "predicted_down": 219,
+            "predicted_neutral": 220,
+            "predicted_up": 281,
+            "delta_sharpe_net_median": 0.17068143151955095,
+            "delta_sharpe_net_mean": -0.42108247158542333,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 2
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 10
+            }
+          ]
+        },
+        "LightGBM": {
+          "variant": "five_day",
+          "summary": {
+            "model": "LightGBM",
+            "combination": "F",
+            "feature_columns": [
+              "sma_gap_20_60",
+              "sma_gap_5_20",
+              "rsi_14",
+              "macd_hist_atr",
+              "atr_ratio",
+              "bb_bandwidth",
+              "hv_regime",
+              "obv_slope_20",
+              "five_day_return"
+            ],
+            "feature_count": 9,
+            "dataset_rows": 3343,
+            "dataset_start": "20110127",
+            "dataset_end": "20240822",
+            "oos_rows": 720,
+            "accuracy": 0.35694444444444445,
+            "macro_f1": 0.34707867043097335,
+            "down_recall": 0.2752808988764045,
+            "core_harmonic_mean": 0.32204733996411733,
+            "balanced_accuracy": 0.34774427190780965,
+            "majority_accuracy": 0.41805555555555557,
+            "neutral_recall": 0.38205980066445183,
+            "up_recall": 0.38589211618257263,
+            "predicted_down": 210,
+            "predicted_neutral": 252,
+            "predicted_up": 258,
+            "delta_sharpe_net_median": -0.05793767349489205,
+            "delta_sharpe_net_mean": 0.02072006070174003,
+            "all_cash_folds": 0
+          },
+          "weight_counts": [
+            {
+              "클래스 가중치": "None",
+              "선택 폴드 수": 7
+            },
+            {
+              "클래스 가중치": "balanced",
+              "선택 폴드 수": 5
+            }
+          ]
+        }
+      }
+    }
+  }
+}
