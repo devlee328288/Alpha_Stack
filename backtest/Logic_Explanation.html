@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>📊 5일 후 예측 백테스트 – A/B/C 전략 설명</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: #f4f7fc;
+            padding: 24px;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 2rem;
+            margin-bottom: 0.25rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .subtitle {
+            color: #475569;
+            margin-bottom: 24px;
+            border-left: 4px solid #3b82f6;
+            padding-left: 16px;
+            font-size: 1.05rem;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 20px 22px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+            border: 1px solid #e9eef3;
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th,
+        td {
+            padding: 8px 6px;
+            text-align: center;
+            border-bottom: 1px solid #e9eef3;
+        }
+
+        th {
+            font-weight: 600;
+            color: #475569;
+            background: #f8fafc;
+        }
+
+        .highlight-up {
+            color: #0b7e3d;
+            font-weight: 600;
+        }
+
+        .highlight-down {
+            color: #b91c1c;
+            font-weight: 600;
+        }
+
+        .neutral {
+            color: #64748b;
+        }
+
+        .control-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px 32px;
+            align-items: center;
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin: 12px 0 18px 0;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .control-item label {
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        .control-item input[type="number"] {
+            width: 70px;
+            padding: 6px 8px;
+            border: 1px solid #d1d9e6;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+        }
+
+        .toggle-wrap {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 44px;
+            height: 24px;
+            background: #cbd5e1;
+            border-radius: 30px;
+            cursor: default;
+            /* 상호작용 없음 */
+            transition: 0.25s;
+        }
+
+        .toggle.active {
+            background: #2563eb;
+        }
+
+        .toggle::after {
+            content: "";
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: 0.25s;
+        }
+
+        .toggle.active::after {
+            left: 22px;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #f1f5f9;
+            padding: 2px 12px;
+            border-radius: 30px;
+            font-size: 0.8rem;
+            color: #334155;
+        }
+
+        .example-flow {
+            overflow-x: auto;
+            font-size: 0.85rem;
+            margin-top: 12px;
+        }
+
+        .example-flow table th,
+        .example-flow table td {
+            padding: 6px 12px;
+            white-space: nowrap;
+        }
+
+        .footer {
+            margin-top: 40px;
+            border-top: 1px solid #e2e8f0;
+            padding-top: 24px;
+            color: #64748b;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .note-box {
+            background: #eef2ff;
+            border-radius: 16px;
+            padding: 16px 20px;
+            margin-top: 20px;
+            border-left: 4px solid #3b82f6;
+        }
+
+        @media (max-width: 700px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+
+            .control-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🧠 5영업일 후 예측 백테스트</h1>
+        <div class="subtitle">
+            시그널이 뜨면 다음날 시가에 거래 진행
+        </div>
+
+        <!-- 전략 개요 카드 -->
+        <div class="grid-2">
+            <!-- A 전략 -->
+            <div class="card">
+                <h2><span style="background:#dbeafe; padding:0 12px; border-radius:40px;">A</span> 단계적 가중</h2>
+                <p style="font-size:0.95rem; color:#334155; margin-bottom:12px;">
+                    같은 방향 연속 시 <strong>점점 더 크게</strong> 베팅
+                </p>
+                <table>
+                    <tr>
+                        <th>연속 상승</th>
+                        <th>매수</th>
+                        <th>연속 하락</th>
+                        <th>매도</th>
+                    </tr>
+                    <tr>
+                        <td>1회</td>
+                        <td class="highlight-up">+20%</td>
+                        <td>1회</td>
+                        <td class="highlight-down">-20%</td>
+                    </tr>
+                    <tr>
+                        <td>2회</td>
+                        <td class="highlight-up">+30%</td>
+                        <td>2회</td>
+                        <td class="highlight-down">-30%</td>
+                    </tr>
+                    <tr>
+                        <td>3회 이상</td>
+                        <td class="highlight-up">+50%</td>
+                        <td>3회 이상</td>
+                        <td class="highlight-down">-50%</td>
+                    </tr>
+                </table>
+                <div
+                    style="margin-top:10px; font-size:0.85rem; background:#f1f5f9; padding:8px 12px; border-radius:12px;">
+                    ⚡ 연속성 초기화: 반대 방향 or 중립 → 다시 1회부터
+                </div>
+            </div>
+
+            <!-- B 전략 -->
+            <div class="card">
+                <h2><span style="background:#dcfce7; padding:0 12px; border-radius:40px;">B</span> 균등 분할</h2>
+                <p style="font-size:0.95rem; color:#334155; margin-bottom:12px;">
+                    모든 시그널에 <strong>동일한 크기</strong>로 대응
+                </p>
+                <table>
+                    <tr>
+                        <th>시그널</th>
+                        <th>매매</th>
+                    </tr>
+                    <tr>
+                        <td>상승</td>
+                        <td class="highlight-up">+25%</td>
+                    </tr>
+                    <tr>
+                        <td>하락</td>
+                        <td class="highlight-down">-25%</td>
+                    </tr>
+                    <tr>
+                        <td>중립</td>
+                        <td class="neutral">0%</td>
+                    </tr>
+                </table>
+                <div
+                    style="margin-top:10px; font-size:0.85rem; background:#f1f5f9; padding:8px 12px; border-radius:12px;">
+                    🔁 연속 횟수 무관, 매번 동일하게 25%씩
+                </div>
+            </div>
+        </div>
+
+        <!-- C 전략 + 설정 -->
+        <div class="grid-2">
+            <div class="card">
+                <h2><span style="background:#fce7f3; padding:0 12px; border-radius:40px;">C</span> 올인 / 올아웃</h2>
+                <p style="font-size:0.95rem; color:#334155; margin-bottom:12px;">
+                    방향 신호를 <strong>강하게</strong> 믿고 즉시 전환
+                </p>
+                <table>
+                    <tr>
+                        <th>시그널</th>
+                        <th>포지션</th>
+                    </tr>
+                    <tr>
+                        <td>상승</td>
+                        <td class="highlight-up">100%</td>
+                    </tr>
+                    <tr>
+                        <td>하락</td>
+                        <td class="highlight-down">0%</td>
+                    </tr>
+                    <tr>
+                        <td>중립</td>
+                        <td class="neutral">유지</td>
+                    </tr>
+                </table>
+                <div
+                    style="margin-top:10px; font-size:0.85rem; background:#f1f5f9; padding:8px 12px; border-radius:12px;">
+                    🚀 가장 공격적 · 신호에 가장 민감
+                </div>
+            </div>
+
+            <!-- 설정 패널 (결과 제외, 설정 가능성만 표시) -->
+            <div class="card">
+                <h2>⚙️ 백테스트 설정 (조정 가능)</h2>
+                <div class="control-group">
+                    <div class="control-item">
+                        <label>📅 만기 청산</label>
+                        <div class="toggle-wrap">
+                            <div class="toggle" style="cursor:default;"></div>
+                            <span style="font-weight:500;">OFF</span>
+                        </div>
+                        <span style="font-size:0.75rem; color:#64748b;">(5일 후 자동 청산 가능)</span>
+                    </div>
+                    <div class="control-item">
+                        <label>A 비중</label>
+                        <input type="number" value="20" step="5" min="0" max="100" disabled />%
+                        <input type="number" value="30" step="5" min="0" max="100" disabled />%
+                        <input type="number" value="50" step="5" min="0" max="100" disabled />%
+                        <span style="font-size:0.7rem; color:#64748b;">(조정 가능)</span>
+                    </div>
+                    <div class="control-item">
+                        <label>B 고정</label>
+                        <input type="number" value="25" step="5" min="0" max="100" disabled />%
+                        <span style="font-size:0.7rem; color:#64748b;">(조정 가능)</span>
+                    </div>
+                </div>
+                <div style="margin-top:8px; font-size:0.9rem; color:#2563eb;">
+                    ✅ 위 값들은 실제 백테스트 엔진에서 자유롭게 변경할 수 있습니다.
+                </div>
+            </div>
+        </div>
+
+        <!-- 시그널 예시 흐름 (결과 시뮬레이션 없이 표만) -->
+        <div class="card" style="margin-bottom:24px;">
+            <h2 style="margin-bottom:4px;">📈 시그널 예시 – 포지션 변화 비교</h2>
+            <div class="example-flow">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>시그널</th>
+                            <th>상승</th>
+                            <th>상승</th>
+                            <th>상승</th>
+                            <th>중립</th>
+                            <th>하락</th>
+                            <th>하락</th>
+                            <th>상승</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>A</strong></td>
+                            <td>20%</td>
+                            <td>50%</td>
+                            <td>100%</td>
+                            <td>100%</td>
+                            <td>80%</td>
+                            <td>50%</td>
+                            <td>70%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>B</strong></td>
+                            <td>25%</td>
+                            <td>50%</td>
+                            <td>75%</td>
+                            <td>75%</td>
+                            <td>50%</td>
+                            <td>25%</td>
+                            <td>50%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>C</strong></td>
+                            <td>100%</td>
+                            <td>100%</td>
+                            <td>100%</td>
+                            <td>100%</td>
+                            <td>0%</td>
+                            <td>0%</td>
+                            <td>100%</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <div style="margin-top:8px; font-size:0.8rem; color:#475569;">
+                    🔹 A: 연속성에 따라 20→30→50% &nbsp;·&nbsp; B: 매번 25% &nbsp;·&nbsp; C: 0↔100%
+                </div>
+            </div>
+        </div>
+
+        <!-- 확장 가능성 안내 -->
+        <div class="note-box">
+            <strong>🧩 확장 가능성</strong><br>
+            • <strong>만기 청산</strong> (5영업일 후 자동 청산) ON/OFF 적용 가능<br>
+            • <strong>A 전략의 단계별 비중</strong> (기본 20/30/50%) 및 <strong>B 전략의 고정 비중</strong> (기본 25%) 조정 가능<br>
+            • 위 설정들을 실제 백테스트 코드에 반영하여 다양한 조건에서 시뮬레이션할 수 있습니다.
+        </div>
+
+        <div class="footer">
+            ⚡ 동일한 5영업일 후 예측을 사용 · 포지션 운용 방식(A/B/C)에 따른 성과 비교
+        </div>
+    </div>
+</body>
+
+</html>

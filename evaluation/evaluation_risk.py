@@ -1,9 +1,10 @@
 # 성과 지표
 
 from typing import Dict, List, Optional
+
 import numpy as np
-from huggingface_hub import hf_hub_download
 import pandas as pd
+from huggingface_hub import hf_hub_download
 
 # 실제 데이터 불러오기
 
@@ -525,7 +526,7 @@ if __name__ == "__main__":
     # ============================================================
     # 📌 [디버깅] 계산된 수익률의 기본 통계를 출력해 정상인지 확인
     # ============================================================
-    print(f"📈 수익률 통계 (일간):")
+    print("📈 수익률 통계 (일간):")
     print(f"   개수: {len(daily_returns):,}개")
     print(f"   평균: {daily_returns.mean():.6f} ({daily_returns.mean()*100:.4f}%)")
     print(f"   표준편차: {daily_returns.std():.6f} ({daily_returns.std()*100:.4f}%)")
@@ -583,10 +584,12 @@ if __name__ == "__main__":
         f"🔽 Sortino     : 하방위험 1단위당 초과수익 {results['Sortino Ratio']:.2f} (연율)"
     )
     print(
-        f"⚖️ Sterling    : 연 초과수익률({excess_cagr*100:.2f}%) / 평균MDD = {results['Sterling Ratio']:.4f}"
+        f"⚖️ Sterling    : 연 초과수익률({excess_cagr*100:.2f}%) / "
+        f"평균MDD = {results['Sterling Ratio']:.4f}"
     )
     print(
-        f"📉 Calmar      : 연 초과수익률({excess_cagr*100:.2f}%) / 최대MDD = {results['Calmar Ratio']:.4f}"
+        f"📉 Calmar      : 연 초과수익률({excess_cagr*100:.2f}%) / "
+        f"최대MDD = {results['Calmar Ratio']:.4f}"
     )
     print(
         f"🎯 DSR         : 이 전략이 우연이 아닐 확률 {results['Deflated Sharpe Ratio']*100:.2f}%"
