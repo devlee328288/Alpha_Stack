@@ -18,6 +18,7 @@ dependencies = [
   "numpy==2.5.1",          # timeseries 전체가 이것 하나로 짜여 있다
   "sqlalchemy==2.0.52",    # common/db.py — Postgres 어댑터
   "yfinance==1.5.2",       # clients/yf_data.py — 해외 지수 대조군
+  "finance-datareader==0.9.202",  # 수정 OHLC 수집과 액면분할 보정
 
   # ── 1차 프로젝트가 새로 들이는 것 ─────────────────────────
   "pandas==3.0.5",         # 피처 표(feature table) 조작
