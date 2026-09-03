@@ -146,6 +146,20 @@ def main() -> int:
             f"known_at 이 기준일보다 이르거나 같은 행 {이른known:,} "
             "(0이어야 한다 — 그 날 못 본 자료를 봤다는 뜻이다)")
 
+        # ── 🔴 다리가 **가짜로** 이어지는지 ──────────────────────
+        # 조인이 0행이 되는 실수는 결과가 비어서 눈에 띈다. 틀린 짝이 붙는 실수는
+        # 결과가 그럴듯해서 안 보인다. 그래서 "한 법인번호를 몇 종목이 쓰나" 를 센다.
+        # 정상 최대는 2종(보통주+우선주)이고, 자리표시자가 섞이면 수십 종이 된다.
+        뭉침 = conn.execute(
+            "SELECT crno, COUNT(DISTINCT code) n FROM stock_identity "
+            "WHERE crno IS NOT NULL GROUP BY crno ORDER BY n DESC LIMIT 1").fetchone()
+        if 뭉침:
+            번호, 종수 = 뭉침
+            print(f"\n  한 법인번호에 가장 많이 달린 종목 : {종수}종 ({번호})")
+            알림(종수 <= 5,
+                f"한 법인번호를 {종수}종목이 공유 "
+                "(정상은 보통주+우선주로 2~3종 · 수십 종이면 자리표시자를 의심한다)")
+
         # ── 5. 법인 개요 ──────────────────────────────────────────────
         개요수 = conn.execute("SELECT COUNT(*) FROM corp_profile").fetchone()[0]
         if 개요수 == 0:
@@ -166,12 +180,25 @@ def main() -> int:
             f"상장일·설립일이 2030년보다 미래인 행 {미래상장:,} "
             "(있으면 두 자리 연도를 2000대로 잘못 풀었다)")
 
+        # 🔴 네 칸을 다 본다. 예전에는 `xchg_lstg_dt` 만 봐서 코스닥 쪽 42행을 놓쳤다.
+        #    한 칸만 보는 검사는 "이상 없음" 이라고 말할 자격이 없다.
+        상장칸 = ("xchg_lstg_dt", "xchg_lstg_abol_dt",
+                "kosdaq_lstg_dt", "kosdaq_lstg_abol_dt")
+        조건 = " OR ".join(f"({c} IS NOT NULL AND {c} < '19560301')" for c in 상장칸)
         너무이른 = conn.execute(
-            "SELECT COUNT(*) FROM corp_profile "
-            "WHERE xchg_lstg_dt IS NOT NULL AND xchg_lstg_dt < '19560301'").fetchone()[0]
+            f"SELECT COUNT(*) FROM corp_profile WHERE {조건}").fetchone()[0]
         알림(너무이른 == 0,
-            f"KRX 개장(1956-03)보다 이른 상장일 {너무이른:,} "
-            "(있으면 두 자리 연도를 1900대로 잘못 풀었다)")
+            f"KRX 개장(1956-03)보다 이른 상장·폐지일 {너무이른:,} "
+            "(있으면 자리표시자 00010101 이 날짜로 통과한 것이다 — 정규화를 의심한다)")
+
+        # 실제 최솟값이 개장일과 맞는지도 본다. 위 검사는 "없다" 만 말하고,
+        # 자리표시자를 지나치게 걸러 진짜 옛 상장일까지 버렸는지는 못 잡는다.
+        최초상장 = conn.execute(
+            "SELECT MIN(xchg_lstg_dt) FROM corp_profile "
+            "WHERE xchg_lstg_dt IS NOT NULL").fetchone()[0]
+        if 최초상장:
+            print(f"\n  가장 이른 유가증권 상장일 : {최초상장} "
+                  f"(KRX 개장 19560303)")
 
         폐지있음 = conn.execute(
             "SELECT COUNT(DISTINCT crno) FROM corp_profile "

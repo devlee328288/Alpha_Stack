@@ -212,40 +212,66 @@ def list_batches(kind: Optional[str] = None, limit: int = 50,
     return [dict(row) for row in rows]
 
 
+#: 되읽은 표에 붙는 출처 칸. `_` 로 시작해 규격 칸과 섞이지 않는다.
+#: dbt 의 `_dbt_source_relation` · Data Vault 의 `record_source` 가 앉는 자리다 —
+#: "이 행이 어느 파일에서, 누구를 통해, 언제 들어왔나" 가 행에 붙어 있어야
+#: 뒤에서 우리 시세와 맞대다 이상한 값을 만났을 때 원본까지 되짚을 수 있다.
+ORIGIN_COLUMNS = ("_batch_id", "_row_no", "_loaded_at",
+                  "_origin", "_contributor", "_src_sha256")
+
+
 def accepted_frame(kind: str, batch_id: Optional[str] = None,
                    db_path: Optional[Path] = None):
     """합격분을 표로 되읽는다 — JSON payload 를 칸으로 편다.
 
     되읽기가 있어야 반입이 끝이 아니라 시작이 된다. `supply/` 가 이걸 받아 우리 시세와 맞댄다.
+
+    🔴 **빈 결과에도 칸을 남긴다.** 칸 없는 빈 표를 주면 받는 쪽의 `df["close"]` 가
+    `KeyError` 로 터진다. `supply/` 계층이 이걸 계약으로 못 박아 두었는데
+    (`supply/market.py` 의 `to_frame`) 반입 쪽만 지키지 않고 있었다. 그리고
+    `inbox_accepted` 가 0행인 동안에는 **100% 이 분기를 탄다** — 즉 지금까지
+    이 함수를 부른 모든 코드가 그 표를 받았다.
+
+    칸 목록은 **규격에서 가져온다.** 행에서 뽑으면 파일마다 담아 온 칸이 달라
+    표의 모양이 그때그때 바뀐다.
     """
     import pandas as pd
 
     _ensure_schema(db_path)
     conn = _connect(db_path)
     try:
-        if batch_id:
-            rows = conn.execute(
-                "SELECT batch_id, row_no, payload, extras FROM inbox_accepted "
-                "WHERE kind = ? AND batch_id = ? ORDER BY row_no", (kind, batch_id)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT batch_id, row_no, payload, extras FROM inbox_accepted "
-                "WHERE kind = ? ORDER BY batch_id, row_no", (kind,)
-            ).fetchall()
+        # `inbox_batch` 를 왼쪽 조인한다 — 배치 기록이 지워졌어도 행은 나와야 한다.
+        조건 = "a.kind = ?" + (" AND a.batch_id = ?" if batch_id else "")
+        차례 = "a.row_no" if batch_id else "a.batch_id, a.row_no"
+        인자 = (kind, batch_id) if batch_id else (kind,)
+        rows = conn.execute(
+            "SELECT a.batch_id, a.row_no, a.payload, a.extras, a.loaded_at, "
+            "       b.origin, b.contributor, b.src_sha256 "
+            "FROM inbox_accepted AS a "
+            "LEFT JOIN inbox_batch AS b ON b.batch_id = a.batch_id "
+            f"WHERE {조건} ORDER BY {차례}", 인자
+        ).fetchall()
     finally:
         conn.close()
 
-    if not rows:
-        return pd.DataFrame()
+    from ingest.inbox import engine as _engine
+    칸 = [f["name"] for f in _engine.load_spec(kind)["fields"]] + list(ORIGIN_COLUMNS)
 
     records = []
     for row in rows:
         payload = json.loads(row["payload"])
         payload["_batch_id"] = row["batch_id"]
         payload["_row_no"] = row["row_no"]
+        payload["_loaded_at"] = row["loaded_at"]
+        payload["_origin"] = row["origin"]
+        payload["_contributor"] = row["contributor"]
+        payload["_src_sha256"] = row["src_sha256"]
         records.append(payload)
-    return pd.DataFrame(records)
+
+    frame = pd.DataFrame(records, columns=칸) if records else pd.DataFrame(columns=칸)
+    # 파일이 담아 오지 않은 규격 칸은 `reindex` 가 결측으로 채운다. 순서도 규격 순서로
+    # 고정되므로, 어떤 파일을 들였든 받는 쪽이 보는 표의 모양이 같다.
+    return frame.reindex(columns=칸)
 
 
 def quarantine_summary(db_path: Optional[Path] = None) -> List[dict]:
@@ -278,5 +304,6 @@ __all__ = [
     "load_result",
     "list_batches",
     "accepted_frame",
+    "ORIGIN_COLUMNS",
     "quarantine_summary",
 ]
