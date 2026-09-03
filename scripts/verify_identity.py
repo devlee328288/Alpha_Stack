@@ -166,12 +166,25 @@ def main() -> int:
             f"상장일·설립일이 2030년보다 미래인 행 {미래상장:,} "
             "(있으면 두 자리 연도를 2000대로 잘못 풀었다)")
 
+        # 🔴 네 칸을 다 본다. 예전에는 `xchg_lstg_dt` 만 봐서 코스닥 쪽 42행을 놓쳤다.
+        #    한 칸만 보는 검사는 "이상 없음" 이라고 말할 자격이 없다.
+        상장칸 = ("xchg_lstg_dt", "xchg_lstg_abol_dt",
+                "kosdaq_lstg_dt", "kosdaq_lstg_abol_dt")
+        조건 = " OR ".join(f"({c} IS NOT NULL AND {c} < '19560301')" for c in 상장칸)
         너무이른 = conn.execute(
-            "SELECT COUNT(*) FROM corp_profile "
-            "WHERE xchg_lstg_dt IS NOT NULL AND xchg_lstg_dt < '19560301'").fetchone()[0]
+            f"SELECT COUNT(*) FROM corp_profile WHERE {조건}").fetchone()[0]
         알림(너무이른 == 0,
-            f"KRX 개장(1956-03)보다 이른 상장일 {너무이른:,} "
-            "(있으면 두 자리 연도를 1900대로 잘못 풀었다)")
+            f"KRX 개장(1956-03)보다 이른 상장·폐지일 {너무이른:,} "
+            "(있으면 자리표시자 00010101 이 날짜로 통과한 것이다 — 정규화를 의심한다)")
+
+        # 실제 최솟값이 개장일과 맞는지도 본다. 위 검사는 "없다" 만 말하고,
+        # 자리표시자를 지나치게 걸러 진짜 옛 상장일까지 버렸는지는 못 잡는다.
+        최초상장 = conn.execute(
+            "SELECT MIN(xchg_lstg_dt) FROM corp_profile "
+            "WHERE xchg_lstg_dt IS NOT NULL").fetchone()[0]
+        if 최초상장:
+            print(f"\n  가장 이른 유가증권 상장일 : {최초상장} "
+                  f"(KRX 개장 19560303)")
 
         폐지있음 = conn.execute(
             "SELECT COUNT(DISTINCT crno) FROM corp_profile "
