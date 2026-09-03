@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>프로젝트 계획서 (주가지수 데이터 활용 머신러닝·딥러닝)</title>
+<style>
+  /* 정본은 scripts/build_project_plan.py — 이 파일은 산출물이다. 손으로 고치지 않는다. */
+  :root { --ink:#10243f; --soft:#5b7290; --line:#d5deea; --bg:#f6f9fc; --panel:#fff;
+          --brand:#1b4f9c; --head:#d9e2f3; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+         font-family:"Pretendard","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",
+                     system-ui,sans-serif;
+         word-break:keep-all; line-break:strict; -webkit-font-smoothing:antialiased; }
+  .sheet { max-width:1040px; margin:0 auto; padding:36px 40px 60px;
+           background:var(--panel);
+           border-left:1px solid var(--line); border-right:1px solid var(--line); }
+  h1 { font-size:22px; text-align:center; margin:0 0 6px; letter-spacing:-0.4px; }
+  .meta { text-align:center; color:var(--soft); font-size:12px; margin-bottom:26px; }
+  .meta code { background:var(--bg); padding:1px 6px; border-radius:6px; }
+  h2 { font-size:16px; color:var(--brand); margin:34px 0 8px; padding-top:14px;
+       border-top:1px solid var(--line); }
+  p { line-height:1.62; margin:8px 0; }
+  table { border-collapse:collapse; width:100%; margin:8px 0 14px; }
+  th, td { border:1px solid #999; padding:6px 8px; vertical-align:top; line-height:1.5;
+           text-align:left; }
+  th { background:var(--head); font-weight:700; }
+  td:first-child { white-space:nowrap; }
+  figure { margin:14px 0 20px; text-align:center; }
+  figure img { max-width:100%; height:auto; border:1px solid var(--line); background:#fff; }
+  figcaption { color:#666; font-size:12px; margin-top:6px; }
+  .part { font-size:19px; font-weight:800; margin-top:44px; color:var(--brand); }
+  @media print { body { background:#fff; } .sheet { border:0; padding:0; max-width:none; }
+                 h2 { break-after:avoid; } table, figure { break-inside:avoid; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+<h1>프로젝트 계획서 (주가지수 데이터 활용 머신러닝·딥러닝)</h1>
+<p class="meta">Qurious · 계획서 version3.0 · 생성 2026-09-03 12:04 KST · 정본 <code>scripts/build_project_plan.py</code> · docx 와 같은 내용</p>
+<table style="font-size:10.5pt"><thead><tr><th>구분</th><th>내용</th><th>비고</th></tr></thead><tbody><tr><td>팀명</td><td>Qurious (큐리어스)</td><td>Quant + Curious</td></tr><tr><td>팀원(역할)</td><td>이동원(팀장) – 데이터 수집·정제·전처리·크롤링 / 문서·일정 관리<br>오준영 – AI 모델 개발 및 학습<br>강민석 – 백테스팅, 성과지표, 대시보드 제작<br>신장환 – 피처 엔지니어링·기술적 지표·데이터 품질 (크롤링 분담)</td><td>주담당일 뿐<br>교차 검수 (부록 B)</td></tr><tr><td>기간</td><td>2026.09.01 ~ 2026.09.15 (발표장소 : koreaIT노원 B강의실)</td><td>6주 3개 중 1차</td></tr><tr><td>프로젝트 명</td><td>Qurious (큐리어스) — 팀명과 같다. 신호·검증·화면을 층으로 쌓는 1차 프로젝트<br>※ 저장소 이름 Alpha_Stack 은 착수 시점(8/24)의 이름이라 그대로 둔다</td><td>2026-09-03 확정</td></tr><tr><td>주제 선정 이유</td><td>① 개별 기술적 지표(RSI·MACD·이동평균)를 따로 쓰기보다 머신러닝으로 종합했을 때 예측력이 실제로 향상되는지 검증한다.<br><br>② 그런데 주가 예측은 “몇 % 맞혔나”보다 “어떻게 검증했나”가 결론을 좌우한다. 우리 자료로 직접 잰 숫자로 말하면 — 아무 모델 없이 “항상 상승”만 해도 52.64%를 맞히고, 검증구간 1,217거래일에서 통계적으로 유의하려면 54.99%가 필요하며, 국내외 문헌의 현실적 상한은 55%대다. 이길 수 있는 폭이 2%p 남짓이라는 뜻이다.<br><br>그 좁은 폭은 실수 한 줄로 사라진다. 레이블을 시가(t)→시가(t+5)로 하루 어긋나게 정렬해 봤더니 상관이 정확히 10.0배로 부풀었다(+0.1709 대 +0.0171). 에러는 나지 않는다. 그래서 예측 모델과 성과 검증 엔진을 같은 비중으로 만든다.<br><br>③ 6주 3개 프로젝트가 모두 “개발 및 성과 검증”으로 끝난다. 매 차수 새로 만드는 것은 앞쪽이고 검증하는 방법은 같다. 1차를 세 프로젝트가 공유할 바닥층으로 설계한다.</td><td>숫자는 모두 실측</td></tr><tr><td>프로젝트 목표</td><td>① 룩어헤드 없는 성과 검증 엔진 — 워크포워드 gap 잠금·거래비용·기준선 3종·사전등록<br>② 지수 트랙 — KOSPI200 의 5거래일 뒤 등락을 상승/보합/하락 3분류로 예측<br>③ 종목 트랙 — 예측이 통하는 종목을 먼저 선별하고, 그 안에서 랭킹을 매긴다<br>④ 요일별 5트랙 중첩 운용 — 같은 모델을 매 거래일 돌려 진입 시점을 분산한다<br>⑤ 유동 임계값 — 상승/보합/하락 경계를 고정하지 않고 변동성에 맞춰 조정한다<br>⑥ 신호→포지션 규칙 — 보유/무보유 × 상승/보합/하락 행동과 시드 배분을 정한다<br>⑦ 모델 4종 동일 조건 비교 — LogisticRegression·RandomForest·XGBoost·LightGBM<br>⑧ 단일 명령 재현 + Streamlit 시연 화면</td><td>④⑤⑥ 팀원 제안<br>세부는 부록 A</td></tr><tr><td>분석 방법</td><td>① 수집 — KRX OpenAPI 로 2010년부터 16년 전수. 상장폐지 910종목을 포함해 생존편향을 막되, 그 종목의 정리매매 구간(마지막 10거래일)은 제외한다. 그 구간은 가격제한폭이 없어 -90% 봉이 찍히는데 실제로는 체결되지 않는다<br>② 시점 정합 — T일 종가로 판단, T+1 시가에 체결, T+6 시가에 평가. 미래 자료 접근을 코드가 차단한다<br>③ 품질 게이트 — 거래일 캘린더 대조·결측·이상치 리포트. 기준 미달이면 파이프라인이 멈춘다<br>④ 피처 — 이동평균·RSI·MACD·볼린저·거래량 파생·변동성을 numpy 로 직접 구현하고 지표마다 손계산 테스트를 붙인다<br>⑤ 레이블 — 3분류. 밴드는 실측으로 정했다(지수 ±1.0% / 종목 ±2.0%)<br>⑥ 종목 선별 — 예측가능성 통계로 1차 선별. 선별은 개발구간에서만 하고 검증구간에서 고정한다<br>⑦ 모델 — 4종을 같은 자료·같은 분할·같은 시드로 비교하고, 시도 횟수를 장부에 기록한다<br>⑧ 검증 — 워크포워드(gap=5·12폴드)·기준선 3종·ARIMA 동반·거래비용 4수준<br>⑨ 통계 검정 — 수업에서 배운 기법으로(ADF·Ljung-Box·카이제곱·대응표본 t·ANOVA+Tukey), 주 검정은 부트스트랩 단측 p&lt;0.05</td><td>세부는 부록 A</td></tr><tr><td>예상 산출물</td><td>① Streamlit 시연 화면 — 신호·성과·수집 현황을 한 화면에서 (발표 시연)<br>② 모델 성능 비교표 — 4종 × 기준선 3종, 거래비용 반영 전후<br>③ 재현 파이프라인 — 명령 하나로 수집부터 성과까지. 품질 리포트 포함<br>④ 발표자료·README·주요 결정 기록(ADR)<br>⑤ 2·3차가 그대로 가져다 쓰는 성과 검증 엔진</td><td>①② 가 발표 시연</td></tr></tbody></table>
+<p class="part">부록</p>
+<h2>부록 A. 필수 범위와 선택 범위</h2>
+<p style="font-size:11.0pt">필수 범위는 2주 안에 반드시 끝낸다. 선택 범위는 9/8 중간 점검에서 한 번만 결정하고, 그 뒤로는 늘리지 않는다. ⑭~⑯ 은 v3.0 에서 더한 데이터 파트 고도화(설계 완료 · 구현은 합의 후)다.</p>
+<table style="font-size:10.0pt"><thead><tr><th>구분</th><th>범위</th><th>담당</th><th>판단 근거</th></tr></thead><tbody><tr><td>필수</td><td>① 성과 검증 엔진 (워크포워드·거래비용·기준선 3종)</td><td>강민석</td><td>이 프로젝트의 논지 자체</td></tr><tr><td>필수</td><td>② 지수 트랙 — KOSPI200 3분류</td><td>오준영</td><td>기준선·유의임계를 이미 실측</td></tr><tr><td>필수</td><td>③ 종목 트랙 — 선별 후 랭킹</td><td>오준영·신장환</td><td>수익 크기가 지수의 2.6배.<br>다만 거래세로 손익분기는 더 높다</td></tr><tr><td>필수</td><td>④ 요일별 5트랙 중첩 운용</td><td>강민석</td><td>팀원 제안 · 진입 시점 분산</td></tr><tr><td>필수</td><td>⑤ 유동 임계값 (변동성 스케일)</td><td>신장환</td><td>팀원 제안 · 고정 밴드와 병행</td></tr><tr><td>필수</td><td>⑥ 신호→포지션 규칙과 시드 배분</td><td>신장환·강민석</td><td>팀원 제안 · 조합을 사전 고정</td></tr><tr><td>필수</td><td>⑦ 모델 4종 동일 조건 비교</td><td>오준영</td><td>수업에서 배운 sklearn 전 영역</td></tr><tr><td>필수</td><td>⑧ 수집·품질 게이트·공급 계층</td><td>이동원</td><td>이미 920만 행 적재 완료</td></tr><tr><td>필수</td><td>⑨ Streamlit 시연 화면</td><td>강민석</td><td>발표 시연</td></tr><tr><td>선택</td><td>⑩ 시장 균열 스코어 (변동성 예측용)</td><td>신장환</td><td>방향 예측 증분은 실측상 0에 가까웠다</td></tr><tr><td>선택</td><td>⑪ 공시 제목 텍스트 신호 — HF 인코더 원격 추론</td><td>이동원</td><td>뉴스는 약관 미결(부록 G ④) · 공시는 제한 없음<br>후보 21종 실측 → 6종 (데이터파트 v3.2)</td></tr><tr><td>선택</td><td>⑫ Keras LSTM/GRU 비교</td><td>오준영</td><td>수업 진도가 9월 중 여기까지 나간다</td></tr><tr><td>선택</td><td>⑬ 표에 없는 기능</td><td>제안자</td><td>주제 안에 있고 설명할 수 있으면 넣는다</td></tr><tr><td>선택</td><td>⑭ 버튼 갱신 파이프라인 — 수집→게이트→판정→HF<br>한 명령 · 잠금</td><td>이동원·강민석</td><td>판정이 &#x27;재배포 필요&#x27; 일 때만 HF<br>버튼 배선은 화면 파트</td></tr><tr><td>2·3차<br>계약</td><td>⑮ 비LLM 에이전트 관측 규격<br>(W×F 배열 · 명세만)</td><td>이동원</td><td>supply 정문 재사용<br>→ 2·3차에 데이터 코드 무수정</td></tr><tr><td>선택</td><td>⑯ GitHub Actions 검사용 CI<br>(봇 커밋 없음)</td><td>이동원<br>(팀 합의 후)</td><td>계정 제한 리서치<br>act 로컬 검증 뒤 도입</td></tr></tbody></table>
+<h2>부록 B. 역할과 교차 검수 규약</h2>
+<p style="font-size:11.0pt">아래 담당은 “무엇을 했는지 말할 수 있게” 나눈 것이지 벽을 세운 것이 아니다. 각자 자기 영역을 끌고 가되 옆 담당의 산출물을 한 번 더 확인한다.</p>
+<table style="font-size:10.0pt"><thead><tr><th>영역</th><th>주담당</th><th>교차 검수</th><th>산출물</th></tr></thead><tbody><tr><td>데이터 수집·정제·전처리·크롤링</td><td>이동원</td><td>신장환</td><td>적재 파이프라인·품질 리포트·공급 계층</td></tr><tr><td>피처 엔지니어링·기술적 지표·품질</td><td>신장환</td><td>오준영</td><td>지표 모듈·손계산 테스트·선별 통계</td></tr><tr><td>AI 모델 개발·학습</td><td>오준영</td><td>강민석</td><td>모델 4종·성능 비교표</td></tr><tr><td>백테스팅·성과지표·대시보드</td><td>강민석</td><td>이동원</td><td>검증 엔진·Streamlit 화면</td></tr></tbody></table>
+<p style="font-size:10.5pt">① 모든 코드는 Pull Request 로 병합하고 교차 검수자 1인의 승인을 받는다.</p>
+<p style="font-size:10.5pt">② 자신이 만든 기능은 팀 회의에서 5분 안에 설명할 수 있어야 한다. 설명하지 못하는 코드는 병합하지 않는다 — 도구를 쓰는 것은 자유이나 결과를 아는 것은 책임이다.</p>
+<p style="font-size:10.5pt">③ 매일 진행 상황을 짧게 공유한다. 막히면 하루를 넘기지 않고 말한다.</p>
+<p style="font-size:10.5pt">④ 주요 결정은 한 장짜리 기록으로 남긴다 — 무엇을, 왜, 어떤 대안을 버렸는지.</p>
+<p style="font-size:10.5pt">⑤ 발표는 신장환·강민석이 함께 한다 (2026-09-03 확정).</p>
+<h2>부록 C. 2주 일정</h2>
+<table style="font-size:9.0pt"><thead><tr><th>날짜</th><th>이동원 · 데이터</th><th>오준영 · 모델</th><th>강민석 · 검증·화면</th><th>신장환 · 피처·품질</th><th>그날의 완료 기준</th></tr></thead><tbody><tr><td>9/1(화)<br>킥오프</td><td>미결 8건 · 담당 경계 · 환경 통일</td><td>〃</td><td>〃</td><td>〃</td><td>전원 로컬 테스트 통과<br>KRX 키 이용신청</td></tr><tr><td>9/2(수)</td><td>수정주가 v9 · 거래일 달력<br>HF 재배포 (실적)</td><td>베이스라인 골격</td><td>워크포워드 그룹 인식</td><td>지표 6종 골격</td><td>품질 리포트가 나온다</td></tr><tr><td>9/3(목)</td><td>고도화 설계 (HF·갱신·관측)<br>반출 원가격 결함 수정 (실적)</td><td>학습 루프</td><td>5트랙 중첩 설계</td><td>지표 완성·shift 검사</td><td>팀원이 공급 API 로 시세를 꺼낸다</td></tr><tr><td>9/4(금)</td><td>HF 토큰 권한 · 6종 재실측<br>공공데이터포털 v10 착수</td><td>레이블 생성기</td><td>비용 모델 4수준</td><td>유동 밴드 부 실험</td><td>데이터셋 스키마 확정</td></tr><tr><td>9/5(토)</td><td>갱신 파이프라인 refresh + 잠금</td><td>데이터셋 생성</td><td>기준선 3종 + ARIMA</td><td>예측가능성 통계</td><td>학습용 자료가 나온다</td></tr><tr><td>9/6(일)</td><td>예비일 · CI 로컬 검증(act)</td><td>LogReg 기준선</td><td>폴드 커버리지 실측</td><td>종목 1차 선별</td><td>베이스라인이 기준선 대비 수치를 낸다</td></tr><tr><td>9/7(월)<br>★인수</td><td>데이터 인수 지점<br>(HF 배포본은 9/2 선인수)</td><td>모델 2종</td><td>성과지표 완성</td><td>선별 결과 고정</td><td>아무도 저장소를 직접 부르지 않는다</td></tr><tr><td>9/8(화)<br>★점검</td><td>중간 점검<br>텍스트 신호 v11 착수</td><td>모델 4종</td><td>시도 횟수 계측</td><td>포지션 규칙 3안</td><td>선택 범위를 한 번만 결정한다</td></tr><tr><td>9/9(수)</td><td>공시 제목 감성 신호 (선택 ⑪)</td><td>하이퍼파라미터</td><td>5트랙 백테스트</td><td>과적합 점검</td><td>모델 비교표 초안</td></tr><tr><td>9/10(목)</td><td>API ⑩ (/runs · /refresh)<br>화면 배선은 강민석</td><td>모델 확정</td><td>자산곡선·MDD</td><td>피처 중요도</td><td>비교표 완성</td></tr><tr><td>9/11(금)</td><td>문서 정리 · 관측 규격 명세 ⑮</td><td>지수·종목 통합</td><td>Streamlit 착수</td><td>지표 기여도</td><td>검증 엔진이 닫힌다</td></tr><tr><td>9/12(토)</td><td>리포트 원고</td><td>예비일</td><td>Streamlit 완성</td><td>예비일</td><td>화면에서 신호와 성과를 함께 본다</td></tr><tr><td>9/13(일)<br>★개봉</td><td>—</td><td>—</td><td>검증구간 1회 개봉 · 주 검정</td><td>—</td><td>개봉 기록이 정확히 1행</td></tr><tr><td>9/14(월)</td><td>발표자료</td><td>리허설</td><td>리허설</td><td>리허설</td><td>리허설 1회 완주</td></tr><tr><td>9/15(화)</td><td>발표</td><td></td><td></td><td></td><td>—</td></tr></tbody></table>
+<p style="font-size:10.5pt">★ 세 지점이 축이다 — 9/7 데이터 인수, 9/8 선택 범위 결정, 9/13 검증구간 개봉.</p>
+<p style="font-size:10.5pt">※ 검증구간은 9/13 에 단 한 번 연다. 그 전에 열면 사전에 정해 둔 검정 절차가 무의미해지고, 성능을 보고 설계를 고쳤다는 의심을 벗을 수 없다.</p>
+<p style="font-size:10.5pt">※ 주말(9/5·6, 9/12·13)을 일정에 포함했다. 실제 배분은 킥오프에서 조정한다.</p>
+<p style="font-size:10.5pt">※ v3.0 — 이동원 열의 9/2·9/3 은 실적으로, 9/4 이후는 고도화 설계 순서로 고쳤다. 다른 세 열은 각 담당이 갱신하기 전까지 v2.1 그대로다.</p>
+<figure><img src="../../아키텍처/version1.2/일정간트.png" alt="[그림 1] 2주 일정"><figcaption>[그림 1] 2주 일정</figcaption></figure>
+<h2>부록 D. 착수 자산</h2>
+<p style="font-size:11.0pt">착수 시점(8/25 이관)의 자산과 2026-09-03 실측을 나란히 적는다. 비어 있던 피처·모델은 팀원이 채웠고, 파이프라인은 수집만 서 있다. 남은 빈 곳은 갱신 파이프라인·API 다.</p>
+<table style="font-size:10.0pt"><thead><tr><th>계층</th><th>줄 수 (8/25 → 9/3)</th><th>상태 (2026-09-03)</th></tr></thead><tbody><tr><td>ingest/ — 수집·반입·적재</td><td>7,488 → 12,368</td><td>동작 중. 시세 9,223,644행 · 재무 662,933행 · 거시 17,851행 · 수정주가 v9</td></tr><tr><td>evaluation/ — 성과 검증</td><td>772 → 3,067</td><td>동작 중. 강민석 지표 2편 합류</td></tr><tr><td>supply/ — 시점정합 공급</td><td>228 → 683</td><td>동작 중. 문 둘(예측·학습) · 홀드아웃 2년</td></tr><tr><td>common/ — 설정·예산·robots·달력</td><td>2,348 → 3,227</td><td>동작 중. 거래일 달력 12,306행 · 반출 프로파일</td></tr><tr><td>timeseries/ — ARIMA·ADF·ACF</td><td>2,063 → 2,085</td><td>코드는 있으나 아직 호출처가 없다</td></tr><tr><td>scripts/ — 실행 CLI</td><td>2,523 → 7,934</td><td>동작 중 (수집·품질·반출·HF·키 점검 27종)</td></tr><tr><td>tests/</td><td>3,017 → 9,547</td><td>848 passed · 3 xfailed · 291초</td></tr><tr><td>features/ — 피처</td><td>35 → 712</td><td>지표 22칸 (신장환)</td></tr><tr><td>models/ — 모델</td><td>34 → 435</td><td>4종 팩토리 (오준영)</td></tr><tr><td>pipelines/ — 오케스트레이션</td><td>0 → 305</td><td>ingest 구현 · refresh 는 설계(v3.2)</td></tr><tr><td>api/ — 최소 API</td><td>0 → 28</td><td>빈 껍데기 — 강사님 FastAPI 골격으로 ⑩</td></tr></tbody></table>
+<p style="font-size:10.5pt">설치·확인 완료 — scikit-learn 1.9.0 · LightGBM 4.7.0 · XGBoost 3.4.1 · scipy 1.18.1 · pandas 3.0.5 · numpy 2.5.1 · huggingface_hub 1.29.0 · nbclient 0.11.0 (실측 2026-09-03)</p>
+<p style="font-size:10.5pt">화면 스택은 Streamlit 으로 합의(킥오프) — 설치·버전은 화면 담당(강민석)이 정한다.</p>
+<h2>부록 E. 실측 근거</h2>
+<p style="font-size:11.0pt">아래는 모두 우리 자료로 직접 잰 값이다. 인용이 아니다. 재현: python scripts/measure_horizon.py · measure_stock_horizon.py</p>
+<table style="font-size:9.5pt"><thead><tr><th>무엇</th><th>값</th><th>구간</th><th>왜 중요한가</th></tr></thead><tbody><tr><td>데이터 규모</td><td>9,223,644행 · 3,677종목<br>4,102거래일 (2026-09-03)</td><td>2010-01-04 ~<br>2026-09-01</td><td>16년 전수. 부분 표본이 아니다</td></tr><tr><td>중도 소멸 종목</td><td>910종목</td><td>전 구간</td><td>상장폐지가 자료에 남아 있다 → 생존편향 방어</td></tr><tr><td>정리매매 급락</td><td>-30.5% 이하 1,224행 중<br>1,197행(97.8%)이 정리매매</td><td>전 구간</td><td>폐지 종목을 넣었더니 반대 편향이 생겼다.<br>마지막 10거래일을 뺀다. 최저 -98.41%</td></tr><tr><td>기준선 (항상 상승)</td><td>52.64%</td><td>개발구간 2,880일</td><td>모델이 이겨야 할 하한</td></tr><tr><td>유의 임계</td><td>54.99%</td><td>검증구간 1,217일</td><td>이보다 낮으면 우연과 구분되지 않는다</td></tr><tr><td>지수 E|5일수익|</td><td>1.753%</td><td>개발구간</td><td>손익분기 계산의 분모</td></tr><tr><td>종목 E|5일수익|</td><td>4.483% (KOSPI)<br>5.159% (전 시장)</td><td>개발구간</td><td>지수의 2.6~2.9배</td></tr><tr><td>지수 손익분기<br>(ETF)</td><td>51.43% (왕복 0.05%)<br>52.85% (왕복 0.10%)</td><td>개발구간</td><td>국내 상장 ETF 는 매도 시 증권거래세 면제</td></tr><tr><td>종목 손익분기<br>(개별주)</td><td>53.12% (왕복 0.28%)<br>54.80% (왕복 0.43%)</td><td>개발구간</td><td>매도 시 0.20%(거래세 0.05+농특세 0.15)<br>+ 수수료·스프레드</td></tr><tr><td>지수 3분류 ±1.0%</td><td>34.03 / 38.66 / 27.31</td><td>개발구간</td><td>세 클래스가 15~45% 안</td></tr><tr><td>종목 3분류 ±2.0%</td><td>30.12 / 37.90 / 31.98</td><td>개발구간 KOSPI</td><td>±1.0% 면 중립이 20.7% 로 얇아진다</td></tr><tr><td>레이블 오정렬 시</td><td>상관이 정확히 10.0배<br>(+0.1709 대 +0.0171)</td><td>개발구간</td><td>하루 어긋나면 이렇게 된다. 에러는 안 난다</td></tr></tbody></table>
+<p style="font-size:10.5pt">※ 손익분기는 “방향 적중 여부와 수익 크기가 서로 무관하다”는 가정 위에 있다. 큰 변동일이 예측하기 더 어렵다면 실제로 필요한 정확도는 더 높다.</p>
+<p style="font-size:10.5pt">※ 처음에는 두 트랙에 같은 비용을 적용해 “종목이 지수보다 유리”하다는 결론을 냈다. 국내 상장 ETF 는 증권거래세가 면제되고 개별주는 매도 시 0.20%를 낸다는 비대칭을 반영하니 부호가 뒤집혔다. 종목 트랙은 수익 크기가 2.6배 크지만 그 이점을 거래세가 상쇄하고 남는다 — 지수보다 약 1.7%p 불리하다. 그래도 유의 임계(54.99%) 언저리라 불가능하지는 않다.</p>
+<p style="font-size:10.5pt">※ v3.0 — 홀드아웃 경계가 2026-09-02 에 2년(2024-09-01)으로 옮겨져 (ADR-0005) 개발구간은 3,618 거래일이다. 위 표의 기준선·유의 임계·클래스 분포는 v2.0 시점(5년 홀드아웃) 실측이고, 라벨을 -1/0/1 로 두고 포지션을 {0,+1} 로 잡으면 기준선이 42.50% 로 달라진다(이슈 #33·#37). 본표 “주제 선정 이유” 의 숫자와 함께 고쳐야 해서, 기준선을 다시 재는 다음 판(v3.1)에서 교체한다.</p>
+<h2>부록 F. QFRS 준수 현황</h2>
+<p style="font-size:11.0pt">2026년 8월 Artificial Intelligence Review 에 실린 QFRS 는 AI 기반 금융 예측·트레이딩 연구가 지켜야 할 7개 보고 표준이다. 저자가 Scopus 색인 논문 41편을 감사했더니 7개를 모두 충족한 논문이 한 편도 없었다(평균 4.22개). 특히 경제적 백테스트는 87.8%가, 인과적 스케일링은 68.3%가 실패했다.</p>
+<p style="font-size:11.0pt">이 프로젝트의 논지가 “어떻게 검증했나”이므로 그 기준을 그대로 가져와 우리 현황을 표로 놓는다. 지금 5개 충족·2개 부분이고, 부분 2개는 2주 안에 닫는다.</p>
+<table style="font-size:9.0pt"><thead><tr><th>기준</th><th>논문이 요구하는 것</th><th>우리 현황</th><th>근거</th></tr></thead><tbody><tr><td>QFRS-1<br>Dataset specification<br>and data handling</td><td>출처·버전·기간 명시. 주식이면 상장폐지 종목 포함 여부와 처리 방법을<br>밝혀 생존편향을 통제할 것</td><td>충족</td><td>KRX OpenAPI · 2010-01-04~2026-08-25 · 920만 행<br>중도 소멸 910종목 포함</td></tr><tr><td>QFRS-2<br>Labeling<br>(ground truth construction)</td><td>레이블 정의와 임계값을 명시. 아주 작은 등락을 맞히는 이진분류는<br>통계적으로만 맞고 경제적으로 무의미하다고 지적</td><td>충족</td><td>시가(t+1)→시가(t+6) 3분류<br>밴드를 실측으로 정함 (지수 ±1.0% / 종목 ±2.0%)</td></tr><tr><td>QFRS-3<br>feature engineering<br>(anti-leakage by design)</td><td>피처가 미래를 보지 않도록 설계 단계에서 차단할 것</td><td>충족</td><td>as_of 공급 계층. 기본값이 없어 빠뜨릴 수 없고<br>경계를 테스트 16개가 막는다</td></tr><tr><td>QFRS-4<br>Scaling / Normalisation</td><td>스케일링을 전체 자료에 먼저 적용하면 누수. 학습구간에서 fit 하고<br>검증·테스트에 transform 만 할 것</td><td>미착수</td><td>피처 계층이 아직 비어 있다. 9/2~9/5 에 구현하며 지킨다</td></tr><tr><td>QFRS-5<br>Train/Validation/Test split</td><td>레이블이 h 기간 앞을 보면 창 사이에 최소 h 만큼 embargo</td><td>충족</td><td>워크포워드가 gap=label_horizon 을 강제.<br>어기면 LeakageError 로 멈춘다</td></tr><tr><td>QFRS-6<br>evaluation metrics<br>and task types</td><td>주 지표로 MCC·PR-AUC·Balanced Accuracy·혼동행렬.<br>F1·ROC-AUC 는 보조</td><td>부분</td><td>기준선 3종 대비 보고는 있으나<br>MCC 는 아직 없다 — 9/10 까지 추가</td></tr><tr><td>QFRS-7<br>Backtest metrics<br>(economic performance)</td><td>수수료·슬리피지·체결 규칙을 밝힌 경제적 백테스트.<br>필수(M) 항목이 하나라도 없으면 Fail</td><td>부분</td><td>거래비용 4수준은 있다. 회전율·체결 가정<br>문서화는 9/11 까지</td></tr></tbody></table>
+<p style="font-size:10.0pt">출처: Khushi M. QFRS: quantitative finance reporting standards for forecasting, evaluation and trading claims. Artif Intell Rev (2026). https://doi.org/10.1007/s10462-026-11664-w</p>
+<p style="font-size:10.0pt">※ 이 논문은 온라인 선공개(accepted manuscript) 상태라 권·호·페이지가 아직 없다. 위 형식이 원문이 지정한 인용 방식이다. Open Access(CC-BY)라 전문을 볼 수 있다.</p>
+<h2>부록 G. 아직 열린 것</h2>
+<p style="font-size:10.5pt">프로젝트명(Qurious)과 발표자(신장환·강민석 공동)는 2026-09-03 에 닫혀 본표와 부록 B 로 올라갔다. 남은 것은 넷이다.</p>
+<p style="font-size:10.5pt">① 산업 분류 기준 — KRX 업종 / GICS / 직접 매핑 (수업 자료에 KRX 업종분류·WICS 수집 코드가 이미 있다)</p>
+<p style="font-size:10.5pt">② 뉴스 제목·요약을 로컬 DB 에 저장해도 되는가 — 네이버 약관이 “저장(캐시 포함)”을 금지한다. 법적 판단이라 팀에서 함께 결정한다. 데이터 파트는 그동안 공시 제목(제한 없음)으로 텍스트 신호를 만든다</p>
+<p style="font-size:10.5pt">③ 동영상 수집 대상 채널 목록</p>
+<p style="font-size:10.5pt">④ 방향정확도 합격선을 54.99%로 둘 것인가 — 이 값은 관측이 서로 독립이라는 가정에서 나왔는데, 5일 레이블을 매일 만들면 이웃 예측이 4일을 공유해 독립이 아니다. 보정하면 57.22%다(실효 표본 1,217일 → 322일). 사전등록 ADR은 방향정확도에 애초에 합격선을 걸지 않았으므로 두 문서가 어긋나 있다. 검증구간을 열기 전에 팀이 정해야 한다</p>
+<h2>부록 H. 3개 프로젝트 확장 로드맵</h2>
+<p style="font-size:11.0pt">세 차수의 주제가 모두 “개발 및 성과 검증”으로 끝난다. 매번 새로 만드는 것은 앞쪽이고 검증하는 방법은 같다. 1차에서 검증 엔진을 재사용 가능하게 분리하는 것이 6주 전체의 효율을 좌우한다. v3.0 에서 “데이터 계층 계약” 열을 더했다 — 2·3차의 에이전트·텍스트가 데이터 코드를 고치지 않고 붙는 자리다.</p>
+<table style="font-size:10.0pt"><thead><tr><th>차수</th><th>무엇을 새로 만드나</th><th>1차에서 그대로 가져가는 것</th><th>데이터 계층 계약 (v3.0)</th></tr></thead><tbody><tr><td>1차<br>9/1~9/15</td><td>지표 기반 등락 예측 + 성과 검증 엔진</td><td>—</td><td>supply 정문 · HF 반출 · 갱신 파이프라인 · 텍스트 신호(공시 제목)</td></tr><tr><td>2차</td><td>한 종목 신호를 여러 종목 배분으로 넓힌다<br>(비LLM 에이전트 · 강화학습 후보)</td><td>검증 엔진·수집 계층·시점정합 규칙</td><td>관측 배열 규격 (W×F) — 환경이 그대로 읽는다 · 뉴스(약관 판단 후)</td></tr><tr><td>3차</td><td>기성 지표(RSI·MACD) 자리를 우리가 만든 지표로 바꾼다</td><td>검증 엔진·피처 계약·실험 기록 규약</td><td>텍스트 신호 확장(본문) · 대안데이터 팩터 게이트(GitHub 활동)</td></tr></tbody></table>
+<h2>부록 I. 아키텍처</h2>
+<p style="font-size:11.0pt">자료는 반드시 시점정합 공급 계층을 지나야 한다. 이 문을 지나지 않는 조회는 테스트가 막는다. “그때 알 수 있었던 것”만 모델에 들어가게 하는 구조적 장치다.</p>
+<p style="font-size:11.0pt">문은 둘이다. 예측 경로는 as_of 시점에 알 수 있었던 행만 주고, 학습 경로는 전 구간을 보고 정리매매·신규상장 구간을 덜어낸다. 정리매매 판정은 “이 뒤로 체결이 끊긴다”라서 그 시점에는 알 수 없는 사실이기 때문이다. 손잡이로 켜고 끄면 언젠가 켜진 채로 예측에 들어가므로 이름으로 갈랐다 — 예측 코드가 학습용 문을 부르면 이름만으로 리뷰에 걸린다.</p>
+<figure><img src="../../아키텍처/version1.2/시스템아키텍처.png" alt="[그림 2] 시스템 구성 — supply 문 둘과 시점정합"><figcaption>[그림 2] 시스템 구성 — supply 문 둘과 시점정합</figcaption></figure>
+<p style="font-size:11.0pt">역할별로 파이프라인을 나눠 4명이 병렬로 작업한다. 1차에는 LLM 을 쓰지 않으므로 역할별 워커와 오케스트레이션이며, RAG·에이전트로의 승격은 2·3차에서 다룬다.</p>
+<figure><img src="../../아키텍처/version1.2/역할파이프라인.png" alt="[그림 3] 역할별 파이프라인 분리"><figcaption>[그림 3] 역할별 파이프라인 분리</figcaption></figure>
+</div>
+</body>
+</html>
