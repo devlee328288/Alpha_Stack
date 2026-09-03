@@ -130,8 +130,14 @@ def rsi(prices: Sequence, window: int = 14) -> np.ndarray:
         return np.array([], dtype=float)
 
     delta = np.diff(x)  # 길이 x.size-1, 하루 전 대비 변화 — 과거만 본다 (0번째 행은 델타 없음)
-    gain = np.where(delta > 0.0, delta, 0.0)
-    loss = np.where(delta < 0.0, -delta, 0.0)
+
+    # 결측 델타는 0(변화 없음)이 아니라 nan으로 남긴다 — NaN 과의 비교(`delta > 0.0`)는
+    # 항상 False라서, 그냥 두면 결측 낀 날의 실제 등락(폭락이든 폭등이든)이 조용히
+    # "변화 없음"으로 삼켜진다(#18 논의에서 언급된 부분). nan으로 두면 `_ewm_mean`이
+    # 그 자리를 건너뛰고 직전 평활값을 그대로 들고 간다 — 모르는 값을 0으로 단정하지 않는다.
+    is_nan_delta = np.isnan(delta)
+    gain = np.where(delta > 0.0, delta, np.where(is_nan_delta, np.nan, 0.0))
+    loss = np.where(delta < 0.0, -delta, np.where(is_nan_delta, np.nan, 0.0))
 
     # Wilder 평활: alpha = 1/window, adjust=False → 재귀식과 동일
     avg_gain = _ewm_mean(gain, alpha=1.0 / window, min_periods=window)
