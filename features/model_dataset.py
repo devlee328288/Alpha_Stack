@@ -9,7 +9,16 @@ import numpy as np
 import pandas as pd
 
 from evaluation.horizon import HOLDOUT_START, NEUTRAL_BAND
-from features.indicators import bollinger_bands, ema, macd, rsi, sma
+from features.indicators import (
+    bollinger_bands,
+    ema,
+    macd,
+    macd_hist_ratio,
+    percent_b,
+    rsi,
+    sma,
+    sma_gap,
+)
 from features.returns import n_day_return
 from features.volatility import atr, historical_volatility, parkinson_volatility, true_range
 from features.volume import obv, volume_ratio, volume_roc, volume_sma, vwap
@@ -210,14 +219,16 @@ def build_kospi200_feature_frame(
 def _add_derived_features(frame: pd.DataFrame) -> pd.DataFrame:
     out = frame.copy()
     close = out["close"]
-    bb_range = out["bb_upper"] - out["bb_lower"]
 
     with np.errstate(divide="ignore", invalid="ignore"):
-        out["sma_gap_5_20"] = out["sma_5"] / out["sma_20"] - 1.0
-        out["sma_gap_20_60"] = out["sma_20"] / out["sma_60"] - 1.0
-        out["macd_hist_ratio"] = out["macd_hist"] / close
+        # sma_gap·macd_hist_ratio·bb_position(percent_b)은 indicators.py에 이미
+        # 같은 공식으로 있다(#107) — 손으로 다시 짜지 않고 그 함수를 그대로 부른다.
+        # 원자 함수가 나중에 고쳐지면 여기도 자동으로 같이 고쳐진다.
+        out["sma_gap_5_20"] = sma_gap(close, 5, 20)
+        out["sma_gap_20_60"] = sma_gap(close, 20, 60)
+        out["macd_hist_ratio"] = macd_hist_ratio(close)
         out["macd_hist_atr"] = out["macd_hist"] / out["atr_14"]
-        out["bb_position"] = (close - out["bb_lower"]) / bb_range
+        out["bb_position"] = percent_b(close, 20)
         out["atr_ratio"] = out["atr_14"] / close
         out["hv_regime"] = out["hv_20"] / out["hv_20"].rolling(
             250, min_periods=250
