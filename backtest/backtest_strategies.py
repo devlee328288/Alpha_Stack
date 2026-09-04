@@ -66,6 +66,7 @@ from typing import Callable, Dict
 
 import numpy as np
 import pandas as pd
+from datasets import Dataset
 
 warnings.filterwarnings("ignore")
 
@@ -1089,4 +1090,62 @@ if __name__ == "__main__":
     print("• 중립: 매매하지 않고 연속성 초기화")
 
     print("\n⚠️ 현재 predict_5d_after()는 랜덤 예측입니다.")
-    print("   실제 AI 모델로 교체하면 동일한 백테스트 구조를 그대로 사용할 수 있습니다.")
+    print(
+        "   실제 AI 모델로 교체하면 동일한 백테스트 구조를 그대로 사용할 수 있습니다."
+    )
+
+    # ========================================================
+    # 각 전략의 결과를 데이터프레임으로 변환
+    # ========================================================
+
+    all_results = []
+
+    for strategy in strategies:
+        result = results[strategy]
+
+        # 성과 지표를 딕셔너리로 추출
+        result_dict = {
+            "strategy": strategy,
+            "total_return": result["total_return"],
+            "annual_return": result["annual_return"],
+            "volatility": result["volatility"],
+            "sharpe_ratio": result["sharpe_ratio"],
+            "max_drawdown": result["max_drawdown"],
+            "win_rate_daily": result["win_rate_daily"],
+            "profit_factor": result["profit_factor"],
+            "num_trades": result["num_trades"],
+            "final_portfolio_value": result["final_portfolio_value"],
+        }
+        all_results.append(result_dict)
+
+    # DataFrame으로 변환
+    df_results = pd.DataFrame(all_results)
+
+    # Dataset으로 변환하여 업로드
+    dataset_results = Dataset.from_pandas(df_results)
+    dataset_results.push_to_hub("qurious-quant/alphastack-backtest-results")
+
+    print("\n✅ 백테스트 결과가 업로드되었습니다!")
+
+    # ========================================================
+    # (선택) 각 전략의 일별 수익률도 함께 업로드
+    # ========================================================
+
+    # 각 전략의 일별 수익률을 하나의 DataFrame으로 합치기
+    daily_returns_dict = {}
+    for strategy in strategies:
+        daily_returns_dict[f"{strategy}_daily_return"] = results[strategy][
+            "daily_returns"
+        ]
+
+    df_daily = pd.DataFrame(daily_returns_dict)
+
+    # 날짜 인덱스 초기화 (업로드용)
+    df_daily = df_daily.reset_index()
+    df_daily.rename(columns={"index": "date"}, inplace=True)
+
+    # Dataset으로 변환하여 업로드
+    dataset_daily = Dataset.from_pandas(df_daily)
+    dataset_daily.push_to_hub("qurious-quant/alphastack-backtest-kospi200")
+
+    print("✅ 일별 수익률 데이터도 업로드되었습니다!")
