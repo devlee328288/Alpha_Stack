@@ -95,7 +95,7 @@ COMBINATION_FEATURES = {
     ),
 }
 
-RETURN_FEATURES = {"daily_return", "five_day_return"}
+RETURN_FEATURES = {"daily_return", "five_day_return", "monthly_return"}
 
 
 @dataclass(frozen=True)
@@ -238,6 +238,9 @@ def _add_derived_features(frame: pd.DataFrame) -> pd.DataFrame:
         )
     out["daily_return"] = n_day_return(close, 1)
     out["five_day_return"] = n_day_return(close, 5)
+    # 월간 = 20거래일. 새 숫자를 고른 게 아니라 이 파일이 이미 쓰는 관례(sma_20·hv_20 등)를
+    # 그대로 따른다.
+    out["monthly_return"] = n_day_return(close, 20)
     return out.replace([np.inf, -np.inf], np.nan)
 
 
