@@ -5,15 +5,15 @@
 - 결과를 Hugging Face Dataset으로 업로드
 """
 
+import warnings
+
 import numpy as np
 import pandas as pd
-from typing import Dict, List
-import warnings
 
 warnings.filterwarnings("ignore")
 
 # 1) 기존 백테스트 엔진 가져오기
-from backtest_strategies import run_backtest, load_data, predict_5d_after
+from backtest_strategies import load_data, predict_5d_after, run_backtest
 
 # 2) Hugging Face datasets
 from datasets import Dataset
@@ -162,8 +162,8 @@ def run_cost_sensitivity():
     dataset_bep.push_to_hub("qurious-quant/alphastack-breakeven-cost")
 
     print("\n✅ Hugging Face 업로드 완료!")
-    print(f"   - https://huggingface.co/datasets/qurious-quant/alphastack-cost-sensitivity")
-    print(f"   - https://huggingface.co/datasets/qurious-quant/alphastack-breakeven-cost")
+    print("   - https://huggingface.co/datasets/qurious-quant/alphastack-cost-sensitivity")
+    print("   - https://huggingface.co/datasets/qurious-quant/alphastack-breakeven-cost")
 
     # 5) 결과 요약 출력 (이미지 #4 스타일)
     print("\n" + "=" * 80)
