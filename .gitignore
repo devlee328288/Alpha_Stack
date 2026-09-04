@@ -132,3 +132,8 @@ docs/프로젝트계획서양식_*.docx
 
 # 🎭 Playwright MCP 가 남기는 페이지 스냅샷·콘솔 로그. 조사 과정의 부산물이다.
 .playwright-mcp/
+
+# 자본변동 보정의 되돌리기 기록 — 고친 43,777행을 **원래 값째로** 담아 21MB 다.
+# 로컬 DB 를 되돌리는 용도라 저장소에 있을 이유가 없다 (DB 자체도 미추적이다).
+# 무엇을 왜 고쳤는지는 커밋 메시지와 docs/데이터파트/version3.3 에 남는다.
+reports/fix_capital_reduction_*.json
