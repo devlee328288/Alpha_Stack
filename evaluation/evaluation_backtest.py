@@ -1,6 +1,10 @@
 # 백테스트 평가 지표
 
+import os
+import sys
 from typing import Any, Dict, List, Optional
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
@@ -13,6 +17,8 @@ from sklearn.metrics import (
     recall_score,
 )
 
+from config.features import get_features
+
 # 실제 데이터 불러오기
 
 path = hf_hub_download(
@@ -22,29 +28,7 @@ path = hf_hub_download(
 )
 df = pd.read_csv(path)
 
-FEATURES = [
-    c
-    for c in df.columns
-    if c
-    not in (
-        "bas_dd",
-        "date",
-        "index_name",
-        "index_class",
-        "open",
-        "high",
-        "low",
-        "close",
-        "change",
-        "change_rate",
-        "volume",
-        "value",
-        "market_cap",
-        "fwd_return_5d",
-        "label",
-    )
-]
-
+FEATURES = get_features(df)
 X = df[FEATURES]
 
 # 실제 분류 정답

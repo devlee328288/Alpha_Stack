@@ -5,6 +5,11 @@
 # - 기준일과 예측일 각각 직전 5평일(월~금, 공휴일 포함)을 추출하여 페어링
 # - 양쪽 모두 영업일이고 market_data에 존재하는 페어에 대해서만 모델 예측 수행 (아니면 "측정 불가")
 
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from datetime import datetime
 from typing import Callable, Dict, List, Union
 
@@ -15,6 +20,8 @@ import pandas as pd
 from huggingface_hub import hf_hub_download
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
+
+from config.features import get_features
 
 # ============================================================
 # 1. 캘린더 관련 헬퍼 함수
@@ -264,28 +271,7 @@ if __name__ == "__main__":
     df.sort_values("date", inplace=True)
     market_df = df.set_index("date")
 
-    FEATURES = [
-        c
-        for c in df.columns
-        if c
-        not in (
-            "bas_dd",
-            "date",
-            "index_name",
-            "index_class",
-            "open",
-            "high",
-            "low",
-            "close",
-            "change",
-            "change_rate",
-            "volume",
-            "value",
-            "market_cap",
-            "fwd_return_5d",
-            "label",
-        )
-    ]
+    FEATURES = get_features(df)
 
     print(f"✅ 데이터 로드 완료: {len(market_df)}개 행, {len(FEATURES)}개 피처")
 
