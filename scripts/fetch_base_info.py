@@ -123,7 +123,7 @@ def main() -> int:
     계획(쌍들)
     print()
     시작 = time.time()
-    담은행, ok, empty, err = 0, 0, 0, 0
+    담은행, ok, empty, err, 미룸 = 0, 0, 0, 0, []
 
     for i, (bas_dd, market) in enumerate(쌍들, 1):
         try:
@@ -133,6 +133,19 @@ def main() -> int:
             print(f"\n오늘 예산을 다 썼다 ({i - 1:,}/{len(쌍들):,} 처리). "
                   f"내일 같은 명령으로 이어 받는다.")
             break
+        except base_info_store.BaseInfoStoreError:
+            # 🔴 달력 경계다 — 마지막 거래일은 **다음 거래일을 몰라** known_at 을 못 낸다.
+            #    지어내지 않는 것이 옳지만, 그렇다고 여기서 죽으면 안 된다.
+            #    2026-09-03 에 실제로 죽었다. 하필 마지막 쌍이라 8,201건이 살아남았을
+            #    뿐, 경계가 중간에 있었다면 3시간짜리 수집이 통째로 날아갔다.
+            #
+            #    대장에 남기지 **않는다.** `error` 로 적으면 사람이 고칠 것을 찾게 되고,
+            #    `empty` 로 적으면 영영 다시 안 받는다. 그냥 미뤄 두면 시세가 하루
+            #    늘어 달력이 넓어졌을 때 다음 실행이 저절로 집어 간다.
+            미룸.append((bas_dd, market))
+            print(f"  ⏸️ {bas_dd} {market}: 달력 경계라 미뤄 둔다 "
+                  f"(다음 거래일을 알아야 known_at 을 낸다)")
+            continue
         except krx_data.KrxError as exc:
             err += 1
             print(f"  ⚠️ {bas_dd} {market}: {exc}")
@@ -153,6 +166,11 @@ def main() -> int:
 
     print(f"\n── 끝 ── {time.time() - 시작:.0f}초 · 담은행 {담은행:,} "
           f"(ok {ok:,} · empty {empty:,} · error {err:,})")
+    if 미룸:
+        # 침묵하지 않는다 — 안 받은 것을 안 세면 "다 받았다" 로 읽힌다.
+        print(f"⏸️ 달력 경계로 미룬 것 {len(미룸)}쌍: "
+              f"{', '.join(f'{d} {m}' for d, m in 미룸)}")
+        print("   시세를 하루 더 받아 달력이 넓어지면 다음 실행이 저절로 집어 간다.")
     현황()
     return 0
 
