@@ -48,6 +48,7 @@ VERIFIERS = (
     ("scripts/verify_identity.py", "종목 식별 (법인번호·ISIN·상장일)"),
     ("scripts/verify_base_info.py", "종목기본정보 (주권종류·자본변동·자리표시자)"),
     ("scripts/verify_sector.py", "업종 스냅샷 (값 대조·지수 조인)"),
+    ("scripts/verify_text_signal.py", "텍스트 신호 (해시·확률·known_at 규칙)"),
 )
 
 
@@ -669,9 +670,15 @@ def main() -> int:
         root = 후보[-1]
         print(f"(날짜 폴더 {len(후보)}개 중 가장 최근을 골랐다. 다른 것을 올리려면 --path)")
 
-    if not (root / "MANIFEST.json").exists():
-        print(f"{root}/MANIFEST.json 이 없다. 반출이 끝나지 않았다")
+    # 반출 종류마다 대장 이름이 다르다 — 시세는 `MANIFEST.json`, 참조 자료는
+    # `MANIFEST_reference.json`, 텍스트 신호는 `MANIFEST_text.json`. 하나라도 있으면
+    # 반출이 끝난 것으로 본다. **하나도 없으면 올리지 않는다** — 대장 없는 반출은
+    # 나중에 "이 파일이 무엇이고 어느 구간인가" 에 답할 수 없다.
+    대장들 = sorted(root.glob("MANIFEST*.json"))
+    if not 대장들:
+        print(f"{root} 에 MANIFEST*.json 이 없다. 반출이 끝나지 않았다")
         return 1
+    print(f"대장: {', '.join(m.name for m in 대장들)}")
 
     token, source = hf_data.load_hf_key()
     if not token:
