@@ -89,6 +89,8 @@ data/outbox/
 # ⚠️ quota_usage.json 은 다르다 — 오늘 몇 번 불렀나는 **사람마다·날마다 다르고**
 #    커밋하면 매번 충돌한다. 게다가 그 값의 정본은 SQLite 의 call_budget 표다.
 reports/quota_usage.json
+# 감자 보정 원장(어느 행을 어떻게 고쳤는지) — 22MB 라 git 에 안 맞는다. 파일은 보관한다.
+reports/fix_*.json
 
 # 🤖 학습 산출물 — 용량이 크고 재현 가능하다
 artifacts/
