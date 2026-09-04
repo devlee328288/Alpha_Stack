@@ -107,7 +107,8 @@ def _add_column(table: str, column: str, definition: str) -> Callable:
 #                                                                   ← 2026-09-02 적용
 #      v10 종목 신원 · 법인 개요 (stock_identity · corp_profile)      ← 2026-09-03 적용
 #      v11 종목기본정보 (stock_base_info · 우선주 판별)               ← 2026-09-03 적용
-#      v12 다음 빈 번호
+#      v12 텍스트 신호 (text_signal — 공시 제목 감성 확률 3칸)  ← 2026-09-04 적용
+#      v13 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -865,6 +866,51 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             # as_of 로 자를 때.
             "CREATE INDEX IF NOT EXISTS idx_base_info_known "
             "ON stock_base_info(known_at)",
+        ),
+    ),
+    (
+        "v12: 텍스트 신호 — 제목이 아니라 **고유 제목**에 값을 매긴다",
+        (
+            # ── 공시 제목 감성 ──────────────────────────────────────────
+            # 공시 제목에 감성 모델을 돌려 확률 3칸(`p_neg`·`p_neu`·`p_pos`)을 낸다.
+            #
+            # 🔴 **행마다 매기지 않고 고유 제목마다 매긴다.** 공시 제목은 정형 문구라
+            #    155만 행의 고유 제목이 **18,600개(1.2%)** 뿐이다(실측 2026-09-04).
+            #    행마다 추론하면 같은 문장을 83번씩 다시 읽는 셈이고, 시간이 83배 든다.
+            #
+            # **왜 `dart_disclosure` 에 칸을 붙이지 않았나.**
+            #   ① 모델을 바꾸면 155만 행을 다시 써야 한다. 이 표는 18,600행만 다시 쓴다
+            #   ② 모델 둘을 나란히 두고 비교할 수가 없다 — 칸이 하나뿐이라 덮어쓴다
+            #   ③ **어느 모델·어느 리비전이 낸 값인지**를 행에 남길 자리가 없다.
+            #      HF 모델은 주인이 가중치를 갈아 끼울 수 있어 리비전이 곧 재현성이다
+            #
+            # 붙일 때는 `report_nm` 으로 조인한다. 제목이 기본키가 아니라 `text_sha`
+            # 를 쓰는 이유는 제목이 최대 172자라 인덱스가 두꺼워지기 때문이다.
+            """
+            CREATE TABLE IF NOT EXISTS text_signal (
+              -- 제목의 SHA-256 앞 16자. 제목 자체를 키로 쓰면 인덱스가 두껍다.
+              text_sha   TEXT NOT NULL,
+              -- 원문을 함께 둔다. 해시만 있으면 사람이 확인할 수 없다.
+              report_nm  TEXT NOT NULL,
+              -- 🔴 어느 모델이 낸 값인가. 모델을 바꿔도 옛 값이 남아 비교가 된다.
+              model_id   TEXT NOT NULL,
+              -- HF 리비전(커밋 해시). 주인이 가중치를 갈아 끼울 수 있어 이게 재현성이다.
+              revision   TEXT,
+              p_neg      REAL NOT NULL,
+              p_neu      REAL NOT NULL,
+              p_pos      REAL NOT NULL,
+              scored_at  TEXT NOT NULL,
+              PRIMARY KEY (text_sha, model_id),
+              -- 확률이므로 [0,1] 이고 합이 1 이어야 한다. 어긋나면 softmax 를 빠뜨린 것이다.
+              CHECK (p_neg >= 0 AND p_neg <= 1),
+              CHECK (p_neu >= 0 AND p_neu <= 1),
+              CHECK (p_pos >= 0 AND p_pos <= 1),
+              CHECK (ABS(p_neg + p_neu + p_pos - 1.0) < 0.01)
+            )
+            """,
+            # 공시 목록에 붙일 때 쓰는 축 — `report_nm` 으로 조인한다.
+            "CREATE INDEX IF NOT EXISTS idx_text_signal_nm "
+            "ON text_signal(report_nm, model_id)",
         ),
     ),
 )
