@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Callable, Dict, List, Tuple
@@ -39,6 +40,40 @@ from ingest.clients import hf_data  # noqa: E402
 
 #: 기본 대상. 조직 이름을 앞에 두면 개인 계정 것과 섞이지 않는다.
 DEFAULT_REPO = "qurious-quant/alphastack-krx-dev"
+
+
+#: 반출 전에 반드시 통과해야 하는 검사기들. **이름을 여기 적는 것이 규약이다** —
+#: 검사기를 새로 만들면 이 목록에 넣어야 반출 경로가 그것을 본다.
+VERIFIERS = (
+    ("scripts/verify_identity.py", "종목 식별 (법인번호·ISIN·상장일)"),
+    ("scripts/verify_base_info.py", "종목기본정보 (주권종류·자본변동·자리표시자)"),
+    ("scripts/verify_sector.py", "업종 스냅샷 (값 대조·지수 조인)"),
+)
+
+
+def run_verifiers(*, timeout: int = 3600) -> List[Tuple[str, str, int, str]]:
+    """검사기를 전부 돌리고 `(경로, 설명, 종료코드, 마지막 줄)` 을 돌려준다.
+
+    🔴 **왜 반출 경로가 이걸 부르나.** 2026-09-03 에 결함을 고치고도 **고친 것이 안 나간**
+       일이 있었다. 고치는 것과 나가는 것은 다르다. 사람이 기억해서 돌리는 검사는
+       바쁠 때 건너뛴다. 그래서 반출이 스스로 돌린다.
+
+    ⚠️ 검사기가 없으면 **통과가 아니라 실패**다. 파일이 사라졌는데 조용히 넘어가면
+       게이트가 있으나 마나다.
+    """
+    결과 = []
+    for 경로, 설명 in VERIFIERS:
+        p = Path(경로)
+        if not p.exists():
+            결과.append((경로, 설명, 127, "검사기 파일이 없다"))
+            continue
+        proc = subprocess.run([sys.executable, str(p)], capture_output=True,
+                              text=True, encoding="utf-8", errors="replace",
+                              timeout=timeout)
+        줄들 = [ln for ln in (proc.stdout or "").splitlines() if ln.strip()]
+        결과.append((경로, 설명, proc.returncode,
+                     줄들[-1].strip() if 줄들 else (proc.stderr or "")[-200:]))
+    return 결과
 
 
 def _api(token: str):
@@ -605,6 +640,9 @@ def main() -> int:
                              "다른 종류의 반출은 자기 README.md 를 들고 와야 한다")
     parser.add_argument("--note", default="",
                         help="커밋 메시지에 덧붙일 한 줄")
+    parser.add_argument("--skip-verify", action="store_true",
+                        help="🔴 검증기를 건너뛴다. **되도록 쓰지 않는다** — "
+                             "검사가 붉은 채로 나간 자료는 팀원이 그대로 학습에 쓴다")
     parser.add_argument("--dry-run", action="store_true",
                         help="올리지 않고 무엇을 올릴지만 보여준다")
     args = parser.parse_args()
@@ -658,6 +696,33 @@ def main() -> int:
         print("   private 으로 바꾼 뒤 다시 실행할 것.")
         return 1
     print("✅ private 확인")
+
+    # ── 🔴 반출 전 검증기 (규약 v3.3 §7.1) ──────────────────────────
+    #
+    # "고쳤다" 와 "나갔다" 는 다르다. 2026-09-03 에 결함을 고치고도 고친 것이 안 나갔다.
+    # 사람이 기억해서 돌리는 검사는 바쁠 때 건너뛰므로 **반출이 스스로 돌린다.**
+    if args.skip_verify:
+        print("⚠️ --skip-verify — 검증기를 건너뛴다. 무엇이 붉은지 모르는 채로 나간다")
+    else:
+        print("── 반출 전 검사 ──")
+        붉은것 = []
+        for 경로, 설명, 코드, 마지막 in run_verifiers():
+            표 = "✅" if 코드 == 0 else "🔴"
+            print(f"  {표} {설명:<36} {마지막[:70]}")
+            if 코드 != 0:
+                붉은것.append((경로, 설명, 마지막))
+        if 붉은것:
+            print()
+            print(f"🔴 중단 — 검사 {len(붉은것)}건이 붉다. 이대로 올리면 팀원이 그대로 쓴다.")
+            for 경로, 설명, 마지막 in 붉은것:
+                print(f"   · {설명}: {마지막}")
+                print(f"     python {경로}  로 자세히 본다")
+            print()
+            print("   고치고 다시 실행하거나, 알면서 내보낼 거라면")
+            print("   --skip-verify 를 주고 **데이터셋 카드에 그 사실을 적는다**.")
+            return 1
+        print("✅ 검사 전부 통과")
+        print()
 
     # ── 데이터셋 카드 ────────────────────────────────────────────────
     if args.no_card:
