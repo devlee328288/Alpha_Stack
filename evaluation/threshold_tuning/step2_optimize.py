@@ -5,7 +5,7 @@ from sklearn.metrics import balanced_accuracy_score, f1_score
 from tqdm import tqdm
 
 # 기존 피처 모듈 (compute_bands, load_data) - 실제 환경에 맞게 임포트
-from core_features import compute_bands, load_data
+from step1_core_features import compute_bands, load_data
 
 
 # ============================================================

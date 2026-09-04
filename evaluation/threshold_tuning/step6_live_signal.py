@@ -1,4 +1,6 @@
 import warnings
+import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -7,7 +9,7 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
-from core_features import compute_atr, compute_base, compute_log_rv, load_data
+from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 
 
 # ============================================================
@@ -87,7 +89,7 @@ def generate_signals_single(
 
 
 # ============================================================
-# 2. Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터 사용)
+# 2. Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터 사용) - 🔥 Lookback 추가!
 # ============================================================
 def generate_signals_rolling(
     df: pd.DataFrame,
@@ -95,8 +97,11 @@ def generate_signals_rolling(
 ) -> pd.DataFrame:
     """
     Walk-Forward 폴드 정보를 기반으로 각 날짜에 해당하는 OOS 파라미터를 적용합니다.
+    🔥 Step 5와 동일하게 Lookback(35일)을 포함하여 지표를 계산한 후 OOS만 슬라이싱합니다.
     fold_details: step5 또는 step4에서 반환된 데이터프레임
     """
+    LOOKBACK_DAYS = 35  # Step 5와 동일한 Lookback 기간
+
     # 결과를 담을 빈 데이터프레임 생성
     result = pd.DataFrame(index=df.index)
     result["close"] = df["close"]
@@ -114,6 +119,10 @@ def generate_signals_rolling(
     result["volume_period"] = np.nan
 
     print(f"🔍 Rolling 파라미터 적용: 총 {len(fold_details)}개 폴드")
+    print(f"📦 Lookback 기간: {LOOKBACK_DAYS}일 (OOS 이전 데이터 포함)")
+
+    # 각 폴드의 인덱스 위치를 미리 계산 (성능 최적화)
+    date_to_idx = {date: i for i, date in enumerate(df.index)}
 
     for idx, row in tqdm(
         fold_details.iterrows(), total=len(fold_details), desc="OOS 구간 적용"
@@ -121,12 +130,19 @@ def generate_signals_rolling(
         val_start = row["val_start"]
         val_end = row["val_end"]
 
-        # 해당 OOS 구간의 데이터 추출
-        mask = (df.index >= val_start) & (df.index <= val_end)
-        if mask.sum() == 0:
+        # 해당 OOS 구간의 인덱스 위치
+        start_idx = date_to_idx.get(val_start)
+        end_idx = date_to_idx.get(val_end)
+
+        if start_idx is None or end_idx is None:
             continue
 
-        df_oos = df.loc[mask].copy()
+        # 🔥 Lookback을 포함한 계산 구간 설정
+        calc_start_idx = max(0, start_idx - LOOKBACK_DAYS)
+        calc_end_idx = end_idx + 1  # 슬라이싱은 end_idx 미만이므로 +1
+
+        # 계산용 데이터프레임 (Lookback 포함)
+        df_calc = df.iloc[calc_start_idx:calc_end_idx].copy()
 
         # 해당 폴드의 파라미터
         params = {
@@ -138,9 +154,9 @@ def generate_signals_rolling(
             "volume_period": int(row["volume_period"]),
         }
 
-        # 신호 생성
+        # 신호 생성 (Step 5와 동일한 방식)
         bands = compute_bands_flexible(
-            df_oos,
+            df_calc,
             vol_period=params["vol_period"],
             volume_period=params["volume_period"],
             alpha_up=params["alpha_up"],
@@ -149,26 +165,41 @@ def generate_signals_rolling(
             beta_down=params["beta_down"],
         )
 
-        close = df_oos["close"].values
+        close = df_calc["close"].values
         upper = bands["upper"].values
         lower = bands["lower"].values
 
-        signal = np.where(close > upper, 2, np.where(close < lower, 0, 1))
-        position = np.where(signal == 2, 1, np.where(signal == 0, -1, 0))
+        # 전체 계산 구간에 대한 신호 생성
+        signal_full = np.where(close > upper, 2, np.where(close < lower, 0, 1))
+        position_full = np.where(signal_full == 2, 1, np.where(signal_full == 0, -1, 0))
 
-        # 수익률 (Look-ahead 방지)
+        # 🔥 OOS 구간만 슬라이싱 (Step 5와 동일)
+        oos_offset = start_idx - calc_start_idx  # OOS 시작 위치
+        signal = signal_full[oos_offset:]
+        position = position_full[oos_offset:]
+
+        # OOS 데이터 (수익률 계산용)
+        df_oos = df.iloc[start_idx : end_idx + 1].copy()
         market_ret = df_oos["close"].pct_change().values
+
+        # Look-ahead 방지: 포지션 1일 Shift
         pos_shifted = np.roll(position, 1)
-        pos_shifted[0] = 0
+        if len(pos_shifted) > 0:
+            pos_shifted[0] = 0  # 첫날은 포지션 없음
         strategy_ret = pos_shifted * market_ret
 
         # 결과 저장
+        mask = (df.index >= val_start) & (df.index <= val_end)
         result.loc[mask, "signal"] = signal
         result.loc[mask, "position"] = position
         result.loc[mask, "strategy_return"] = strategy_ret
-        result.loc[mask, "base"] = bands["base"].values
-        result.loc[mask, "upper"] = bands["upper"].values
-        result.loc[mask, "lower"] = bands["lower"].values
+
+        # 기준선 값은 Lookback 포함된 전체 값에서 OOS만 슬라이싱하여 저장
+        bands_oos = bands.iloc[oos_offset:]
+        result.loc[mask, "base"] = bands_oos["base"].values
+        result.loc[mask, "upper"] = bands_oos["upper"].values
+        result.loc[mask, "lower"] = bands_oos["lower"].values
+
         result.loc[mask, "alpha_up"] = params["alpha_up"]
         result.loc[mask, "alpha_down"] = params["alpha_down"]
         result.loc[mask, "beta_up"] = params["beta_up"]
@@ -273,9 +304,6 @@ def evaluate_signals(
 # 4. 메인 실행
 # ============================================================
 if __name__ == "__main__":
-    import sys
-    import os
-
     print("=" * 60)
     print("🚀 6단계: 최종 기준선 산출 및 신호 생성 (실전 적용)")
     print("=" * 60)
@@ -295,22 +323,16 @@ if __name__ == "__main__":
     print("📌 [모드 A] Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터)")
     print("=" * 60)
 
-    # 🔥 CSV 파일 자동 탐색 및 로드
     csv_path = "wf_fold_details_6params.csv"
 
     if os.path.exists(csv_path):
-        # CSV에서 읽기
         fold_details = pd.read_csv(csv_path, index_col=0)
         fold_details["val_start"] = pd.to_datetime(fold_details["val_start"])
         fold_details["val_end"] = pd.to_datetime(fold_details["val_end"])
         print(f"✅ step5 결과 CSV 로드 완료: {len(fold_details)}개 폴드")
         print(f"   (파일: {csv_path})")
     else:
-        # 데모 모드 (fallback)
         print(f"⚠️  '{csv_path}' 파일이 없습니다. 데모 모드로 실행합니다.")
-        print("   (실제 step5 결과를 사용하려면 step5를 먼저 실행하거나,")
-        print("    run_full_pipeline.py를 실행하세요.)")
-
         dates = df.index
         n_folds = min(20, (len(dates) - 504) // 21)
         demo_folds = []
@@ -337,8 +359,6 @@ if __name__ == "__main__":
 
     # Rolling 신호 생성
     df_signal_rolling = generate_signals_rolling(df, fold_details)
-
-    # Rolling 성과 평가
     perf_rolling = evaluate_signals(df_signal_rolling, y_true)
 
     print("\n📈 Rolling 파라미터 최종 성과:")
@@ -352,7 +372,7 @@ if __name__ == "__main__":
     print(f"   예측 중립 비율     : {perf_rolling.get('ratio_neutral', np.nan):.4%}")
 
     # ============================================================
-    # 3-2) Median 파라미터 적용 (안정성 검증용)
+    # 3-2) Median 파라미터 적용
     # ============================================================
     print("\n" + "=" * 60)
     print("📌 [모드 B] Median 파라미터 적용 (전체 폴드 중앙값, 안정성 검증용)")
@@ -373,7 +393,6 @@ if __name__ == "__main__":
         else:
             print(f"   {k} = {v:.4f}")
 
-    # Median 신호 생성
     df_signal_median = generate_signals_single(df, median_params)
     perf_median = evaluate_signals(df_signal_median, y_true)
 
@@ -388,7 +407,7 @@ if __name__ == "__main__":
     print(f"   예측 중립 비율     : {perf_median.get('ratio_neutral', np.nan):.4%}")
 
     # ============================================================
-    # 3-3) 최종 비교 및 결론
+    # 3-3) 최종 비교
     # ============================================================
     print("\n" + "=" * 60)
     print("📊 Rolling vs Median 성능 비교")

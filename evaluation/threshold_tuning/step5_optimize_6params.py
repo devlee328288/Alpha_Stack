@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
-from core_features import compute_atr, compute_base, compute_log_rv, load_data
+from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 
 
 # ============================================================
@@ -226,11 +226,11 @@ def run_walkforward_6params(
         df_calc = df.iloc[calc_start:val_end].copy()
 
         # ---- CMA-ES 설정 ----
-        x0 = [0.15, 0.15, 0.0, 0.0, 14.0, 20.0]
+        x0 = [0.2, 0.2, 0.0, 0.0, 14.0, 20.0]
         sigma0 = 0.5
 
         bounds_low = [0.05, 0.05, 0.0, 0.0, 10.0, 10.0]
-        bounds_high = [0.25, 0.25, 1.5, 1.5, 30.0, 30.0]
+        bounds_high = [0.35, 0.35, 1.5, 1.5, 30.0, 30.0]
 
         x0 = np.clip(x0, bounds_low, bounds_high).tolist()
 

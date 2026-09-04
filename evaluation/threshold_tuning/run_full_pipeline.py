@@ -37,7 +37,7 @@ LAMBDA_MDD = 0.5  # MDD 패널티 강도
 # ============================================================
 # 1. 필수 모듈 임포트 (core_features, step5, step6)
 # ============================================================
-from core_features import load_data
+from step1_core_features import load_data
 from step5_optimize_6params import run_walkforward_6params
 from step6_live_signal import (
     evaluate_signals,
@@ -73,7 +73,7 @@ def run_full_pipeline():
         print("⚡ QUICK_MODE 활성화: max_evals=30 (결과의 정확도가 낮을 수 있음)")
     else:
         max_evals = 300  # 정확한 분석용
-        print("🔬 정밀 모드: max_evals=300 (약 2~10분 소요 예상)")
+        print("🔬 정밀 모드: max_evals=300 (약 1~5분 소요 예상)")
 
     result_5 = run_walkforward_6params(
         df,

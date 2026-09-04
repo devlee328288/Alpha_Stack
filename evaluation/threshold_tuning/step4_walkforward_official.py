@@ -9,7 +9,7 @@ from tqdm import tqdm
 warnings.filterwarnings("ignore")
 
 # 기존 피처 모듈 임포트
-from core_features import compute_bands, load_data
+from step1_core_features import compute_bands, load_data
 
 
 # ============================================================
