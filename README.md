@@ -1,19 +1,114 @@
-# AlphaStack — 주가지수 등락 방향 예측과 성과 검증
+# Qurious · AlphaStack — 주가지수 등락 방향 예측과 성과 검증
 
 > **"맞히는 것보다 어려운 건, 맞혔다고 말해도 되는지 아는 것"**
 
-팀 **Qurious** 1차 프로젝트 · 2026-09-01(화) ~ 09-15(화) · 4인
-발표: koreaIT 노원 B강의실
+![tests](https://img.shields.io/badge/tests-1%2C052%20passed-brightgreen)
+![python](https://img.shields.io/badge/python-3.12-blue)
+![ruff](https://img.shields.io/badge/ruff-7%20(backtest)-yellow)
+![schema](https://img.shields.io/badge/schema-v11-informational)
+![rows](https://img.shields.io/badge/daily__price-9.22M%20rows-blue)
+![license](https://img.shields.io/badge/data-KRX%20비재배포-red)
+
+팀 **Qurious** 1차 프로젝트 · 2026-09-01(화) ~ 09-15(화) · 4인 · koreaIT 노원 B강의실
+
+> 🖼️ **화면 스크린샷 자리** — Streamlit 대시보드가 나오면 여기에 넣습니다.
+> 저장 위치 `docs/media/` · 폭 720~1200px · 1MB 이하로 압축 ·
+> 움직이는 데모는 GIF 대신 mp4 를 권합니다(같은 내용에 GIF 가 약 8.5배 큽니다).
+>
+> 넣을 때는 `docs/media/hero.png` 를 가리키는 이미지 문법 한 줄이면 됩니다.
+
+<p align="center">
+  <img src="docs/아키텍처/version1.2/시스템아키텍처.png" alt="AlphaStack 시스템 구성도" width="820">
+  <br><sub>수집 → 저장 → 공급(as_of) → 피처 → 모델 → 검증 → 화면</sub>
+</p>
+
+---
+
+## 한 문단 요약
+
+주가지수와 개별 종목의 **5일 뒤 등락 방향**을 맞히는 모델을 만들고, 그 결과를
+**믿어도 되는지 판별하는 검증 엔진**을 따로 세웁니다. 정확도 하나로 끝내지 않고
+기준선 대비·거래비용 차감·워크포워드 분산까지 함께 냅니다. 자료는 KRX·DART·
+공공데이터포털·한국은행에서 **시점 정합(as-of)** 을 지켜 모읍니다.
 
 | | |
 |---|---|
 | **주제** | 주가지수 데이터 활용 머신러닝·딥러닝 |
 | **GitHub** | https://github.com/devlee328288/Alpha_Stack (PUBLIC) |
-| **화면** | Streamlit · [Community Cloud](https://streamlit.io/cloud) 배포 예정 |
-| **상태** | 🟡 킥오프 완료 · 수집·검사 계층 가동 중 |
+| **화면** | Streamlit · Community Cloud 배포 예정 |
+| **자료 전달** | HuggingFace private 데이터셋 (원자료는 저장소에 두지 않습니다) |
+| **상태** | 🟢 수집·검사·공급 계층 가동 · 모델 실험 진행 · 화면 착수 전 |
 
 ---
 
+## 📊 지금 무엇이 있나 — 2026-09-04 실측
+
+| 자료 | 규모 | 기간 |
+|---|---:|---|
+| 일별시세 (수정주가 4칸 포함) | **9,223,644행** | 2010-01-04 ~ 2026-09-01 |
+| 종목기본정보 (주권종류 정본) | 9,220,879행 | 2010-01-04 ~ 2026-08-31 |
+| 종목 식별 (법인번호·ISIN) | 4,197,242행 | 2020-01-02 ~ |
+| 지수 51종 | 196,119행 | 2010-01-04 ~ |
+| 재무제표 | 662,933행 | 2015-09 ~ 2026-08 |
+| 공시 목록 | 309,062행 *(수집 중)* | 2020-01 ~ |
+| 거시지표 | 17,851행 | 2009-08 ~ |
+| 업종 스냅샷 (사람이 받은 18장) | 16,650행 | 2024-01 ~ 2026-09 |
+
+| 코드 | 규모 |
+|---|---:|
+| 전체 파이썬 | **56,540줄** (231파일) |
+| 테스트 | 11,941줄 · **1,052 passed** |
+| 설명 노트북 | 161권 · 셀 1,325개 |
+
+> ⚠️ **모델 성능은 아직 기준선을 못 이겼습니다.** 조합 A~F × 모델 4종 × 피처 4구성으로
+> 96개를 돌렸고, 하락 재현율이 특히 낮습니다. **못 이긴 것을 못 이겼다고 적는 것**이
+> 이 프로젝트의 태도입니다 → [이슈 #37](https://github.com/devlee328288/Alpha_Stack/issues/37) ·
+> [#33](https://github.com/devlee328288/Alpha_Stack/issues/33)
+
+---
+
+## 👥 팀 — 누가 무엇을 맡나
+
+**2026-08-29 킥오프 확정 · 4인.** 각자의 작업은 PR 과 TIL 로 추적됩니다.
+
+| 이름 | 역할 | 맡은 곳 | 대표 작업 |
+|---|---|---|---|
+| **이동원** | 팀장 · **데이터** 수집·저장·정제·전처리 | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) · [scripts/](scripts/) · [docs/](docs/) | 수정주가 적재(v9) · `as_of` 정문 · 공공데이터포털 v10~v11 · 업종 스냅샷 · 데이터 품질 규약 |
+| **오준영** | **모델** — 표 → 등락 방향 분류기 | [models/](models/) | 조합 A~F 96개 실험 · 2년 홀드아웃 재학습 · 피처 선정 |
+| **강민석** | **백테스팅 · 성과지표 · 화면** | [evaluation/](evaluation/) · [backtest/](backtest/) | 5트랙 중첩 · 분할매매 3방식 · 비용 모델 4수준 · 기준선 3종 |
+| **신장환** | **피처 · 품질** — 지표 계산 | [features/](features/) | RSI 결측 델타 수정 · 액면분할 재검증 · 유동 임계값 설계 |
+
+**각자의 기록**
+[TIL 이동원](docs/TIL/이동원/) · [TIL 오준영](docs/TIL/) · [TIL 강민석](docs/TIL/) · [TIL 신장환](docs/TIL/)
+· [PR 목록](https://github.com/devlee328288/Alpha_Stack/pulls?q=is%3Apr) ·
+[이슈](https://github.com/devlee328288/Alpha_Stack/issues)
+
+> 파트 경계를 넘어야 할 때는 **먼저 담당자에게 묻고**, PR 본문에 왜 넘었는지 적고,
+> 관련 문서에도 남깁니다. 화면과 공용 파일(루트 README·`pyproject.toml`·`conftest.py`)은
+> 여러 사람이 함께 쓰므로 같은 절차를 따릅니다.
+
+**코드 기반**: 이동원 개인 프로젝트 `data-service` 에서 필요한 것만 골라 이관 후 재구성
+(2026-08-25 · 9,031줄 이관 + 734줄 신규).
+
+---
+
+## 🔴 알면서 아직 못 고친 것
+
+정직하게 적습니다. 이 목록이 비어 보이는 저장소는 대개 **안 재 본 것**입니다.
+
+| 무엇 | 크기 | 지금 영향 | 자세히 |
+|---|---|---|---|
+| FinanceDataReader 가 **감자를 조정하지 않는다** | 17자리 (개발구간 11) | 유니버스(시총 상위 50) 밖 · 전 종목 피처면 걸림 | [품질 규약 §6](docs/데이터파트/version3.3/데이터_품질_규약.md) |
+| 극단 수익률 중 원인이 안 갈린 것 | 32행 | 학습에 그대로 들어감 | [품질 규약 §4.3](docs/데이터파트/version3.3/데이터_품질_규약.md) |
+| 중기·장기 피처 | 통째로 없음 | 주간·월간 수익률이 빠져 있다 | — |
+| 모델이 기준선을 못 이김 | — | 결과 보고에 그대로 적음 | [#37](https://github.com/devlee328288/Alpha_Stack/issues/37) |
+| `ruff` 7건 | `backtest/` | 형식만 · 기능 영향 없음 | [#97](https://github.com/devlee328288/Alpha_Stack/issues/97) |
+
+**반출 경로가 이걸 강제합니다.** `scripts/upload_to_hf.py` 가 검증기를 먼저 돌리고
+하나라도 붉으면 **올리지 않습니다**. 알면서 내보내려면 `--skip-verify` 를 주고
+데이터셋 카드에 그 사실을 적어야 합니다.
+
+---
 ## 🚀 빠른 시작 — 5분 안에 돌려 보기
 
 팀원이 클론한 뒤 **이 순서 그대로** 하면 됩니다. 막히면 그 자리에서 물어보세요.
@@ -30,11 +125,11 @@ uv pip install --python .venv/Scripts/python.exe -e ".[dev]"
 
 # 2) 검증 엔진이 살아 있는지 확인 (외부 연결·API 키 없이 돕니다)
 .venv/Scripts/python.exe -m pytest tests/ -q
-#    → 330 passed 가 나오면 성공입니다 (2026-08-31 기준)
+#    → 1,052 passed · 3 xfailed 가 나오면 성공입니다 (2026-09-04 실측)
 
 # 3) 코드 스타일 확인
-.venv/Scripts/python.exe -m ruff check evaluation/ supply/ tests/
-#    → All checks passed!
+.venv/Scripts/python.exe -m ruff check .
+#    → 7건이 나옵니다. 전부 backtest/ 이고 형식만입니다 (이슈 #97)
 ```
 
 **API 키 없이도 여기까지 됩니다.** 실제 수집만 `.env` 가 필요합니다.
@@ -90,6 +185,8 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 
 ---
 
+---
+
 ## Why — 왜 이 문제인가
 
 ### 문제: "정확도 62%" 는 아무 말도 하지 않는다
@@ -124,6 +221,8 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 
 ---
 
+---
+
 ## What — 무엇을 하는가
 
 ### 필수 범위 — 반드시 닫는다
@@ -142,26 +241,6 @@ RFC 9309 상 크롤러는 자신에게 매칭되는 **그룹 하나만** 따르�
 ⑧ 유니버스 확장 350종목 횡단면 랭킹 · ⑨ ADF 정상성 검정(**기구현**) · ⑩~⑫ 인프라·팀원 제안
 
 ---
-
-## Who — 누가 무엇을 맡는가
-
-**2026-08-29 킥오프에서 확정 · 4인**입니다.
-
-| 영역 | 담당 | 주 작업 위치 |
-|---|---|---|
-| **팀장** · 데이터 수집·저장·정제·전처리 전반의 기획·관리 | **이동원** | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) · [scripts/](scripts/) · [docs/](docs/) |
-| 모델 — 표 → 등락 방향 분류기 | **오준영** | [models/](models/) |
-| 백테스팅 · 성과지표 · **화면** | **강민석** | [evaluation/](evaluation/) · Streamlit 대시보드 |
-| 피처 · 품질 — 지표 계산 | **신장환** | [features/](features/) |
-
-> 파트 경계를 넘어야 할 때는 **먼저 담당자에게 묻고**, PR 본문에 왜 넘었는지 적고,
-> 관련 문서에도 남깁니다. 화면과 공용 파일(루트 README·`pyproject.toml`·`conftest.py`)은
-> 여러 사람이 함께 쓰므로 같은 절차를 따릅니다.
-
-### 이 저장소를 만든 사람
-
-- 코드 기반: 이동원 개인 프로젝트 `data-service` 에서 필요한 것만 골라 이관 후 재구성
-- 이관 세션: 2026-08-25 · 9,031줄 이관 + 734줄 신규 작성
 
 ---
 
@@ -244,12 +323,28 @@ nbformat 5.11.1 · nbclient 0.11.0 · ipykernel 7.3.0   (dev — notebooks/)
 
 ---
 
+---
+
 ## Impact — 무엇을 숫자로 잴 것인가
 
-> 🟡 **1차 프로젝트는 이제 시작합니다. 아래는 아직 결과가 아니라 "무엇을 잴 것인가"입니다.**
-> 여기에 추측값을 적지 않습니다 — 측정한 뒤 채웁니다.
+> 🟡 **모델 실험은 돌고 있으나 기준선을 아직 못 이겼습니다.**
+> 여기에 추측값을 적지 않습니다 — 측정한 것만 적습니다.
 
-### 이관 세션에서 실제로 나온 것 (2026-08-25 실측)
+### 지금까지 실제로 나온 것
+
+**2026-09-04 실측**
+
+| 항목 | 값 |
+|---|---|
+| 파이썬 코드 | **56,540줄** (231파일) |
+| 테스트 | 11,941줄 · **1,052 passed · 3 xfailed** |
+| 설명 노트북 | **161권** · 셀 1,325개 |
+| 수집한 시세 | **9,223,644행** (수정주가 4칸 포함) |
+| 스키마 마이그레이션 | **v11** |
+| 모델 실험 | 조합 A~F × 모델 4종 × 피처 4구성 = **96개** |
+| 🔴 기준선 대비 | **아직 못 이김** — 하락 재현율이 특히 낮다 |
+
+**이관 세션 (2026-08-25 실측)**
 
 | 항목 | 값 |
 |---|---|
@@ -269,6 +364,8 @@ nbformat 5.11.1 · nbclient 0.11.0 · ipykernel 7.3.0   (dev — notebooks/)
 
 > ⚠️ 기준선을 못 이기면 **못 이겼다고 적습니다.** 주가는 효율시장에 가까워서
 > 못 이기는 것이 정상에 가깝고, 그 사실을 감추면 보고서가 거짓말이 됩니다.
+
+---
 
 ---
 
@@ -326,6 +423,8 @@ PACF(Durbin-Levinson) · ARIMA(Hannan-Rissanen)를 직접 구현해 둔 2,063줄
 
 ---
 
+---
+
 ## Learn — 배운 것 / 개선할 것
 
 > 🟡 프로젝트 회고는 1차 종료 후 채웁니다. 아래는 **이관 세션에서 실제로 겪은 것**입니다.
@@ -367,65 +466,6 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 
 ---
 
-## 📊 현재 상태 — 무엇이 되고 무엇이 안 되는가
-
-### ✅ 완성 (지금 바로 쓸 수 있다)
-
-| 기능 | 위치 | 검증 |
-|---|---|---|
-| **성과 지표** MDD·Sharpe·승률·거래비용 | [evaluation/metrics.py](evaluation/metrics.py) | 테스트 12개 통과 |
-| **워크포워드 분할** 확장창·롤링창·gap | [evaluation/walk_forward.py](evaluation/walk_forward.py) | 테스트 5개 통과 |
-| **기준선 3종** always_up·majority·momentum | [evaluation/baseline.py](evaluation/baseline.py) | 테스트 3개 통과 |
-| **시계열 도구** ADF·ACF/PACF·ARIMA·확률보행 | [timeseries/](timeseries/) | import 확인 (원본 검증본) |
-| **외부 API 클라이언트** 9종 | [ingest/clients/](ingest/clients/) | import 확인 |
-| **시세 저장·조회** | [ingest/store/](ingest/store/) | import 확인 |
-| **DB 스키마** securities·ohlcv·calendar·sync_log·watermark | [sql/init/](sql/init/) | 원본에서 운영 중 |
-| **유니버스** KOSPI200+KOSDAQ150 350종목 | [data/universe_core.json](data/universe_core.json) | 2026-08-25 생성 |
-| **지수 수집·저장** (신규) | [ingest/store/krx_index.py](ingest/store/krx_index.py) | 테스트 15개 통과 |
-| **인증 재시도·차단기** (신규) | [ingest/clients/krx_data.py](ingest/clients/krx_data.py) | 테스트 8개 통과 |
-| **데이터 품질 게이트** | [scripts/check_data.py](scripts/check_data.py) · [common/corporate_actions.py](common/corporate_actions.py) | 시세 920만 행 + 지수 51종 · error 5종 전부 0 · 테스트 17개 · 1분 48초 |
-| **스키마 마이그레이션** `PRAGMA user_version` | [ingest/store/migrations.py](ingest/store/migrations.py) | 테스트 11개 통과 · v4 까지 |
-| **호출 예산** 80% 경고·100% 정상종료 | [common/budget.py](common/budget.py) | 테스트 13개 통과 |
-| **수집 대장** 0건·한도소진·범위밖을 실패와 구별 | [ingest/store/collect_log.py](ingest/store/collect_log.py) | 테스트 24개 · 8,686줄 (시장별) |
-| **응답 원문 보존 + 재정규화** | [common/raw_store.py](common/raw_store.py) · [scripts/renormalize.py](scripts/renormalize.py) | 테스트 15개 · gzip 18.7~24.6% (실측) |
-| **`as_of` 정문** 미래 역류 차단 | [supply/](supply/) 591줄 | 테스트 48개 · 예측 경로와 학습 경로를 **이름으로** 가름 |
-| **`robots.txt` 가드** 4xx 허용 / 5xx 차단 | [common/robots.py](common/robots.py) | 테스트 24개 · `protego==0.6.2` |
-| ★ **KOSPI200 시세** | 로컬 `data/krx_cache.db` (git 미추적) | **4,097거래일** · 2010-01-04~ |
-
-### 🟡 구현 중 / 계약만 있음
-
-| 기능 | 위치 | 막고 있는 것 |
-|---|---|---|
-| **피처 엔지니어링** | [features/](features/) | 🟢 **막힘 해소** — 대상·레이블 확정([ADR-AS-0002](docs/decisions/0002-예측대상과-레이블.md)) · 담당 **신장환** 확정. 킥오프 후 착수 |
-| **모델 학습·비교** | [models/](models/) | 위와 동일 |
-| **뉴스·동영상 수집기** | [ingest/clients/](ingest/clients/) | 산업 분류 기준이 정해져야 합니다 ([회의안건 A-2](docs/회의안건/2026-09-01-킥오프.md)). `robots.txt` 가드는 이미 섰습니다 |
-| **성과 리포트 화면** | 신규 예정 | 🔴 **스택이 문서끼리 어긋나 있습니다** — 정적 HTML vs Streamlit ([회의안건 A-3](docs/회의안건/2026-09-01-킥오프.md)) |
-| **재현 파이프라인** | [pipelines/](pipelines/) | 피처·모델이 선 뒤 |
-
-### ⬜ 미착수
-
-- 개별종목 백필 나머지 (2013-01-16 → 2010-01-04, 약 1,000일)
-- 정적 HTML 성과 리포트 5화면
-- 배포 (**방침: 9/1 이후**. 그전까지 전원 로컬 실행)
-
----
-
-## 🗣️ 킥오프에서 정해야 할 것
-
-**2026-08-26 개정** — 이전 판 12건 중 **8건이 닫혔습니다.**
-저장소(SQLite 하나) · `features`/`models` 담당(신장환) · 종목토론방(Won't) 등이 빠졌습니다.
-킥오프는 그것들을 **"토론"하지 않고 "확인"만** 합니다.
-
-남은 것 중 급한 넷입니다.
-
-1. **팀장을 정한다** — 계획서·발표에 이름이 들어갑니다
-2. ⏰ **산업(섹터) 분류 기준** — 이게 정해져야 **뉴스 수집이 시작**됩니다
-3. 🔴 **화면 스택** — 요구사항은 정적 HTML 인데 수집 화면은 정적으로 **원리적으로 불가능**합니다
-4. ⏰ **팀원 KRX 인증키** — 승인이 **익일**입니다.
-   9/1 에 신청하면 그날 아무도 데이터를 못 받습니다 → [합류 전 준비물](docs/합류전-준비물.md)
-
-👉 **전체 목록: [docs/회의안건/2026-09-01-킥오프.md](docs/회의안건/2026-09-01-킥오프.md)**
-
 ---
 
 ## 📁 문서
@@ -438,29 +478,32 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 
 | 문서 | 내용 |
 |---|---|
-| [문제정의 v1.0](docs/문제정의/version1.0/문제정의.md) | ★ **왜 만드나 · 무엇이 성공인가** (계획서보다 앞섭니다) |
-| [요구사항 v1.0](docs/요구사항/version1.0/요구사항.md) | ★ **무엇을 만드나** — 기능 29건 · 데이터 요구사항 12건 |
-| [시장조사 v1.0](docs/시장조사/version1.0/시장조사.md) | 근거 — 국내외 서비스 · 선행연구 · 한국 제도 제약 |
-| [아키텍처 v1.2](docs/아키텍처/version1.2/아키텍처.md) | 계층 구조와 설계 결정 · [시스템 구성도](docs/아키텍처/version1.2/시스템아키텍처.png) · [AI 에이전트 제안](docs/아키텍처/version1.2/AI에이전트구성.png) |
-| [ERD v1.0](docs/erd/version1.0/ERD.md) | 데이터 모델 |
+| [문제정의 v2.0](docs/문제정의/version2.0/문제정의.md) | ★ **왜 만드나 · 무엇이 성공인가** (계획서보다 앞섭니다) |
+| [요구사항 v2.0](docs/요구사항/version2.0/요구사항.md) | ★ **무엇을 만드나** — 기능 29건 · 데이터 요구사항 12건 |
+| [시장조사 v2.0](docs/시장조사/version2.0/시장조사.md) | 근거 — 국내외 서비스 · 선행연구 · 한국 제도 제약 |
+| [아키텍처 v1.2](docs/아키텍처/version1.2/아키텍처.md) · [기능명세 v1.3](docs/기능명세/version1.3/) | 계층 구조와 설계 결정 · [시스템 구성도](docs/아키텍처/version1.2/시스템아키텍처.png) · [AI 에이전트 제안](docs/아키텍처/version1.2/AI에이전트구성.png) |
+| [ERD v2.2](docs/erd/version2.2/ERD.md) | 데이터 모델 (표 20개 · v11) |
 
 **데이터 파트** (수집 · 전처리 · 정제 · 마이닝 · 크롤링 · 화면)
 
 | 문서 | 내용 |
 |---|---|
-| [데이터파트/문제정의 v1.0](docs/데이터파트/version1.0/문제정의.md) | ★ 이 파트의 산출물은 데이터가 아니라 **믿어도 되는 이유**다 |
-| [데이터파트/요구사항 v1.0](docs/데이터파트/version1.0/요구사항.md) | 수집 대상 7종 · 기능 24건 · Point-in-Time 규칙 |
-| [데이터파트/시장조사 v1.0](docs/데이터파트/version1.0/시장조사.md) | 출처별 실측 한도 · `robots.txt` 원문 · 대시보드 벤치마킹 |
+| ★ [데이터 품질 규약 v3.3](docs/데이터파트/version3.3/데이터_품질_규약.md) | **이상치·결측·자본변동·편향** — 수업이 든 함정을 전량 실측과 대조. 🔴 FDR 이 감자를 조정하지 않는다 |
+| [데이터파트 명세서 v3.3](docs/데이터파트/version3.3/명세서.md) | 이 파트가 무엇을 만드는가 (D-00~D-100) |
+| [공공데이터포털 수집 설계](docs/데이터파트/version3.3/공공데이터포털_수집_설계.md) | 종목코드 ↔ 법인번호 ↔ ISIN 을 잇는 다리 |
+| [모델 라이선스 대장](docs/데이터파트/version3.3/모델_라이선스_대장.md) | HF 모델 18종 전수 조회 — **5종이 라이선스 미표기** |
+| [API 키 발급 가이드](docs/데이터파트/version3.3/API키_발급_가이드.md) | 팀원이 각자 키를 받는 법 (15종) |
+| [데이터파트 버전 목록](docs/데이터파트/README.md) | v1.0 ~ v3.3 개정 이력 |
 
 **버전이 없는 문서** (살아 있는 운영 문서)
 
 | 문서 | 내용 |
 |---|---|
 | [docs/decisions/](docs/decisions/) | ADR — **번호가 곧 이력**이라 버전을 두지 않습니다 |
-| [docs/회의안건/2026-09-01-킥오프.md](docs/회의안건/2026-09-01-킥오프.md) | 킥오프에서 정할 것 (미결 사항 정본) |
+| [docs/회의안건/](docs/회의안건/) | 회의 안건과 결정 (킥오프 미결 사항은 전부 닫혔습니다) |
 | [docs/합류전-준비물.md](docs/합류전-준비물.md) | 팀원이 킥오프 전에 할 것 (KRX 키 발급) |
 | [docs/TIL/](docs/TIL/) | 작업 기록 — **작성자별 폴더** · 날짜가 곧 버전 |
-| [docs/계획서/](docs/계획서/) | 강사님께 내는 계획서 — v1.0 제출본 · **v2.0 정본** |
+| [docs/계획서/](docs/계획서/) | 강사님께 내는 계획서 — **v3.0 정본** (프로젝트명 Qurious 확정) |
 | [AGENTS.md](AGENTS.md) | 팀 협업 규약 (Git·브랜치·코드 스타일) |
 | [docs/AlphaStack_팀프로젝트_소개.html](docs/AlphaStack_팀프로젝트_소개.html) | 모집용 소개 (범위·일정 정본) |
 
@@ -470,6 +513,8 @@ import 검증을 돌리지 않았다면 팀원이 9/1에 `ModuleNotFoundError` �
 ```bash
 python scripts/check_doc_links.py      # 깨진 링크가 있으면 exit 1
 ```
+
+---
 
 ---
 
@@ -553,6 +598,8 @@ PR 하나 = [TIL](docs/TIL/) 한 장이 기본입니다. PR 을 만들지 않은
 
 ---
 
+---
+
 ## ⚠️ 이 저장소의 규칙 (짧게)
 
 - **PUBLIC 입니다.** `.env` · API 키 · 데이터 원본을 커밋하지 않습니다
@@ -563,3 +610,4 @@ PR 하나 = [TIL](docs/TIL/) 한 장이 기본입니다. PR 을 만들지 않은
 - push 전 `git status --short` 로 PDF·ZIP·데이터·시크릿 혼입 확인
 
 전문: [AGENTS.md](AGENTS.md)
+
