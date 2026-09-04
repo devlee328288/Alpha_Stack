@@ -1,6 +1,12 @@
 """공공데이터포털 금융위원회 API 연동 (외부 연동 계층)
 
-    https://apis.data.go.kr/1160100/service
+    https://apis.data.go.kr/1160100/service/<서비스>/<오퍼레이션>    ← 구세대
+    https://apis.data.go.kr/1160100/<서비스>/<오퍼레이션>            ← 신세대 (`service` 없음)
+
+🔴 **경로 틀이 둘이다** (실측 2026-09-03). v3.2 에서 신규 서비스 6개를 여러 조합으로
+두드리고 전부 `NO_OPENAPI_SERVICE_ERROR` 를 받아 "못 찾음" 으로 남겼는데, 조합이 틀린 게
+아니라 **틀이 틀렸다** — 신규 서비스는 `/service/` 를 안 거친다. 그래서 `BASE_URL` 은
+호스트까지만 두고, 어느 틀인지는 `EP_*` 상수가 **경로 전체**로 말한다.
 
 **시세를 가져오려는 게 아니다.** 포털의 주식시세는 20칸뿐이고 우리 KRX 수집은 이미
 9,223,644행이다. 여기서 얻는 것은 **다리**다 —
@@ -84,20 +90,88 @@ from urllib.request import Request, urlopen
 
 from common import budget, secrets
 
-BASE_URL = "https://apis.data.go.kr/1160100/service"
+#: 🔴 호스트까지만. 기관코드(`1160100`)와 `service` 유무는 **경로 틀이 둘이라** 여기 못
+#:    둔다 — `EP_*` 가 경로 전체를 갖는다. 예탁결제원(`B552481`)은 규약이 달라
+#:    `ksd_data.py` 로 따로 뺐다.
+BASE_URL = "https://apis.data.go.kr"
 REQUEST_TIMEOUT = 30
 
 #: 예산 대장(`common.budget`)에 쓰는 출처 이름.
 BUDGET_SOURCE = "data_go_kr"
 
 #: 개발계정 하루 한도. 포털 마이페이지 기준값이고, 운영계정은 다르다.
-DAILY_LIMIT = 10_000
+#: 🔴 숫자를 여기 따로 적지 않는다 — 장부(`common.budget.LIMITS`)와 어긋나면 두 경로가
+#:    서로 다른 통을 세게 된다. 근거는 그쪽 주석에 있다.
+DAILY_LIMIT = budget.LIMITS[BUDGET_SOURCE]
 
 KEY_NAMES = ("DATA_GO_KR_API_KEY", "DATA_GO_KR_KEY", "PUBLIC_DATA_API_KEY")
 
-#: 엔드포인트. 경로가 틀리면 `NO_OPENAPI_SERVICE_ERROR` 가 온다.
-EP_LISTED = "GetKrxListedInfoService/getItemInfo"
-EP_CORP_OUTLINE = "GetCorpBasicInfoService_V2/getCorpOutline_V2"
+#: 엔드포인트 — **호스트 뒤 경로 전체**다. 경로가 틀리면 `NO_OPENAPI_SERVICE_ERROR` 가 온다.
+#:
+#: 🔴 `/service/` 유무는 서비스마다 다르고 **이름으로 유추할 수 없다.** `_V2` 가 붙은
+#:    `GetCorpBasicInfoService_V2` 는 구세대(있음)이고 같은 `_V2` 인
+#:    `GetStocDiviInfoService_V2` 는 신세대(없음)다. 아래 값은 전부 **실호출로 확인한**
+#:    것이다(2026-09-03 · 포털 상세페이지 HTML 에 박힌 Swagger 에서 긁고, 127콜로 응답
+#:    본문까지 열었다). 새 경로는 추측하지 말고 같은 방법으로 잰다:
+#:
+#:        curl -s "https://www.data.go.kr/data/<pk>/openapi.do" \
+#:          | grep -oE "apis\.data\.go\.kr[^\"'<> ]*"
+#:
+#: ── 구세대 · `1160100/service/…` ──────────────────────────────────────
+EP_LISTED = "1160100/service/GetKrxListedInfoService/getItemInfo"
+EP_CORP_OUTLINE = "1160100/service/GetCorpBasicInfoService_V2/getCorpOutline_V2"
+# 지배구조 — 주주(basDt 있음 · 285,730행) · 대표이사(37,064행) · 임원보수 · 임원
+EP_GOV_SHAREHOLDER = "1160100/service/GetCorpGoveInfoService/getStockholderInfo"
+EP_GOV_CEO = "1160100/service/GetCorpGoveInfoService/getReprDireInfo"
+EP_GOV_EXEC_PAY = "1160100/service/GetCorpGoveInfoService/getExecRemuStat"
+EP_GOV_EXECUTIVES = "1160100/service/GetCorpGoveInfoService/getExecutivesInfo"
+#: ── 신세대 · `1160100/…` (`service` 없음) ────────────────────────────
+# 🔴 주식발행정보만 **_V3** 다. 나머지 신규는 _V2.
+# 종목기본정보 — 보통주/우선주(`scrsItmsKcdNm`)·상장일(`lstgDt`)·액면가·발행주식수를
+# **basDt 시점별로** 준다(하루 15,913행 · 16쪽). KRX 종목기본정보(v11)와 교차검증 축.
+EP_ITEM_BASIC = "1160100/GetStocIssuInfoService_V3/getItemBasiInfo_V3"
+EP_ISSUE_STAT = "1160100/GetStocIssuInfoService_V3/getStocIssuStat_V3"
+EP_ISSUE_HISTORY = "1160100/GetStocIssuInfoService_V3/getStocIssuInfo_V3"
+EP_LOCKUP = "1160100/GetStocIssuInfoService_V3/getLockUpRetuInfo_V3"
+# 배당 — ⚠️ `basDt` 는 적재일이라 이벤트 날짜가 아니다. 빼고 부르면 전량(71,674행 · 72콜).
+EP_DIVIDEND = "1160100/GetStocDiviInfoService_V2/getDiviInfo_V2"
+# 권리일정 — 사유(`stckIssuRcdNm`)·권리기준일(`rgtExertSttgDt`). 수정주가 chain 대조 후보.
+EP_RIGHTS_SCHEDULE = "1160100/GetStocRighScheService_V2/getRighExerReasSche_V2"
+# 대차 — 종목별 잔고(공매도 대용). ⚠️ "업종별참여" 의 `sicNm` 은 **참여자 구분**("외국인")
+# 이지 산업 업종이 아니다 (#92). 이름만 보고 설계하면 틀린다.
+EP_LEND_BY_ITEM = "1160100/GetStocLendBorrInfoService_V2/getStItemLendAndBorrStatu_V2"
+EP_LEND_BY_PARTICIPANT = "1160100/GetStocLendBorrInfoService_V2/getStBusiTypePartStatu_V2"
+# 주식분포(기준일 파라미터가 `basDt` 가 아니라 응답의 `rgtExertQualBasDt`) · 사고주권
+EP_DISTRIBUTION = "1160100/GetStocTradInfoService_V2/getStocDistInfo_V2"
+EP_IRREGULAR_STOCK = "1160100/GetStocTradInfoService_V2/getIrreRigforSecu_V2"
+# 예탁가능 — 상장/비상장·예탁취소까지. 🔴 `lstgAbolDt` 에 자리표시자 `99991231` 이 온다.
+EP_DEPOSIT_AVAILABLE = "1160100/GetStocDepoInfoService_V2/getDepoAvaiWhet_V2"
+
+#: 이름 → 경로. 시험이 "어느 틀인가" 를 실측표와 대조할 때 쓴다. 상수를 더하면 여기도 더한다.
+ENDPOINTS: Dict[str, str] = {
+    "listed": EP_LISTED,
+    "corp_outline": EP_CORP_OUTLINE,
+    "gov_shareholder": EP_GOV_SHAREHOLDER,
+    "gov_ceo": EP_GOV_CEO,
+    "gov_exec_pay": EP_GOV_EXEC_PAY,
+    "gov_executives": EP_GOV_EXECUTIVES,
+    "item_basic": EP_ITEM_BASIC,
+    "issue_stat": EP_ISSUE_STAT,
+    "issue_history": EP_ISSUE_HISTORY,
+    "lockup": EP_LOCKUP,
+    "dividend": EP_DIVIDEND,
+    "rights_schedule": EP_RIGHTS_SCHEDULE,
+    "lend_by_item": EP_LEND_BY_ITEM,
+    "lend_by_participant": EP_LEND_BY_PARTICIPANT,
+    "distribution": EP_DISTRIBUTION,
+    "irregular_stock": EP_IRREGULAR_STOCK,
+    "deposit_available": EP_DEPOSIT_AVAILABLE,
+}
+
+
+def endpoint_generation(path: str) -> str:
+    """`legacy`(`/service/` 있음) 또는 `modern`(없음). 경로가 어느 틀인지 사람이 읽게."""
+    return "legacy" if path.startswith("1160100/service/") else "modern"
 
 #: 한 번에 받을 행 수. 포털 상한이 1,000 이다.
 PAGE_SIZE = 1_000
@@ -134,6 +208,21 @@ _YY_PIVOT = 56
 #: 조용히 틀어진다. `None` 이면 그 칸이 비고, 비어 있는 것은 눈에 띈다.
 _EARLIEST_PLAUSIBLE = "18000101"
 
+#: 있을 수 없는 날짜의 천장. 이보다 늦은 값도 날짜가 아니라 **자리표시자**다.
+#:
+#: 🔴 바닥선만 있고 천장이 없었다. 2026-09-03 조사에서 반대쪽을 만났다 —
+#:    `99991231` 이 "아직 폐지 안 됨" 의 표기다:
+#:
+#:     getDepoAvaiWhet_V2   lstgAbolDt              상장폐지일
+#:     KSD getStkListInfoN1 xpitDt · dlistDt        만기일 · 상장폐지일
+#:     KSD getIssucoBasicInfo custXtinDt            법인 소멸일
+#:
+#: 그대로 두면 "9999년에 상장폐지되는 회사" 가 생겨 상장 잔여기간 같은 계산이 에러 없이
+#: 틀어진다. 2100 으로 둔 이유는, 진짜 미래 날짜(예정 상장일·만기일)는 그 안에 들고
+#: 자리표시자는 항상 그 밖에 있기 때문이다. 두 자리 연도는 `_YY_PIVOT` 규칙상 2055 가
+#: 최대라 천장에 닿을 수 없다.
+_LATEST_PLAUSIBLE = "21001231"
+
 #: `known_at` 을 어떤 규칙으로 냈는지. 규칙을 바꾸면 재수집해야 하므로 행마다 남긴다.
 KNOWN_RULE_NEXT_SESSION = "basDt+1session"    # 종목 목록 — 계산값이다
 KNOWN_RULE_OBSERVED = "fstOpegDt"             # 법인 개요 — 출처가 직접 말해 준다
@@ -159,6 +248,8 @@ _ERROR_HELP = {
     ),
     "NO_OPENAPI_SERVICE_ERROR": (
         "그런 경로의 서비스가 없다 — **엔드포인트가 틀렸다.**\n"
+        "  흔한 원인: 경로 틀이 둘이다. 구세대는 1160100/service/…, 신세대는 1160100/… 이고\n"
+        "            이름으로는 구별이 안 된다. 주식발행정보는 _V3 다.\n"
         "  할 일: 이 모듈의 EP_* 상수를 확인한다. 서비스명 대소문자까지 맞아야 한다."
     ),
     "LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR": (
@@ -205,6 +296,10 @@ def normalize_date(raw: Optional[str]) -> Optional[str]:
        회사의 `유가상장일` 자리에 이 값을 넣어 준다. 여덟 자리라 모양은 멀쩡해서
        그냥 두면 *"서기 1년에 상장한 회사"* 가 생기고, 상장 경과일 같은 계산이
        에러 없이 틀어진다. `_EARLIEST_PLAUSIBLE` 로 거른다.
+
+    🔴 **`99991231` 도 날짜가 아니라 "아직 폐지 안 됨" 이다.** 반대쪽 자리표시자라
+       `_LATEST_PLAUSIBLE` 로 거른다. 바닥선만 두면 이쪽이 통과해 "9999년에 폐지되는
+       회사" 가 생긴다.
     """
     if raw is None:
         return None
@@ -212,7 +307,7 @@ def normalize_date(raw: Optional[str]) -> Optional[str]:
     if not 숫자:
         return None
     if len(숫자) == 8:
-        return 숫자 if 숫자 >= _EARLIEST_PLAUSIBLE else None
+        return 숫자 if _EARLIEST_PLAUSIBLE <= 숫자 <= _LATEST_PLAUSIBLE else None
     if len(숫자) == 6:
         yy = int(숫자[:2])
         세기 = 1900 if yy >= _YY_PIVOT else 2000

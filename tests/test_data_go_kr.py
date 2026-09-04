@@ -385,3 +385,70 @@ def test_콜_수를_미리_센다():
     날짜 = ["20190102", "20190103", "20200102", "20200103", "20200106"]
     assert dgk.estimate_calls(날짜) == 3 * 3        # 3일 × 3페이지
     assert dgk.estimate_calls([]) == 0
+
+
+# ==================================================
+# 9. 경로 틀이 둘이다 — 호스트만 BASE_URL, 경로는 EP_* 가 통째로
+# ==================================================
+def test_호스트만_BASE_URL_이고_경로는_EP_가_통째로_갖는다():
+    """2026-09-03 에 신규 서비스 6개를 "못 찾음" 으로 남긴 원인이다 — 틀이 둘이었다."""
+    url = dgk._build_url(dgk.EP_LISTED, "k", {"basDt": "20240822"})
+    assert url.startswith(
+        "https://apis.data.go.kr/1160100/service/GetKrxListedInfoService/getItemInfo?")
+
+    url2 = dgk._build_url(dgk.EP_ITEM_BASIC, "k", {"basDt": "20240830"})
+    assert url2.startswith(
+        "https://apis.data.go.kr/1160100/GetStocIssuInfoService_V3/getItemBasiInfo_V3?")
+    assert "/service/" not in url2
+
+
+#: 실측표 (2026-09-03 · 포털 Swagger + 실호출). `_V2` 만 보고는 세대를 알 수 없다 —
+#: `GetCorpBasicInfoService_V2` 는 구세대, `GetStocDiviInfoService_V2` 는 신세대다.
+실측_세대 = {
+    "listed": "legacy", "corp_outline": "legacy",
+    "gov_shareholder": "legacy", "gov_ceo": "legacy",
+    "gov_exec_pay": "legacy", "gov_executives": "legacy",
+    "item_basic": "modern", "issue_stat": "modern", "issue_history": "modern",
+    "lockup": "modern", "dividend": "modern", "rights_schedule": "modern",
+    "lend_by_item": "modern", "lend_by_participant": "modern",
+    "distribution": "modern", "irregular_stock": "modern", "deposit_available": "modern",
+}
+
+
+def test_엔드포인트_세대가_실측표와_맞는다():
+    assert set(dgk.ENDPOINTS) == set(실측_세대), "상수를 더했으면 실측표에도 세대를 적는다"
+    for 이름, 경로 in dgk.ENDPOINTS.items():
+        assert 경로.startswith("1160100/"), f"{이름}: 금융위 기관코드로 시작해야 한다"
+        assert dgk.endpoint_generation(경로) == 실측_세대[이름], 이름
+
+
+def test_주식발행정보만_V3_다():
+    assert "GetStocIssuInfoService_V3/" in dgk.EP_ITEM_BASIC
+    assert dgk.EP_ITEM_BASIC.endswith("_V3")
+    assert all("_V3" not in p for n, p in dgk.ENDPOINTS.items() if not n.startswith(
+        ("item_basic", "issue_", "lockup"))), "다른 신규 서비스는 _V2 다"
+
+
+# ==================================================
+# 10. 상한선 — 99991231 은 "아직 폐지 안 됨" 이다
+# ==================================================
+@pytest.mark.parametrize("원문", ["99991231", "9999/12/31", "21010101"])
+def test_아직_폐지_안_됨_자리표시자는_날짜가_아니다(원문):
+    assert dgk.normalize_date(원문) is None
+
+
+def test_천장_바로_아래는_통과한다():
+    assert dgk.normalize_date("21001231") == "21001231"
+    assert dgk.normalize_date("20991231") == "20991231"
+
+
+def test_두_자리_연도는_천장에_닿을_수_없다():
+    assert dgk.normalize_date("55/12/31") == "20551231"
+
+
+# ==================================================
+# 11. 하루 한도는 장부가 정본이다
+# ==================================================
+def test_하루_한도는_budget_LIMITS_에서_온다():
+    from common import budget
+    assert dgk.DAILY_LIMIT == budget.LIMITS["data_go_kr"] == 10_000
