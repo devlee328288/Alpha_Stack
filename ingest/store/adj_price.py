@@ -57,12 +57,17 @@ from datetime import datetime
 from fractions import Fraction
 from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
-from common.corporate_actions import factor_series, is_halted
+from common.corporate_actions import SHARE_RATIO_MIN, factor_series, is_halted
 from ingest.clients.fdr_data import SOURCE_FDR
 from ingest.store.sqlite_db import write_lock
 
 #: 우리가 계수로 이어 붙인 행의 표시. `daily_price.adj_source` 에 들어간다.
 SOURCE_CHAIN = "chain"
+
+#: 소스 뒤에 붙는 표시 — **FDR 이 안 편 자본변동을 우리가 폈다** (`scale_series` ⑤).
+#: `fdr+ca_fix` 처럼 붙는다. 값을 정한 것은 여전히 FDR 이지만 그 값을 우리가 고쳤다는
+#: 사실이 남아야, 나중에 "이 종목 왜 FDR 과 다르지" 에 답할 수 있다.
+SOURCE_CA_FIX = "+ca_fix"
 
 #: 수집 대장에 남길 출처 이름. 종목 하나가 대장 한 줄이다.
 #:
@@ -91,8 +96,107 @@ def load_rows(conn: sqlite3.Connection, code: str) -> List[Dict]:
     return [dict(zip(names, row, strict=True)) for row in cursor.fetchall()]
 
 
+#: ⑤ 판정 임계 둘. 실측으로 정했다 (2026-09-04 · 자본변동 크기 41자리 전수).
+#:
+#:   원가격이 계수만큼 튀었나   `close` 비율이 `factor` 에서 이만큼 안쪽
+#:   FDR 이 안 폈나             `scale` 비율이 1 에서 이만큼 안쪽
+#:
+#: 안 편 17자리는 `|scale비 - 1|` 이 전부 **0.011 이하**였고, 이미 편 24자리는 그 값이
+#: 0.24 이상이거나(폈다) 계수 자체가 틀린 경우였다(아래).
+CA_PRICE_TOLERANCE = 0.30
+CA_SCALE_TOLERANCE = 0.10
+
+
+def _fix_unadjusted_actions(rows: Sequence[Mapping],
+                            scales: List[Optional[Fraction]],
+                            factors: Sequence[Fraction],
+                            fixed: set) -> None:
+    """🔴 **FDR 이 안 편 자본변동**을 편다. `scales` 를 제자리에서 고친다.
+
+    ## 왜 필요한가 — FDR 은 감자를 조정하지 않는다 (실측 2026-09-04)
+
+    `scale_series` ①이 FDR 값을 심고 ③④가 **빈 자리만** 채우므로, 자본변동 **양쪽에
+    FDR 값이 다 있으면** 그 불연속이 그대로 남는다. FDR 은 액면분할은 조정하는데
+    감자는 조정하지 않아 이 자리가 생긴다.
+
+        전 종목 대조: 주식수가 2배 이상 변한 2,048자리 중 **17자리**에서
+        `adj_close` 가 원가격과 똑같이 뛰었다 (`scripts/verify_base_info.py` §9)
+
+    ⚠️ **액면가로는 안 보인다.** 액면분할·병합은 액면가가 같이 바뀌지만 감자는 액면가가
+       그대로다. 그래서 판정은 액면가가 아니라 **주식수 배율**로 한다.
+
+    ## 관문이 둘이다 — 하나만 보면 멀쩡한 값을 망친다
+
+    **① 원가격이 계수만큼 실제로 튀었나** (`CA_PRICE_TOLERANCE`)
+
+    `factors[i]` 를 그대로 믿으면 안 된다. 재개일에는 계수를 **상장주식수 배율**에서
+    얻는데(`adjustment_factor`), 주식수가 움직여도 가격은 연속인 사건이 있다.
+
+        009415 태영건설우 20200922  주식수 ×0.51 인데 가격은 32,500 → 기준가 16,250
+                                    인적분할이라 가격도 같이 쪼개졌다. 조정할 것이 없다
+        009410 태영건설   20240722  주식수 ×24.9 인데 KRX 등락률 0.00% — 출자전환이다
+
+    둘 다 계수가 틀렸다. 그래서 **원문 종가가 그 계수만큼 튀었는지**를 먼저 본다.
+    진짜 자본변동이면 `close` 가 계수를 따라간다(감자 10:1 이면 가격이 10배).
+
+    **② 그런데 `scale` 은 그것을 반영하지 않았나** (`CA_SCALE_TOLERANCE`)
+
+    ③이 전파하는 규칙이 `scales[i-1] == scales[i] * factors[i]` 다. 그러므로
+
+        scale 비율이 1 에 가깝다  → FDR 이 **아무것도 안 했다** — 우리가 편다
+        그 밖                     → 이미 폈거나 다른 값을 썼다. 건드리지 않는다
+
+    실측에서 안 편 17자리는 `|scale비 - 1|` 이 전부 0.011 이하였고, 이미 편 자리는
+    0.24 이상이었다. 둘 사이가 20배 넘게 벌어져 있어 임계를 어디에 두든 같은 답이 된다.
+
+    ## 자본변동 크기만 본다
+
+    권리락·주식배당(×0.9~0.99)은 FDR 이 제대로 편다. 여기서 다루는 것은 `≥1.5배` 또는
+    `≤2/3배` 뿐이다 — `SHARE_RATIO_MIN` 을 `corporate_actions` 와 공유한다.
+
+    ## 오름차순이라 여러 번이 누적된다
+
+    앞에서부터 고치므로 자본변동이 둘 이상인 종목도 자연히 누적된다. 아센디오(012170)는
+    2025-03-06 에 10:1, 2026-08-28 에 5:1 을 겪어 가장 오래된 구간이 ×50 이 된다.
+
+    🔴 이 누적이 손으로는 틀리는 자리다. 2026-09-04 에 스크래치 스크립트로 한 번 보정한
+       적이 있는데, 두 번째 자리를 처리하며 **첫 자리 당일(20250306) 하루를 빠뜨려**
+       그 하루만 배율이 어긋났다(다음날 대비 +312.6%). 그 결함이 이 함수를 쓰는 이유다 —
+       경계를 손으로 잡지 않고 규칙 하나로 전파한다.
+    """
+    for i in range(1, len(scales)):
+        factor = factors[i]
+        if factor == 1:
+            continue
+        if not (factor >= SHARE_RATIO_MIN or factor <= 1 / SHARE_RATIO_MIN):
+            continue                        # 권리락 같은 잔 조정은 FDR 이 편다
+
+        # ① 원문 종가가 그 계수만큼 튀었나 — 계수 자체를 원가격으로 검산한다.
+        앞종가, 종가 = rows[i - 1]["close"], rows[i]["close"]
+        if not 앞종가 or not 종가:
+            continue
+        원가격비 = Fraction(int(종가), int(앞종가))
+        if abs(float(원가격비 / factor) - 1) > CA_PRICE_TOLERANCE:
+            continue                        # 가격이 안 따라갔다 — 조정 사건이 아니다
+
+        # ② FDR 이 그것을 반영했나.
+        앞, 뒤 = scales[i - 1], scales[i]
+        if 앞 is None or not 뒤:
+            continue                        # 모르는 자리는 만들지 않는다
+        실제 = 앞 / 뒤
+        if abs(float(실제) - 1) > CA_SCALE_TOLERANCE:
+            continue                        # 이미 폈다 (또는 우리가 모르는 값을 썼다)
+
+        보정 = factor / 실제
+        for j in range(i):
+            if scales[j] is not None:
+                scales[j] *= 보정
+                fixed.add(j)
+
+
 def scale_series(rows: Sequence[Mapping],
-                 fdr_close: Mapping[str, Optional[float]]) -> List[Optional[Fraction]]:
+                 fdr_close: Mapping[str, Optional[float]],
+                 *, fixed: Optional[set] = None) -> List[Optional[Fraction]]:
     """행마다 `수정가격 / 원가격` 배율. FDR 이 아는 날에서 시작해 양쪽으로 퍼뜨린다.
 
     `fdr_close` 는 `{YYYYMMDD: 수정종가}`. 값이 `None` 이거나 그 날이 없으면 모르는 날이다.
@@ -101,6 +205,9 @@ def scale_series(rows: Sequence[Mapping],
     자기 마지막 가격 기준으로 이어 붙인 것이 된다. 2014년 이전에 사라진 종목이 그렇다.
     이때도 분할은 제대로 펴지고, 다만 **스케일의 절대 수준이 FDR 종목과 다르다** —
     종목 간 가격 비교가 아니라 종목 안의 수익률을 위한 값이라 문제가 되지 않는다.
+
+    `fixed` 를 주면 ⑤에서 **우리가 고친 행의 인덱스**를 그 집합에 넣는다. 부르는 쪽이
+    `adj_source` 에 `+ca_fix` 를 붙이는 데 쓴다.
     """
     n = len(rows)
     if n == 0:
@@ -136,6 +243,11 @@ def scale_series(rows: Sequence[Mapping],
             factor = factors[i]
             scales[i] = scales[i - 1] / factor if factor else scales[i - 1]
 
+    # ⑤ FDR 이 **안 편** 자본변동을 편다 (감자 17자리 · 2026-09-04).
+    #    ③④는 빈 자리만 채우므로 FDR 값 사이의 불연속은 여기서만 고쳐진다.
+    _fix_unadjusted_actions(rows, scales, factors,
+                            fixed if fixed is not None else set())
+
     return scales
 
 
@@ -165,9 +277,13 @@ def build_rows(rows: Sequence[Mapping],
 
     ⚠️ 그래도 `adj_source` 는 `fdr` 이다. 값을 정한 것이 FDR 종가이기 때문이다.
        "FDR 이 준 네 칸" 이 아니라 **"FDR 이 정한 배율"** 이 이 행의 출처다.
+
+    🔴 FDR 이 **안 편 자본변동**(감자)을 우리가 편 행은 `+ca_fix` 가 붙는다
+       (`fdr+ca_fix` · `chain+ca_fix`). 판정과 이유는 `_fix_unadjusted_actions`.
     """
     fdr_close = {day: value.get("adj_close") for day, value in adjusted.items()}
-    scales = scale_series(rows, fdr_close)
+    fixed: set = set()
+    scales = scale_series(rows, fdr_close, fixed=fixed)
 
     out: List[Tuple] = []
     for i, row in enumerate(rows):
@@ -185,6 +301,9 @@ def build_rows(rows: Sequence[Mapping],
             for column in ("open", "high", "low", "close")
         )
         source = SOURCE_FDR if fdr_close.get(bas_dd) is not None else SOURCE_CHAIN
+        if i in fixed:
+            # 값을 정한 것은 FDR·계수지만 그 뒤 우리가 자본변동을 폈다 — 둘 다 남긴다.
+            source += SOURCE_CA_FIX
         out.append(values + (source, bas_dd))
     return out
 
