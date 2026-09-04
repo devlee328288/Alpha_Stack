@@ -132,6 +132,41 @@ def run_full_pipeline():
     df_signals_rolling = generate_signals_rolling(df, fold_details)
     perf_rolling = evaluate_signals(df_signals_rolling, y_true)
 
+    # ---- 3.5) 상세 분류 성능 분석 (Confusion Matrix / Per-class metrics) ----
+    print("\n" + "=" * 70)
+    print("📊 [상세 분류 성능] Rolling 예측 vs 실제 레이블")
+    print("=" * 70)
+    
+    from sklearn.metrics import classification_report, confusion_matrix
+    
+    # Rolling 신호에 대한 유효 마스크 (NaN 제외)
+    valid_mask = ~(np.isnan(df_signals_rolling["signal"].values) | np.isnan(y_true))
+    if valid_mask.sum() > 0:
+        y_true_valid = y_true[valid_mask].astype(int)
+        y_pred_valid = df_signals_rolling["signal"].values[valid_mask].astype(int)
+        
+        # 1) 혼동 행렬 (Confusion Matrix)
+        cm = confusion_matrix(y_true_valid, y_pred_valid, labels=[0, 1, 2])
+        print("\n[혼동 행렬 (Confusion Matrix)]")
+        print("(행: 실제 레이블, 열: 모델 예측)")
+        print("            예측 하락(0)  예측 중립(1)  예측 상승(2)")
+        print(f"실제 하락(0)     {cm[0][0]:>6}      {cm[0][1]:>6}      {cm[0][2]:>6}")
+        print(f"실제 중립(1)     {cm[1][0]:>6}      {cm[1][1]:>6}      {cm[1][2]:>6}")
+        print(f"실제 상승(2)     {cm[2][0]:>6}      {cm[2][1]:>6}      {cm[2][2]:>6}")
+        
+        # 2) 클래스별 Precision / Recall / F1
+        print("\n[클래스별 성능 리포트 (Precision / Recall / F1-score)]")
+        target_names = ['하락 (0)', '중립 (1)', '상승 (2)']
+        print(classification_report(y_true_valid, y_pred_valid, target_names=target_names, digits=4))
+        
+        # 3) 전체 정확도 (Accuracy)
+        from sklearn.metrics import accuracy_score
+        acc = accuracy_score(y_true_valid, y_pred_valid)
+        print(f"\n✅ 전체 정확도 (Accuracy): {acc:.4f} ({acc*100:.2f}%)")
+        
+    else:
+        print("⚠️ 유효한 예측값이 없어 분류 성능을 출력할 수 없습니다.")
+
     # 6-2) Median 파라미터 적용 (안정성 검증용)
     median_params = {
         "alpha_up": fold_details["alpha_up"].median(),
@@ -226,6 +261,7 @@ def run_full_pipeline():
     print(f"   → Median OOS Sharpe: {perf_median['sharpe']:.4f}")
 
     print("\n📌 3. 최종 판단 기준:")
+
     if perf_rolling["sharpe"] > perf_median["sharpe"]:
         print(
             "   ✅ Rolling 파라미터가 Median보다 우수합니다. 시장 적응형 업데이트가 효과적입니다."
