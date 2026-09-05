@@ -4,13 +4,10 @@ import cma
 import numpy as np
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, f1_score
+from step1_core_features import compute_bands, load_data
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
-
-# 기존 피처 모듈 임포트
-from step1_core_features import compute_bands, load_data
-
 
 # ============================================================
 # 1. 포지션 생성 함수 (상승=+1, 중립=0, 하락=-1)
@@ -187,9 +184,8 @@ def run_walkforward_official(
         bounds_low = [0.5, 0.5, -1.5, -1.5]
         bounds_high = [3.0, 3.0, 1.5, 1.5]
 
-        obj_func = lambda p: objective(
-            p, df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd
-        )
+        def obj_func(p, df_train=df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd):
+            return objective(p, df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd)
 
         es = cma.CMAEvolutionStrategy(
             x0,
@@ -282,9 +278,9 @@ def run_walkforward_official(
         total_folds += 1
 
         if total_folds % 10 == 0:
-            print(
-                f"   → {total_folds}개 폴드 완료 (현재 OOS: {df.index[val_end-1].strftime('%Y-%m-%d')})"
-            )
+            current_oos_date = df.index[val_end-1].strftime('%Y-%m-%d')
+            print(f"   → {total_folds}개 폴드 완료 "
+                  f"(현재 OOS: {current_oos_date})")
 
     # ---- 연결된 OOS 결과로 최종 성능 평가 ----
     print("\n" + "=" * 60)
@@ -302,7 +298,7 @@ def run_walkforward_official(
         cls_metrics["f1_macro"] = f1_score(y_true_arr, y_pred_arr, average="macro")
         cls_metrics["balanced_acc"] = balanced_accuracy_score(y_true_arr, y_pred_arr)
         unique, counts = np.unique(y_pred_arr, return_counts=True)
-        ratio_dict = dict(zip(unique, counts / len(y_pred_arr)))
+        ratio_dict = dict(zip(unique, counts / len(y_pred_arr), strict=False))
         cls_metrics["ratio_up"] = ratio_dict.get(2, 0.0)
         cls_metrics["ratio_neutral"] = ratio_dict.get(1, 0.0)
         cls_metrics["ratio_down"] = ratio_dict.get(0, 0.0)
@@ -357,7 +353,8 @@ if __name__ == "__main__":
     print("=" * 60)
     print(f"🔹 총 Walk-Forward 폴드 수: {result['total_folds']}")
     print(
-        f"🔹 OOS 기간: {result['oos_dates'][0].strftime('%Y-%m-%d')} ~ {result['oos_dates'][-1].strftime('%Y-%m-%d')}"
+        f"🔹 OOS 기간: {result['oos_dates'][0].strftime('%Y-%m-%d')} ~ "
+        f"{result['oos_dates'][-1].strftime('%Y-%m-%d')}"
     )
     print("\n[수익률 기반 지표]")
     print(f"   Sharpe Ratio       : {perf['sharpe']:.4f}")
@@ -383,7 +380,8 @@ if __name__ == "__main__":
         result["fold_details"]["oos_ret_mean"].idxmax()
     ]
     print(
-        f"\n🏆 최고 평균 수익률 폴드 ({best_fold['val_start'].strftime('%Y-%m')}~{best_fold['val_end'].strftime('%Y-%m')}):"
+        f"\n🏆 최고 평균 수익률 폴드 ({best_fold['val_start'].strftime('%Y-%m')}~"
+        f"{best_fold['val_end'].strftime('%Y-%m')}):"
     )
     print(f"   α_up={best_fold['alpha_up']:.4f}, α_down={best_fold['alpha_down']:.4f}")
     print(f"   β_up={best_fold['beta_up']:.4f}, β_down={best_fold['beta_down']:.4f}")
