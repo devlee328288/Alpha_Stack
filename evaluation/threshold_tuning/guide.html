@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📊 KOSPI 3분류 동적 기준선 모델 – 사용 방법</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, system-ui, sans-serif;
+            background: #f4f7fc;
+            padding: 40px 20px;
+            color: #1e293b;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 28px;
+            padding: 40px 45px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-size: 2.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 16px;
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            padding-left: 6px;
+            border-left: 5px solid #2563eb;
+            padding-left: 16px;
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-top: 28px;
+            margin-bottom: 10px;
+            color: #0b2b4a;
+        }
+
+        p {
+            line-height: 1.7;
+            margin-bottom: 16px;
+            color: #334155;
+        }
+
+        .code-block {
+            background: #0f172a;
+            color: #e2e8f0;
+            padding: 20px 24px;
+            border-radius: 16px;
+            overflow-x: auto;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.9rem;
+            margin: 20px 0;
+            border: 1px solid #1e293b;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .code-block .comment {
+            color: #94a3b8;
+        }
+
+        .code-block .keyword {
+            color: #38bdf8;
+        }
+
+        .code-block .string {
+            color: #a78bfa;
+        }
+
+        .code-block .func {
+            color: #facc15;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            font-size: 0.95rem;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+        }
+
+        th {
+            background: #f1f5f9;
+            color: #0f172a;
+            font-weight: 600;
+            padding: 14px 16px;
+            text-align: left;
+            border-bottom: 2px solid #d1d9e6;
+        }
+
+        td {
+            padding: 12px 16px;
+            border-bottom: 1px solid #e9eef3;
+            vertical-align: top;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e4b8a;
+            font-weight: 600;
+            font-size: 0.75rem;
+            padding: 2px 12px;
+            border-radius: 30px;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-green {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .badge-red {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-purple {
+            background: #ede9fe;
+            color: #5b21b6;
+        }
+
+        .param-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px 24px;
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 16px;
+            margin: 12px 0;
+        }
+
+        .param-item {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .param-item .name {
+            font-weight: 600;
+            color: #0f172a;
+            min-width: 100px;
+        }
+
+        .param-item .value {
+            font-family: monospace;
+            background: #e9eef3;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .note-box {
+            background: #fefce8;
+            border-left: 5px solid #eab308;
+            padding: 16px 22px;
+            border-radius: 12px;
+            margin: 24px 0;
+        }
+
+        .note-box strong {
+            color: #854d0e;
+        }
+
+        .divider {
+            height: 1px;
+            background: #e2e8f0;
+            margin: 36px 0;
+        }
+
+        @media (max-width: 700px) {
+            .container {
+                padding: 24px 18px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                flex-wrap: wrap;
+            }
+
+            .param-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.85rem;
+            }
+
+            th, td {
+                padding: 8px 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <h1>
+        📊 KOSPI 3분류 동적 기준선 모델
+        <span style="font-size:1rem; font-weight:400; color:#475569; margin-left:auto;">사용 방법 가이드</span>
+    </h1>
+
+    <p style="font-size:1.05rem; margin-bottom:8px;">
+        이 문서는 <strong>변동성(ATR)과 거래량(Log Relative Volume)</strong>을 반영한 동적 기준선을 통해
+        KOSPI 1일봉 데이터를 <strong>상승(2) / 중립(1) / 하락(0)</strong>으로 분류하는 모델의
+        사용 방법을 설명합니다.
+    </p>
+    <p style="color:#475569; margin-top:-4px;">
+        ✅ CMA-ES + Walk-Forward 최적화로 튜닝된 최종 파라미터가 함수 내부에 기본값으로 포함되어 있어,
+        추가 튜닝 없이도 바로 실전 적용이 가능합니다.
+    </p>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 1. 함수 개요 -->
+    <!-- ============================================ -->
+    <h2>🧩 1. 함수 개요</h2>
+
+    <div class="code-block">
+        <span class="keyword">def</span> <span class="func">classify_with_our_model</span>(
+            df: pd.DataFrame,
+            alpha_up: float = <span class="string">0.497</span>,
+            alpha_down: float = <span class="string">0.395</span>,
+            beta_up: float = <span class="string">-0.414</span>,
+            beta_down: float = <span class="string">-0.033</span>,
+            vol_period: int = <span class="string">14</span>,
+            volume_period: int = <span class="string">20</span>,
+            up_thresh: float = <span class="string">0.0056</span>,
+            down_thresh: float = <span class="string">-0.0028</span>
+        ) -> pd.DataFrame:
+    </div>
+
+    <p>
+        OHLCV 데이터프레임을 입력받아, 내부적으로 ATR과 Log Relative Volume을 계산한 후
+        <strong>동적 기준선(Upper / Lower)</strong>을 생성하고,
+        종가가 어느 구간에 위치하는지에 따라 <strong>상승(2) / 중립(1) / 하락(0)</strong> 신호를 반환합니다.
+    </p>
+
+    <div class="note-box">
+        <strong>📌 핵심 포인트</strong><br>
+        • 이 함수는 <strong>단독으로도 완전한 분류기</strong>로 동작합니다.<br>
+        • 모든 파라미터는 KOSPI 200 데이터(2010~2024)에 대해 최적화된 <strong>최종 실전 값</strong>입니다.<br>
+        • 기본값 그대로 사용해도 좋으며, 다른 종목이나 주기에 맞춰 선택적으로 조정할 수 있습니다.
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 2. 입력 변수 (Input) -->
+    <!-- ============================================ -->
+    <h2>📥 2. 입력 변수 (Input)</h2>
+
+    <h3>필수 입력 – OHLCV 데이터프레임</h3>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:20%;">컬럼명</th>
+                <th style="width:25%;">데이터 타입</th>
+                <th>설명</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>open</code></td>
+                <td><span class="badge">float</span></td>
+                <td>당일 시가</td>
+            </tr>
+            <tr>
+                <td><code>high</code></td>
+                <td><span class="badge">float</span></td>
+                <td>당일 고가</td>
+            </tr>
+            <tr>
+                <td><code>low</code></td>
+                <td><span class="badge">float</span></td>
+                <td>당일 저가</td>
+            </tr>
+            <tr>
+                <td><code>close</code></td>
+                <td><span class="badge">float</span></td>
+                <td>당일 종가</td>
+            </tr>
+            <tr>
+                <td><code>volume</code></td>
+                <td><span class="badge">float / int</span></td>
+                <td>당일 거래량</td>
+            </tr>
+        </tbody>
+    </table>
+    <p style="font-size:0.9rem; color:#475569;">
+        ⚠️ 컬럼명은 반드시 위와 정확히 일치해야 합니다. (대소문자 구분)
+    </p>
+
+    <h3>선택 입력 – 튜닝 파라미터</h3>
+    <p>
+        아래 파라미터는 함수 호출 시 선택적으로 변경할 수 있습니다.
+        기본값은 KOSPI에 최적화된 최종 값입니다.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:22%;">파라미터명</th>
+                <th style="width:15%;">기본값</th>
+                <th>의미</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>alpha_up</code></td>
+                <td><span class="badge badge-purple">0.497</span></td>
+                <td>상승 기준선의 변동성 민감도 (클수록 기준선이 넓어짐)</td>
+            </tr>
+            <tr>
+                <td><code>alpha_down</code></td>
+                <td><span class="badge badge-purple">0.395</span></td>
+                <td>하락 기준선의 변동성 민감도</td>
+            </tr>
+            <tr>
+                <td><code>beta_up</code></td>
+                <td><span class="badge badge-purple">-0.414</span></td>
+                <td>상승 시 거래량 충격(Shock)에 대한 반응도</td>
+            </tr>
+            <tr>
+                <td><code>beta_down</code></td>
+                <td><span class="badge badge-purple">-0.033</span></td>
+                <td>하락 시 거래량 충격에 대한 반응도</td>
+            </tr>
+            <tr>
+                <td><code>vol_period</code></td>
+                <td><span class="badge badge-purple">14</span></td>
+                <td>ATR 계산 기간 (일봉 기준)</td>
+            </tr>
+            <tr>
+                <td><code>volume_period</code></td>
+                <td><span class="badge badge-purple">20</span></td>
+                <td>거래량 평균 계산 기간</td>
+            </tr>
+            <tr>
+                <td><code>up_thresh</code></td>
+                <td><span class="badge badge-purple">0.0056</span></td>
+                <td>상승 레이블 기준 수익률 (참고용, 내부 신호 생성에는 영향 없음)</td>
+            </tr>
+            <tr>
+                <td><code>down_thresh</code></td>
+                <td><span class="badge badge-purple">-0.0028</span></td>
+                <td>하락 레이블 기준 수익률 (참고용)</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="param-grid">
+        <div class="param-item">
+            <span class="name">📈 α_up = 0.497</span>
+            <span class="value">상승 기준선 1.49배</span>
+        </div>
+        <div class="param-item">
+            <span class="name">📉 α_down = 0.395</span>
+            <span class="value">하락 기준선 1.19배</span>
+        </div>
+        <div class="param-item">
+            <span class="name">📊 β_up = -0.414</span>
+            <span class="value">거래량 ↑ → 상승 기준선 ↓</span>
+        </div>
+        <div class="param-item">
+            <span class="name">📊 β_down = -0.033</span>
+            <span class="value">거래량 영향 거의 없음</span>
+        </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 3. 출력 변수 (Output) -->
+    <!-- ============================================ -->
+    <h2>📤 3. 출력 변수 (Output)</h2>
+
+    <p>
+        함수는 원본 데이터프레임에 아래 6개의 컬럼을 <strong>추가</strong>하여 반환합니다.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:18%;">컬럼명</th>
+                <th style="width:25%;">값의 범위</th>
+                <th>설명</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><code>base</code></td>
+                <td><span class="badge">float</span></td>
+                <td>중심선 (종가 20일 SMA)</td>
+            </tr>
+            <tr>
+                <td><code>upper</code></td>
+                <td><span class="badge">float</span></td>
+                <td>상승 기준선 (Base + Width_up)</td>
+            </tr>
+            <tr>
+                <td><code>lower</code></td>
+                <td><span class="badge">float</span></td>
+                <td>하락 기준선 (Base - Width_down)</td>
+            </tr>
+            <tr>
+                <td><code>signal</code></td>
+                <td>
+                    <span class="badge badge-green">2 (상승)</span><br>
+                    <span class="badge">1 (중립)</span><br>
+                    <span class="badge badge-red">0 (하락)</span>
+                </td>
+                <td><strong>최종 분류 결과</strong> (가장 중요한 컬럼)</td>
+            </tr>
+            <tr>
+                <td><code>position</code></td>
+                <td>
+                    <span class="badge badge-green">+1 (매수)</span><br>
+                    <span class="badge">0 (관망)</span><br>
+                    <span class="badge badge-red">-1 (매도)</span>
+                </td>
+                <td>신호를 포지션으로 변환한 값</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div style="background:#f1f5f9; border-radius:16px; padding:16px 22px; margin:12px 0;">
+        <strong>🎯 신호 판정 규칙</strong><br>
+        • <code>close > upper</code> → <strong>상승 (2)</strong><br>
+        • <code>lower ≤ close ≤ upper</code> → <strong>중립 (1)</strong><br>
+        • <code>close < lower</code> → <strong>하락 (0)</strong>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 4. 핵심 수식 (참고) -->
+    <!-- ============================================ -->
+    <h2>📐 4. 핵심 수식 (참고용)</h2>
+
+    <div class="code-block" style="background:#1e293b; color:#cbd5e1;">
+        <span class="comment"># 1) 중심선</span>
+        Base = SMA(Close, 20)
+
+        <span class="comment"># 2) 변동성</span>
+        ATR = ATR(High, Low, Close, 14)
+
+        <span class="comment"># 3) 거래량 충격 지수</span>
+        VolumeEffect = log( Volume / SMA(Volume, 20) )
+
+        <span class="comment"># 4) 기준선 폭 (선형 구조)</span>
+        Width_up   = ATR × max(0.05,  α_up + β_up × VolumeEffect)
+        Width_down = ATR × max(0.05,  α_down + β_down × VolumeEffect)
+
+        <span class="comment"># 5) 상승 / 하락 기준선</span>
+        Upper = Base + Width_up
+        Lower = Base - Width_down
+    </div>
+
+    <div class="note-box">
+        <strong>💡 exp()를 사용하지 않는 이유</strong><br>
+        기존 지수(exp) 구조는 α 값이 조금만 커져도 기준선이 기하급수적으로 벌어져 신호가 전멸했습니다.
+        반면, 현재의 <strong>선형 구조</strong>는 α=0.25일 때 약 10포인트(KOSPI 기준)로 현실적인 움직임을 포착할 수 있습니다.
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 5. 데이터 요구 사항 -->
+    <!-- ============================================ -->
+    <h2>📋 5. 데이터 요구 사항</h2>
+
+    <ul style="margin-left:20px; line-height:1.8; color:#334155;">
+        <li><strong>주기:</strong> 일봉(Daily) 데이터를 기본으로 설계되었습니다. (다른 주기 사용 시 파라미터 재튜닝 필요)</li>
+        <li><strong>최소 데이터 길이:</strong> 20일 이상 (SMA20, ATR14 계산을 위해)</li>
+        <li><strong>컬럼:</strong> <code>open</code>, <code>high</code>, <code>low</code>, <code>close</code>, <code>volume</code> (이름 정확히 일치)</li>
+        <li><strong>결측치:</strong> 함수 내부에서 rolling 계산 시 발생하는 초반 NaN은 자동으로 처리되나, 데이터 중간에 NaN이 있으면 결과가 왜곡될 수 있습니다.</li>
+    </ul>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 6. 자주 묻는 질문 (FAQ) -->
+    <!-- ============================================ -->
+    <h2>❓ 6. 자주 묻는 질문</h2>
+
+    <div style="margin: 12px 0 20px 0;">
+        <p><strong>Q1. 다른 종목(예: 삼성전자, 비트코인)에 바로 사용할 수 있나요?</strong><br>
+        네, OHLCV 데이터만 있으면 즉시 사용할 수 있습니다. 다만, 종목별 변동성(ATR)과 거래량 패턴이 다르므로 최적의 성능을 원한다면 α, β, Threshold를 해당 종목에 맞춰 재튜닝하는 것을 권장합니다.</p>
+
+        <p><strong>Q2. 기본 파라미터(α=0.497, β=-0.414)는 어떻게 도출되었나요?</strong><br>
+        KOSPI 200 지수(2010년 3월 ~ 2024년 8월, 총 3,553일)를 대상으로 CMA-ES 알고리즘과 143개의 Walk-Forward 폴드를 통해 Macro-F1을 최대화하는 방향으로 최적화되었습니다.</p>
+
+        <p><strong>Q3. 출력된 signal을 어떻게 매매에 활용하나요?</strong><br>
+        signal이 2(상승)이면 매수, 0(하락)이면 매도, 1(중립)이면 관망(포지션 0)으로 활용하면 됩니다. 단, Look-ahead Bias를 방지하기 위해 당일 종가 기준 생성된 신호는 익일 시가 또는 종가에 매매하는 것이 권장됩니다.</p>
+
+        <p><strong>Q4. 수익률이 나오지 않으면 파라미터를 어떻게 조정해야 하나요?</strong><br>
+        α는 기준선의 너비를 결정합니다. 변동성이 큰 종목이라면 α를 더 높게(예: 0.6~0.8), 변동성이 작다면 낮게(예: 0.2~0.3) 조정해보세요. β는 거래량의 영향을 조절합니다.</p>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- ============================================ -->
+    <!-- 7. 버전 및 문의 -->
+    <!-- ============================================ -->
+    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 16px; font-size:0.9rem; color:#64748b;">
+        <div>
+            <strong>📌 버전</strong> v1.0 (최종 실전 적용)<br>
+            <strong>📅 최종 업데이트</strong> 2026-09-05
+        </div>
+        <div style="text-align: right;">
+            <strong>📂 저장소</strong> github.com/Alpha_Stack
+        </div>
+    </div>
+
+</div>
+
+</body>
+</html>
