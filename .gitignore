@@ -35,6 +35,9 @@ venv/
 #    KRX 이용약관 제11조 ② 가 제3자 제공을 금지하므로 이 저장소(PUBLIC)에 올라가면 안 된다.
 data/*.db*
 data/*.sqlite*
+# 버튼 갱신(`pipelines/refresh.py`)이 두 번 눌려도 한 번만 돌게 잡는 자물쇠다.
+# 사람마다 자기 PC 에 생기는 것이고 내용이 없으므로 공유할 이유가 없다.
+data/*.lock
 data/raw/
 data/interim/
 data/processed/
