@@ -506,7 +506,7 @@ if __name__ == "__main__":
     df = df.sort_values("date").reset_index(drop=True)
 
     # 코스피 일때는 close, 종목일 때는 adj_close 사용
-    daily_returns = df["change_rate"].dropna().values / 100.0
+    daily_returns = df["close"].pct_change().dropna().values
 
     # ============================================================
     # 📌 [디버깅] 계산된 수익률의 기본 통계를 출력해 정상인지 확인

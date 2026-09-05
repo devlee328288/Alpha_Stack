@@ -61,7 +61,10 @@ def compute_natr(df: pd.DataFrame, period: int = 14) -> pd.Series:
 
 
 def compute_std_ret(df: pd.DataFrame, period: int = 20) -> pd.Series:
-    ret = df["close"].pct_change()
+    if 'code' in df.columns:
+        ret = df.groupby('code')['close'].pct_change()
+    else:
+        ret = df['close'].pct_change()
     return ret.rolling(period).std()
 
 

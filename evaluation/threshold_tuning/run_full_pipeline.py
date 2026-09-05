@@ -1,7 +1,13 @@
+import os
+import sys
 import warnings
 
 import numpy as np
 import step6_live_signal
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from evaluation_backtest import calculate_all_classification_metrics
 
 # ============================================================
 # 1. 필수 모듈 임포트 (core_features, step5, step6)
@@ -57,7 +63,10 @@ def run_full_pipeline():
     print(f"✅ 데이터 로드 완료: {df.shape[0]}일 ({df.index.min()} ~ {df.index.max()})")
 
     # 실제 레이블 생성 (평가용)
-    ret = df["close"].pct_change().values
+    if 'code' in df.columns:
+        ret = df.groupby('code')['close'].pct_change()
+    else:
+        ret = df['close'].pct_change()
     y_true = np.where(ret > 0.005, 2, np.where(ret < -0.003, 0, 1))
 
     # ---- 2) 5단계 실행 (6개 파라미터 CMA-ES Walk-Forward) ----
@@ -133,6 +142,74 @@ def run_full_pipeline():
     # 6-1) Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터 사용)
     df_signals_rolling = generate_signals_rolling(df, fold_details)
     perf_rolling = evaluate_signals(df_signals_rolling, y_true)
+
+    # ---- 3.6) QFRS 기반 통합 분류 성능 평가 (Proxy Probability 포함) ----
+    print("\n" + "=" * 70)
+    print("📊 [QFRS 기반 통합 분류 성능 평가] (PR-AUC 포함)")
+    print("=" * 70)
+
+    # Rolling 예측값과 실제 레이블 추출 (NaN 제외)
+    valid_mask = ~(np.isnan(df_signals_rolling["signal"].values) | np.isnan(y_true))
+    if valid_mask.sum() > 0:
+        y_true_valid = y_true[valid_mask].astype(int)
+        y_pred_valid = df_signals_rolling["signal"].values[valid_mask].astype(int)
+
+        # ===== 🆕 Proxy Probability 생성 (PR-AUC 계산용) =====
+        # Upper/Lower/Base까지의 거리를 기반으로 각 클래스(하락/중립/상승)에 대한 대리 확률을 생성합니다.
+        close = df_signals_rolling['close'].values[valid_mask]
+        upper = df_signals_rolling['upper'].values[valid_mask]
+        lower = df_signals_rolling['lower'].values[valid_mask]
+        base = df_signals_rolling['base'].values[valid_mask]
+
+        eps = 1e-6
+        dist_up = np.abs(close - upper)
+        dist_down = np.abs(close - lower)
+        dist_base = np.abs(close - base)
+
+        # 거리가 가까울수록 높은 점수 (역수)
+        score_up = 1 / (1 + dist_up)
+        score_down = 1 / (1 + dist_down)
+        score_base = 1 / (1 + dist_base)
+
+        # Softmax 변환 (3개 클래스 확률 합 = 1)
+        scores = np.stack([score_down, score_base, score_up], axis=1)
+        exp_scores = np.exp(scores)
+        y_pred_proba = exp_scores / np.sum(exp_scores, axis=1, keepdims=True)
+
+        # 🔥 레이블 매핑: threshold_tuning은 0=하락,1=중립,2=상승
+        label_map = {0: "하락", 1: "중립", 2: "상승"}
+        y_true_mapped = np.array([label_map[x] for x in y_true_valid])
+        y_pred_mapped = np.array([label_map[x] for x in y_pred_valid])
+        labels = ["하락", "중립", "상승"]
+
+        # 🔥 이제 y_pred_proba를 전달하여 PR-AUC까지 계산!
+        cls_results = calculate_all_classification_metrics(
+            y_true=y_true_mapped,
+            y_pred=y_pred_mapped,
+            y_pred_proba=y_pred_proba,  # <-- 확률값 전달!
+            labels=labels,
+        )
+
+        # 결과 출력
+        print("\n[Confusion Matrix]")
+        print(cls_results["Confusion Matrix"])
+
+        print(f"\nBalanced Accuracy : {cls_results['Balanced Accuracy']:.4f}")
+        print(f"Multiclass MCC    : {cls_results['Multiclass MCC']:.4f}")
+
+        # 🔥 PR-AUC 관련 지표 출력 (Macro Average Precision / Binary PR-AUC)
+        if "Macro Average Precision" in cls_results and not np.isnan(cls_results["Macro Average Precision"]):
+            print(f"Macro Avg Precision (PR-AUC OVR) : {cls_results['Macro Average Precision']:.4f}")
+
+        if "Binary PR-AUC (AP)" in cls_results and not np.isnan(cls_results["Binary PR-AUC (AP)"]):
+            print(f"Binary PR-AUC (AP) (상승 vs 비상승) : {cls_results['Binary PR-AUC (AP)']:.4f}")
+
+        print("\n[실제 Class Distribution]")
+        for cls, ratio in cls_results["Class Distribution"].items():
+            print(f"  {cls} : {ratio:.2%}")
+
+    else:
+        print("⚠️ 유효한 예측값이 없어 평가를 수행할 수 없습니다.")
 
     # ---- 3.5) 상세 분류 성능 분석 (Confusion Matrix / Per-class metrics) ----
     print("\n" + "=" * 70)

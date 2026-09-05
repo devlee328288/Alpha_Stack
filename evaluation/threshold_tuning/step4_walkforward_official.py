@@ -233,7 +233,10 @@ def run_walkforward_official(
             )
 
         # 전략 수익률 (Look-ahead 방지)
-        market_ret = df_val["close"].pct_change().values
+        if 'code' in df_val.columns:
+            market_ret = df_val.groupby('code')['close'].pct_change().values
+        else:
+            market_ret = df_val['close'].pct_change().values
         pos_shifted = np.roll(positions, 1)
         pos_shifted[0] = 0
         strategy_ret = pos_shifted * market_ret

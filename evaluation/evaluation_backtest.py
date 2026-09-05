@@ -831,6 +831,60 @@ def mcc_multiclass(
     )
 
 
+def binary_pr_auc(
+    y_true: np.ndarray,
+    y_pred_proba: np.ndarray,
+) -> float:
+    """
+    Binary PR-AUC (Precision-Recall Area Under the Curve) - 계단식(AP) 방식
+
+    ------------------------------------------------------------
+    [의미]
+    ------------------------------------------------------------
+    이진 분류에서 Precision-Recall 곡선 아래 면적을 계산합니다.
+    문서의 '실무 표준 계산 수식 (Average Precision - AP)' 방식을 사용합니다.
+
+    AP = Σ_n (Recall_n - Recall_{n-1}) × Precision_n
+    (각 구간의 오른쪽 Precision 값을 가중치로 사용하는 계단식 방식)
+
+    sklearn의 average_precision_score와 동일한 계산 방식입니다.
+
+
+    [입력]
+    y_true
+        실제 이진 레이블 (0 또는 1)
+
+    y_pred_proba
+        양성(1) 클래스에 대한 예측 확률 (1차원 배열)
+
+
+    [출력]
+    float
+        PR-AUC (0~1, 단 무작위 기준선은 양성 비율)
+    ------------------------------------------------------------
+    """
+    y_true = np.asarray(y_true, dtype=int)
+    y_pred_proba = np.asarray(y_pred_proba, dtype=float)
+
+    _validate_same_length(y_true, y_pred_proba, "y_true", "y_pred_proba")
+    _validate_non_empty(y_true, "y_true")
+
+    # 양성 클래스가 하나도 없으면 계산 불가
+    if np.sum(y_true == 1) == 0:
+        return np.nan
+
+    # 유효한 값만 사용
+    valid = np.isfinite(y_true) & np.isfinite(y_pred_proba)
+    y_true = y_true[valid]
+    y_pred_proba = y_pred_proba[valid]
+
+    if len(y_true) == 0:
+        return np.nan
+
+    # sklearn의 average_precision_score 사용 (계단식 AP 방식)
+    return float(average_precision_score(y_true, y_pred_proba))
+
+
 def macro_average_precision(
     y_true: np.ndarray,
     y_pred_proba: np.ndarray,
@@ -1258,6 +1312,22 @@ def calculate_all_classification_metrics(
             labels,
         )
 
+        if len(labels) == 2:
+            # 양성 클래스의 인덱스 찾기 (보통 labels[1]이 양성)
+            # labels가 문자열이면 매핑 필요
+            positive_label = labels[1]
+            y_true_binary = (y_true == positive_label).astype(int)
+            y_pred_proba_binary = y_pred_proba[:, 1]  # 양성 클래스 확률 열
+
+            results["Binary PR-AUC (AP)"] = binary_pr_auc(
+                y_true_binary,
+                y_pred_proba_binary,
+            )
+        else:
+            # 다중 클래스일 경우 One-vs-Rest PR-AUC를 계산할 수도 있음
+            # 여기서는 간단히 생략하고 'Multi-class PR-AUC'를 별도로 계산하려면 확장 필요
+            results["Binary PR-AUC (AP)"] = np.nan
+
     return results
 
 
@@ -1582,14 +1652,18 @@ if __name__ == "__main__":
         f"{cls_results['Multiclass MCC']:.6f}"
     )
 
-    if (
-        "Macro Average Precision"
-        in cls_results
-    ):
+    if "Macro Average Precision" in cls_results:
+        pr_auc_value = cls_results["Macro Average Precision"]
         print(
-            f"Macro Average Precision : "
-            f"{cls_results['Macro Average Precision']:.6f}"
+            f"PR-AUC (Macro OVR) : "
+            f"{pr_auc_value:.6f}"
         )
+
+        # 이진 분류인 경우 추가로 Binary PR-AUC 출력
+        if "Binary PR-AUC (AP)" in cls_results:
+            binary_pr_auc = cls_results["Binary PR-AUC (AP)"]
+            if not np.isnan(binary_pr_auc):
+                print(f"Binary PR-AUC (AP) : {binary_pr_auc:.6f}")
 
     print("\n실제 Class Distribution:")
 
