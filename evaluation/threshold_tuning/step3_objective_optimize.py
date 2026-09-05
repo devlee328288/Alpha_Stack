@@ -70,7 +70,11 @@ def objective(params, df_train, md_threshold=0.20, lambda_mdd=2.0):
     alpha_up, alpha_down, beta_up, beta_down = params
 
     positions = get_positions(df_train, alpha_up, alpha_down, beta_up, beta_down)
-    market_ret = df_train["close"].pct_change().values
+
+    if 'code' in df_train.columns:
+        market_ret = df_train.groupby('code')['close'].pct_change().values
+    else:
+        market_ret = df_train['close'].pct_change().values
 
     pos_shifted = np.roll(positions, 1)
     pos_shifted[0] = 0
@@ -119,7 +123,11 @@ def evaluate_oos(df_oos, params):
     positions = np.where(y_pred == 2, 1, np.where(y_pred == 0, -1, 0))
 
     # 수익률 기반 지표
-    market_ret = df_oos["close"].pct_change().values
+    if 'code' in df_oos.columns:
+        market_ret = df_oos.groupby('code')['close'].pct_change().values
+    else:
+        market_ret = df_oos['close'].pct_change().values
+    
     pos_shifted = np.roll(positions, 1)
     pos_shifted[0] = 0
     strategy_ret = pos_shifted * market_ret
@@ -139,10 +147,13 @@ def evaluate_oos(df_oos, params):
         map_dict = {"상승": 2, "중립": 1, "하락": 0}
         y_true = np.array([map_dict.get(x, 1) for x in raw_labels], dtype=np.float64)
     else:
-        ret = df_oos["close"].pct_change().values
-        y_true = np.where(ret > 0.005, 2, np.where(ret < -0.005, 0, 1)).astype(
-            np.float64
-        )
+        if 'code' in df_oos.columns:
+            ret = df_oos.groupby('code')['close'].pct_change().values
+        else:
+            ret = df_oos['close'].pct_change().values
+        
+        # 수익률에 따른 레이블링 (상승: +0.5% 이상, 하락: -0.5% 이하, 중립: 그 외)
+        y_true = np.where(ret > 0.005, 2, np.where(ret < -0.005, 0, 1)).astype(np.float64)
 
     # y_pred도 NumPy로 보장 (이미 np.ndarray)
     y_pred = np.array(y_pred, dtype=np.float64)

@@ -184,7 +184,10 @@ def run_walkforward_optimization(
 
         # 전략 수익률
         position_val = np.where(y_pred_val == 2, 1, np.where(y_pred_val == 0, -1, 0))
-        market_ret_val = df_val["close"].pct_change().values
+        if 'code' in df.columns:
+            market_ret_val = df.groupby('code')['close'].pct_change()
+        else:
+            market_ret_val = df['close'].pct_change()
         pos_shifted_val = np.roll(position_val, 1)
         pos_shifted_val[0] = 0
         strat_ret_val = pos_shifted_val * market_ret_val
