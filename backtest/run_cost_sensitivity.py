@@ -1,22 +1,18 @@
+import warnings
+
+import numpy as np
+import pandas as pd
+from backtest_strategies import load_data, predict_5d_after, run_backtest
+from datasets import Dataset
+
+warnings.filterwarnings("ignore")
+
 # backtest/run_cost_sensitivity.py
 """
 거래비용 민감도 분석 (Cost Sensitivity Analysis)
 - 동일한 전략(A/B/C)을 4가지 왕복비용으로 각각 백테스트
 - 결과를 Hugging Face Dataset으로 업로드
 """
-
-import warnings
-
-import numpy as np
-import pandas as pd
-
-warnings.filterwarnings("ignore")
-
-# 1) 기존 백테스트 엔진 가져오기
-from backtest_strategies import load_data, predict_5d_after, run_backtest
-
-# 2) Hugging Face datasets
-from datasets import Dataset
 
 # 3) 비용 사전 정의 (이미지 기준)
 COST_PRESETS = {
@@ -174,7 +170,8 @@ def run_cost_sensitivity():
         sub = df_results[df_results["strategy"] == strategy].sort_values("cost_rate")
         for _, row in sub.iterrows():
             print(
-                f"  {row['cost_label']:>20} : Sharpe {row['sharpe_ratio']:.3f}  |  MDD {row['max_drawdown']*100:.2f}%  |  수익률 {row['total_return']*100:.2f}%"
+                f"  {row['cost_label']:>20} : Sharpe {row['sharpe_ratio']:.3f}  "
+                f"|  MDD {row['max_drawdown']*100:.2f}%  |  수익률 {row['total_return']*100:.2f}%"
             )
         bep = df_bep[df_bep["strategy"] == strategy]["breakeven_cost"].values[0]
         print(f"  👉 손익분기 왕복비용: {bep*100:.2f}% (Sharpe=0)")

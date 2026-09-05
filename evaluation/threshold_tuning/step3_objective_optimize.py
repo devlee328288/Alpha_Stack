@@ -2,10 +2,10 @@ import cma
 import numpy as np
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, f1_score
-from tqdm import tqdm
 
 # 기존 피처 모듈 임포트
 from step1_core_features import compute_bands, load_data
+from tqdm import tqdm
 
 
 # ============================================================
@@ -156,7 +156,7 @@ def evaluate_oos(df_oos, params):
         perf["balanced_acc"] = balanced_accuracy_score(y_true_clean, y_pred_clean)
 
         unique, counts = np.unique(y_pred_clean, return_counts=True)
-        class_ratio = dict(zip(unique, counts / len(y_pred_clean)))
+        class_ratio = dict(zip(unique, counts / len(y_pred_clean), strict=False))
         perf["ratio_up"] = class_ratio.get(2, 0.0)
         perf["ratio_neutral"] = class_ratio.get(1, 0.0)
         perf["ratio_down"] = class_ratio.get(0, 0.0)
@@ -204,9 +204,8 @@ def run_walkforward_optimization(
         bounds_low = [0.5, 0.5, -1.5, -1.5]
         bounds_high = [3.0, 3.0, 1.5, 1.5]
 
-        obj_func = lambda p: objective(
-            p, df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd
-        )
+        def obj_func(p, df_train=df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd):
+            return objective(p, df_train, md_threshold=md_threshold, lambda_mdd=lambda_mdd)
 
         es = cma.CMAEvolutionStrategy(
             x0,
@@ -256,7 +255,8 @@ def run_walkforward_optimization(
         )
 
         print(
-            f"✅ 폴드 완료 | OOS Sharpe: {oos_metrics.get('sharpe', 0):.3f} | OOS MDD: {oos_metrics.get('mdd', 0):.3f}"
+            f"✅ 폴드 완료 | OOS Sharpe: {oos_metrics.get('sharpe', 0):.3f} | "
+            f"OOS MDD: {oos_metrics.get('mdd', 0):.3f}"
         )
 
     return pd.DataFrame(results)
@@ -305,13 +305,16 @@ if __name__ == "__main__":
     # 최고 OOS Sharpe 폴드
     best_idx = result_df["oos_sharpe"].idxmax()
     print(
-        f"\n🏆 최고 OOS Sharpe 폴드 ({result_df.loc[best_idx, 'val_start']}~{result_df.loc[best_idx, 'val_end']}):"
+        f"\n🏆 최고 OOS Sharpe 폴드 ({result_df.loc[best_idx, 'val_start']}"
+        f"~{result_df.loc[best_idx, 'val_end']}):"
     )
     print(
-        f"   α_up={result_df.loc[best_idx, 'alpha_up']:.4f}, α_down={result_df.loc[best_idx, 'alpha_down']:.4f}"
+        f"   α_up={result_df.loc[best_idx, 'alpha_up']:.4f}, "
+        f"α_down={result_df.loc[best_idx, 'alpha_down']:.4f}"
     )
     print(
-        f"   β_up={result_df.loc[best_idx, 'beta_up']:.4f}, β_down={result_df.loc[best_idx, 'beta_down']:.4f}"
+        f"   β_up={result_df.loc[best_idx, 'beta_up']:.4f}, "
+        f"β_down={result_df.loc[best_idx, 'beta_down']:.4f}"
     )
 
     print("\n✅ 3단계 최적화 완료!")

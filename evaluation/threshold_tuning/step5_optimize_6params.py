@@ -4,11 +4,10 @@ import cma
 import numpy as np
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, f1_score
+from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
-
-from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 
 
 # ============================================================
@@ -234,7 +233,8 @@ def run_walkforward_6params(
 
         x0 = np.clip(x0, bounds_low, bounds_high).tolist()
 
-        obj_func = lambda p: objective_6params(p, df_train)
+        def obj_func(p, df_train=df_train):
+            return objective_6params(p, df_train)
 
         es = cma.CMAEvolutionStrategy(
             x0,
@@ -265,7 +265,10 @@ def run_walkforward_6params(
 
         # ---- OOS 적용 (Lookback이 포함된 df_calc에 계산 후 OOS만 슬라이싱) ----
         positions_full, preds_full = get_positions_6params(
-            df_calc, alpha_up, alpha_down, beta_up, beta_down, vol_period, volume_period
+            df_calc,
+            alpha_up, alpha_down,
+            beta_up, beta_down,
+            vol_period, volume_period
         )
 
         # OOS 시작 위치에 맞게 자르기
@@ -327,7 +330,8 @@ def run_walkforward_6params(
 
         if total_folds % 10 == 0:
             print(
-                f"   → {total_folds}개 폴드 완료 (현재 OOS: {df.index[val_end-1].strftime('%Y-%m-%d')})"
+                f"   → {total_folds}개 폴드 완료 "
+                f"(현재 OOS: {df.index[val_end-1].strftime('%Y-%m-%d')})"
             )
 
     # ---- 연결된 OOS 최종 평가 ----
@@ -342,7 +346,7 @@ def run_walkforward_6params(
         cls_metrics["f1_macro"] = f1_score(y_true_arr, y_pred_arr, average="macro")
         cls_metrics["balanced_acc"] = balanced_accuracy_score(y_true_arr, y_pred_arr)
         unique, counts = np.unique(y_pred_arr, return_counts=True)
-        ratio_dict = dict(zip(unique, counts / len(y_pred_arr)))
+        ratio_dict = dict(zip(unique, counts / len(y_pred_arr), strict=False))
         cls_metrics["ratio_up"] = ratio_dict.get(2, 0.0)
         cls_metrics["ratio_neutral"] = ratio_dict.get(1, 0.0)
         cls_metrics["ratio_down"] = ratio_dict.get(0, 0.0)

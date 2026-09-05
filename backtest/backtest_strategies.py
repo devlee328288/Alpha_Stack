@@ -1,3 +1,13 @@
+import warnings
+from typing import Callable, Dict
+
+import numpy as np
+import pandas as pd
+from datasets import Dataset
+from huggingface_hub import hf_hub_download
+
+warnings.filterwarnings("ignore")
+
 # backtest.py
 # ============================================================
 # KRX 실제 데이터 + 가상 예측(랜덤)을 이용한
@@ -59,18 +69,6 @@
 # 최소 투자비중: 0%
 #
 # ============================================================
-
-
-import warnings
-from typing import Callable, Dict
-
-import numpy as np
-import pandas as pd
-from datasets import Dataset
-
-warnings.filterwarnings("ignore")
-
-from huggingface_hub import hf_hub_download
 
 # ============================================================
 # 0. 데이터 로드

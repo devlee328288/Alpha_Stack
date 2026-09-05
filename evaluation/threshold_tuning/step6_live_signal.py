@@ -1,16 +1,13 @@
-import warnings
 import os
-import sys
+import warnings
 
 import numpy as np
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, f1_score
+from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
-
-from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
-
 
 # ============================================================
 # 0. 기준선 계산
@@ -124,7 +121,7 @@ def generate_signals_rolling(
     # 각 폴드의 인덱스 위치를 미리 계산 (성능 최적화)
     date_to_idx = {date: i for i, date in enumerate(df.index)}
 
-    for idx, row in tqdm(
+    for _idx, row in tqdm(
         fold_details.iterrows(), total=len(fold_details), desc="OOS 구간 적용"
     ):
         val_start = row["val_start"]
@@ -284,7 +281,7 @@ def evaluate_signals(
             cls["f1_macro"] = f1_score(y_true_clean, y_pred, average="macro")
             cls["balanced_acc"] = balanced_accuracy_score(y_true_clean, y_pred)
             unique, counts = np.unique(y_pred, return_counts=True)
-            ratio_dict = dict(zip(unique, counts / len(y_pred)))
+            ratio_dict = dict(zip(unique, counts / len(y_pred),strict=False))
             cls["ratio_up"] = ratio_dict.get(2, 0.0)
             cls["ratio_neutral"] = ratio_dict.get(1, 0.0)
             cls["ratio_down"] = ratio_dict.get(0, 0.0)
@@ -430,7 +427,9 @@ if __name__ == "__main__":
         diff = v1 - v2 if not np.isnan(v1) and not np.isnan(v2) else np.nan
         fmt = "{:.4f}" if m not in ["cagr", "win_rate"] else "{:.4%}"
         print(
-            f"{m:<20} {fmt.format(v1) if not np.isnan(v1) else 'NaN':<15} {fmt.format(v2) if not np.isnan(v2) else 'NaN':<15} {fmt.format(diff) if not np.isnan(diff) else 'NaN':<15}"
+            f"{m:<20} {fmt.format(v1) if not np.isnan(v1) else 'NaN':<15} "
+            f"{fmt.format(v2) if not np.isnan(v2) else 'NaN':<15} "
+            f"{fmt.format(diff) if not np.isnan(diff) else 'NaN':<15}"
         )
 
     print("\n" + "=" * 60)

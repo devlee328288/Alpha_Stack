@@ -2,10 +2,10 @@ import cma
 import numpy as np
 import pandas as pd
 from sklearn.metrics import balanced_accuracy_score, f1_score
-from tqdm import tqdm
 
 # 기존 피처 모듈 (compute_bands, load_data) - 실제 환경에 맞게 임포트
 from step1_core_features import compute_bands, load_data
+from tqdm import tqdm
 
 
 # ============================================================
@@ -134,7 +134,6 @@ def run_walkforward_optimization(
         df_train = df.iloc[start:train_end]
         df_val = df.iloc[train_end:val_end]
 
-        y_train = np.array(y_true_all[start:train_end], dtype=np.float64)
         y_val = np.array(y_true_all[train_end:val_end], dtype=np.float64)
 
         # CMA-ES 설정
