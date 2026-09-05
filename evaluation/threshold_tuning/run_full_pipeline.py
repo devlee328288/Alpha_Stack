@@ -1,3 +1,20 @@
+import warnings
+
+import numpy as np
+import step6_live_signal
+
+# ============================================================
+# 1. 필수 모듈 임포트 (core_features, step5, step6)
+# ============================================================
+from step1_core_features import load_data
+from step5_optimize_6params import run_walkforward_6params
+from step6_live_signal import (
+    evaluate_signals,
+    generate_signals_rolling,
+    generate_signals_single,
+)
+
+warnings.filterwarnings("ignore")
 """
 ============================================================
 🚀 KOSPI 동적 기준선(상승/중립/하락) Full Pipeline 실행기
@@ -10,15 +27,7 @@ Usage:
 ============================================================
 """
 
-import step6_live_signal
-
 print(f"🔥 step6 파일 경로: {step6_live_signal.__file__}")
-
-import warnings
-
-import numpy as np
-
-warnings.filterwarnings("ignore")
 
 # ============================================================
 # 0. 설정 (Configuration)
@@ -33,18 +42,6 @@ VAL_MONTHS = 3
 STEP_MONTHS = 1
 MD_THRESHOLD = 0.20  # 허용 MDD 20%
 LAMBDA_MDD = 0.5  # MDD 패널티 강도
-
-# ============================================================
-# 1. 필수 모듈 임포트 (core_features, step5, step6)
-# ============================================================
-from step1_core_features import load_data
-from step5_optimize_6params import run_walkforward_6params
-from step6_live_signal import (
-    evaluate_signals,
-    generate_signals_rolling,
-    generate_signals_single,
-)
-
 
 # ============================================================
 # 2. 메인 파이프라인 실행 함수
@@ -102,18 +99,23 @@ def run_full_pipeline():
     print("\n" + "=" * 70)
     print("📊 [Rolling 파라미터 실태 진단 (143개 폴드 평균)]")
     print("=" * 70)
-    print(
-        f"   α_up  : 평균={fold_details['alpha_up'].mean():.3f}, 최대={fold_details['alpha_up'].max():.3f}"
-    )
-    print(
-        f"   α_down: 평균={fold_details['alpha_down'].mean():.3f}, 최대={fold_details['alpha_down'].max():.3f}"
-    )
-    print(
-        f"   β_up  : 평균={fold_details['beta_up'].mean():.3f}, 최대={fold_details['beta_up'].max():.3f}"
-    )
-    print(
-        f"   β_down: 평균={fold_details['beta_down'].mean():.3f}, 최대={fold_details['beta_down'].max():.3f}"
-    )
+
+    alpha_up_mean = fold_details['alpha_up'].mean()
+    alpha_up_max = fold_details['alpha_up'].max()
+    print(f"   α_up  : 평균={alpha_up_mean:.3f}, 최대={alpha_up_max:.3f}")
+
+    alpha_down_mean = fold_details['alpha_down'].mean()
+    alpha_down_max = fold_details['alpha_down'].max()
+    print(f"   α_down  : 평균={alpha_down_mean:.3f}, 최대={alpha_down_max:.3f}")
+
+    beta_up_mean = fold_details['beta_up'].mean()
+    beta_up_max = fold_details['beta_up'].max()
+    print(f"   β_up  : 평균={beta_up_mean:.3f}, 최대={beta_up_max:.3f}")
+
+    beta_down_mean = fold_details['beta_down'].mean()
+    beta_down_max = fold_details['beta_down'].max()
+    print(f"   β_down  : 평균={beta_down_mean:.3f}, 최대={beta_down_max:.3f}")
+
     print(f"   Vol_Period  : 중앙값={int(fold_details['vol_period'].median())}일")
     print(f"   Volume_Period: 중앙값={int(fold_details['volume_period'].median())}일")
     print("=" * 70)
@@ -136,15 +138,15 @@ def run_full_pipeline():
     print("\n" + "=" * 70)
     print("📊 [상세 분류 성능] Rolling 예측 vs 실제 레이블")
     print("=" * 70)
-    
+
     from sklearn.metrics import classification_report, confusion_matrix
-    
+
     # Rolling 신호에 대한 유효 마스크 (NaN 제외)
     valid_mask = ~(np.isnan(df_signals_rolling["signal"].values) | np.isnan(y_true))
     if valid_mask.sum() > 0:
         y_true_valid = y_true[valid_mask].astype(int)
         y_pred_valid = df_signals_rolling["signal"].values[valid_mask].astype(int)
-        
+
         # 1) 혼동 행렬 (Confusion Matrix)
         cm = confusion_matrix(y_true_valid, y_pred_valid, labels=[0, 1, 2])
         print("\n[혼동 행렬 (Confusion Matrix)]")
@@ -153,17 +155,20 @@ def run_full_pipeline():
         print(f"실제 하락(0)     {cm[0][0]:>6}      {cm[0][1]:>6}      {cm[0][2]:>6}")
         print(f"실제 중립(1)     {cm[1][0]:>6}      {cm[1][1]:>6}      {cm[1][2]:>6}")
         print(f"실제 상승(2)     {cm[2][0]:>6}      {cm[2][1]:>6}      {cm[2][2]:>6}")
-        
+
         # 2) 클래스별 Precision / Recall / F1
         print("\n[클래스별 성능 리포트 (Precision / Recall / F1-score)]")
         target_names = ['하락 (0)', '중립 (1)', '상승 (2)']
-        print(classification_report(y_true_valid, y_pred_valid, target_names=target_names, digits=4))
-        
+        print(classification_report(y_true_valid, y_pred_valid,
+                                    target_names=target_names,
+                                    digits=4
+                                    ))
+
         # 3) 전체 정확도 (Accuracy)
         from sklearn.metrics import accuracy_score
         acc = accuracy_score(y_true_valid, y_pred_valid)
         print(f"\n✅ 전체 정확도 (Accuracy): {acc:.4f} ({acc*100:.2f}%)")
-        
+
     else:
         print("⚠️ 유효한 예측값이 없어 분류 성능을 출력할 수 없습니다.")
 
@@ -256,7 +261,8 @@ def run_full_pipeline():
         f"   → β_up={median_params['beta_up']:.3f}, β_down={median_params['beta_down']:.3f}"
     )
     print(
-        f"   → Vol_Period={median_params['vol_period']}일, Volume_Period={median_params['volume_period']}일"
+        f"   → Vol_Period={median_params['vol_period']}일, "
+        f"Volume_Period={median_params['volume_period']}일"
     )
     print(f"   → Median OOS Sharpe: {perf_median['sharpe']:.4f}")
 
@@ -268,12 +274,12 @@ def run_full_pipeline():
         )
     else:
         print(
-            "   ⚠️ Median 파라미터가 Rolling보다 우수합니다. 과적합 가능성이 있으므로 파라미터 업데이트 주기를 늘려보세요."
+            "   ⚠️ Median 파라미터가 Rolling보다 우수합니다. 과적합 가능성이 있습니다."
         )
 
     if perf_rolling.get("ratio_neutral", 0) < 0.15:
         print(
-            "   ⚠️ 중립 비율이 15% 미만으로 너무 낮습니다. 기준선이 과도하게 좁아 매매가 잦을 수 있습니다."
+            "   ⚠️ 중립 비율이 15% 미만으로 낮습니다. 기준선이 좁아 매매가 잦을 수 있습니다."
         )
     elif perf_rolling.get("ratio_neutral", 0) > 0.60:
         print(
