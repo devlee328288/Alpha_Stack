@@ -138,7 +138,7 @@ def objective_6params(
 ) -> float:
     """
     🔥 수정됨: 8개 파라미터 + 중립 Recall 패널티
-    params = [alpha_up, alpha_down, beta_up, beta_down, 
+    params = [alpha_up, alpha_down, beta_up, beta_down,
               vol_period, volume_period, up_threshold, down_threshold]
     목표: Macro-F1 최대화 + 중립 Recall 최소 25% 보장
     """
@@ -226,7 +226,10 @@ def run_walkforward_6params(
     print(f"📅 전체 데이터: {total_len}일")
     print(f"📐 학습: {train_days}일, 검증: {val_days}일, 이동: {step_days}일")
     print(f"📦 지표 계산용 Lookback: {LOOKBACK_DAYS}일 (OOS 이전 데이터 포함)")
-    print("🔍 최적화 파라미터: α_up, α_down, β_up, β_down, Vol_Period, Volume_Period, Up_Thresh, Down_Thresh")
+    print(
+    "🔍 최적화 파라미터: α_up, α_down, β_up, β_down, "
+    "Vol_Period, Volume_Period, Up_Thresh, Down_Thresh"
+)
 
     all_oos_returns = []
     all_oos_y_true = []

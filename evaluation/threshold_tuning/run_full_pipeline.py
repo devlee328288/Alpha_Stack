@@ -155,13 +155,13 @@ def run_full_pipeline():
         y_pred_valid = df_signals_rolling["signal"].values[valid_mask].astype(int)
 
         # ===== 🆕 Proxy Probability 생성 (PR-AUC 계산용) =====
-        # Upper/Lower/Base까지의 거리를 기반으로 각 클래스(하락/중립/상승)에 대한 대리 확률을 생성합니다.
+        # Upper/Lower/Base까지의 거리 기반 각 클래스에 대한 대리 확률을 생성합니다.
         close = df_signals_rolling['close'].values[valid_mask]
         upper = df_signals_rolling['upper'].values[valid_mask]
         lower = df_signals_rolling['lower'].values[valid_mask]
         base = df_signals_rolling['base'].values[valid_mask]
 
-        eps = 1e-6
+        _eps = 1e-6
         dist_up = np.abs(close - upper)
         dist_down = np.abs(close - lower)
         dist_base = np.abs(close - base)
@@ -198,8 +198,9 @@ def run_full_pipeline():
         print(f"Multiclass MCC    : {cls_results['Multiclass MCC']:.4f}")
 
         # 🔥 PR-AUC 관련 지표 출력 (Macro Average Precision / Binary PR-AUC)
-        if "Macro Average Precision" in cls_results and not np.isnan(cls_results["Macro Average Precision"]):
-            print(f"Macro Avg Precision (PR-AUC OVR) : {cls_results['Macro Average Precision']:.4f}")
+        macro_key = "Macro Average Precision"
+        if macro_key in cls_results and not np.isnan(cls_results[macro_key]):
+            print(f"Macro Avg Precision (PR-AUC OVR) : {cls_results[macro_key]:.4f}")
 
         if "Binary PR-AUC (AP)" in cls_results and not np.isnan(cls_results["Binary PR-AUC (AP)"]):
             print(f"Binary PR-AUC (AP) (상승 vs 비상승) : {cls_results['Binary PR-AUC (AP)']:.4f}")

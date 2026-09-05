@@ -127,7 +127,7 @@ def evaluate_oos(df_oos, params):
         market_ret = df_oos.groupby('code')['close'].pct_change().values
     else:
         market_ret = df_oos['close'].pct_change().values
-    
+
     pos_shifted = np.roll(positions, 1)
     pos_shifted[0] = 0
     strategy_ret = pos_shifted * market_ret
@@ -151,7 +151,7 @@ def evaluate_oos(df_oos, params):
             ret = df_oos.groupby('code')['close'].pct_change().values
         else:
             ret = df_oos['close'].pct_change().values
-        
+
         # 수익률에 따른 레이블링 (상승: +0.5% 이상, 하락: -0.5% 이하, 중립: 그 외)
         y_true = np.where(ret > 0.005, 2, np.where(ret < -0.005, 0, 1)).astype(np.float64)
 
