@@ -49,6 +49,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
@@ -57,6 +58,17 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+
+from supply.sector import attach_industry  # noqa: E402
+
+
+def 오늘_as_of() -> str:
+    """업종 스냅샷을 어느 시점 기준으로 볼 것인가 — 반출과 같은 값을 쓴다.
+
+    `export_team_dataset.py` 가 `datetime.now()` 를 쓰므로 여기도 같다. 스냅샷은
+    사람이 손으로 받은 것이라 오늘 이후로 늘지 않고, 두 쪽이 같은 날 돌면 같은 결과다.
+    """
+    return datetime.now().strftime("%Y%m%d")
 
 DEFAULT_REPO = "qurious-quant/alphastack-krx-dev"
 
@@ -311,6 +323,11 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
             db = pd.read_sql_query(
                 "SELECT * FROM daily_price WHERE bas_dd BETWEEN ? AND ?",
                 conn, params=(lo, hi))
+        # 🔴 업종 세 칸은 `daily_price` 에 없다 — 반출이 업종 스냅샷에서 붙인다.
+        #    여기서 같은 규칙으로 붙이지 않으면 "칸 구성이 다르다" 로 영원히 붉다.
+        #    2026-09-05 에 실제로 겪었다: 업종 칸을 올리고 나서도 재배포 필요가
+        #    나왔는데, 원인은 배포본이 아니라 **판정기가 반출을 안 따라간 것**이었다.
+        db = attach_industry(db, as_of=오늘_as_of())
         총 += len(hf)
         모두 &= compare_frames(hf, db, ["bas_dd", "code"], f"{year}년")["같다"]
         del hf, db
