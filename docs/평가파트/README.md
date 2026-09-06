@@ -9,7 +9,7 @@
 
 | 버전 | 날짜 | 무엇이 담겼나 |
 |---|---|---|
-| [**version1.1**](version1.1/) ⭐ | 2026-09-06 | [동적 기준선 · ARIMA 동반 · 백테스트 원장](version1.1/동적기준선_ARIMA동반_백테스트원장.md) — 🆕 **ARIMA 가 워크포워드 안에서 같이 채점**(step5 · 143폴드 평균 39.85% · PR #130) · 🆕 **원장에 되먹임 칸 9개**(`signal_log` 8→17 · `trade_log` 14→23 · `predict_5d_after` 가 확률 3칸까지 · PR #131) · 🔴 **원장은 아직 HF 에 없다**(코드만) · 🔴 **한 표에 폴드 체계가 둘**(expanding 12 · gap 5 vs sliding 143 · gap 0)·라벨 지평이 둘(5일 ±1.0% vs 1일 +0.5/−0.3) → [#133](https://github.com/devlee328288/Alpha_Stack/issues/133) 회의 안건 · 시도 횟수 계측은 아직 없음(`trials.jsonl` 0바이트 · 상한이 21,450 이 아니라 코드로는 42,900) · ruff 26 → 3 ([변경사항](version1.1/변경사항.md)) |
+| [**version1.1**](version1.1/) ⭐ | 2026-09-06 | [동적 기준선 · ARIMA 동반 · 백테스트 원장](version1.1/동적기준선_ARIMA동반_백테스트원장.md) — 🆕 **ARIMA 가 워크포워드 안에서 같이 채점**(step5 · 143폴드 평균 39.85% · PR #130) · 🆕 **원장에 되먹임 칸 9개**(`signal_log` 8→17 · `trade_log` 13→22 · `predict_5d_after` 가 확률 3칸까지 · PR #131 · 칸 수는 실행으로 셈) · 🔴 **원장은 아직 HF 에 없다**(코드만) · 🔴 **한 표에 폴드 체계가 둘**(expanding 12 · gap 5 vs sliding 143 · gap 0)·라벨 지평이 둘(5일 ±1.0% vs 1일 +0.5/−0.3) → [#133](https://github.com/devlee328288/Alpha_Stack/issues/133) 회의 안건 · 시도 횟수 계측은 아직 없음(`trials.jsonl` 0바이트 · 상한이 21,450 이 아니라 코드로는 42,900) · ruff 26 → 3 ([변경사항](version1.1/변경사항.md)) |
 | [version1.0](version1.0/) | 2026-09-05 | [기준선 최적화와 피처 계약](version1.0/기준선_최적화와_피처_계약.md) — `config/features.py` **제외가 아니라 포함 목록**(#84 → PR #112) · 동적 기준선 **6단계 CMA-ES 워크포워드**(PR #117 · 2,538줄) · 비대칭 계수 6개 · `balanced_accuracy` 와 #33 · HF 백테스트 결과 4종 실측 |
 
 ## 이 폴더에 무엇을 넣나
