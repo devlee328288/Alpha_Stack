@@ -1,7 +1,7 @@
-import warnings
-from typing import Callable, Dict, Tuple, Optional
 import uuid
+import warnings
 from datetime import datetime
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -155,7 +155,7 @@ def predict_5d_after(base_date: pd.Timestamp, market_data: pd.DataFrame) -> Tupl
     probs = [0.33, 0.34, 0.33]  # 합계 1.0
 
     chosen_label = np.random.choice(labels, p=probs)
-    
+
     # 확률 맵 생성
     prob_map = {
         "p_up": probs[labels.index("상승")],
@@ -524,9 +524,9 @@ def run_backtest(
         # ====================================================
         # 1. 현재 날짜의 예측 생성 (수정됨)
         # ====================================================
-        
+
         predict_result = predict_func(date, market_data)
-        
+
         # 🔴 호환성 처리: 예측 함수가 문자열만 반환하는 구버전일 경우를 대비
         if isinstance(predict_result, tuple):
             signal, probs = predict_result

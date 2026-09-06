@@ -1,10 +1,11 @@
+import uuid
 import warnings
-import pandas as pd
+from datetime import datetime
+
 import numpy as np
+import pandas as pd
 from backtest_strategies import load_data, predict_5d_after, run_backtest
 from datasets import Dataset
-from datetime import datetime
-import uuid
 
 warnings.filterwarnings("ignore")
 
@@ -85,7 +86,7 @@ def run_cost_sensitivity():
     end_date = pd.Timestamp("2024-08-22")
 
     all_results = []
-    
+
     # 🟢 원장 수집용 리스트 추가
     all_signal_logs = []
     all_trade_logs = []
@@ -159,7 +160,7 @@ def run_cost_sensitivity():
         for col in ["prediction_date", "execution_date"]:
             if col in final_signal_log.columns:
                 final_signal_log[col] = final_signal_log[col].astype(str)
-        
+
         dataset_signal = Dataset.from_pandas(final_signal_log)
         dataset_signal.push_to_hub("qurious-quant/alphastack-backtest-execution-log")
         print("\n✅ 시그널 원장(execution-log) 업로드 완료!")
@@ -170,7 +171,7 @@ def run_cost_sensitivity():
         for col in ["prediction_date", "execution_date"]:
             if col in final_trade_log.columns:
                 final_trade_log[col] = final_trade_log[col].astype(str)
-        
+
         dataset_trade = Dataset.from_pandas(final_trade_log)
         dataset_trade.push_to_hub("qurious-quant/alphastack-backtest-trade-log")  # 거래만 따로 분리
         print("✅ 거래 원장(trade-log) 업로드 완료!")
@@ -230,4 +231,3 @@ def run_cost_sensitivity():
 
 if __name__ == "__main__":
     run_cost_sensitivity()
-    
