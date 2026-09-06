@@ -175,9 +175,22 @@ CMA-ES 는 수렴하면 `maxfevals` 전에 멈추므로(`:288` `while not es.sto
 | 원장 | 기존 | 🆕 추가 9칸 | 합계 |
 |---|---:|---|---:|
 | `signal_log` (hold 포함 신호 전량) | 8 | `code` · `p_up` · `p_flat` · `p_down` · `realized_return_5d` · `model_id` · `model_rev` · `run_id` · `cost_rate` | **17** |
-| `trade_log` (체결만) | 14 | 같은 9칸 | **23** |
+| `trade_log` (체결만) | 13 | 같은 9칸 | **22** |
+
+> 칸 수는 `run_backtest()` 를 **실제로 돌려** 셌습니다(합성 60거래일 · 실제 개발구간 3,553행 둘 다 같음).
+> v1.0 에 `trade_log` 를 "14칸" 으로 적은 것은 오기였습니다 — 13칸입니다.
 
 `code` 는 지금 상수 `"KOSPI200"` 입니다. 종목으로 넓힐 때 그대로 씁니다. `model_rev` 는 `"v0"` 고정.
+행 수는 **거래일 수 − 1** 입니다 — 마지막 거래일은 다음 날 체결이 없어 원장에 남지 않습니다.
+`realized_return_5d` 는 마지막 **4행**이 NaN 입니다(t+5 가 자료 밖). 실제 개발구간 파일
+(2010-03-30 ~ 2024-08-22 · 3,553행)로 돌리면 `signal_log` **3,552행** · 홀드아웃(≥ 20240901) 행 **0** ·
+`p_*` 는 전 행이 (0.33, 0.34, 0.33) 상수입니다(랜덤 예측).
+
+> 🔴 **같은 파일로 두 번 돌리면 원장이 다릅니다** — 전략 A `trade_log` 가 1,985행이었다가 다음 실행에서
+> 1,898행. `predict_5d_after` 가 `np.random.seed(hash(base_date) % 2**32)` 로 시드를 잡는데 파이썬 `hash()`
+> 는 프로세스마다 무작위화됩니다(같은 날짜로 세 프로세스에서 세 값 · `PYTHONHASHSEED=0` 이면 고정).
+> `run_id` 로 원장을 다시 만들 수 없다는 뜻이라 #110 에 질문으로 올렸습니다. 재현은
+> 노트북 06/09 (PR #135 · [`285e7c6`](https://github.com/devlee328288/Alpha_Stack/blob/285e7c6/notebooks/06-%EA%B2%80%ED%86%A0%C2%B7%EB%B0%9C%EA%B2%AC/09.%EC%9B%90%EC%9E%A5%EC%9D%80-%ED%95%99%EC%8A%B5%EC%97%90-%EB%93%A4%EC%96%B4%EA%B0%88-%EB%AA%A8%EC%96%91%EC%9D%B8%EA%B0%80.ipynb)).
 
 ### HF 업로드 — 코드는 있고, 🔴 **실행은 아직입니다**
 
@@ -238,6 +251,6 @@ v1.0 과 같습니다. 전부 HF `qurious-quant/alphastack-krx-dev` 의 지수 �
 | `alphastack-cost-sensitivity` | 12 × 14 | 전략 × 비용 | 09-05 14:47 |
 | `alphastack-breakeven-cost` | 3 × 2 | 전략 | 09-05 14:47 |
 | `alphastack-backtest-execution-log` | — | (날짜 × 전략 × 비용) · 17칸 예정 | 🔴 미업로드 |
-| `alphastack-backtest-trade-log` | — | 체결 · 23칸 예정 | 🔴 미업로드 |
+| `alphastack-backtest-trade-log` | — | 체결 · 22칸 예정 | 🔴 미업로드 |
 
 발표·비교에는 위 4종이 맞고, **학습에 되먹이는 축(종목·날짜·예측확률)은 아래 2종**에 있습니다.
