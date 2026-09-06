@@ -50,7 +50,7 @@
 | 도메인 | 최신 | 무엇을 답하나 |
 |---|---|---|
 | [피처파트/피처 두 층과 중장기 수익률](피처파트/version1.0/피처_두_층과_중장기_수익률.md) 🆕 | **v1.0** | `features/` 의 **원자 층 ↔ 조립 층** · 조립 층이 원자 함수를 다시 짜던 것을 이음(#107 → PR #114) · 🆕 **월간 수익률**(`monthly_return` · 20거래일 · PR #116) — 주간은 `five_day_return` 이 이미 있었다 · 조합 A~F · 극단 84행 필터 판단 |
-| [평가파트/동적 기준선 · ARIMA 동반 · 백테스트 원장](평가파트/version1.1/동적기준선_ARIMA동반_백테스트원장.md) 🆕 | **v1.1** | v1.0: `config/features.py` **포함 목록**(PR #112) · 동적 기준선 **6단계 CMA-ES**(PR #117). 🆕 v1.1: **ARIMA 가 워크포워드 안에서 같이 채점**(143폴드 평균 39.85% · PR #130) · **원장에 되먹임 칸 9개**(`signal_log` 17 · `trade_log` 23 · PR #131) · 🔴 **원장은 아직 HF 에 없다** · 🔴 **한 표에 폴드 체계가 둘**(expanding 12 · gap 5 vs sliding 143 · gap 0)·라벨 지평이 둘 → [#133](https://github.com/devlee328288/Alpha_Stack/issues/133) 회의 안건 · 시도 횟수 계측은 아직 없음 · 버전 이력은 [평가파트/README](평가파트/README.md) · 피처파트도 [README](피처파트/README.md) 신설 |
+| [평가파트/동적 기준선 · ARIMA 동반 · 백테스트 원장](평가파트/version1.1/동적기준선_ARIMA동반_백테스트원장.md) 🆕 | **v1.1** | v1.0: `config/features.py` **포함 목록**(PR #112) · 동적 기준선 **6단계 CMA-ES**(PR #117). 🆕 v1.1: **ARIMA 가 워크포워드 안에서 같이 채점**(143폴드 평균 39.85% · PR #130) · **원장에 되먹임 칸 9개**(`signal_log` 17 · `trade_log` 22 · PR #131) · 🔴 **원장은 아직 HF 에 없다** · 🔴 **한 표에 폴드 체계가 둘**(expanding 12 · gap 5 vs sliding 143 · gap 0)·라벨 지평이 둘 → [#133](https://github.com/devlee328288/Alpha_Stack/issues/133) 회의 안건 · 시도 횟수 계측은 아직 없음 · 버전 이력은 [평가파트/README](평가파트/README.md) · 피처파트도 [README](피처파트/README.md) 신설 |
 
 ### 모델 파트 (학습 · 예측 · 해석)
 
