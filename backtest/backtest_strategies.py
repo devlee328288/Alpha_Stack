@@ -1,5 +1,7 @@
 import warnings
-from typing import Callable, Dict
+from typing import Callable, Dict, Tuple, Optional
+import uuid
+from datetime import datetime
 
 import numpy as np
 import pandas as pd
@@ -8,7 +10,7 @@ from huggingface_hub import hf_hub_download
 
 warnings.filterwarnings("ignore")
 
-# backtest.py
+# backtest_strategies.py
 # ============================================================
 # KRX 실제 데이터 + 가상 예측(랜덤)을 이용한
 # A / B / C 3가지 포지션 운용 전략 백테스트
@@ -119,16 +121,18 @@ def load_data() -> pd.DataFrame:
 
 
 # ============================================================
-# 1. 예측 함수
+# 1. 예측 함수 (수정됨)
 # ============================================================
 
 
-def predict_5d_after(base_date: pd.Timestamp, market_data: pd.DataFrame) -> str:
+def predict_5d_after(base_date: pd.Timestamp, market_data: pd.DataFrame) -> Tuple[str, Dict[str, float]]:
     """
     5영업일 후 방향을 예측합니다.
 
     현재는 백테스트 구조 테스트를 위한 랜덤 예측입니다.
     실제 AI 모델을 사용할 경우 이 함수만 교체하면 됩니다.
+
+    🔴 변경사항: 레이블과 함께 확률(p_up, p_flat, p_down)을 반환합니다.
 
     Parameters
     ----------
@@ -140,16 +144,26 @@ def predict_5d_after(base_date: pd.Timestamp, market_data: pd.DataFrame) -> str:
 
     Returns
     -------
-    str
-        "상승", "중립", "하락"
+    tuple(str, dict)
+        (예측 레이블, {"p_up": float, "p_flat": float, "p_down": float})
     """
 
     # 날짜마다 동일한 랜덤 결과가 나오도록 seed 고정
     np.random.seed(hash(base_date) % 2**32)
 
     labels = ["상승", "중립", "하락"]
+    probs = [0.33, 0.34, 0.33]  # 합계 1.0
 
-    return np.random.choice(labels, p=[0.33, 0.34, 0.33])
+    chosen_label = np.random.choice(labels, p=probs)
+    
+    # 확률 맵 생성
+    prob_map = {
+        "p_up": probs[labels.index("상승")],
+        "p_flat": probs[labels.index("중립")],
+        "p_down": probs[labels.index("하락")],
+    }
+
+    return chosen_label, prob_map
 
 
 # ============================================================
@@ -339,7 +353,7 @@ def update_signal_streak(signal: str, consecutive_up: int, consecutive_down: int
 
 
 # ============================================================
-# 5. 백테스트 실행
+# 5. 백테스트 실행 (수정됨)
 # ============================================================
 
 
@@ -351,6 +365,8 @@ def run_backtest(
     strategy: str = "A",
     initial_cash: float = 100.0,
     trade_cost: float = 0.001,
+    model_id: str = "baseline-v0",          # 🟢 추가
+    run_id: Optional[str] = None,           # 🟢 추가
 ) -> Dict:
     """
     A / B / C 전략 백테스트를 실행합니다.
@@ -440,6 +456,12 @@ def run_backtest(
     trade_cost : float
         거래비용 비율
 
+    model_id : str
+        모델 식별자 (예: "random-v0", "lstm-v1")
+
+    run_id : Optional[str]
+        실행 식별자. None이면 자동 생성 (타임스탬프 + UUID)
+
     Returns
     -------
     Dict
@@ -448,6 +470,10 @@ def run_backtest(
 
     if strategy not in ["A", "B", "C"]:
         raise ValueError("strategy는 'A', 'B', 'C' 중 하나여야 합니다.")
+
+    # run_id 자동 생성 (영구적 추적을 위함)
+    if run_id is None:
+        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
 
     # --------------------------------------------------------
     # 가격 데이터
@@ -462,6 +488,10 @@ def run_backtest(
 
     if len(trading_days) < 2:
         raise ValueError("백테스트를 수행하기 위한 영업일이 부족합니다.")
+
+    # 종목 코드 (현재는 KOSPI200 하나)
+    # 향후 종목 확장 시 이 부분을 리스트로 변경하면 됩니다.
+    asset_code = "KOSPI200"
 
     # --------------------------------------------------------
     # 초기 상태
@@ -492,10 +522,17 @@ def run_backtest(
     for i, date in enumerate(trading_days):
 
         # ====================================================
-        # 1. 현재 날짜의 예측 생성
+        # 1. 현재 날짜의 예측 생성 (수정됨)
         # ====================================================
-
-        signal = predict_func(date, market_data)
+        
+        predict_result = predict_func(date, market_data)
+        
+        # 🔴 호환성 처리: 예측 함수가 문자열만 반환하는 구버전일 경우를 대비
+        if isinstance(predict_result, tuple):
+            signal, probs = predict_result
+        else:
+            signal = predict_result
+            probs = {"p_up": 0.33, "p_flat": 0.34, "p_down": 0.33}  # 기본 확률
 
         # ----------------------------------------------------
         # 연속 시그널 업데이트
@@ -669,12 +706,25 @@ def run_backtest(
             else:
                 position_ratio = 0.0
 
+            # ================================================
+            # 🟢 실제 5일 수익률 계산 (realized_return_5d)
+            # ================================================
+            realized_return_5d = np.nan
+            if i + 5 < len(trading_days):
+                future_date = trading_days[i + 5]
+                # future_date는 반드시 close_prices에 존재함
+                future_close = close_prices.loc[future_date]
+                current_close = close_prices.loc[date]
+                if current_close != 0:
+                    realized_return_5d = (future_close - current_close) / current_close
+
             # ------------------------------------------------
-            # 시그널 로그
+            # 시그널 로그 (🟢 모든 칼럼 추가 완료)
             # ------------------------------------------------
 
             signal_log.append(
                 {
+                    # 기존 칼럼
                     "prediction_date": date,
                     "execution_date": execution_date,
                     "signal": signal,
@@ -683,17 +733,28 @@ def run_backtest(
                     "requested_trade_ratio": trade_ratio,
                     "actual_trade_value": actual_trade_value,
                     "position_ratio_after": position_ratio,
+                    # 🟢 추가 칼럼 (이슈 #110 요청)
+                    "code": asset_code,
+                    "p_up": probs["p_up"],
+                    "p_flat": probs["p_flat"],
+                    "p_down": probs["p_down"],
+                    "realized_return_5d": realized_return_5d,
+                    "model_id": model_id,
+                    "model_rev": "v0",  # 현재는 고정, 추후 버전 관리 시 변경
+                    "run_id": run_id,
+                    "cost_rate": trade_cost,
                 }
             )
 
             # ------------------------------------------------
-            # 거래 로그
+            # 거래 로그 (🟢 동일하게 추가)
             # ------------------------------------------------
 
             if action != "hold":
 
                 trade_log.append(
                     {
+                        # 기존 칼럼
                         "prediction_date": date,
                         "execution_date": execution_date,
                         "signal": signal,
@@ -711,6 +772,16 @@ def run_backtest(
                         "trade_value": actual_trade_value,
                         "cost": cost,
                         "position_ratio_after": position_ratio,
+                        # 🟢 추가 칼럼
+                        "code": asset_code,
+                        "p_up": probs["p_up"],
+                        "p_flat": probs["p_flat"],
+                        "p_down": probs["p_down"],
+                        "realized_return_5d": realized_return_5d,
+                        "model_id": model_id,
+                        "model_rev": "v0",
+                        "run_id": run_id,
+                        "cost_rate": trade_cost,
                     }
                 )
 
@@ -902,7 +973,7 @@ def run_backtest(
         # 시계열
         "portfolio_series": portfolio_series,
         "daily_returns": daily_returns_series,
-        # 로그
+        # 로그 (🟢 수정된 로그 반환)
         "trade_log": pd.DataFrame(trade_log),
         "signal_log": pd.DataFrame(signal_log),
         # 성과
@@ -1002,6 +1073,7 @@ if __name__ == "__main__":
             strategy=strategy,
             initial_cash=100.0,
             trade_cost=0.001,
+            model_id="random-v0",   # 🟢 명시적으로 모델 ID 전달
         )
 
         print(

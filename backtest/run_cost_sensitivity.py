@@ -1,9 +1,10 @@
 import warnings
-
-import numpy as np
 import pandas as pd
+import numpy as np
 from backtest_strategies import load_data, predict_5d_after, run_backtest
 from datasets import Dataset
+from datetime import datetime
+import uuid
 
 warnings.filterwarnings("ignore")
 
@@ -58,6 +59,7 @@ def find_breakeven_cost(
             strategy=strategy,
             initial_cash=100.0,
             trade_cost=mid,
+            model_id="random-v0",  # 🟢 통일된 모델 ID
         )
         sharpe = result["sharpe_ratio"]
 
@@ -83,6 +85,10 @@ def run_cost_sensitivity():
     end_date = pd.Timestamp("2024-08-22")
 
     all_results = []
+    
+    # 🟢 원장 수집용 리스트 추가
+    all_signal_logs = []
+    all_trade_logs = []
 
     # 1) 4가지 비용 × 3개 전략 = 12회 백테스트 실행
     for cost_key, cost_rate in COST_PRESETS.items():
@@ -95,6 +101,9 @@ def run_cost_sensitivity():
                 flush=True,
             )
 
+            # 🟢 실행 ID 생성 (추적성)
+            run_id = f"cost_sens_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+
             result = run_backtest(
                 market_data=df,
                 start_date=start_date,
@@ -103,6 +112,8 @@ def run_cost_sensitivity():
                 strategy=strategy,
                 initial_cash=100.0,
                 trade_cost=cost_rate,
+                model_id="random-v0",    # 🟢 모델 ID 명시
+                run_id=run_id,           # 🟢 고유 실행 ID 전달
             )
 
             # 결과 저장
@@ -121,10 +132,49 @@ def run_cost_sensitivity():
                     "win_rate": result["win_rate_daily"],
                     "profit_factor": result["profit_factor"],
                     "num_trades": result["num_trades"],
-                    "turnover": result.get("turnover", np.nan),  # 기존 코드에 turnover가 없으면 NaN
+                    "turnover": result.get("turnover", np.nan),
                 }
             )
+
+            # 🟢 시그널 로그와 거래 로그 수집 (전략 및 비용 정보 추가)
+            signal_df = result["signal_log"].copy()
+            signal_df["strategy"] = strategy
+            signal_df["cost_key"] = cost_key
+            all_signal_logs.append(signal_df)
+
+            trade_df = result["trade_log"].copy()
+            if not trade_df.empty:
+                trade_df["strategy"] = strategy
+                trade_df["cost_key"] = cost_key
+                all_trade_logs.append(trade_df)
+
             print(" ✅ 완료")
+
+    # ============================================================
+    # 🟢 원장(execution log) HF 업로드 (이슈 #110 1번 요청)
+    # ============================================================
+    if all_signal_logs:
+        final_signal_log = pd.concat(all_signal_logs, ignore_index=True)
+        # 날짜 타입을 문자열로 변환 (HF 업로드 호환성)
+        for col in ["prediction_date", "execution_date"]:
+            if col in final_signal_log.columns:
+                final_signal_log[col] = final_signal_log[col].astype(str)
+        
+        dataset_signal = Dataset.from_pandas(final_signal_log)
+        dataset_signal.push_to_hub("qurious-quant/alphastack-backtest-execution-log")
+        print("\n✅ 시그널 원장(execution-log) 업로드 완료!")
+        print("   - https://huggingface.co/datasets/qurious-quant/alphastack-backtest-execution-log")
+
+    if all_trade_logs:
+        final_trade_log = pd.concat(all_trade_logs, ignore_index=True)
+        for col in ["prediction_date", "execution_date"]:
+            if col in final_trade_log.columns:
+                final_trade_log[col] = final_trade_log[col].astype(str)
+        
+        dataset_trade = Dataset.from_pandas(final_trade_log)
+        dataset_trade.push_to_hub("qurious-quant/alphastack-backtest-trade-log")  # 거래만 따로 분리
+        print("✅ 거래 원장(trade-log) 업로드 완료!")
+        print("   - https://huggingface.co/datasets/qurious-quant/alphastack-backtest-trade-log")
 
     # 2) 결과를 DataFrame으로 변환
     df_results = pd.DataFrame(all_results)
@@ -147,17 +197,15 @@ def run_cost_sensitivity():
     df_bep = pd.DataFrame(bep_results)
 
     # ============================================================
-    # 4) Hugging Face Dataset으로 업로드
+    # 4) 기존 Hugging Face Dataset 업로드 (유지)
     # ============================================================
-    # 결과 요약 (df_results) 업로드
     dataset_results = Dataset.from_pandas(df_results)
     dataset_results.push_to_hub("qurious-quant/alphastack-cost-sensitivity")
 
-    # 손익분기점 (df_bep) 업로드
     dataset_bep = Dataset.from_pandas(df_bep)
     dataset_bep.push_to_hub("qurious-quant/alphastack-breakeven-cost")
 
-    print("\n✅ Hugging Face 업로드 완료!")
+    print("\n✅ 기존 민감도/손익분기점 업로드 완료!")
     print("   - https://huggingface.co/datasets/qurious-quant/alphastack-cost-sensitivity")
     print("   - https://huggingface.co/datasets/qurious-quant/alphastack-breakeven-cost")
 
@@ -182,3 +230,4 @@ def run_cost_sensitivity():
 
 if __name__ == "__main__":
     run_cost_sensitivity()
+    
