@@ -1,14 +1,17 @@
+import os
+import sys
 import warnings
+
 import cma
 import numpy as np
 import pandas as pd
-import sys
-import os
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from sklearn.metrics import balanced_accuracy_score, f1_score, recall_score
 from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 from tqdm import tqdm
+
 from timeseries.models import fit_best
 
 warnings.filterwarnings("ignore")
@@ -335,19 +338,19 @@ def run_walkforward_6params(
             try:
                 # 2. fit_best 실행 (계수 딕셔너리 반환)
                 arima_res = fit_best(train_ret, max_p=3, max_q=3)
-                
+
                 # 3. 'model' 키에서 실제 ARIMA 계수와 히스토리 추출
                 model_dict = arima_res.get('model')
-                
+
                 if model_dict is not None and 'levels' in model_dict and 'phi' in model_dict:
                     # 4. 🔥 수동 예측 함수 (AR 계수와 히스토리로 재귀 예측)
                     phi = model_dict['phi']       # AR 계수 (예: [0.031, -0.083])
                     const = model_dict['const']   # 상수항
                     history = list(model_dict['levels'])  # 학습에 사용된 실제 값들
-                    
+
                     # 예측값을 저장할 리스트
                     arima_forecast_ret = []
-                    
+
                     # 검증 구간(OOS) 길이만큼 반복 예측 (1스텝씩)
                     for _ in range(len(df_val)):
                         # AR 차수(p)만큼 직전 값들을 가져와서 예측값 계산
@@ -356,15 +359,15 @@ def run_walkforward_6params(
                             if i < len(history):
                                 # phi[0] * y_{t-1} + phi[1] * y_{t-2} + ...
                                 next_val += phi[i] * history[-(i+1)]
-                        
+
                         # MA 부분은 OOS에서는 잔차를 0으로 가정 (일반적인 방법)
                         arima_forecast_ret.append(next_val)
-                        
+
                         # 예측한 값을 히스토리에 추가하여 다음 예측에 사용 (재귀)
                         history.append(next_val)
-                    
+
                     arima_forecast_ret = np.array(arima_forecast_ret)
-                    
+
                     # 5. 예측된 수익률을 ±1.0% 고정 밴드로 라벨링
                     arima_preds = []
                     for ret_val in arima_forecast_ret:
@@ -375,12 +378,12 @@ def run_walkforward_6params(
                         else:                   # 중립
                             arima_preds.append(1)
                     arima_preds = np.array(arima_preds)
-                    
+
                     # 6. 정확도 저장
                     if len(arima_preds) == len(y_true):
                         fold_acc_arima = np.mean(arima_preds == y_true)
                         all_arima_accs.append(fold_acc_arima)
-                        
+
                         # (선택) 첫 번째 폴드에서만 결과 출력
                         if total_folds == 0:
                             print(f"   ✅ ARIMA 수동 예측 성공! (정확도: {fold_acc_arima:.4f})")
@@ -389,7 +392,7 @@ def run_walkforward_6params(
                             print(f"   ❌ 길이 불일치: {len(arima_preds)} vs {len(y_true)}")
                 else:
                     if total_folds == 0:
-                        print(f"   ❌ model_dict에 'levels' 또는 'phi'가 없습니다.")
+                        print("   ❌ model_dict에 'levels' 또는 'phi'가 없습니다.")
             except Exception as e:
                 if total_folds == 0:
                     print(f"   ❌ ARIMA 실행 중 예외 발생: {e}")
