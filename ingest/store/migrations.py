@@ -63,15 +63,22 @@ class MigrationError(RuntimeError):
 
 
 #: 마이그레이션 한 칸에 들어갈 수 있는 것 — 그냥 SQL 문자열이거나, **연결을 받아
-#: SQL 을 만들어 주는 함수**다. 함수를 허용하는 이유는 하나뿐이다:
+#: SQL 을 만들어 주는 함수**다. 함수를 허용하는 이유는 둘이다:
 #:
-#:   `ALTER TABLE ... ADD COLUMN` 에는 `IF NOT EXISTS` 가 없다. 같은 이름이 이미 있으면
-#:   **예외를 던진다.** 그런데 이 파일의 규약은 *"문장은 여러 번 돌려도 같은 결과"* 다.
-#:   문자열만으로는 그 둘을 동시에 만족할 수 없어서, 칸이 있는지 보고 문장을 만들거나
-#:   `None` 을 주는 함수를 받는다.
+#:   ① `ALTER TABLE ... ADD COLUMN` 에는 `IF NOT EXISTS` 가 없다. 같은 이름이 이미 있으면
+#:      **예외를 던진다.** 그런데 이 파일의 규약은 *"문장은 여러 번 돌려도 같은 결과"* 다.
+#:      문자열만으로는 그 둘을 동시에 만족할 수 없어서, 칸이 있는지 보고 문장을 만들거나
+#:      `None` 을 주는 함수를 받는다.
 #:
-#: `None` 을 돌려주면 그 문장은 **건너뛴다** — 할 일이 없다는 뜻이다.
-Statement = "str | Callable[[sqlite3.Connection], Optional[str]]"
+#:   ② **표 재구성은 문장이 여럿인데 판단은 하나다.** SQLite 는 기본키를 `ALTER` 로 못
+#:      바꿔서 새 표를 만들고 옮기고 지우고 이름을 바꾼다(v13). 이때 *"고칠 것이 있나"*
+#:      를 문장마다 다시 재면 **첫 문장이 표를 바꾼 뒤 조건이 뒤집혀 나머지가 건너뛰어
+#:      진다.** 그래서 한 번 판단하고 문장 **목록**을 통째로 돌려준다.
+#:
+#: `None` 을 돌려주면 그 문장은 **건너뛴다** — 할 일이 없다는 뜻이다. 빈 목록도 같다.
+#: 목록의 문장들은 나머지와 **같은 트랜잭션**에서 차례로 돈다 — 가운데서 터지면 앞
+#: 문장까지 함께 되돌아간다.
+Statement = "str | Callable[[sqlite3.Connection], Optional[str | List[str]]]"
 
 
 def _add_column(table: str, column: str, definition: str) -> Callable:
@@ -81,6 +88,112 @@ def _add_column(table: str, column: str, definition: str) -> Callable:
     만들어지므로 아직 연결이 없다. 그래서 판단을 실행 시점으로 미룬다.
     """
     return lambda conn: add_column_sql(conn, table, column, definition)
+
+
+#: v13 이 만드는 `index_price` 의 모양. **`krx_index.SCHEMA` 와 같아야 한다.**
+#:
+#: 두 곳에 적는 이유는 `add_column_sql` 의 경고와 같다 — 표를 만드는 경로가 둘이다.
+#: 마이그레이션이 먼저 돌 수도 있고(`migrate_path`), `init_db()` 가 먼저일 수도 있다.
+#: 한쪽만 고치면 **그 DB 는 옛 모양으로 태어난 뒤 마이그레이션이 다시 돌지 않아**
+#: 영영 안 고쳐진다. 여기서 문자열을 나눠 갖지 않고 각자 적되, 두 경로가 같은 기본키를
+#: 만드는지 시험이 대조한다(`tests/test_krx_index.py`).
+#:
+#: 여기서 `krx_index` 를 import 하지 않는 것은 순환 때문이다 — 그쪽이 `collect_log` 를
+#: 거쳐 이 파일을 부른다.
+INDEX_PRICE_SCHEMA_V13 = """
+CREATE TABLE {table} (
+  bas_dd       TEXT    NOT NULL,   -- 기준일자 YYYYMMDD
+  index_name   TEXT    NOT NULL,   -- 지수명 "코스피 200" (띄어쓰기 포함)
+  index_class  TEXT    NOT NULL,   -- KOSPI / KOSDAQ 🔴 기본키의 일부다
+  open         REAL,               -- ⚠️ 지수는 실수다. INTEGER 로 두면 등락이 사라진다
+  high         REAL,
+  low          REAL,
+  close        REAL,
+  change       REAL,               -- 전일대비
+  change_rate  REAL,               -- 등락률(%)
+  volume       INTEGER,            -- 누적거래량
+  value        INTEGER,            -- 누적거래대금
+  market_cap   INTEGER,            -- 시가총액
+  -- 🔴 시장이 키에 있어야 한다. 두 시장이 같은 이름의 업종지수를 각각 갖는다.
+  PRIMARY KEY (bas_dd, index_name, index_class)
+)
+"""
+
+#: `index_price` 의 조회 인덱스. 표를 다시 만들면 인덱스도 함께 사라지므로 다시 만든다.
+INDEX_PRICE_INDEX_SQL = ("CREATE INDEX IF NOT EXISTS idx_index_name_date "
+                         "ON index_price(index_name, bas_dd)")
+
+
+def _index_price_pk(conn: sqlite3.Connection) -> List[str]:
+    """`index_price` 의 기본키 칸을 키 순서대로. 표가 없으면 빈 목록."""
+    rows = conn.execute("PRAGMA table_info(index_price)").fetchall()
+    return [r[1] for r in sorted((r for r in rows if r[5] > 0), key=lambda r: r[5])]
+
+
+def _rebuild_index_price(conn: sqlite3.Connection) -> Optional[List[str]]:
+    """🔴 `index_price` 의 기본키에 `index_class` 를 넣는다 (v13).
+
+    ## 왜 — 2026-09-07 에 KOSPI 업종지수 40,324행을 잃었다
+
+    옛 기본키가 `(bas_dd, index_name)` 이라 **시장이 없다.** 그런데 KOSPI 와 KOSDAQ 은
+    `건설`·`금속`·`화학` 처럼 **같은 이름의 업종지수를 각각** 가진다. KOSDAQ 을 받자
+    `INSERT OR REPLACE` 가 같은 이름의 KOSPI 행 17종 40,324행을 조용히 덮어썼다.
+
+    🔴 **행 수로는 못 잡는다** — 오히려 늘었다(196,272 → 244,108). 수집기는 정상 종료했고
+    오류도 없었다. `index_class` 별로 세어 보고서야 드러났다.
+
+    그래서 막는 자리를 **"쓰기 전"** 으로 옮긴다. 검사는 덮어쓴 값을 되살리지 못한다.
+    답하는 것은 경고가 아니라 **PRIMARY KEY** 다.
+
+    ## 왜 표를 새로 만드나
+
+    SQLite 는 `ALTER TABLE` 로 기본키를 못 바꾼다. 공식 문서가 권하는 절차 그대로 —
+    새 표 → 복사 → 기존 삭제 → 이름 변경 → 인덱스 재생성. 다섯이 **한 트랜잭션**에
+    있어야 중간에 죽어도 반쪽이 안 남는다(`migrate()` 가 감싼다).
+
+    ## 세 경우
+
+        표가 없다        → 새 기본키로 만든다. `init_db()` 보다 먼저 도는 DB 가 있다
+        이미 새 기본키다 → 아무것도 하지 않는다 (`None`)
+        옛 기본키다      → 재구성한다
+
+    ## `index_class` 가 비어 있으면 세운다
+
+    새 기본키는 `NOT NULL` 이라 빈 시장은 못 들어간다. 여기서 조용히 버리면 행이
+    사라지고, 아무 말 없이 `NOT NULL` 위반으로 터지면 사람이 무엇을 해야 할지 모른다.
+    **무엇을 해야 하는지까지 담아** 세운다. (실측 2026-09-07: 우리 DB 는 0행이다.)
+    """
+    현재 = _index_price_pk(conn)
+
+    if not 현재:
+        # 표가 없다 — 새 기본키로 태어나게 한다. `init_db()` 가 나중에 불려도
+        # `CREATE TABLE IF NOT EXISTS` 라 이 모양을 덮지 않는다.
+        return [INDEX_PRICE_SCHEMA_V13.format(table="index_price"), INDEX_PRICE_INDEX_SQL]
+
+    if "index_class" in 현재:
+        return None                                  # 이미 됐다
+
+    빈시장 = conn.execute(
+        "SELECT COUNT(*) FROM index_price WHERE index_class IS NULL OR index_class = ''"
+    ).fetchone()[0]
+    if 빈시장:
+        raise MigrationError(
+            f"index_price 에 index_class 가 빈 행이 {빈시장:,}개 있어 기본키에 넣을 수 없다.\n"
+            "  왜 필요한가: 기본키에 시장이 없으면 KOSDAQ 업종지수가 같은 이름의 KOSPI\n"
+            "               행을 덮어쓴다 (2026-09-07 에 40,324행을 잃었다).\n"
+            "  할 일: 그 행들의 시장을 채우거나 지운 뒤 다시 실행한다.\n"
+            "    SELECT bas_dd, index_name FROM index_price\n"
+            "     WHERE index_class IS NULL OR index_class = '';"
+        )
+
+    칸 = ", ".join(column_names(conn, "index_price"))
+    return [
+        INDEX_PRICE_SCHEMA_V13.format(table="index_price_v13"),
+        f"INSERT INTO index_price_v13 ({칸}) SELECT {칸} FROM index_price",
+        "DROP TABLE index_price",
+        "ALTER TABLE index_price_v13 RENAME TO index_price",
+        INDEX_PRICE_INDEX_SQL,                       # 표와 함께 사라졌으므로 다시 만든다
+    ]
 
 
 # ==================================================
@@ -108,7 +221,8 @@ def _add_column(table: str, column: str, definition: str) -> Callable:
 #      v10 종목 신원 · 법인 개요 (stock_identity · corp_profile)      ← 2026-09-03 적용
 #      v11 종목기본정보 (stock_base_info · 우선주 판별)               ← 2026-09-03 적용
 #      v12 텍스트 신호 (text_signal — 공시 제목 감성 확률 3칸)  ← 2026-09-04 적용
-#      v13 다음 빈 번호
+#      v13 지수 기본키에 시장 (index_price PK + index_class)     ← 2026-09-07 적용
+#      v14 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -913,6 +1027,19 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             "ON text_signal(report_nm, model_id)",
         ),
     ),
+    (
+        "v13: 지수 기본키에 시장을 넣는다 — 같은 이름의 업종지수가 둘이다",
+        (
+            # ── index_price 재구성 ──────────────────────────────────────
+            # 🔴 이 마이그레이션은 **자료를 잃고 나서** 만들었다. 자세한 것은
+            #    `_rebuild_index_price` 의 설명에 있다.
+            #
+            # 문장이 아니라 **함수**인 이유: 표 재구성은 문장이 다섯인데 판단("옛
+            # 기본키인가")은 하나다. 문장마다 다시 재면 첫 문장이 표를 바꾼 뒤 조건이
+            # 뒤집혀 나머지가 건너뛰어진다. 한 번 보고 목록을 통째로 준다.
+            _rebuild_index_price,
+        ),
+    ),
 )
 
 #: 이 코드가 아는 최신 스키마 버전.
@@ -1000,13 +1127,15 @@ def migrate(conn: sqlite3.Connection) -> int:
         try:
             # ② executescript() 를 쓰지 않는다 — 열린 트랜잭션을 커밋해 롤백을 막는다.
             for statement in statements:
-                # 지연 문장(`_add_column`)은 지금 연결을 보고 문장을 만든다.
-                # `None` 은 "이미 되어 있어 할 일이 없다" 이므로 건너뛴다.
+                # 지연 문장(`_add_column`·`_rebuild_index_price`)은 지금 연결을 보고
+                # 문장을 만든다. `None` 은 "이미 되어 있어 할 일이 없다" 이므로 건너뛴다.
+                # 목록을 주면 그 안의 문장을 **이 트랜잭션에서** 차례로 돌린다.
                 if callable(statement):
                     statement = statement(conn)
                     if statement is None:
                         continue
-                conn.execute(statement)
+                for 문장 in ([statement] if isinstance(statement, str) else statement):
+                    conn.execute(문장)
             # ③ 버전 표시를 같은 트랜잭션에 넣는다 — 중간 상태를 원천 차단한다.
             #    PRAGMA 는 파라미터 바인딩을 받지 않지만 `target` 은 우리가 만든 정수다.
             conn.execute(f"PRAGMA user_version={int(target)}")
