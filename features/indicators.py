@@ -264,3 +264,34 @@ def macd_hist_ratio(
     with np.errstate(divide="ignore", invalid="ignore"):
         result = np.where(x != 0, hist / x, np.nan)
     return result
+
+
+def macd_hist_atr(
+    prices: Sequence,
+    atr: Sequence,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> np.ndarray:
+    """MACD 히스토그램을 ATR로 정규화한 값 — `hist / atr`. 신호의 강도를 그날의
+    변동성 크기에 맞춰 눈금을 다시 매긴다(`macd_hist_ratio`가 종가로 나눈 것과
+    같은 목적이나, 분모가 가격 수준이 아니라 변동성 크기라는 점이 다르다).
+
+    시점 규칙: `hist_t`는 EMA 재귀식이라 형태상 t 시점까지의 종가 이력 전체에
+    의존하지만 미래는 보지 않는다(`macd` docstring 참고). `atr`도 인자로 받는 값이
+    t 시점까지의 True Range만 Wilder 평활한 것이어야 한다 — 호출하는 쪽이
+    `volatility.atr(high, low, close, window=...)`로 만들어 넘긴다.
+
+    ⚠️ `atr`을 여기서 직접 계산하지 않고 인자로 받는 이유 — `indicators.py`는
+    `volatility.py`를 import하지 않는다(모듈 docstring, 세 원자 지표 파일이 서로
+    독립을 지키는 원칙). 같은 창(window)으로 계산한 `atr`을 호출하는 쪽(피처 조립
+    계층)에서 넘겨줘야 한다.
+    """
+    x = _to_array(prices)
+    a = _to_array(atr)
+    if x.size != a.size:
+        raise ValueError("prices 와 atr 의 길이가 다르다")
+    hist = macd(x, fast=fast, slow=slow, signal=signal)["hist"]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(a != 0, hist / a, np.nan)
+    return result

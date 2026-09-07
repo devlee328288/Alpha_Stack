@@ -278,6 +278,47 @@ def test_macd_hist_ratio_shift_검사():
     _assert_allclose(after[:-1], list(before[:-1]))
 
 
+# ── macd_hist_atr (MACD 히스토그램을 ATR로 정규화) ─────────────────────
+
+def test_macd_hist_atr_10행_손계산():
+    """fast=2, slow=3, signal=2 — `test_macd_10행_손계산` 의 `hist` 를
+    `test_atr_10행_손계산`(volatility, window=3) 의 ATR로 나눈다. 두 계열의 유효
+    구간이 겹치는 t=3 부터 값이 나온다(hist 는 t=3부터, atr 은 t=2부터 유효)."""
+    hist = [None, None, None, -0.08179012345679013, -0.10313786008230452,
+            -0.08397633744855967, 0.05443387059899406, 0.09509911789361378,
+            0.08209078741807652, 0.0565304146238717]
+    atr_w3 = [
+        None, None,
+        19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458,
+        31147 / 21870, 48643 / 32805, 136652 / 98415,
+    ]
+    expected = [
+        None if h is None else h / a
+        for h, a in zip(hist, atr_w3, strict=True)
+    ]
+    _assert_allclose(
+        indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2), expected
+    )
+
+
+def test_macd_hist_atr_shift_검사():
+    changed = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    atr_w3 = [
+        None, None,
+        19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458,
+        31147 / 21870, 48643 / 32805, 136652 / 98415,
+    ]
+    before = indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2)
+    after = indicators.macd_hist_atr(changed, atr_w3, fast=2, slow=3, signal=2)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_macd_hist_atr_길이가_다르면_에러():
+    atr_w3 = [None, None, 19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458]
+    with pytest.raises(ValueError):
+        indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2)
+
+
 # ── 길이 계약 ────────────────────────────────────────────────────────────
 
 def test_모든_지표는_입력과_같은_길이를_돌려준다():
@@ -293,3 +334,4 @@ def test_모든_지표는_입력과_같은_길이를_돌려준다():
     assert len(indicators.percent_b(PRICES, window=3, num_std=2.0)) == n
     assert len(indicators.sma_gap(PRICES, short=2, long=3)) == n
     assert len(indicators.macd_hist_ratio(PRICES, fast=2, slow=3, signal=2)) == n
+    assert len(indicators.macd_hist_atr(PRICES, [0.0] * n, fast=2, slow=3, signal=2)) == n

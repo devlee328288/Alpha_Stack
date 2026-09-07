@@ -151,6 +151,40 @@ def test_volume_roc_shift_검사():
     _assert_allclose(after[:-1], list(before[:-1]))
 
 
+# ── obv_slope_20 (OBV 기울기 정규화) ─────────────────────────────────────
+
+def test_obv_slope_20_10행_손계산():
+    """window=3(10행 안에서 유효값이 나오게 작게 둔다) — `test_obv_10행_손계산` 의
+    OBV 와 `test_volume_sma_10행_손계산` 의 volume_sma(3) 을 그대로 쓴다.
+
+        t=3: diff = obv[3](350) - obv[0](0) = 350, denom = volume_sma[3](650/3)*3 = 650
+             350/650 = 7/13
+        t=5: diff = obv[5](200) - obv[2](500) = -300, denom = volume_sma[5](100)*3 = 300
+             -300/300 = -1
+    앞 3행(t=0,1,2)은 비교할 과거(t-3)가 없어 nan.
+    """
+    obv_values = [0.0, 200.0, 500.0, 350.0, 250.0, 200.0, 350.0, 550.0, 800.0, 1100.0]
+    vol_sma3 = [None, None, 200.0, 650 / 3, 550 / 3, 100.0, 100.0, 400 / 3, 200.0, 250.0]
+    expected = [None, None, None] + [
+        (obv_values[t] - obv_values[t - 3]) / (vol_sma3[t] * 3)
+        for t in range(3, 10)
+    ]
+    _assert_allclose(volume.obv_slope_20(PRICES, VOLUMES, window=3), expected)
+
+
+def test_obv_slope_20_shift_검사():
+    changed_prices = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    changed_volumes = VOLUMES[:-1] + [VOLUMES[-1] + 1_000_000.0]
+    before = volume.obv_slope_20(PRICES, VOLUMES, window=3)
+    after = volume.obv_slope_20(changed_prices, changed_volumes, window=3)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_obv_slope_20_길이가_다르면_에러():
+    with pytest.raises(ValueError):
+        volume.obv_slope_20(PRICES, VOLUMES[:-1], window=3)
+
+
 # ── 길이 계약 ────────────────────────────────────────────────────────────
 
 def test_모든_지표는_입력과_같은_길이를_돌려준다():
@@ -160,3 +194,4 @@ def test_모든_지표는_입력과_같은_길이를_돌려준다():
     assert len(volume.obv(PRICES, VOLUMES)) == n
     assert len(volume.vwap(PRICES, VOLUMES, 3)) == n
     assert len(volume.volume_roc(VOLUMES, 3)) == n
+    assert len(volume.obv_slope_20(PRICES, VOLUMES, window=3)) == n

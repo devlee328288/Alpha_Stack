@@ -139,12 +139,14 @@ def 저장소(tmp_path, monkeypatch):
     return db
 
 
-# ── 검사 대상 — features 의 공개 함수 18개 전부 ────────────────────────────
+# ── 검사 대상 — features 의 공개 함수 22개 전부 ────────────────────────────
 #
-# ⚠️ **18개다** (2026-09-01, #38 로 `percent_b`·`sma_gap`·`macd_hist_ratio`·
-#    `n_day_return` 4개 추가 — 14 + 4). `features/` 에 def 는 더 있지만 밑줄로
-#    시작하는 내부 헬퍼(`_to_array` 4벌 · `_ewm_mean` · `_wilder_smooth`)는 계약이
-#    안 선다 — 계약은 밖에서 부르는 것에만 선다.
+# ⚠️ **22개다** (2026-09-01, #38 로 `percent_b`·`sma_gap`·`macd_hist_ratio`·
+#    `n_day_return` 4개 추가 — 14 + 4. 2026-09-07, #37 검토로 `atr_ratio`·
+#    `hv_regime`·`obv_slope_20`·`macd_hist_atr` 4개 더 추가 — 18 + 4). `features/`
+#    에 def 는 더 있지만 밑줄로 시작하는 내부 헬퍼(`_to_array` 4벌 · `_ewm_mean` ·
+#    `_wilder_smooth` · `_rolling_mean`)는 계약이 안 선다 — 계약은 밖에서 부르는
+#    것에만 선다.
 #    `test_공개함수를_하나도_빠뜨리지_않았다` 가 이 수를 실제 모듈과 맞춰 본다.
 #
 # 워밍업 은 "앞에서 몇 개가 NaN 이어야 하는가" 다. 창 크기와 다른 값이 섞여 있는데
@@ -176,6 +178,22 @@ CALLS: List[호출] = [
     ("sma_gap",               lambda d: indicators.sma_gap(d["close"], short=5, long=20), 19),
     ("macd_hist_ratio",       lambda d: indicators.macd_hist_ratio(d["close"]), 33),
     ("n_day_return",          lambda d: returns.n_day_return(d["close"], window=5), 5),
+    ("atr_ratio",             lambda d: volatility.atr_ratio(d["high"], d["low"], d["close"],
+                                                             window=14), 13),
+    # regime_window 는 실서비스 기본값(250)이 아니라 20 — 60거래일 픽스처에 맞춘
+    # 값이다(기본값 250은 60행으로는 통째로 NaN이 나와 ④를 아예 못 잰다). 공식·
+    # 시점 규칙은 `hv_regime` docstring 참고, 이 표는 배관(길이·정렬·dtype·워밍업)만 잰다.
+    ("hv_regime",             lambda d: volatility.hv_regime(d["close"], window=20,
+                                                             regime_window=20), 39),
+    ("obv_slope_20",          lambda d: volume.obv_slope_20(d["close"], d["volume"],
+                                                            window=20), 20),
+    # atr 을 여기서 직접 만들어 넘긴다 — `macd_hist_atr`이 `indicators.py`가
+    # `volatility.py`를 import하지 않도록 atr을 인자로 받게 설계됐기 때문이다
+    # (함수 docstring 참고).
+    ("macd_hist_atr",         lambda d: indicators.macd_hist_atr(
+                                  d["close"],
+                                  volatility.atr(d["high"], d["low"], d["close"], window=14),
+                              ), 33),
 ]
 
 이름들 = [name for name, _, _ in CALLS]
