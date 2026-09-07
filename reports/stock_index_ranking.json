@@ -1,12 +1,31 @@
 {
-  "generated_at_utc": "2026-09-07T01:53:18.069841+00:00",
+  "generated_at_utc": "2026-09-07T06:18:32.758879+00:00",
+  "run_id": "stock-index-ranking-20260907T061832.758879+0000",
   "source": {
     "repo": "qurious-quant/alphastack-krx-dev",
     "index_path": "full/index_price_dev.parquet",
     "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
     "daily_path": "full/daily_price_dev.parquet",
-    "daily_sha256": "bbaad48580e0d13933ba7deeeb782958414c9635fa719612ed5fb09d59923ab8",
+    "daily_sha256": "ced03e364d85e48d9ae3e06345bbf7ee6d99ef7c9208b76487e7da6e90d0b7cf",
     "holdout_start": "20240901"
+  },
+  "data_quality_policy": {
+    "absolute_return_filter": false,
+    "method": "supply.adj_quality.attach_adjustment_quality",
+    "removed_candidate_rows": 0,
+    "reason": "KRX 등락률과 수정주가 일간수익률이 1%p 넘게 어긋난 is_adj_suspect 행만 제외한다.",
+    "adjustment_quality": {
+      "gap_tolerance": 1.0,
+      "extreme_pct": 30.0,
+      "rows": 3315889,
+      "comparable_rows": 3314656,
+      "suspect_rows": 1080,
+      "extreme_rows": 853,
+      "candidate_rows": 176705,
+      "candidate_suspect_rows": 0,
+      "candidate_extreme_rows": 5,
+      "candidate_unmatched_rows": 0
+    }
   },
   "index_model": {
     "combination": "E",
@@ -31,16 +50,32 @@
     }
   },
   "stock_model": {
-    "combination": "A",
-    "model": "RandomForest",
+    "combination": "F",
+    "model": "LightGBM",
+    "feature_columns": [
+      "ret_5_rank",
+      "sector_relative_rank",
+      "turnover_rank",
+      "hv_20_rank",
+      "market_cap_percentile",
+      "sector_market_cap_rank",
+      "industry_stock_rank",
+      "volume_z_20",
+      "bb_position"
+    ],
     "outer_fold_metrics": {
-      "accuracy": 0.3868604735697983,
-      "macro_f1": 0.36653554734460436,
-      "down_recall": 0.3367463152411012,
-      "core_harmonic_mean": 0.3587184821233141
+      "accuracy": 0.38656357892786364,
+      "macro_f1": 0.3794564509638724,
+      "down_recall": 0.35677787615460277,
+      "core_harmonic_mean": 0.3731274117285113
     },
     "selected_class_weights": {
       "balanced": 12
+    },
+    "fold_baseline_summary": {
+      "training_majority_baseline_accuracy_mean": 0.3947683675196277,
+      "validation_majority_oracle_accuracy_mean": 0.40151362512900907,
+      "accuracy_minus_training_majority_baseline_mean": -0.00820478859176412
     }
   },
   "common_oos": {
@@ -49,28 +84,132 @@
     "last_date": "20240822",
     "top5_rows": 3600
   },
-  "all_candidate_direction_hit_rate": 0.3452313288621121,
+  "all_candidate_direction_hit_rate": 0.345328246882651,
   "ranking_summary": [
     {
       "top_n": 1,
       "rows": 720,
       "dates": 720,
-      "direction_hit_rate": 0.4263888888888889,
-      "mean_selected_probability": 0.5900972222222223
+      "direction_hit_rate": 0.48333333333333334,
+      "mean_selected_probability": 0.4880714664626623,
+      "random_direction_hit_rate": 0.3452006525959353,
+      "hit_rate_lift_over_random": 0.13813268073739804
     },
     {
       "top_n": 3,
       "rows": 2160,
       "dates": 720,
-      "direction_hit_rate": 0.41805555555555557,
-      "mean_selected_probability": 0.5409768518518518
+      "direction_hit_rate": 0.45601851851851855,
+      "mean_selected_probability": 0.4561463309289433,
+      "random_direction_hit_rate": 0.3452006525959353,
+      "hit_rate_lift_over_random": 0.11081786592258325
     },
     {
       "top_n": 5,
       "rows": 3600,
       "dates": 720,
-      "direction_hit_rate": 0.4161111111111111,
-      "mean_selected_probability": 0.5142527777777778
+      "direction_hit_rate": 0.44083333333333335,
+      "mean_selected_probability": 0.4376722080507539,
+      "random_direction_hit_rate": 0.3452006525959353,
+      "hit_rate_lift_over_random": 0.09563268073739806
+    }
+  ],
+  "random_ranking_baseline": [
+    {
+      "model": "LightGBM",
+      "top_n": 1,
+      "index_predicted": null,
+      "dates": 720,
+      "expected_selected_rows": 720,
+      "random_direction_hit_rate": 0.3452006525959353
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 3,
+      "index_predicted": null,
+      "dates": 720,
+      "expected_selected_rows": 2160,
+      "random_direction_hit_rate": 0.3452006525959353
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 5,
+      "index_predicted": null,
+      "dates": 720,
+      "expected_selected_rows": 3600,
+      "random_direction_hit_rate": 0.3452006525959353
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 1,
+      "index_predicted": -1.0,
+      "dates": 254,
+      "expected_selected_rows": 254,
+      "random_direction_hit_rate": 0.30685270771624673
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 3,
+      "index_predicted": -1.0,
+      "dates": 254,
+      "expected_selected_rows": 762,
+      "random_direction_hit_rate": 0.3068527077162467
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 5,
+      "index_predicted": -1.0,
+      "dates": 254,
+      "expected_selected_rows": 1270,
+      "random_direction_hit_rate": 0.30685270771624673
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 1,
+      "index_predicted": 0.0,
+      "dates": 236,
+      "expected_selected_rows": 236,
+      "random_direction_hit_rate": 0.4002176702587804
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 3,
+      "index_predicted": 0.0,
+      "dates": 236,
+      "expected_selected_rows": 708,
+      "random_direction_hit_rate": 0.40021767025878036
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 5,
+      "index_predicted": 0.0,
+      "dates": 236,
+      "expected_selected_rows": 1180,
+      "random_direction_hit_rate": 0.4002176702587804
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 1,
+      "index_predicted": 1.0,
+      "dates": 230,
+      "expected_selected_rows": 230,
+      "random_direction_hit_rate": 0.3310978779481503
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 3,
+      "index_predicted": 1.0,
+      "dates": 230,
+      "expected_selected_rows": 690,
+      "random_direction_hit_rate": 0.3310978779481503
+    },
+    {
+      "model": "LightGBM",
+      "top_n": 5,
+      "index_predicted": 1.0,
+      "dates": 230,
+      "expected_selected_rows": 1150,
+      "random_direction_hit_rate": 0.3310978779481503
     }
   ],
   "top5_by_index_direction": [
@@ -78,22 +217,22 @@
       "index_direction": "하락",
       "rows": 1270,
       "dates": 254,
-      "direction_hit_rate": 0.35590551181102364,
-      "mean_selected_probability": 0.49129921259842513
+      "direction_hit_rate": 0.37716535433070864,
+      "mean_selected_probability": 0.42522241428631247
     },
     {
       "index_direction": "중립",
       "rows": 1180,
       "dates": 236,
-      "direction_hit_rate": 0.5262711864406779,
-      "mean_selected_probability": 0.5532966101694916
+      "direction_hit_rate": 0.5533898305084746,
+      "mean_selected_probability": 0.47351230587898935
     },
     {
       "index_direction": "상승",
       "rows": 1150,
       "dates": 230,
-      "direction_hit_rate": 0.3695652173913043,
-      "mean_selected_probability": 0.49953913043478265
+      "direction_hit_rate": 0.39565217391304347,
+      "mean_selected_probability": 0.41464605382773023
     }
   ],
   "local_ranking_path": "data/raw/stock_index_direction_ranking.parquet",

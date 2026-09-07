@@ -23,6 +23,10 @@ LABEL_HORIZON = 5
 
 ModelBuilder = Callable[..., object]
 
+# 세 클래스의 학습 빈도가 정확히 같을 때는 포지션을 만들지 않는 중립을 우선한다.
+# 검증 정답을 보고 동률을 푸는 순간 기준선에 미래정보가 들어가므로 순서는 고정한다.
+MAJORITY_TIE_BREAK = (0, -1, 1)
+
 
 @dataclass(frozen=True)
 class StockExperimentResult:
@@ -31,6 +35,36 @@ class StockExperimentResult:
     inner_results: pd.DataFrame
     outer_results: pd.DataFrame
     oos_predictions: pd.DataFrame
+
+
+def fold_classification_baselines(
+    y_train: object,
+    y_valid: object,
+) -> dict[str, int | float]:
+    """학습 최빈 기준선과 검증 분포의 사후 참고값을 서로 분리해 계산한다."""
+
+    train = np.asarray(y_train, dtype=int)
+    valid = np.asarray(y_valid, dtype=int)
+    if train.ndim != 1 or valid.ndim != 1 or train.size == 0 or valid.size == 0:
+        raise ValueError("학습·검증 라벨은 비어 있지 않은 1차원 배열이어야 합니다.")
+    unknown = (set(train.tolist()) | set(valid.tolist())) - {-1, 0, 1}
+    if unknown:
+        raise ValueError(f"3분류 라벨이 아닌 값이 있습니다: {sorted(unknown)}")
+
+    train_counts = {label: int(np.sum(train == label)) for label in MAJORITY_TIE_BREAK}
+    valid_counts = {label: int(np.sum(valid == label)) for label in MAJORITY_TIE_BREAK}
+    train_majority = max(MAJORITY_TIE_BREAK, key=train_counts.__getitem__)
+    valid_majority = max(MAJORITY_TIE_BREAK, key=valid_counts.__getitem__)
+    return {
+        "training_majority_class": train_majority,
+        "training_majority_baseline_accuracy": float(np.mean(valid == train_majority)),
+        # 이 값은 검증 정답 분포를 본 사후 통계다. 모델 비교 기준선으로 사용하지 않는다.
+        "validation_majority_class": valid_majority,
+        "validation_majority_oracle_accuracy": float(np.mean(valid == valid_majority)),
+        "validation_down_rate": valid_counts[-1] / int(valid.size),
+        "validation_neutral_rate": valid_counts[0] / int(valid.size),
+        "validation_up_rate": valid_counts[1] / int(valid.size),
+    }
 
 
 def inner_group_class_weight_split(
@@ -151,6 +185,11 @@ def evaluate_stock_models(
             valid_x = dataset.x.iloc[outer_valid]
             predicted = np.asarray(final_model.predict(valid_x), dtype=int)
             probabilities = _ordered_probabilities(final_model, valid_x)
+            metrics = classification_metrics(dataset.y[outer_valid], predicted)
+            baselines = fold_classification_baselines(
+                dataset.y[outer_train],
+                dataset.y[outer_valid],
+            )
             outer_rows.append(
                 {
                     "model": model_name,
@@ -163,7 +202,12 @@ def evaluate_stock_models(
                     "train_end": str(dataset.groups[outer_train][-1]),
                     "valid_start": str(dataset.groups[outer_valid][0]),
                     "valid_end": str(dataset.groups[outer_valid][-1]),
-                    **classification_metrics(dataset.y[outer_valid], predicted),
+                    **metrics,
+                    **baselines,
+                    "accuracy_minus_training_majority_baseline": (
+                        float(metrics["accuracy"])
+                        - float(baselines["training_majority_baseline_accuracy"])
+                    ),
                 }
             )
 
@@ -207,5 +251,6 @@ def evaluate_stock_models(
 __all__ = [
     "StockExperimentResult",
     "evaluate_stock_models",
+    "fold_classification_baselines",
     "inner_group_class_weight_split",
 ]

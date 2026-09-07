@@ -23,18 +23,19 @@ from models.stock_ranking import (  # noqa: E402
     build_common_validation_schedule,
     select_for_index_direction,
     summarize_direction_ranking,
+    summarize_random_ranking_baseline,
 )
 from scripts.run_stock_model_experiment import load_stock_model_dataset  # noqa: E402
 
 HF_INDEX_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "index_price_dev.parquet"
-STOCK_REPORT_PATH = ROOT / "reports" / "stock_model_experiment.json"
+STOCK_REPORT_PATH = ROOT / "reports" / "stock_feature_combinations.json"
 LOCAL_RANKING_PATH = ROOT / "data" / "raw" / "stock_index_direction_ranking.parquet"
 REPORT_PATH = ROOT / "reports" / "stock_index_ranking.json"
+TRIALS_PATH = ROOT / "reports" / "trials.jsonl"
 
 INDEX_COMBINATION = "E"
 INDEX_RETURN_FEATURES = ("five_day_return",)
 INDEX_MODEL = "RandomForest"
-STOCK_MODEL = "RandomForest"
 
 
 def _sha256(path: Path) -> str:
@@ -76,6 +77,88 @@ def _direction_summary(ranking: pd.DataFrame) -> list[dict[str, object]]:
     return rows
 
 
+def _append_alignment_trials(
+    *,
+    run_id: str,
+    track: str,
+    experiment: dict[str, object],
+    source: dict[str, object],
+    inner_results: pd.DataFrame,
+    outer_results: pd.DataFrame,
+) -> None:
+    """지수·종목 공통 OOS 일정을 만들며 실제로 수행한 fit을 모두 기록한다."""
+
+    records: list[dict[str, object]] = []
+
+    def _row_size(row: dict[str, object], *keys: str) -> int:
+        """지수·종목 평가기가 서로 다르게 붙인 크기 열을 한 형식으로 읽는다."""
+
+        for key in keys:
+            if key in row:
+                return int(row[key])
+        raise KeyError(f"학습·검증 크기 열을 찾지 못했습니다: {keys}")
+
+    common = {
+        "schema_version": 1,
+        "status": "success",
+        "track": track,
+        "run": run_id,
+        "report_path": "reports/stock_index_ranking.json",
+        "dataset_source": source,
+        "experiment": experiment,
+        "audit": {"origin": "direct_execution", "coverage": "all_completed_fits"},
+    }
+    for row in inner_results.to_dict(orient="records"):
+        weight = row["class_weight"]
+        weight_id = "none" if weight is None else str(weight)
+        records.append(
+            {
+                **common,
+                "trial_id": (
+                    f"{run_id}-{track}-{row['model']}-fold-{int(row['fold']):02d}"
+                    f"-inner-{weight_id}"
+                ),
+                "fit": {
+                    "phase": "inner_class_weight_selection",
+                    "model": row["model"],
+                    "fold": int(row["fold"]),
+                    "class_weight": weight,
+                    "train_rows": _row_size(row, "inner_train_rows", "inner_train_size"),
+                    "valid_rows": _row_size(row, "inner_valid_rows", "inner_valid_size"),
+                },
+                "metrics": {
+                    key: row[key]
+                    for key in ("accuracy", "macro_f1", "down_recall", "core_harmonic_mean")
+                },
+            }
+        )
+    for row in outer_results.to_dict(orient="records"):
+        records.append(
+            {
+                **common,
+                "trial_id": f"{run_id}-{track}-{row['model']}-fold-{int(row['fold']):02d}-outer",
+                "fit": {
+                    "phase": "outer_evaluation",
+                    "model": row["model"],
+                    "fold": int(row["fold"]),
+                    "class_weight": row["selected_class_weight"],
+                    "train_rows": _row_size(row, "train_rows", "train_size"),
+                    "valid_rows": _row_size(row, "valid_rows", "valid_size"),
+                    "train_end": row["train_end"],
+                    "valid_start": row["valid_start"],
+                    "valid_end": row["valid_end"],
+                },
+                "metrics": {
+                    key: row[key]
+                    for key in ("accuracy", "macro_f1", "down_recall", "core_harmonic_mean")
+                },
+            }
+        )
+    with TRIALS_PATH.open("a", encoding="utf-8") as stream:
+        for record in records:
+            stream.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
+
+
 def main() -> None:
     """두 OOS 예측의 공통 날짜에서 방향별 Top 5 종목 랭킹을 만든다."""
 
@@ -84,6 +167,10 @@ def main() -> None:
             raise FileNotFoundError(f"선행 산출물이 없습니다: {path}")
 
     stock_report = json.loads(STOCK_REPORT_PATH.read_text(encoding="utf-8"))
+    stock_winner = stock_report["combination_winners"][0]
+    stock_combination = str(stock_winner["combination"])
+    stock_model = str(stock_winner["model"])
+    stock_features = tuple(stock_report["combinations"][stock_combination]["features"])
     index_sha = _sha256(HF_INDEX_PATH)
     if stock_report["source"]["index_sha256"] != index_sha:
         raise RuntimeError("개별종목 OOS와 현재 HF 지수 Parquet의 리비전이 다릅니다.")
@@ -95,7 +182,7 @@ def main() -> None:
         INDEX_COMBINATION,
         return_features=INDEX_RETURN_FEATURES,
     )
-    stock_dataset = load_stock_model_dataset()
+    stock_dataset = load_stock_model_dataset(stock_features)
     schedule = build_common_validation_schedule(
         index_dataset.frame["bas_dd"],
         stock_dataset.frame["bas_dd"],
@@ -111,14 +198,17 @@ def main() -> None:
     )
     index_oos = index_result.oos_predictions.loc[:, ["bas_dd", "actual", "predicted"]]
 
-    print("[2/4] 같은 OOS 날짜로 개별종목 조합A RandomForest 재현", flush=True)
+    print(
+        f"[2/4] 같은 OOS 날짜로 개별종목 조합{stock_combination} {stock_model} 재현",
+        flush=True,
+    )
     stock_splits = aligned_panel_splits(
         stock_dataset.frame["bas_dd"],
         schedule,
     )
     stock_result = evaluate_stock_models(
         stock_dataset,
-        model_builders={STOCK_MODEL: MODEL_BUILDERS[STOCK_MODEL]},
+        model_builders={stock_model: MODEL_BUILDERS[stock_model]},
         outer_splits=stock_splits,
     )
     stock_oos = stock_result.oos_predictions
@@ -131,6 +221,20 @@ def main() -> None:
         stock_oos,
         index_oos,
         cutoffs=(1, 3, 5),
+    )
+    random_summary = summarize_random_ranking_baseline(
+        stock_oos,
+        index_oos,
+        cutoffs=(1, 3, 5),
+    )
+    overall_random = random_summary.loc[random_summary["index_predicted"].isna()]
+    random_by_cutoff = overall_random.set_index("top_n")["random_direction_hit_rate"]
+    cutoff_summary["random_direction_hit_rate"] = cutoff_summary["top_n"].map(
+        random_by_cutoff
+    )
+    cutoff_summary["hit_rate_lift_over_random"] = (
+        cutoff_summary["direction_hit_rate"]
+        - cutoff_summary["random_direction_hit_rate"]
     )
     baseline = stock_oos.merge(
         index_oos.loc[:, ["bas_dd", "predicted"]].rename(
@@ -151,16 +255,45 @@ def main() -> None:
         .mean()
         .to_dict()
     )
-    report = {
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
-        "source": {
-            "repo": stock_report["source"]["repo"],
-            "index_path": stock_report["source"]["index_path"],
-            "index_sha256": index_sha,
-            "daily_path": stock_report["source"]["daily_path"],
-            "daily_sha256": stock_report["source"]["daily_sha256"],
-            "holdout_start": stock_report["source"]["holdout_start"],
+    generated_at = datetime.now(timezone.utc).isoformat()
+    run_id = "stock-index-ranking-" + generated_at.replace(":", "").replace("-", "")
+    source = {
+        "repo": stock_report["source"]["repo"],
+        "index_path": stock_report["source"]["index_path"],
+        "index_sha256": index_sha,
+        "daily_path": stock_report["source"]["daily_path"],
+        "daily_sha256": stock_report["source"]["daily_sha256"],
+        "holdout_start": stock_report["source"]["holdout_start"],
+    }
+    _append_alignment_trials(
+        run_id=run_id,
+        track="index",
+        experiment={
+            "combination": INDEX_COMBINATION,
+            "return_features": list(INDEX_RETURN_FEATURES),
         },
+        source=source,
+        inner_results=index_result.inner_results,
+        outer_results=index_result.outer_results,
+    )
+    _append_alignment_trials(
+        run_id=run_id,
+        track="stock",
+        experiment={
+            "combination": stock_combination,
+            "feature_columns": list(stock_features),
+        },
+        source=source,
+        inner_results=stock_result.inner_results,
+        outer_results=stock_result.outer_results,
+    )
+    report = {
+        "generated_at_utc": generated_at,
+        "run_id": run_id,
+        "source": {
+            **source,
+        },
+        "data_quality_policy": stock_report["data_quality_policy"],
         "index_model": {
             "combination": INDEX_COMBINATION,
             "return_features": list(INDEX_RETURN_FEATURES),
@@ -178,8 +311,9 @@ def main() -> None:
             },
         },
         "stock_model": {
-            "combination": "A",
-            "model": STOCK_MODEL,
+            "combination": stock_combination,
+            "model": stock_model,
+            "feature_columns": list(stock_features),
             "outer_fold_metrics": (
                 stock_result.outer_results[
                     ["accuracy", "macro_f1", "down_recall", "core_harmonic_mean"]
@@ -193,6 +327,23 @@ def main() -> None:
                 .value_counts()
                 .to_dict()
             ),
+            "fold_baseline_summary": {
+                "training_majority_baseline_accuracy_mean": float(
+                    stock_result.outer_results[
+                        "training_majority_baseline_accuracy"
+                    ].mean()
+                ),
+                "validation_majority_oracle_accuracy_mean": float(
+                    stock_result.outer_results[
+                        "validation_majority_oracle_accuracy"
+                    ].mean()
+                ),
+                "accuracy_minus_training_majority_baseline_mean": float(
+                    stock_result.outer_results[
+                        "accuracy_minus_training_majority_baseline"
+                    ].mean()
+                ),
+            },
         },
         "common_oos": {
             "dates": int(ranking["bas_dd"].nunique()),
@@ -202,6 +353,11 @@ def main() -> None:
         },
         "all_candidate_direction_hit_rate": baseline_hit_rate,
         "ranking_summary": cutoff_summary.to_dict(orient="records"),
+        "random_ranking_baseline": (
+            random_summary.astype(object)
+            .where(random_summary.notna(), None)
+            .to_dict(orient="records")
+        ),
         "top5_by_index_direction": _direction_summary(ranking),
         "local_ranking_path": str(LOCAL_RANKING_PATH.relative_to(ROOT)).replace(
             "\\", "/"

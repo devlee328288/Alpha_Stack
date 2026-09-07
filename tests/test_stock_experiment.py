@@ -4,6 +4,7 @@ import pandas as pd
 from features.stock_model_dataset import STOCK_FEATURE_COLUMNS, StockModelDataset
 from models.stock_experiment import (
     evaluate_stock_models,
+    fold_classification_baselines,
     inner_group_class_weight_split,
 )
 
@@ -77,3 +78,20 @@ def test_종목모델평가는_날짜그룹폴드와확률세칸을남긴다():
     probability_sum = result.oos_predictions[["p_down", "p_neutral", "p_up"]].sum(axis=1)
     assert np.allclose(probability_sum, 1.0)
     assert set(result.oos_predictions["predicted"]) == {-1, 0, 1}
+    assert result.outer_results["training_majority_class"].tolist() == [0, 0]
+    assert np.allclose(
+        result.outer_results["training_majority_baseline_accuracy"],
+        1.0 / 3.0,
+    )
+
+
+def test_폴드_기준선은_검증_최빈값을_미리_보지_않는다():
+    result = fold_classification_baselines(
+        y_train=[0, 0, 0, -1, 1],
+        y_valid=[-1, -1, 0, 1],
+    )
+
+    assert result["training_majority_class"] == 0
+    assert result["training_majority_baseline_accuracy"] == 0.25
+    assert result["validation_majority_class"] == -1
+    assert result["validation_majority_oracle_accuracy"] == 0.5
