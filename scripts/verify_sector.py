@@ -160,8 +160,13 @@ def main() -> int:  # noqa: PLR0915 — 검사 다섯 절을 한 화면에 순�
             conn, params=(m,))
         if idx.empty:
             # 🔴 지수를 안 받았을 뿐 스냅샷이 틀린 게 아니다. 문제로 세지 않고 할 일을 적는다.
+            #    다만 **받는 명령을 여기 적지 않는다** — 그 명령이 2026-09-07 에 KOSPI
+            #    업종지수 40,324행을 덮어썼다. 기본키 (bas_dd, index_name) 에 시장이 없어
+            #    두 시장이 같은 이름(건설·금속·화학…)을 두고 서로를 지운다.
             print(f"  ⚠️ [{m}] index_price 에 이 시장 지수가 0종이라 조인을 건너뛴다")
-            print(f"     받으려면: python scripts/fetch_index.py --markets {m} --days 4343")
+            print(f"     🔴 지금은 받으면 안 된다 — {m} 을 받으면 같은 이름의 KOSPI 업종지수를")
+            print("        덮어쓴다. 기본키에 index_class 를 넣는 마이그레이션(v13)이 먼저다")
+            print("        (ingest/store/krx_index.py 의 _시장가드 가 실제로 막고 있다)")
             continue
         if m != "KOSPI":
             # `index_name_for` 대조표는 KOSPI 업종지수를 보고 만든 것이다. 다른 시장은
