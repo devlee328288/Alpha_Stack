@@ -142,17 +142,24 @@ def db(tmp_path, monkeypatch):
 
 
 def 스냅샷(db_path: Path, tmp_path: Path, bas_dd: str, rows: dict, market: str):
-    """반입 엔진이 통과시킨 것처럼 `inbox_accepted` 에 넣는다 (`test_supply_sector.py` 와 같다)."""
+    """반입 엔진이 통과시킨 것처럼 `inbox_accepted` 에 넣는다 (`test_supply_sector.py` 와 같다).
+
+    `rows` 의 값은 업종명 하나(문자열)이거나 여럿(리스트)이다. 여럿을 받는 이유는 KRX 화면이
+    실제로 **한 종목을 두 업종에 싣기 때문**이다 — 실측 2026-09-07 KOSDAQ 17쌍.
+    """
     src = tmp_path / f"업종분류현황_{market}_{bas_dd}.csv"
     # 내용이 달라야 SHA-256 이 달라 batch 가 안 겹친다
     src.write_text(f"{market},{bas_dd},{len(rows)}", encoding="utf-8")
+    항목 = [(code, 업종)
+           for code, nm_ in rows.items()
+           for 업종 in ([nm_] if isinstance(nm_, str) else nm_)]
     accepted = pd.DataFrame([
-        {"row_no": i, "kind": sector.SECTOR_KIND, "key_hash": f"{bas_dd}{code}",
+        {"row_no": i, "kind": sector.SECTOR_KIND, "key_hash": f"{bas_dd}{code}{업종}",
          "payload": {"bas_dd": bas_dd, "code": code, "name": code, "market": market,
-                     "sector_nm": nm_, "close": 1000, "change": 0, "change_rate": 0.0,
+                     "sector_nm": 업종, "close": 1000, "change": 0, "change_rate": 0.0,
                      "market_cap": 1_000_000},
          "extras": None, "changes": None, "warnings": None}
-        for i, (code, nm_) in enumerate(rows.items())
+        for i, (code, 업종) in enumerate(항목)
     ])
     result = SimpleNamespace(kind=sector.SECTOR_KIND, accepted=accepted,
                              quarantined=pd.DataFrame(), report={"schema_version": "1.0"},
@@ -203,3 +210,93 @@ def test_attach_industry_는_종목별로_붙이므로_날짜가_어긋나도_�
     out = sector.attach_industry(frame, as_of="2024-01-08", db_path=경로)
     assert list(out["industry"]) == ["전기·전자", "일반전기전자"]
     assert list(out["industry_bas_dd"]) == ["20240102", "20240103"]
+
+
+# ── ④ 한 종목이 업종 둘에 실렸을 때 ──────────────────────────────────────────
+#
+# 🔴 KRX 업종분류 현황 화면은 한 종목을 두 업종에 싣는 때가 있다. 실측 2026-09-07 로
+#    KOSDAQ 34행(17쌍) — 글로웍스·해성산업·솔본·신라섬유가 2010~2017 스냅샷에서 `부동산` 과
+#    `일반서비스` 에 동시에 들어 있다. KOSPI 는 0건이라 KOSDAQ 을 들이기 전에는 안 보였다.
+#
+#    그냥 두면 `industry_as_of` 가 종목당 두 행을 내주고 `attach_industry` 의 `merge_asof` 는
+#    둘 중 아무거나 집는다 — 조용히 틀리는 종류라 여기서 못 박는다.
+
+def test_한_종목이_업종_둘에_실려도_종목마다_한_행만_나온다(db, tmp_path):
+    _, 경로 = db
+    스냅샷(경로, tmp_path, "20240102",
+          {"034810": ["부동산", "일반서비스"], "005930": "전기·전자"}, "KOSDAQ")
+
+    snaps = sector.snapshots(db_path=경로)
+    assert len(snaps) == 3, "원본은 겹친 채로 들어와 있어야 한다 (반입은 격리하지 않는다)"
+
+    out = sector.industry_as_of("20240105", as_of="2024-01-08", db_path=경로)
+    assert len(out) == 2
+    assert out["code"].is_unique
+
+
+def test_겹치면_같은_스냅샷에서_종목이_많은_업종을_고른다(db, tmp_path):
+    """규칙 1단계. `일반서비스` 에 종목이 셋, `부동산` 에 하나(겹친 그 종목뿐)면 `일반서비스`.
+
+    실제 자료가 이 모양이다 — 2010~2017 KOSDAQ 에서 부동산은 1~3종, 일반서비스는 65~90종
+    이었고, KRX 자신도 중복을 끝낸 2018-01-02 스냅샷에서 `일반서비스` 로 정리했다.
+    """
+    _, 경로 = db
+    스냅샷(경로, tmp_path, "20240102", {
+        "034810": ["부동산", "일반서비스"],   # 겹친 종목
+        "111111": "일반서비스",
+        "222222": "일반서비스",
+    }, "KOSDAQ")
+
+    out = sector.industry_as_of("20240105", as_of="2024-01-08", db_path=경로)
+    골라진 = out.set_index("code")["industry"]
+    assert 골라진["034810"] == "일반서비스"
+
+
+def test_종목_수가_같으면_업종명_사전순으로_고른다(db, tmp_path):
+    """규칙 2단계 — 마지막 빗장. 이게 없으면 동수일 때 입력 순서에 달린다."""
+    _, 경로 = db
+    # 두 업종 모두 그 종목 하나뿐이라 동수다
+    스냅샷(경로, tmp_path, "20240102", {"034810": ["일반서비스", "부동산"]}, "KOSDAQ")
+
+    out = sector.industry_as_of("20240105", as_of="2024-01-08", db_path=경로)
+    assert out.set_index("code")["industry"]["034810"] == sorted(["일반서비스", "부동산"])[0]
+
+
+def test_industry_ambiguous_는_겹쳤던_종목에만_참이다(db, tmp_path):
+    """고른 결과만 주고 고른 사실을 감추면 나중에 되짚을 수 없다."""
+    _, 경로 = db
+    스냅샷(경로, tmp_path, "20240102",
+          {"034810": ["부동산", "일반서비스"], "005930": "전기·전자"}, "KOSDAQ")
+
+    out = sector.industry_as_of("20240105", as_of="2024-01-08", db_path=경로)
+    표시 = out.set_index("code")["industry_ambiguous"]
+    assert bool(표시["034810"]) is True
+    assert bool(표시["005930"]) is False
+
+
+def test_attach_industry_는_몇_번을_돌려도_같은_업종을_붙인다(db, tmp_path):
+    """🔴 예전 결함. `merge_asof` 는 오른쪽에 (종목, 날짜) 가 겹치면 어느 행이 붙을지
+    보장하지 않아, 같은 입력에도 붙는 업종이 달라질 수 있었다."""
+    _, 경로 = db
+    스냅샷(경로, tmp_path, "20240102",
+          {"034810": ["부동산", "일반서비스"], "111111": "일반서비스"}, "KOSDAQ")
+    frame = pd.DataFrame({"bas_dd": ["20240105"], "code": ["034810"]})
+
+    결과 = [sector.attach_industry(frame, as_of="2024-01-08", db_path=경로)["industry"][0]
+           for _ in range(5)]
+    assert len(set(결과)) == 1, f"돌릴 때마다 달라진다: {결과}"
+    assert 결과[0] == "일반서비스"
+
+
+def test_attach_industry_는_겹쳐도_행이_늘지_않는다(db, tmp_path):
+    """겹친 스냅샷을 그대로 조인하면 시세 표가 부푼다 — 행 수는 입력 그대로여야 한다."""
+    _, 경로 = db
+    # 실제 자료 모양: `일반서비스` 에 종목이 더 많아 그쪽이 뽑힌다
+    스냅샷(경로, tmp_path, "20240102",
+          {"034810": ["부동산", "일반서비스"], "111111": "일반서비스"}, "KOSDAQ")
+    frame = pd.DataFrame({"bas_dd": ["20240103", "20240104", "20240105"],
+                          "code": ["034810", "034810", "034810"]})
+
+    out = sector.attach_industry(frame, as_of="2024-01-08", db_path=경로)
+    assert len(out) == 3
+    assert list(out["industry"]) == ["일반서비스"] * 3

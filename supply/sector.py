@@ -38,7 +38,13 @@ from supply.clock import AsOf, latest_known_day
 SECTOR_KIND = "sector"
 
 #: 이 모듈이 붙여 주는 칸. 부르는 쪽이 이 이름에 기대므로 함부로 바꾸지 않는다.
-INDUSTRY_COLUMNS = ("industry", "industry_bas_dd", "industry_known_at")
+#:
+#: `industry_ambiguous` 는 **그 종목이 그 스냅샷에서 업종 둘에 실려 있었다**는 표시다.
+#: 값이 참이면 아래 `resolve_duplicates` 가 규칙으로 하나를 골랐다는 뜻이고, 거짓이면
+#: 원본에 하나뿐이었다. 고른 결과만 주고 고른 사실을 감추면, 나중에 "왜 이 종목이 이
+#: 업종이지" 를 되짚을 방법이 없다. 쓰는 쪽은 이 칸을 무시해도 되고 걸러내도 된다.
+INDUSTRY_COLUMNS = ("industry", "industry_bas_dd", "industry_known_at",
+                    "industry_ambiguous")
 
 #: 업종분류 현황의 업종명 → `index_price.index_name`. 실측으로 어긋난 것만 적는다.
 #:
@@ -114,15 +120,73 @@ def _usable(snaps: pd.DataFrame, as_of: AsOf) -> pd.DataFrame:
     return snaps[snaps["known_at"] <= latest_known_day(as_of)]
 
 
+def resolve_duplicates(snaps: pd.DataFrame) -> pd.DataFrame:
+    """한 종목이 업종 둘에 실린 행을 **결정적으로** 하나로 줄이고 `ambiguous` 를 붙인다.
+
+    🔴 **왜 필요한가.** KRX 업종분류 현황 화면은 한 종목을 두 업종에 싣는 때가 있다.
+       실측 2026-09-07: KOSDAQ 34행(17쌍) — 글로웍스·해성산업·솔본·신라섬유가 2010~2017
+       스냅샷에서 `부동산` 과 `일반서비스` 에 동시에 들어 있다. KOSPI 는 0건이라 KOSDAQ 을
+       들이기 전에는 드러나지 않았다.
+
+       이걸 그냥 두면 `industry_as_of` 는 종목당 두 행을 내주고, `attach_industry` 의
+       `merge_asof` 는 둘 중 **아무거나** 집는다 — 어느 쪽이 붙는지가 입력 순서에 달려
+       재현되지 않는다. 조용히 틀리는 종류다.
+
+    ## 고르는 규칙 — 두 단계
+
+    1. **같은 스냅샷(날짜·시장) 안에서 종목이 많은 업종을 고른다.**
+    2. 종목 수가 같으면 **업종명 사전순** 첫 번째. (완전히 결정적으로 만드는 마지막 빗장)
+
+    1번이 그 스냅샷 안만 보므로 미래를 참조하지 않는다. 그러면서 실측으로 맞는다 —
+    KRX 자신이 중복을 끝낸 2018-01-02 스냅샷에서 셋을 모두 `일반서비스` 로 정리했는데,
+    이 규칙이 **8개 스냅샷 8/8** 로 같은 답을 낸다(부동산 1~3종 vs 일반서비스 65~90종).
+    사전순만 쓰면 `부동산` 이 이겨 **0/8** 로 반대가 된다. 그래서 사전순은 2번에만 둔다.
+
+    ⚠️ 2018-01-02 스냅샷을 **규칙에 쓰지는 않는다.** 그건 2010년 시점에서 볼 수 없는
+       미래다. 여기서는 규칙이 맞는지 확인하는 데만 썼다.
+
+    업계 분류 표준(GICS·ICB)도 회사마다 업종 하나만 준다 — 매출이 가장 큰 주된 사업으로
+    정한다. 우리에겐 매출 비중 자료가 없어 위 대리 규칙을 쓴다.
+    """
+    if snaps.empty:
+        out = snaps.copy()
+        out["ambiguous"] = pd.Series(dtype=bool)
+        return out
+
+    out = snaps.copy()
+    # 🔴 표시는 **줄이기 전에** 찍는다. 하나로 줄인 뒤에는 겹쳤던 흔적이 사라진다.
+    겹친행 = out.duplicated(["bas_dd", "code"], keep=False)
+    out["ambiguous"] = 겹친행
+    if not 겹친행.any():
+        return out.reset_index(drop=True)
+
+    # 같은 스냅샷 안에서 그 업종에 종목이 몇인가. 이 수가 클수록 주류 업종이다.
+    묶음 = out.groupby(["bas_dd", "market", "sector_nm"])["code"]
+    out["_같은업종종목수"] = 묶음.transform("size")
+    out = out.sort_values(
+        ["bas_dd", "code", "_같은업종종목수", "sector_nm"],
+        ascending=[True, True, False, True],   # 종목 수는 많은 쪽부터, 동수면 이름 사전순
+    )
+    out = out.drop_duplicates(["bas_dd", "code"], keep="first")
+    return (out.drop(columns=["_같은업종종목수"])
+               .sort_values(["bas_dd", "code"])
+               .reset_index(drop=True))
+
+
 # ==================================================
 # 2. 정문 — as_of 없이는 못 지난다
 # ==================================================
 def industry_as_of(bas_dd: str, *, as_of: AsOf, market: Optional[str] = None,
                    db_path=None) -> pd.DataFrame:
-    """거래일 `bas_dd` 의 종목 → 업종. 칸: code · industry · industry_bas_dd · industry_known_at.
+    """거래일 `bas_dd` 의 종목 → 업종.
+
+    칸: code · industry · industry_bas_dd · industry_known_at · industry_ambiguous.
 
     `bas_dd` 이전 가장 최근 스냅샷 **하나**를 통째로 준다. 스냅샷이 아직 없는 구간이면
     빈 표(칸은 있다). 빈 표는 오류가 아니라 *"그때는 몰랐다"* 다.
+
+    종목마다 **한 행**이다 — 원본이 한 종목을 업종 둘에 실었으면 `resolve_duplicates`
+    가 규칙으로 하나를 고르고 `industry_ambiguous` 에 참을 남긴다.
     """
     snaps = _usable(snapshots(db_path=db_path), as_of)
     if market:
@@ -131,17 +195,18 @@ def industry_as_of(bas_dd: str, *, as_of: AsOf, market: Optional[str] = None,
     if snaps.empty:
         return pd.DataFrame(columns=["code", *INDUSTRY_COLUMNS])
     최근 = snaps["bas_dd"].max()
-    pick = snaps[snaps["bas_dd"] == 최근]
+    pick = resolve_duplicates(snaps[snaps["bas_dd"] == 최근])
     return pd.DataFrame({
         "code": pick["code"].to_numpy(),
         "industry": pick["sector_nm"].to_numpy(),
         "industry_bas_dd": pick["bas_dd"].to_numpy(),
         "industry_known_at": pick["known_at"].to_numpy(),
+        "industry_ambiguous": pick["ambiguous"].to_numpy(),
     }).reset_index(drop=True)
 
 
 def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.DataFrame:
-    """시세 표(`bas_dd`·`code` 가 있는 것)에 업종 세 칸을 붙인다.
+    """시세 표(`bas_dd`·`code` 가 있는 것)에 업종 네 칸을 붙인다.
 
     행마다 **그 행의 `bas_dd` 이전 가장 최근 스냅샷**을 종목별로 찾는다
     (`merge_asof(direction="backward")`). 스냅샷이 하나도 없으면 세 칸을 비워서 돌려준다 —
@@ -160,9 +225,15 @@ def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.Dat
             out[col] = pd.Series([None] * len(out), index=out.index, dtype="object")
         return out
 
+    # 🔴 `merge_asof` 는 오른쪽에 (종목, 날짜) 가 겹치면 **어느 행이 붙을지 보장하지 않는다.**
+    #    스냅샷마다 하나로 줄여 두어야 몇 번을 돌려도 같은 업종이 붙는다.
+    #    (`resolve_duplicates` 가 날짜별로 세므로 표를 통째로 넘겨도 날짜가 섞이지 않는다.)
+    snaps = resolve_duplicates(snaps)
     right = snaps.rename(columns={
         "bas_dd": "industry_bas_dd", "sector_nm": "industry", "known_at": "industry_known_at",
-    })[["code", "industry_bas_dd", "industry", "industry_known_at"]].copy()
+        "ambiguous": "industry_ambiguous",
+    })[["code", "industry_bas_dd", "industry", "industry_known_at",
+        "industry_ambiguous"]].copy()
     # `merge_asof` 는 `on` 키가 숫자·시각이어야 한다 — YYYYMMDD 문자열은 거부한다.
     # 정수로 바꿔도 순서는 같다(자릿수가 고정된 날짜라서).
     right["_key"] = right["industry_bas_dd"].astype(str).astype(int)
@@ -189,5 +260,6 @@ __all__ = [
     "attach_industry",
     "index_name_for",
     "industry_as_of",
+    "resolve_duplicates",
     "snapshots",
 ]

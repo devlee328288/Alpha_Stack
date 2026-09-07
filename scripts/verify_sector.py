@@ -69,9 +69,23 @@ def main() -> int:  # noqa: PLR0915 — 검사 다섯 절을 한 화면에 순�
         print("  ✅ 가이드의 18개 날짜와 같다")
     행수 = snaps.groupby("bas_dd").size()
     print(f"  행 수 최소 {행수.min()}({행수.idxmin()}) · 최대 {행수.max()}({행수.idxmax()})")
-    중복 = int(snaps.duplicated(["bas_dd", "code"]).sum())
-    print(f"  {'✅' if 중복 == 0 else '🔴'} (날짜, 종목) 중복 {중복}행")
-    문제 += int(중복 > 0)
+    # 🔴 KRX 화면은 한 종목을 업종 둘에 싣는 때가 있다 (실측: KOSDAQ 17쌍 · KOSPI 0).
+    #    원자료가 그런 것이라 격리하지 않고, supply.sector 가 결정적 규칙으로 하나를 고른다.
+    #    여기서 볼 것은 "겹쳤나" 가 아니라 **"골라낸 뒤에도 남았나"** 다 — 남았다면 규칙이
+    #    닿지 않은 새로운 모양이라는 뜻이고, 그때는 조인이 조용히 부푼다.
+    겹침 = int(snaps.duplicated(["bas_dd", "code"]).sum())
+    해소 = sector.resolve_duplicates(snaps)
+    남은중복 = int(해소.duplicated(["bas_dd", "code"]).sum())
+    if 겹침:
+        겹친행 = snaps[snaps.duplicated(["bas_dd", "code"], keep=False)]
+        조합 = sorted({" + ".join(sorted(g["sector_nm"]))
+                      for _, g in 겹친행.groupby(["bas_dd", "code"])})
+        print(f"  ℹ️ 원본에 (날짜,종목) 겹침 {겹침}쌍 — 시장 {sorted(겹친행['market'].unique())} · "
+              f"종목 {겹친행['code'].nunique()}종 · 조합 {조합}")
+        고른것 = sorted(해소.loc[해소["ambiguous"], "sector_nm"].unique())
+        print(f"     → 규칙(같은 스냅샷 종목 수 많은 쪽 → 동수면 사전순)이 고른 업종: {고른것}")
+    print(f"  {'✅' if 남은중복 == 0 else '🔴'} 고른 뒤 남은 (날짜, 종목) 중복 {남은중복}행")
+    문제 += int(남은중복 > 0)
 
     # ── 2. 🔴 전량 값 대조 ───────────────────────────────────────────
     print("\n── 2. 종가·시가총액 전량 대조 (daily_price) ──")
@@ -104,8 +118,20 @@ def main() -> int:  # noqa: PLR0915 — 검사 다섯 절을 한 화면에 순�
 
     # ── 3. 체계가 바뀐 지점 ───────────────────────────────────────────
     print("\n── 3. 업종 체계 — 새 업종이 처음 나타난 스냅샷 ──")
-    이름들 = {d: set(snaps.loc[snaps["bas_dd"] == d, "sector_nm"]) for d in days}
-    print("  업종 수 흐름: " + " ".join(f"{d}:{len(이름들[d])}" for d in days))
+    # 🔴 두 시장을 합쳐서 세면 안 된다. KOSPI 와 KOSDAQ 은 **업종 체계가 다르고**
+    #    (KOSDAQ 은 2024 개편에서 32종→24종) 이름도 일부만 겹친다. 합치면 "KOSPI 에서
+    #    사라진 업종" 이 KOSDAQ 에 남아 있어 안 사라진 것처럼 보인다 — 실제로 `부동산` 이
+    #    그렇게 보였다. 아래 개편 검사는 그래서 KOSPI 만 본다.
+    시장들 = sorted(snaps["market"].unique())
+    이름들_시장 = {
+        m: {d: set(snaps.loc[(snaps["bas_dd"] == d) & (snaps["market"] == m), "sector_nm"])
+            for d in days}
+        for m in 시장들
+    }
+    for m in 시장들:
+        print(f"  [{m}] 업종 수 흐름: " + " ".join(f"{d}:{len(이름들_시장[m][d])}" for d in days))
+    이름들 = 이름들_시장.get("KOSPI", {d: set() for d in days})
+    print("  (아래 2024 개편 검사는 KOSPI 체계 기준)")
     for 업종 in sorted(NEW_SECTORS_2024):
         있는날 = [d for d in days if 업종 in 이름들[d]]
         if not 있는날:
@@ -118,26 +144,50 @@ def main() -> int:  # noqa: PLR0915 — 검사 다섯 절을 한 화면에 순�
         표시 = "✅" if not 빠진 else "🔴"
         문제 += int(bool(빠진))
         print(f"  {표시} {업종}: {처음} 부터" + (f" — 그 뒤 {빠진} 에서 빠짐" if 빠진 else ""))
-    사라진 = [(d0, d1, sorted(이름들[d0] - 이름들[d1]))
-              for d0, d1 in zip(days, days[1:], strict=False) if 이름들[d0] - 이름들[d1]]
-    for d0, d1, s in 사라진:
-        print(f"  ℹ️ {d0}→{d1} 사라진 업종 {s}")
+    for m in 시장들:
+        이름 = 이름들_시장[m]
+        사라진 = [(d0, d1, sorted(이름[d0] - 이름[d1]))
+                  for d0, d1 in zip(days, days[1:], strict=False) if 이름[d0] - 이름[d1]]
+        for d0, d1, s in 사라진:
+            print(f"  ℹ️ [{m}] {d0}→{d1} 사라진 업종 {s}")
 
     # ── 4. 지수명 조인 ───────────────────────────────────────────────
     print("\n── 4. index_price 업종지수와 조인 ──")
-    idx = pd.read_sql_query(
-        "SELECT DISTINCT bas_dd, index_name FROM index_price WHERE index_class = 'KOSPI'", conn)
     조인문제 = 0
-    for day in days:
-        지수들 = set(idx.loc[idx["bas_dd"] == day, "index_name"])
-        안붙음 = {n for n in 이름들[day]
-                if sector.index_name_for(n) not in 지수들} - NO_INDEX_SECTORS
-        if 안붙음:
-            조인문제 += 1
-            print(f"  🔴 {day} 지수 없는 업종: {sorted(안붙음)}")
+    for m in 시장들:
+        idx = pd.read_sql_query(
+            "SELECT DISTINCT bas_dd, index_name FROM index_price WHERE index_class = ?",
+            conn, params=(m,))
+        if idx.empty:
+            # 🔴 지수를 안 받았을 뿐 스냅샷이 틀린 게 아니다. 문제로 세지 않고 할 일을 적는다.
+            #    다만 **받는 명령을 여기 적지 않는다** — 그 명령이 2026-09-07 에 KOSPI
+            #    업종지수 40,324행을 덮어썼다. 기본키 (bas_dd, index_name) 에 시장이 없어
+            #    두 시장이 같은 이름(건설·금속·화학…)을 두고 서로를 지운다.
+            print(f"  ⚠️ [{m}] index_price 에 이 시장 지수가 0종이라 조인을 건너뛴다")
+            print(f"     🔴 지금은 받으면 안 된다 — {m} 을 받으면 같은 이름의 KOSPI 업종지수를")
+            print("        덮어쓴다. 기본키에 index_class 를 넣는 마이그레이션(v13)이 먼저다")
+            print("        (ingest/store/krx_index.py 의 _시장가드 가 실제로 막고 있다)")
+            continue
+        if m != "KOSPI":
+            # `index_name_for` 대조표는 KOSPI 업종지수를 보고 만든 것이다. 다른 시장은
+            # 아직 대조표가 없어 이름이 안 맞는 것이 정상이다 — 알리되 문제로 세지 않는다.
+            안붙은날 = [d for d in days
+                       if {n for n in 이름들_시장[m][d]
+                           if sector.index_name_for(n)
+                           not in set(idx.loc[idx["bas_dd"] == d, "index_name"])}]
+            print(f"  ⚠️ [{m}] 대조표가 아직 없다 — "
+                  f"{len(안붙은날)}/{len(days)}장에서 안 붙는 이름이 있다")
+            continue
+        for day in days:
+            지수들 = set(idx.loc[idx["bas_dd"] == day, "index_name"])
+            안붙음 = {n for n in 이름들_시장[m][day]
+                    if sector.index_name_for(n) not in 지수들} - NO_INDEX_SECTORS
+            if 안붙음:
+                조인문제 += 1
+                print(f"  🔴 [{m}] {day} 지수 없는 업종: {sorted(안붙음)}")
+        if not 조인문제:
+            print(f"  ✅ [{m}] {len(days)}장 전부 — 농업·광업 말고는 지수명이 다 붙는다")
     문제 += int(조인문제 > 0)
-    if not 조인문제:
-        print(f"  ✅ {len(days)}장 전부 — 농업·광업 말고는 지수명이 다 붙는다")
 
     # ── 5. 2안 시연 ──────────────────────────────────────────────────
     print(f"\n── 5. 모델 파트 2안 ({DEMO_DAY}) — 업종 상위 10 → 업종별 시총 상위 5 ──")
