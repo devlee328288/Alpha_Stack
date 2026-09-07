@@ -16,8 +16,8 @@ from pandas.api.types import is_bool_dtype
 from evaluation.horizon import HOLDOUT_START
 from features.indicators import bollinger_bands, macd_hist_ratio, percent_b, rsi, sma_gap
 from features.returns import n_day_return
-from features.volatility import atr, historical_volatility
-from features.volume import obv, volume_ratio, volume_sma
+from features.volatility import atr_ratio, historical_volatility
+from features.volume import obv_slope_20, volume_ratio
 
 DEFAULT_TOP_N = 50
 STOCK_LABEL_HORIZON = 5
@@ -278,12 +278,10 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
     low = ordered["adj_low"].to_numpy(dtype=float)
     volume = ordered["volume"].to_numpy(dtype=float)
 
-    atr_14 = atr(high, low, close, 14)
     bands = bollinger_bands(close, 20)
-    hv_20 = historical_volatility(close, 20)
-    obv_values = obv(close, volume)
-    volume_average = volume_sma(volume, 20)
 
+    # 파생 지표는 여기서 손으로 다시 짜지 않고 원자 함수를 그대로 부른다. 같은 공식을
+    # 두 곳에 두면 한쪽만 고쳐졌을 때 값이 조용히 갈린다(신장환 님 지적, #155).
     with np.errstate(divide="ignore", invalid="ignore"):
         ordered["sma_gap_5_20"] = sma_gap(close, 5, 20)
         ordered["sma_gap_20_60"] = sma_gap(close, 20, 60)
@@ -291,12 +289,10 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         ordered["macd_hist_ratio"] = macd_hist_ratio(close)
         ordered["bb_bandwidth"] = bands["bandwidth"]
         ordered["bb_position"] = percent_b(close, 20)
-        ordered["atr_ratio"] = atr_14 / close
-        ordered["hv_20"] = hv_20
+        ordered["atr_ratio"] = atr_ratio(high, low, close, 14)
+        ordered["hv_20"] = historical_volatility(close, 20)
         ordered["vol_ratio_20"] = volume_ratio(volume, 20)
-        ordered["obv_slope_20"] = (
-            obv_values - pd.Series(obv_values).shift(20).to_numpy()
-        ) / (volume_average * 20.0)
+        ordered["obv_slope_20"] = obv_slope_20(close, volume, 20)
         ordered["daily_return"] = n_day_return(close, 1)
         ordered["five_day_return"] = n_day_return(close, 5)
     return ordered.loc[:, ["bas_dd", "code", *STOCK_FEATURE_COLUMNS]].replace(
