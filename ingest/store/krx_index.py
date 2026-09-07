@@ -50,38 +50,81 @@ def _target(bas_dd: str, market: str) -> str:
 
 
 #: 지금 받아도 되는 시장. 🔴 **하나뿐인 것이 제약이지 취향이 아니다.**
+#:
+#: v13 이 기본키를 고친 뒤로 이 값의 뜻이 **바뀌었다.** 예전에는 "KOSDAQ 을 받으면
+#: 자료가 깨진다" 였고, 지금은 **"하루 호출 한도"** 다. KRX 는 인증키당 1일 10,000회를
+#: 허용하는데(이용약관 제8조 ④) 16년 백필이 시장당 4,343콜이라, 같은 날 종목 백필까지
+#: 돌리면 한도를 넘는다. 자료가 깨지는 문제는 기본키가 막는다.
 SAFE_MARKETS = frozenset({"KOSPI"})
 
 
-def _시장가드(markets: Sequence[str]) -> None:
-    """🔴 KOSPI 말고 다른 시장을 받으려 하면 **받기 전에** 멈춘다.
+def _기본키에_시장이_있나(conn=None) -> bool:
+    """이 DB 의 `index_price` 기본키에 `index_class` 가 들어 있나 (v13 적용 여부).
 
-    ## 왜 — 실제로 자료를 잃었다 (2026-09-07)
+    상수가 아니라 **DB 를 실측**하는 이유: 마이그레이션을 안 돌린 DB 가 실재한다.
+    팀원이 옛 파일을 물려받거나, `migrate_path()` 가 아직 안 불린 채 수집이 먼저 돌
+    수 있다. 코드에 v13 이 있다는 것과 이 DB 가 v13 이라는 것은 다른 사실이다.
 
-    `index_price` 의 기본키가 `(bas_dd, index_name)` 이라 **시장이 들어 있지 않다.**
-    그런데 KOSPI 와 KOSDAQ 은 `건설`·`금속`·`화학` 처럼 **같은 이름의 업종지수를 각각**
-    가진다. 그래서 KOSDAQ 을 받으면 `INSERT OR REPLACE` 가 같은 이름의 KOSPI 행을
-    조용히 덮어쓴다.
+    표가 아직 없으면 `True` — 곧 `init_db()` 가 새 모양으로 만들기 때문이다.
+    """
+    def 판정(연결) -> bool:
+        rows = 연결.execute("PRAGMA table_info(index_price)").fetchall()
+        기본키 = [r[1] for r in rows if r[5] > 0]
+        return not rows or "index_class" in 기본키
+
+    if conn is not None:
+        return 판정(conn)
+    with connect() as 새연결:                 # `connect()` 는 컨텍스트 매니저다
+        return 판정(새연결)
+
+
+def _시장가드(markets: Sequence[str], *, conn=None) -> None:
+    """🔴 받아도 되는 시장인지 **받기 전에** 본다. 문이 둘이다.
+
+    ## ① 구조 — 이 DB 의 기본키에 시장이 있나 (2026-09-07 에 자료를 잃고 세웠다)
+
+    옛 기본키는 `(bas_dd, index_name)` 이라 **시장이 들어 있지 않았다.** 그런데 KOSPI 와
+    KOSDAQ 은 `건설`·`금속`·`화학` 처럼 **같은 이름의 업종지수를 각각** 가진다. 그래서
+    KOSDAQ 을 받으면 `INSERT OR REPLACE` 가 같은 이름의 KOSPI 행을 조용히 덮어썼다.
 
     실측: KOSDAQ 을 켜서 2,372거래일을 받았더니 **KOSPI 업종지수 17종 × 40,324행**이
     KOSDAQ 값으로 바뀌었다. 행 수는 오히려 늘어서(196,272 → 244,108) 개수만 봐서는
     사고를 알아챌 수 없었다. `index_class` 별로 세어 보고서야 드러났다.
 
-    ## 풀려면
+    **v13 이 기본키를 `(bas_dd, index_name, index_class)` 로 넓혀 이 구멍을 닫았다.**
+    그래도 이 문을 남기는 이유는 *"코드가 v13 을 안다"* 와 *"이 DB 가 v13 이다"* 가 다른
+    사실이기 때문이다. 마이그레이션을 안 돌린 DB 에서는 여전히 막아야 한다.
 
-    스키마를 고쳐야 한다 — 기본키에 `index_class` 를 넣는 마이그레이션(v13)이 필요하다.
-    그 전까지는 이 문이 닫혀 있다. 고친 뒤에는 `SAFE_MARKETS` 에 시장을 더하면 된다.
+    ## ② 정책 — `SAFE_MARKETS` 안인가 (하루 호출 한도)
+
+    구조가 풀려도 켜는 것은 별개다. 시장당 4,343콜이라 둘을 켜면 8,686콜이고, 같은 날
+    종목 백필(8,686콜)까지 돌리면 하루 10,000회 한도를 넘는다.
+
+    🔴 **두 문의 문구를 섞지 않는다.** 구조가 이미 풀렸는데 "자료를 덮어쓴다" 고 하면
+       거짓말이고, 사람이 고칠 수 없는 것을 고치려 든다.
     """
     나쁜것 = [m for m in markets if m not in SAFE_MARKETS]
     if not 나쁜것:
         return
+
+    if not _기본키에_시장이_있나(conn):
+        raise RuntimeError(
+            f"이 DB 는 아직 {sorted(SAFE_MARKETS)} 만 받을 수 있다 (요청: {나쁜것}).\n"
+            "  왜: index_price 의 기본키에 index_class 가 없다 — 시장이 빠져 있다.\n"
+            "      두 시장이 같은 이름의 업종지수를 가져서, 나중에 받은 쪽이 먼저 받은\n"
+            "      쪽을 조용히 덮어쓴다. 2026-09-07 에 KOSPI 17종 40,324행을 잃었다.\n"
+            "  할 일: python -c \"from ingest.store.migrations import migrate_path;"
+            " migrate_path()\"\n"
+            "         로 마이그레이션 v13 을 적용한 뒤 다시 실행한다."
+        )
+
     raise RuntimeError(
-        f"지금은 {sorted(SAFE_MARKETS)} 만 받을 수 있다 (요청: {나쁜것}).\n"
-        "  왜: index_price 의 기본키가 (bas_dd, index_name) 이라 시장이 없다.\n"
-        "      두 시장이 같은 이름의 업종지수를 가져서, 나중에 받은 쪽이 먼저 받은 쪽을\n"
-        "      조용히 덮어쓴다. 2026-09-07 에 KOSPI 업종지수 17종 40,324행을 잃었다.\n"
-        "  할 일: 기본키에 index_class 를 넣는 마이그레이션(v13)을 먼저 하고,\n"
-        "         그다음 이 파일의 SAFE_MARKETS 에 시장을 더한다."
+        f"지금은 {sorted(SAFE_MARKETS)} 만 받는다 (요청: {나쁜것}).\n"
+        "  왜: 자료 구조는 v13 으로 풀렸지만 **하루 호출 한도** 때문이다.\n"
+        "      KRX 는 인증키당 1일 10,000회를 허용하는데(이용약관 제8조 ④)\n"
+        "      16년 백필이 시장당 4,343콜이라, 종목 백필과 같은 날 돌리면 넘는다.\n"
+        "  할 일: 한도에 여유가 있는 날 이 파일의 SAFE_MARKETS 에 시장을 더한다.\n"
+        "         (남은 한도는 call_budget 표에서 본다.)"
     )
 
 # 지수를 받을 시장. **기본은 KOSPI 하나다.**
@@ -117,7 +160,7 @@ SCHEMA = """
 CREATE TABLE IF NOT EXISTS index_price (
   bas_dd       TEXT    NOT NULL,   -- 기준일자 YYYYMMDD
   index_name   TEXT    NOT NULL,   -- 지수명 "코스피 200" (띄어쓰기 포함)
-  index_class  TEXT,               -- KOSPI / KOSDAQ
+  index_class  TEXT    NOT NULL,   -- KOSPI / KOSDAQ 🔴 기본키의 일부다 (v13)
   open         REAL,               -- ⚠️ 지수는 실수다. INTEGER 로 두면 등락이 사라진다
   high         REAL,
   low          REAL,
@@ -127,7 +170,12 @@ CREATE TABLE IF NOT EXISTS index_price (
   volume       INTEGER,            -- 누적거래량
   value        INTEGER,            -- 누적거래대금
   market_cap   INTEGER,            -- 시가총액
-  PRIMARY KEY (bas_dd, index_name) -- 같은 날 같은 지수가 두 번 들어가지 않도록
+  -- 🔴 시장이 키에 있어야 한다. KOSPI 와 KOSDAQ 은 `건설`·`금속`·`화학` 처럼
+  --    **같은 이름의 업종지수를 각각** 가진다. 시장이 없으면 나중에 받은 쪽이
+  --    먼저 받은 쪽을 조용히 덮어쓴다 — 2026-09-07 에 40,324행을 그렇게 잃었다.
+  --    ⚠️ 이 모양은 `migrations.INDEX_PRICE_SCHEMA_V13` 과 **같아야 한다.**
+  --       표를 만드는 경로가 둘이라 한쪽만 고치면 조용히 갈라진다.
+  PRIMARY KEY (bas_dd, index_name, index_class)
 );
 
 -- 지수 하나의 시계열을 뽑을 때 쓴다. 피처 생성이 이 경로만 탄다.
