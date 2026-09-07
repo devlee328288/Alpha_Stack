@@ -9,6 +9,8 @@ from features.stock_model_dataset import (
     build_sector_stock_model_dataset,
     build_stock_training_frame,
 )
+from features.volatility import atr_ratio, historical_volatility
+from features.volume import obv_slope_20
 
 
 def _daily_rows(
@@ -221,6 +223,47 @@ def test_종목패널은_홀드아웃행을조용히자르지않고중단한다(
 
     with pytest.raises(RuntimeError, match="홀드아웃 행"):
         build_sector_stock_model_dataset(pd.concat([prices, extra]), candidates)
+
+
+def test_종목피처는_인라인이아니라_원자함수와같은값을낸다():
+    """같은 공식을 두 곳에 두면 한쪽만 고쳐졌을 때 값이 조용히 갈린다(#155).
+
+    이 시험은 데이터셋이 내는 값이 원자 함수 출력과 같은지를 본다. 누군가 다시
+    손으로 짜 넣으면 여기서 걸린다.
+    """
+    prices = _panel_prices()
+    dates = sorted(prices["bas_dd"].unique())
+    candidates = pd.DataFrame(
+        {
+            "bas_dd": [dates[65], dates[70]],
+            "code": ["000010", "000010"],
+            "candidate_rank": [1, 1],
+        }
+    )
+
+    dataset = build_sector_stock_model_dataset(prices, candidates)
+    result = dataset.frame.set_index(["bas_dd", "code"])
+
+    source = prices.loc[prices["code"].eq("000010")].sort_values("bas_dd")
+    position = {date: index for index, date in enumerate(source["bas_dd"])}
+    expected_atr = atr_ratio(
+        source["adj_high"].to_numpy(dtype=float),
+        source["adj_low"].to_numpy(dtype=float),
+        source["adj_close"].to_numpy(dtype=float),
+        14,
+    )
+    expected_obv = obv_slope_20(
+        source["adj_close"].to_numpy(dtype=float),
+        source["volume"].to_numpy(dtype=float),
+        20,
+    )
+    expected_hv = historical_volatility(source["adj_close"].to_numpy(dtype=float), 20)
+
+    for date in (dates[65], dates[70]):
+        index = position[date]
+        assert np.isclose(result.loc[(date, "000010"), "atr_ratio"], expected_atr[index])
+        assert np.isclose(result.loc[(date, "000010"), "obv_slope_20"], expected_obv[index])
+        assert np.isclose(result.loc[(date, "000010"), "hv_20"], expected_hv[index])
 
 
 def test_조합b부터f까지_수정주가와당일횡단면만으로계산한다():

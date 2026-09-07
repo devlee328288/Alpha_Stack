@@ -13,6 +13,7 @@ from features.indicators import (
     bollinger_bands,
     ema,
     macd,
+    macd_hist_atr,
     macd_hist_ratio,
     percent_b,
     rsi,
@@ -20,8 +21,22 @@ from features.indicators import (
     sma_gap,
 )
 from features.returns import n_day_return
-from features.volatility import atr, historical_volatility, parkinson_volatility, true_range
-from features.volume import obv, volume_ratio, volume_roc, volume_sma, vwap
+from features.volatility import (
+    atr,
+    atr_ratio,
+    historical_volatility,
+    hv_regime,
+    parkinson_volatility,
+    true_range,
+)
+from features.volume import (
+    obv,
+    obv_slope_20,
+    volume_ratio,
+    volume_roc,
+    volume_sma,
+    vwap,
+)
 
 KOSPI200_NAME = "코스피 200"
 LABEL_HORIZON = 5
@@ -224,18 +239,19 @@ def _add_derived_features(frame: pd.DataFrame) -> pd.DataFrame:
         # sma_gap·macd_hist_ratio·bb_position(percent_b)은 indicators.py에 이미
         # 같은 공식으로 있다(#107) — 손으로 다시 짜지 않고 그 함수를 그대로 부른다.
         # 원자 함수가 나중에 고쳐지면 여기도 자동으로 같이 고쳐진다.
+        #
+        # atr_ratio·hv_regime·obv_slope_20·macd_hist_atr 도 PR #147 로 원자 함수가
+        # 생겼는데 이 자리에 인라인이 남아 있었다(신장환 님 지적, #155). 개발구간
+        # 3,315,889행 전수 대조에서 네 값 모두 최대 절대차 0.0(hv_regime 만 9.5e-11,
+        # KOSPI200 에서는 2.4e-14)이라 바꿔도 결과가 달라지지 않는다.
         out["sma_gap_5_20"] = sma_gap(close, 5, 20)
         out["sma_gap_20_60"] = sma_gap(close, 20, 60)
         out["macd_hist_ratio"] = macd_hist_ratio(close)
-        out["macd_hist_atr"] = out["macd_hist"] / out["atr_14"]
+        out["macd_hist_atr"] = macd_hist_atr(close, out["atr_14"])
         out["bb_position"] = percent_b(close, 20)
-        out["atr_ratio"] = out["atr_14"] / close
-        out["hv_regime"] = out["hv_20"] / out["hv_20"].rolling(
-            250, min_periods=250
-        ).mean()
-        out["obv_slope_20"] = (
-            (out["obv"] - out["obv"].shift(20)) / (out["vol_sma_20"] * 20.0)
-        )
+        out["atr_ratio"] = atr_ratio(out["high"], out["low"], close, 14)
+        out["hv_regime"] = hv_regime(close, 20, 250)
+        out["obv_slope_20"] = obv_slope_20(close, out["volume"], 20)
     out["daily_return"] = n_day_return(close, 1)
     out["five_day_return"] = n_day_return(close, 5)
     # 월간 = 20거래일. 새 숫자를 고른 게 아니라 이 파일이 이미 쓰는 관례(sma_20·hv_20 등)를
