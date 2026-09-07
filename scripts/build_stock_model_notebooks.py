@@ -19,6 +19,7 @@ COMBINATION_DIRECTORIES = {
     "D": "조합D_volatility_liquidity",
     "E": "조합E_sector_market_relative_strength",
     "F": "조합F_cross_sectional_ranks",
+    "G": "조합G_direction_magnitude_interaction",
 }
 COMBINATION_TITLES = {
     "A": "추세·모멘텀·변동성·거래량·수익률",
@@ -27,6 +28,7 @@ COMBINATION_TITLES = {
     "D": "변동성·유동성",
     "E": "업종·시장 상대강도",
     "F": "당일 후보군 횡단면 순위",
+    "G": "단기 반전 방향축·변동성 크기축",
 }
 
 MODEL_FILES = {
@@ -407,7 +409,7 @@ def _feature_selection_markdown(
 
 
 def main() -> None:
-    """A~F 각각에 모델 4개·비교·피처 문서와 best-result를 만든다."""
+    """A~G 각각에 모델 4개·비교·피처 문서와 best-result를 만든다."""
 
     report = json.loads(REPORT.read_text(encoding="utf-8"))
 

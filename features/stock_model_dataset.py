@@ -90,6 +90,14 @@ STOCK_COMBINATION_FEATURES = {
         "volume_z_20",
         "bb_position",
     ),
+    "G": (
+        "dist_high_60",
+        "sma_gap_20_60",
+        "relative_ret_5_market",
+        "rsi_14",
+        "hv_20",
+        "turnover_20",
+    ),
 }
 
 # 기존 호출은 조합 A를 뜻한다. 전체 조합의 합집합은 공통 패널 캐시 검증에 사용한다.

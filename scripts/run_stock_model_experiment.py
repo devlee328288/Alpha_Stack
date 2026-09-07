@@ -180,10 +180,10 @@ def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
 
 
 def refresh_saved_report_baselines() -> None:
-    """기존 A~F 예측을 다시 학습하지 않고 폴드별 기준선만 보고서에 보강한다."""
+    """기존 A~G 예측을 다시 학습하지 않고 폴드별 기준선만 보고서에 보강한다."""
 
     if not SWEEP_REPORT_PATH.exists():
-        raise FileNotFoundError(f"기존 A~F 보고서가 없습니다: {SWEEP_REPORT_PATH}")
+        raise FileNotFoundError(f"기존 A~G 보고서가 없습니다: {SWEEP_REPORT_PATH}")
     report = json.loads(SWEEP_REPORT_PATH.read_text(encoding="utf-8"))
     datasets = {
         name: load_stock_model_dataset(features)
@@ -240,7 +240,7 @@ def refresh_saved_report_baselines() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"A~F 기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
+    print(f"A~G 기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
 
 
 def load_stock_model_dataset(
@@ -365,7 +365,7 @@ def _append_trials(
 
 
 def main() -> None:
-    """HF 공통 패널에서 A~F를 같은 날짜·종목 조건으로 비교한다."""
+    """HF 공통 패널에서 A~G를 같은 날짜·종목 조건으로 비교한다."""
 
     source = {
         "repo": "qurious-quant/alphastack-krx-dev",
@@ -375,7 +375,7 @@ def main() -> None:
         "index_sha256": _sha256(INDEX_PATH),
         "holdout_start": HOLDOUT_START,
     }
-    print("[1/4] HF 공통 종목 패널과 A~F 피처 준비", flush=True)
+    print("[1/4] HF 공통 종목 패널과 A~G 피처 준비", flush=True)
     datasets = {
         name: load_stock_model_dataset(features)
         for name, features in STOCK_COMBINATION_FEATURES.items()
@@ -385,7 +385,7 @@ def main() -> None:
     common_dates = set(first_dataset.frame["bas_dd"].unique())
     common_rows = len(first_dataset.frame)
     if len(common_dates) < 750 + 5 + 60:
-        raise ValueError("A~F 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
+        raise ValueError("A~G 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
     quality_summary = dict(
         next(iter(datasets.values())).frame.attrs.get("adjustment_quality", {})
     )
@@ -400,7 +400,7 @@ def main() -> None:
     generated_at = datetime.now(timezone.utc).isoformat()
     run_id = "stock-feature-combinations-" + generated_at.replace(":", "").replace("-", "")
     combination_reports: dict[str, object] = {}
-    print("[2/4] 조합 A~F × 4모델 · 날짜 그룹 expanding 12폴드", flush=True)
+    print("[2/4] 조합 A~G × 4모델 · 날짜 그룹 expanding 12폴드", flush=True)
     for combination, dataset in datasets.items():
         model_results = []
         for model_name, builder in MODEL_BUILDERS.items():
@@ -542,7 +542,7 @@ def main() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"[3/4] A~F 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
+    print(f"[3/4] A~G 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
     print("[4/4] 조합별 1위", flush=True)
     for row in winners:
         print(
@@ -557,7 +557,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--refresh-baselines-only",
         action="store_true",
-        help="기존 모델을 다시 학습하지 않고 A~F 보고서의 폴드별 기준선만 갱신합니다.",
+        help="기존 모델을 다시 학습하지 않고 A~G 보고서의 폴드별 기준선만 갱신합니다.",
     )
     arguments = parser.parse_args()
     if arguments.refresh_baselines_only:

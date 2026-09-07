@@ -268,7 +268,7 @@ def test_종목피처는_인라인이아니라_원자함수와같은값을낸다
         assert np.isclose(result.loc[(date, "000010"), "hv_20"], expected_hv[index])
 
 
-def test_조합b부터f까지_수정주가와당일횡단면만으로계산한다():
+def test_조합b부터g까지_수정주가와당일횡단면만으로계산한다():
     prices = _panel_prices(periods=100)
     prices["industry"] = "건설"
     prices["value"] = prices["volume"] * prices["adj_close"]
@@ -300,7 +300,15 @@ def test_조합b부터f까지_수정주가와당일횡단면만으로계산한�
         feature_columns=ALL_STOCK_FEATURE_COLUMNS,
     )
 
-    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEF")
+    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFG")
+    assert STOCK_COMBINATION_FEATURES["G"] == (
+        "dist_high_60",
+        "sma_gap_20_60",
+        "relative_ret_5_market",
+        "rsi_14",
+        "hv_20",
+        "turnover_20",
+    )
     assert np.isfinite(dataset.x.to_numpy()).all()
     same_day = dataset.frame.groupby("bas_dd")["market_cap_percentile"]
     assert same_day.max().eq(1.0).all()
