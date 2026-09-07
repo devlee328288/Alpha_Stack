@@ -84,7 +84,7 @@ A~C와 D~F의 OOS 날짜 및 보합 기준선도 조금 다릅니다. 이 결과
 봉인 홀드아웃의 최종 성능이 아닙니다.
 
 모델별 선정 이유와 결과는 `조합별 best result/`에 있으며, 전체
-96개 실측값은 [`reports/model_sweep.json`](../../../reports/model_sweep.json)에 있습니다.
+96개 실측값은 [`reports/model_sweep.json`](../../../../reports/model_sweep.json)에 있습니다.
 
 ## HF 전 종목 시장 내부 피처 추가 실험
 
@@ -101,6 +101,6 @@ F + 5Day Return에 결합했을 때는 Logistic Regression의 Accuracy `0.3917`�
 같은 OOS의 전부 보합 기준선 `0.4181`을 넘지 못했습니다. 따라서 이 피처는 A~F 정식 조합에
 추가하지 않았습니다.
 
-상세 결과는 [`market_feature_experiment.json`](../../../reports/market_feature_experiment.json)과
-[`combined_market_feature_experiment.json`](../../../reports/combined_market_feature_experiment.json)에
+상세 결과는 [`market_feature_experiment.json`](../../../../reports/market_feature_experiment.json)과
+[`combined_market_feature_experiment.json`](../../../../reports/combined_market_feature_experiment.json)에
 기록했습니다.

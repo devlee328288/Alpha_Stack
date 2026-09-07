@@ -7,16 +7,37 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from pandas.api.types import is_bool_dtype
 
 from evaluation.horizon import HOLDOUT_START
+from features.indicators import bollinger_bands, macd_hist_ratio, percent_b, rsi, sma_gap
+from features.returns import n_day_return
+from features.volatility import atr, historical_volatility
+from features.volume import obv, volume_ratio, volume_sma
 
 DEFAULT_TOP_N = 50
 STOCK_LABEL_HORIZON = 5
 STOCK_NEUTRAL_BAND = 0.02
 LABEL_TO_NUMBER = {"하락": -1, "중립": 0, "상승": 1}
+
+STOCK_FEATURE_COLUMNS = (
+    "sma_gap_5_20",
+    "sma_gap_20_60",
+    "rsi_14",
+    "macd_hist_ratio",
+    "bb_bandwidth",
+    "bb_position",
+    "atr_ratio",
+    "hv_20",
+    "vol_ratio_20",
+    "obv_slope_20",
+    "daily_return",
+    "five_day_return",
+)
 
 REQUIRED_COLUMNS = {
     "bas_dd",
@@ -26,6 +47,37 @@ REQUIRED_COLUMNS = {
     "adj_open",
     "is_common_stock",
 }
+
+PANEL_PRICE_COLUMNS = {
+    "bas_dd",
+    "code",
+    "market",
+    "adj_open",
+    "adj_high",
+    "adj_low",
+    "adj_close",
+    "volume",
+}
+
+
+@dataclass(frozen=True)
+class StockModelDataset:
+    """날짜 그룹 워크포워드에 바로 넣을 개별종목 패널."""
+
+    frame: pd.DataFrame
+    feature_columns: tuple[str, ...] = STOCK_FEATURE_COLUMNS
+
+    @property
+    def x(self) -> pd.DataFrame:
+        return self.frame.loc[:, self.feature_columns]
+
+    @property
+    def y(self) -> np.ndarray:
+        return self.frame["label_numeric"].to_numpy(dtype=int)
+
+    @property
+    def groups(self) -> np.ndarray:
+        return self.frame["bas_dd"].to_numpy(dtype=str)
 
 
 def _normalize_dates(frame: pd.DataFrame) -> pd.Series:
@@ -215,3 +267,181 @@ def build_stock_training_frame(
         "last_date": str(candidates["bas_dd"].max()),
     }
     return candidates
+
+
+def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
+    """한 종목의 전체 시계열에서 가격 수준에 무관한 피처를 계산한다."""
+
+    ordered = group.sort_values("bas_dd", kind="stable").copy()
+    close = ordered["adj_close"].to_numpy(dtype=float)
+    high = ordered["adj_high"].to_numpy(dtype=float)
+    low = ordered["adj_low"].to_numpy(dtype=float)
+    volume = ordered["volume"].to_numpy(dtype=float)
+
+    atr_14 = atr(high, low, close, 14)
+    bands = bollinger_bands(close, 20)
+    hv_20 = historical_volatility(close, 20)
+    obv_values = obv(close, volume)
+    volume_average = volume_sma(volume, 20)
+
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ordered["sma_gap_5_20"] = sma_gap(close, 5, 20)
+        ordered["sma_gap_20_60"] = sma_gap(close, 20, 60)
+        ordered["rsi_14"] = rsi(close, 14)
+        ordered["macd_hist_ratio"] = macd_hist_ratio(close)
+        ordered["bb_bandwidth"] = bands["bandwidth"]
+        ordered["bb_position"] = percent_b(close, 20)
+        ordered["atr_ratio"] = atr_14 / close
+        ordered["hv_20"] = hv_20
+        ordered["vol_ratio_20"] = volume_ratio(volume, 20)
+        ordered["obv_slope_20"] = (
+            obv_values - pd.Series(obv_values).shift(20).to_numpy()
+        ) / (volume_average * 20.0)
+        ordered["daily_return"] = n_day_return(close, 1)
+        ordered["five_day_return"] = n_day_return(close, 5)
+    return ordered.loc[:, ["bas_dd", "code", *STOCK_FEATURE_COLUMNS]].replace(
+        [np.inf, -np.inf], np.nan
+    )
+
+
+def build_sector_stock_model_dataset(
+    daily_prices: pd.DataFrame,
+    candidates: pd.DataFrame,
+    *,
+    holdout_start: str = HOLDOUT_START,
+    horizon: int = STOCK_LABEL_HORIZON,
+    neutral_band: float = STOCK_NEUTRAL_BAND,
+) -> StockModelDataset:
+    """업종 후보에 종목별 기술적 피처와 T+1→T+6 라벨을 붙인다.
+
+    피처는 후보 행만 이어 붙여 계산하지 않는다. 한 번이라도 후보가 된 종목의 전체
+    개발 시계열에서 먼저 계산한 뒤 ``(bas_dd, code)``로 후보와 조인한다. 따라서
+    후보에서 빠졌다가 다시 들어온 기간도 20·60일 창의 실제 과거로 남는다.
+    """
+
+    _validate_arguments(
+        holdout_start=holdout_start,
+        top_n=1,
+        horizon=horizon,
+        neutral_band=neutral_band,
+    )
+    missing_prices = PANEL_PRICE_COLUMNS - set(daily_prices.columns)
+    missing_candidates = {"bas_dd", "code"} - set(candidates.columns)
+    if missing_prices:
+        raise ValueError(f"종목 패널 가격 열이 없습니다: {sorted(missing_prices)}")
+    if missing_candidates:
+        raise ValueError(f"종목 후보 키가 없습니다: {sorted(missing_candidates)}")
+    if candidates.empty:
+        raise ValueError("종목 후보가 비어 있습니다.")
+
+    source = daily_prices.loc[:, sorted(PANEL_PRICE_COLUMNS)].copy()
+    source["bas_dd"] = _normalize_dates(source)
+    source["code"] = source["code"].astype("string").str.strip().str.zfill(6)
+    if (source["bas_dd"] >= holdout_start).any():
+        first = str(source.loc[source["bas_dd"] >= holdout_start, "bas_dd"].min())
+        raise RuntimeError(f"개별 종목 원천에 홀드아웃 행이 들어 있습니다: {first}")
+    source = source.loc[source["market"].eq("KOSPI")].copy()
+    if source.duplicated(["bas_dd", "code"]).any():
+        raise ValueError("KOSPI에 같은 날짜·종목코드가 두 번 이상 있습니다.")
+    for column in ("adj_open", "adj_high", "adj_low", "adj_close", "volume"):
+        source[column] = pd.to_numeric(source[column], errors="coerce")
+
+    selected = candidates.copy()
+    selected["bas_dd"] = _normalize_dates(selected)
+    selected["code"] = selected["code"].astype("string").str.strip().str.zfill(6)
+    if (selected["bas_dd"] >= holdout_start).any():
+        raise RuntimeError("종목 후보에 홀드아웃 행이 들어 있습니다.")
+    if selected.duplicated(["bas_dd", "code"]).any():
+        raise ValueError("종목 후보에 같은 날짜·코드가 두 번 이상 있습니다.")
+
+    # 후보 종목의 모든 과거 행만 남긴다. 후보 날짜만 남기면 이동창이 편입 때마다
+    # 끊기지만, 종목 단위로 줄이는 것은 해당 종목의 과거를 훼손하지 않는다.
+    selected_codes = selected["code"].unique()
+    feature_source = source.loc[source["code"].isin(selected_codes)].copy()
+    feature_source = feature_source.sort_values(["code", "bas_dd"], kind="stable")
+    feature_parts = [
+        _build_one_stock_features(group)
+        for _, group in feature_source.groupby("code", sort=False, observed=True)
+    ]
+    features = pd.concat(feature_parts, ignore_index=True)
+    selected = selected.merge(
+        features,
+        on=["bas_dd", "code"],
+        how="left",
+        validate="one_to_one",
+    )
+
+    calendar = sorted(source["bas_dd"].unique().tolist())
+    calendar_frame = pd.DataFrame({"bas_dd": calendar})
+    calendar_frame["entry_bas_dd"] = calendar_frame["bas_dd"].shift(-1)
+    calendar_frame["exit_bas_dd"] = calendar_frame["bas_dd"].shift(-(horizon + 1))
+    selected = selected.merge(
+        calendar_frame,
+        on="bas_dd",
+        how="left",
+        validate="many_to_one",
+    )
+    selected_before_prices = len(selected)
+    selected = selected.loc[selected["exit_bas_dd"].notna()].copy()
+
+    valid_open = source["adj_open"].notna() & source["adj_open"].gt(0.0)
+    open_prices = source.loc[valid_open, ["bas_dd", "code", "adj_open"]]
+    selected = selected.merge(
+        open_prices.rename(
+            columns={"bas_dd": "entry_bas_dd", "adj_open": "entry_adj_open"}
+        ),
+        on=["entry_bas_dd", "code"],
+        how="left",
+        validate="one_to_one",
+    )
+    selected = selected.merge(
+        open_prices.rename(
+            columns={"bas_dd": "exit_bas_dd", "adj_open": "exit_adj_open"}
+        ),
+        on=["exit_bas_dd", "code"],
+        how="left",
+        validate="one_to_one",
+    )
+    valid_prices = selected["entry_adj_open"].notna() & selected["exit_adj_open"].notna()
+    finite_features = np.isfinite(
+        selected.loc[:, STOCK_FEATURE_COLUMNS].to_numpy(dtype=float)
+    ).all(axis=1)
+    selected = selected.loc[valid_prices & finite_features].copy()
+    if selected.empty:
+        raise ValueError("피처와 정확한 T+1·T+6 수정시가가 있는 후보가 없습니다.")
+
+    selected["fwd_return_5d"] = (
+        selected["exit_adj_open"] / selected["entry_adj_open"] - 1.0
+    )
+    up = selected["exit_adj_open"] > selected["entry_adj_open"] * (1.0 + neutral_band)
+    down = selected["exit_adj_open"] < selected["entry_adj_open"] * (1.0 - neutral_band)
+    selected["label"] = np.select([up, down], ["상승", "하락"], default="중립")
+    selected["label_numeric"] = selected["label"].map(LABEL_TO_NUMBER).astype("int8")
+
+    sort_columns = ["bas_dd"]
+    if "candidate_rank" in selected.columns:
+        sort_columns.append("candidate_rank")
+    sort_columns.append("code")
+    selected = selected.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+    if selected["bas_dd"].max() >= holdout_start:
+        raise RuntimeError("개별 종목 모델 입력에 홀드아웃 행이 들어왔습니다.")
+    selected.attrs["stock_panel"] = {
+        "holdout_start": holdout_start,
+        "horizon": horizon,
+        "neutral_band": neutral_band,
+        "candidate_rows": int(selected_before_prices),
+        "model_rows": int(len(selected)),
+        "dates": int(selected["bas_dd"].nunique()),
+        "stocks": int(selected["code"].nunique()),
+        "first_date": str(selected["bas_dd"].min()),
+        "last_date": str(selected["bas_dd"].max()),
+    }
+    return StockModelDataset(frame=selected)
+
+
+__all__ = [
+    "STOCK_FEATURE_COLUMNS",
+    "StockModelDataset",
+    "build_sector_stock_model_dataset",
+    "build_stock_training_frame",
+]
