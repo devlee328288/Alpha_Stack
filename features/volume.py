@@ -148,3 +148,31 @@ def volume_roc(volumes: Sequence, window: int = 5) -> np.ndarray:
         curr = x[window:]
         out[window:] = np.where(prev != 0, (curr - prev) / prev * 100.0, np.nan)
     return out
+
+
+def obv_slope_20(prices: Sequence, volumes: Sequence, window: int = 20) -> np.ndarray:
+    """OBV의 `window`일 기울기를 같은 기간 평균 거래량으로 정규화한 것 — 거래량 방향 신호.
+
+        obv_slope_t = (obv_t − obv_(t-window)) / (volume_sma_t(window) × window)
+
+    시점 규칙: `obv_t`·`obv_(t-window)` 둘 다 t 시점까지의 가격·거래량만으로 누적된
+    값이고, 분모의 `volume_sma`도 t 시점까지의 거래량만 평균 낸다 — t 시점까지의
+    자료만 쓴다(look-ahead 없음).
+
+    `obv`는 누적값이라 종목마다 스케일(거래대금 규모)이 다르다(#37 검토 의견). 최근
+    `window`일 변화량을 같은 기간의 하루 평균 거래량으로 나누면 "하루 평균 거래량
+    대비 며칠간 누적된 순매수 방향"이 되어 종목 간에도 비교 가능해진다.
+    """
+    obv_values = obv(prices, volumes)
+    avg_volume = volume_sma(volumes, window)
+    window = max(1, int(window))
+    n = obv_values.size
+
+    diff = np.full(n, np.nan)
+    if n > window:
+        diff[window:] = obv_values[window:] - obv_values[:-window]
+
+    denom = avg_volume * window
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(denom > 0, diff / denom, np.nan)
+    return result
