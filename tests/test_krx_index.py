@@ -300,3 +300,34 @@ def test_한도_소진은_실패로_세지_않는다(임시저장소, monkeypatc
     # 예산이 풀리면 다시 받아야 한다
     assert collect_log.should_collect("krx_index", "KOSPI/20260821",
                                       db_path=store.DB_PATH) is True
+
+
+# ── 시장 가드 ──────────────────────────────────────────────────────────────
+#
+# 🔴 2026-09-07 에 실제로 자료를 잃고 세운 문이다. `index_price` 의 기본키가
+#    (bas_dd, index_name) 이라 시장이 없는데, KOSPI 와 KOSDAQ 은 `건설`·`금속`·`화학`
+#    처럼 같은 이름의 업종지수를 각각 가진다. KOSDAQ 을 받자 `INSERT OR REPLACE` 가
+#    KOSPI 업종지수 17종 40,324행을 덮어썼다.
+#
+#    🔴 행 수로는 못 잡는다 — 오히려 늘었다(196,272 → 244,108). 그래서 개수 검사가
+#       아니라 **받기 전에 막는** 가드로 둔다.
+
+def test_KOSPI_말고_다른_시장은_받기_전에_막힌다():
+    from ingest.store import krx_index
+    with pytest.raises(RuntimeError) as e:
+        krx_index._시장가드(["KOSDAQ"])
+    말 = str(e.value)
+    assert "index_class" in 말, "무엇을 고쳐야 하는지가 문구에 있어야 한다"
+    assert "v13" in 말, "막다른 길로 두지 않는다 — 푸는 방법까지 적는다"
+
+
+def test_KOSPI_는_그대로_통과한다():
+    from ingest.store import krx_index
+    krx_index._시장가드(["KOSPI"])          # 예외가 없으면 통과다
+
+
+def test_섞여_있어도_막힌다():
+    """`--markets KOSPI,KOSDAQ` 처럼 안전한 것과 섞어도 통과시키지 않는다."""
+    from ingest.store import krx_index
+    with pytest.raises(RuntimeError):
+        krx_index._시장가드(["KOSPI", "KOSDAQ"])

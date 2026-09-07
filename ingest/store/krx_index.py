@@ -48,6 +48,42 @@ def _target(bas_dd: str, market: str) -> str:
     """대장의 대상 이름. 시장과 날짜를 한 문자열로 묶는다 (표의 키가 둘이 아니라 하나다)."""
     return f"{market}/{bas_dd}"
 
+
+#: 지금 받아도 되는 시장. 🔴 **하나뿐인 것이 제약이지 취향이 아니다.**
+SAFE_MARKETS = frozenset({"KOSPI"})
+
+
+def _시장가드(markets: Sequence[str]) -> None:
+    """🔴 KOSPI 말고 다른 시장을 받으려 하면 **받기 전에** 멈춘다.
+
+    ## 왜 — 실제로 자료를 잃었다 (2026-09-07)
+
+    `index_price` 의 기본키가 `(bas_dd, index_name)` 이라 **시장이 들어 있지 않다.**
+    그런데 KOSPI 와 KOSDAQ 은 `건설`·`금속`·`화학` 처럼 **같은 이름의 업종지수를 각각**
+    가진다. 그래서 KOSDAQ 을 받으면 `INSERT OR REPLACE` 가 같은 이름의 KOSPI 행을
+    조용히 덮어쓴다.
+
+    실측: KOSDAQ 을 켜서 2,372거래일을 받았더니 **KOSPI 업종지수 17종 × 40,324행**이
+    KOSDAQ 값으로 바뀌었다. 행 수는 오히려 늘어서(196,272 → 244,108) 개수만 봐서는
+    사고를 알아챌 수 없었다. `index_class` 별로 세어 보고서야 드러났다.
+
+    ## 풀려면
+
+    스키마를 고쳐야 한다 — 기본키에 `index_class` 를 넣는 마이그레이션(v13)이 필요하다.
+    그 전까지는 이 문이 닫혀 있다. 고친 뒤에는 `SAFE_MARKETS` 에 시장을 더하면 된다.
+    """
+    나쁜것 = [m for m in markets if m not in SAFE_MARKETS]
+    if not 나쁜것:
+        return
+    raise RuntimeError(
+        f"지금은 {sorted(SAFE_MARKETS)} 만 받을 수 있다 (요청: {나쁜것}).\n"
+        "  왜: index_price 의 기본키가 (bas_dd, index_name) 이라 시장이 없다.\n"
+        "      두 시장이 같은 이름의 업종지수를 가져서, 나중에 받은 쪽이 먼저 받은 쪽을\n"
+        "      조용히 덮어쓴다. 2026-09-07 에 KOSPI 업종지수 17종 40,324행을 잃었다.\n"
+        "  할 일: 기본키에 index_class 를 넣는 마이그레이션(v13)을 먼저 하고,\n"
+        "         그다음 이 파일의 SAFE_MARKETS 에 시장을 더한다."
+    )
+
 # 지수를 받을 시장. **기본은 KOSPI 하나다.**
 #
 # ⚠️ 왜 KOSDAQ 을 기본에서 뺐나 — 하루 한도 때문이다. KRX 는 인증키당 1일 10,000회를
@@ -230,6 +266,7 @@ def sync(days: int = 250, workers: int = DEFAULT_WORKERS, end: Optional[str] = N
        `DEFAULT_WORKERS` 주석에 있다.
     """
     init_db()
+    _시장가드(markets)
 
     anchor = datetime.strptime(end, "%Y%m%d").date() if end else today_kst()
     wanted = [d.strftime("%Y%m%d") for d in trading_days(days, end=anchor)]
