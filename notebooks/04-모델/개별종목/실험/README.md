@@ -1,15 +1,15 @@
 # 개별종목 실험
 
 KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4개, 모델 비교 노트북,
-`피처선정.md`를 둡니다. A~F는 같은 후보와 공통 OOS 거래일에서 피처만 바꿉니다.
+`피처선정.md`를 둡니다. A~F는 공통 `(bas_dd, code)` 표본에서 피처만 바꿉니다.
 
 ## 조합
 
 | 조합 | 폴더 | 내용 |
 |---|---|---|
 | A | `조합A_trend_momentum_volatility_volume_returns` | 추세·모멘텀·변동성·거래량·수익률 12개 |
-| B | `조합B_trend_momentum_high_distance` | 중기 추세·고점 거리 7개 |
-| C | `조합C_short_reversal_intraday` | 단기 반전·장중 위치 8개 |
+| B | `조합B_trend_momentum_high_distance` | 5거래일 단기 반전·고점 거리 7개 |
+| C | `조합C_short_reversal_intraday` | 단기 반전·장중 위치 7개 |
 | D | `조합D_volatility_liquidity` | 변동성·유동성 8개 |
 | E | `조합E_sector_market_relative_strength` | 업종·시장 상대강도 7개 |
 | F | `조합F_cross_sectional_ranks` | 당일 후보군 횡단면 순위 9개 |
@@ -26,7 +26,7 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 - Accuracy·Macro F1·하락 Recall 조화평균으로 선택
 - 폴드별 학습 최빈 Accuracy 기준선과 모델 Accuracy의 차이를 함께 기록
 - 검증 최빈 비율은 정답을 본 `oracle` 참고값으로만 표시
-- A~F 공통 3,552거래일에서 비교
+- A~F 공통 171,557개 `(bas_dd, code)` 행·3,552거래일에서 비교
 - `|수정종가 수익률| > 100%` 자동 제거는 사용하지 않음
 - KRX 등락률과 수정주가 수익률이 1%p 넘게 어긋난 `is_adj_suspect`만 제외
 - 최신 후보 176,705행의 의심 행은 0행, 보존한 실제 극단 사건은 5행
@@ -35,12 +35,12 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 
 | 전체 순위 | 조합 | 모델 | 조화평균 |
 |---:|---|---|---:|
-| 1 | F | LightGBM | **0.3605** |
-| 2 | A | RandomForest | **0.3559** |
-| 3 | B | RandomForest | **0.3517** |
-| 4 | C | LogisticRegression | **0.3507** |
-| 5 | E | RandomForest | **0.3430** |
-| 6 | D | RandomForest | **0.3324** |
+| 1 | F | LightGBM | **0.3636** |
+| 2 | A | RandomForest | **0.3555** |
+| 3 | C | LogisticRegression | **0.3509** |
+| 4 | B | RandomForest | **0.3508** |
+| 5 | E | RandomForest | **0.3451** |
+| 6 | D | RandomForest | **0.3385** |
 
 조합별 4모델 최선 결과는 `조합별 best result/`에 정리합니다.
 
