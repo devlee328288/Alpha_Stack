@@ -246,6 +246,74 @@ def summarize_direction_ranking(
     return pd.DataFrame(rows)
 
 
+def summarize_random_ranking_baseline(
+    stock_predictions: pd.DataFrame,
+    index_predictions: pd.DataFrame,
+    *,
+    cutoffs: tuple[int, ...] = (1, 3, 5),
+) -> pd.DataFrame:
+    """공통 OOS의 날짜·지수 예측 방향 안에서 무작위 Top-K의 기대 적중률을 계산한다."""
+
+    if not cutoffs or any(cutoff <= 0 for cutoff in cutoffs):
+        raise ValueError("무작위 기준선의 Top-K는 하나 이상의 양수여야 합니다.")
+    if len(set(cutoffs)) != len(cutoffs):
+        raise ValueError("무작위 기준선의 Top-K가 중복되었습니다.")
+    required = {"model", "bas_dd", "code", "label_numeric"}
+    missing = required - set(stock_predictions.columns)
+    if missing:
+        raise ValueError(f"무작위 랭킹 기준선 입력 열이 없습니다: {sorted(missing)}")
+    if stock_predictions.duplicated(["model", "bas_dd", "code"]).any():
+        raise ValueError("같은 모델·날짜·종목의 OOS 예측이 중복되었습니다.")
+    if index_predictions["bas_dd"].duplicated().any():
+        raise ValueError("같은 날짜의 KOSPI200 예측이 중복되었습니다.")
+
+    index_frame = index_predictions.loc[:, ["bas_dd", "predicted"]].rename(
+        columns={"predicted": "index_predicted"}
+    )
+    merged = stock_predictions.loc[:, list(required)].merge(
+        index_frame,
+        on="bas_dd",
+        how="inner",
+        validate="many_to_one",
+    )
+    if merged.empty:
+        raise ValueError("KOSPI200과 개별종목의 공통 OOS 날짜가 없습니다.")
+    merged["direction_hit"] = merged["label_numeric"].eq(merged["index_predicted"])
+    dates = (
+        merged.groupby(["model", "bas_dd", "index_predicted"], sort=False)
+        .agg(candidate_rows=("code", "size"), matching_rows=("direction_hit", "sum"))
+        .reset_index()
+    )
+
+    rows: list[dict[str, object]] = []
+    for model, model_dates in dates.groupby("model", sort=False):
+        scopes: list[tuple[int | None, pd.DataFrame]] = [(None, model_dates)]
+        scopes.extend(
+            (int(direction), group)
+            for direction, group in model_dates.groupby("index_predicted", sort=True)
+        )
+        for direction, scope in scopes:
+            for cutoff in sorted(cutoffs):
+                selected_rows = np.minimum(scope["candidate_rows"].to_numpy(), cutoff)
+                expected_hits = selected_rows * (
+                    scope["matching_rows"].to_numpy()
+                    / scope["candidate_rows"].to_numpy()
+                )
+                rows.append(
+                    {
+                        "model": model,
+                        "top_n": cutoff,
+                        "index_predicted": direction,
+                        "dates": int(len(scope)),
+                        "expected_selected_rows": int(selected_rows.sum()),
+                        "random_direction_hit_rate": float(
+                            expected_hits.sum() / selected_rows.sum()
+                        ),
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
 __all__ = [
     "add_probability_ranks",
     "aligned_index_splits",
@@ -253,4 +321,5 @@ __all__ = [
     "build_common_validation_schedule",
     "select_for_index_direction",
     "summarize_direction_ranking",
+    "summarize_random_ranking_baseline",
 ]
