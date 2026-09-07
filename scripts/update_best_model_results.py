@@ -22,7 +22,7 @@ from scripts.build_model_notebooks import (  # noqa: E402
 )
 
 CACHE_DIR = ROOT / "data" / "raw" / "model_results"
-BEST_ROOT = ROOT / "notebooks" / "04-모델" / "실험" / "조합별 best result"
+BEST_ROOT = ROOT / "notebooks" / "04-모델" / "KOSPI200" / "실험" / "조합별 best result"
 SWEEP_REPORT = ROOT / "reports" / "model_sweep.json"
 
 FEATURE_DESCRIPTIONS = {

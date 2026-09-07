@@ -2,7 +2,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from features.stock_model_dataset import build_stock_training_frame
+from features.stock_model_dataset import (
+    STOCK_FEATURE_COLUMNS,
+    build_sector_stock_model_dataset,
+    build_stock_training_frame,
+)
 
 
 def _daily_rows(
@@ -147,3 +151,71 @@ def test_같은날짜와종목코드가중복되면중단한다():
 
     with pytest.raises(ValueError, match="두 번 이상"):
         build_stock_training_frame(frame)
+
+
+def _panel_prices(periods: int = 90) -> pd.DataFrame:
+    dates = pd.bdate_range("2023-01-02", periods=periods).strftime("%Y%m%d")
+    rows = []
+    for code, offset in (("000010", 0.0), ("000020", 20.0)):
+        for index, date in enumerate(dates):
+            close = 100.0 + offset + index * 0.3 + np.sin(index / 3.0)
+            rows.append(
+                {
+                    "bas_dd": date,
+                    "code": code,
+                    "market": "KOSPI",
+                    "adj_open": close * 0.999,
+                    "adj_high": close * 1.01,
+                    "adj_low": close * 0.99,
+                    "adj_close": close,
+                    "volume": 10_000.0 + index * 10.0,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
+def test_종목피처는_후보행사이가아니라_전체종목시계열에서계산한다():
+    prices = _panel_prices()
+    dates = sorted(prices["bas_dd"].unique())
+    candidates = pd.DataFrame(
+        {
+            "bas_dd": [dates[65], dates[70], dates[65], dates[70]],
+            "code": ["000010", "000010", "000020", "000020"],
+            "candidate_rank": [1, 1, 2, 2],
+        }
+    )
+
+    dataset = build_sector_stock_model_dataset(prices, candidates)
+    result = dataset.frame.set_index(["bas_dd", "code"])
+    source = prices.loc[prices["code"].eq("000010")].set_index("bas_dd")
+    expected = source.loc[dates[70], "adj_close"] / source.loc[dates[69], "adj_close"] - 1.0
+
+    assert tuple(dataset.feature_columns) == STOCK_FEATURE_COLUMNS
+    assert np.isclose(result.loc[(dates[70], "000010"), "daily_return"], expected)
+    assert np.isfinite(dataset.x.to_numpy()).all()
+    assert dataset.groups.tolist() == [dates[65], dates[65], dates[70], dates[70]]
+
+
+def test_종목패널라벨은_시장달력의_t1과_t6수정시가를쓴다():
+    prices = _panel_prices()
+    dates = sorted(prices["bas_dd"].unique())
+    candidates = pd.DataFrame(
+        {"bas_dd": [dates[70]], "code": ["000010"], "candidate_rank": [1]}
+    )
+
+    row = build_sector_stock_model_dataset(prices, candidates).frame.iloc[0]
+
+    assert row["entry_bas_dd"] == dates[71]
+    assert row["exit_bas_dd"] == dates[76]
+    assert np.isclose(row["entry_adj_open"], prices.iloc[71]["adj_open"])
+    assert np.isclose(row["exit_adj_open"], prices.iloc[76]["adj_open"])
+
+
+def test_종목패널은_홀드아웃행을조용히자르지않고중단한다():
+    prices = _panel_prices()
+    extra = prices.iloc[[0]].copy()
+    extra["bas_dd"] = "20240902"
+    candidates = pd.DataFrame({"bas_dd": [prices.iloc[70]["bas_dd"]], "code": ["000010"]})
+
+    with pytest.raises(RuntimeError, match="홀드아웃 행"):
+        build_sector_stock_model_dataset(pd.concat([prices, extra]), candidates)

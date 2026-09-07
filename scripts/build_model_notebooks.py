@@ -10,7 +10,7 @@ import nbformat
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-EXPERIMENT_ROOT = ROOT / "notebooks" / "04-모델" / "실험"
+EXPERIMENT_ROOT = ROOT / "notebooks" / "04-모델" / "KOSPI200" / "실험"
 COMBINATION_DIRS = {
     "A": "조합A_rsi14_bb_bandwidth_hv20_vol_ratio20",
     "B": "조합B_sma_gap_5_20_macd_hist_ratio_rsi14_hv20",

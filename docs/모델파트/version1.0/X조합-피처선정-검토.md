@@ -26,7 +26,7 @@
 
 ## 1. 먼저 — 재현했습니다
 
-준영님 노트북(`notebooks/04-모델/실험/`)의 설정을 그대로 썼습니다.
+준영님 노트북(`notebooks/04-모델/KOSPI200/실험/`)의 설정을 그대로 썼습니다.
 
 ```python
 expanding_splits(n_samples=2815, n_folds=12, min_train=750,
