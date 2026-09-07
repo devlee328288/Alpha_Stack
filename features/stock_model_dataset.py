@@ -23,7 +23,7 @@ REQUIRED_COLUMNS = {
     "code",
     "market",
     "market_cap",
-    "adj_close",
+    "adj_open",
     "is_common_stock",
 }
 
@@ -73,13 +73,13 @@ def build_stock_training_frame(
     """날짜별 KOSPI 보통주 시총 상위 N개의 5거래일 라벨을 만든다.
 
     ``is_common_stock``은 종목명이나 코드 모양으로 추측하지 않고 데이터 계층에서
-    판정해 넘겨야 한다. 현재 HF 반출본에는 정식 종목유형이 없으므로 이 열 없이
-    조용히 전체 종목을 쓰지 않고 즉시 중단한다.
+    판정해 넘겨야 한다. 이 열이 없으면 조용히 전체 종목을 쓰지 않고 즉시 중단한다.
 
-    라벨의 미래 날짜는 종목별 행 번호가 아니라 KOSPI 전체 거래일 달력으로 센다.
-    거래정지로 정확한 미래 거래일 가격이 없으면 그 후보를 버리되, 미래 가격이 있는
-    시총 차순위 종목으로 채우지 않는다. 그렇게 채우면 미래의 거래 가능 여부로 오늘의
-    후보를 바꾸는 누수가 생긴다.
+    계획서의 체결 규칙에 맞춰 T일 정보로 판단하고 T+1 수정시가에 진입한 뒤 T+6
+    수정시가에 평가한다. 날짜는 종목별 행 번호가 아니라 KOSPI 전체 거래일 달력으로
+    센다. 거래정지 등으로 정확한 진입·평가일 가격이 없으면 그 후보를 버리되, 가격이
+    있는 시총 차순위 종목으로 채우지 않는다. 그렇게 채우면 미래의 거래 가능 여부로
+    오늘의 후보를 바꾸는 누수가 생긴다.
     """
     _validate_arguments(
         holdout_start=holdout_start,
@@ -114,21 +114,17 @@ def build_stock_training_frame(
         )
 
     calendar = sorted(kospi["bas_dd"].unique().tolist())
-    if len(calendar) <= horizon:
+    if len(calendar) <= horizon + 1:
         raise ValueError(
-            f"거래일이 라벨 지평보다 짧습니다: 거래일 {len(calendar)}개, 지평 {horizon}개"
+            "T+1 진입·T+6 평가 라벨을 만들 거래일이 부족합니다: "
+            f"거래일 {len(calendar)}개, 최소 {horizon + 2}개"
         )
 
     kospi["market_cap"] = pd.to_numeric(kospi["market_cap"], errors="coerce")
-    kospi["adj_close"] = pd.to_numeric(kospi["adj_close"], errors="coerce")
-    valid_price = (
-        kospi["market_cap"].notna()
-        & kospi["adj_close"].notna()
-        & (kospi["market_cap"] > 0.0)
-        & (kospi["adj_close"] > 0.0)
-    )
-    priced = kospi.loc[valid_price].copy()
-    common = priced.loc[priced["is_common_stock"]].copy()
+    kospi["adj_open"] = pd.to_numeric(kospi["adj_open"], errors="coerce")
+    valid_market_cap = kospi["market_cap"].notna() & (kospi["market_cap"] > 0.0)
+    ranked_source = kospi.loc[valid_market_cap].copy()
+    common = ranked_source.loc[ranked_source["is_common_stock"]].copy()
     if common.empty:
         raise ValueError("KOSPI 보통주로 판정된 유효 행이 없습니다.")
 
@@ -143,7 +139,8 @@ def build_stock_training_frame(
     candidates = ranked.loc[ranked["market_cap_rank"] <= top_n].copy()
 
     calendar_frame = pd.DataFrame({"bas_dd": calendar})
-    calendar_frame["future_bas_dd"] = calendar_frame["bas_dd"].shift(-horizon)
+    calendar_frame["entry_bas_dd"] = calendar_frame["bas_dd"].shift(-1)
+    calendar_frame["exit_bas_dd"] = calendar_frame["bas_dd"].shift(-(horizon + 1))
     candidates = candidates.merge(
         calendar_frame,
         on="bas_dd",
@@ -151,28 +148,48 @@ def build_stock_training_frame(
         validate="many_to_one",
     )
     selected_rows = len(candidates)
-    # 마지막 horizon 거래일은 개발구간 안에 청산일이 없다. 빈 날짜끼리 조인하면
+    # 마지막 horizon+1 거래일은 개발구간 안에 청산일이 없다. 빈 날짜끼리 조인하면
     # pandas가 여러 NaN을 같은 키로 세므로, 가격표를 붙이기 전에 명시적으로 비운다.
-    candidates = candidates.loc[candidates["future_bas_dd"].notna()].copy()
+    candidates = candidates.loc[candidates["exit_bas_dd"].notna()].copy()
 
-    future_prices = priced.loc[:, ["bas_dd", "code", "adj_close"]].rename(
-        columns={"bas_dd": "future_bas_dd", "adj_close": "future_adj_close"}
+    valid_open = kospi["adj_open"].notna() & (kospi["adj_open"] > 0.0)
+    open_prices = kospi.loc[valid_open, ["bas_dd", "code", "adj_open"]]
+    entry_prices = open_prices.rename(
+        columns={"bas_dd": "entry_bas_dd", "adj_open": "entry_adj_open"}
     )
     candidates = candidates.merge(
-        future_prices,
-        on=["future_bas_dd", "code"],
+        entry_prices,
+        on=["entry_bas_dd", "code"],
         how="left",
         validate="one_to_one",
     )
-    candidates = candidates.loc[candidates["future_adj_close"].notna()].copy()
+    exit_prices = open_prices.rename(
+        columns={"bas_dd": "exit_bas_dd", "adj_open": "exit_adj_open"}
+    )
+    candidates = candidates.merge(
+        exit_prices,
+        on=["exit_bas_dd", "code"],
+        how="left",
+        validate="one_to_one",
+    )
+    candidates = candidates.loc[
+        candidates["entry_adj_open"].notna() & candidates["exit_adj_open"].notna()
+    ].copy()
     if candidates.empty:
-        raise ValueError("정확히 미래 5거래일 가격이 있는 학습 후보가 없습니다.")
+        raise ValueError("정확한 T+1·T+6 수정시가가 있는 학습 후보가 없습니다.")
 
     candidates["fwd_return_5d"] = (
-        candidates["future_adj_close"] / candidates["adj_close"] - 1.0
+        candidates["exit_adj_open"] / candidates["entry_adj_open"] - 1.0
     )
-    up = candidates["future_adj_close"] > candidates["adj_close"] * (1.0 + neutral_band)
-    down = candidates["future_adj_close"] < candidates["adj_close"] * (1.0 - neutral_band)
+    # 수익률을 먼저 계산해 ±2%와 비교하면 102/100-1이 0.020000...으로 표현되어
+    # 정확히 경계인 값이 상승으로 넘어갈 수 있다. 계획서의 초과·미만 규칙을 가격
+    # 경계로 직접 비교해 +2%와 -2%는 중립에 남긴다.
+    up = candidates["exit_adj_open"] > candidates["entry_adj_open"] * (
+        1.0 + neutral_band
+    )
+    down = candidates["exit_adj_open"] < candidates["entry_adj_open"] * (
+        1.0 - neutral_band
+    )
     candidates["label"] = np.select([up, down], ["상승", "하락"], default="중립")
     candidates["label_numeric"] = candidates["label"].map(LABEL_TO_NUMBER).astype("int8")
     candidates["market_cap_rank"] = candidates["market_cap_rank"].astype("int16")
@@ -189,10 +206,10 @@ def build_stock_training_frame(
         "neutral_band": neutral_band,
         "source_rows": int(len(daily_prices)),
         "kospi_rows": int(len(kospi)),
-        "invalid_price_rows": int((~valid_price).sum()),
+        "invalid_market_cap_rows": int((~valid_market_cap).sum()),
         "common_stock_rows": int(len(common)),
         "selected_rows": int(selected_rows),
-        "missing_future_rows": int(selected_rows - len(candidates)),
+        "missing_entry_or_exit_rows": int(selected_rows - len(candidates)),
         "training_rows": int(len(candidates)),
         "first_date": str(candidates["bas_dd"].min()),
         "last_date": str(candidates["bas_dd"].max()),
