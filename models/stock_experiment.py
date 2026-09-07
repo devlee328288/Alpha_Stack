@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -87,12 +87,13 @@ def evaluate_stock_models(
     min_train_dates: int = MIN_TRAIN_DATES,
     valid_dates: int = VALID_DATES,
     gap_dates: int = LABEL_HORIZON,
+    outer_splits: Sequence[tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> StockExperimentResult:
     """네 모델을 날짜 그룹 12폴드로 평가하고 폴드 안에서 가중치를 다시 고른다."""
 
     if not model_builders:
         raise ValueError("평가할 모델이 없습니다.")
-    outer_splits = expanding_group_splits(
+    splits = list(outer_splits) if outer_splits is not None else expanding_group_splits(
         dataset.groups,
         n_folds=n_folds,
         min_train=min_train_dates,
@@ -100,12 +101,14 @@ def evaluate_stock_models(
         gap=gap_dates,
         label_horizon=LABEL_HORIZON,
     )
+    if not splits:
+        raise ValueError("외부 OOS 분할이 없습니다.")
     inner_rows: list[dict[str, object]] = []
     outer_rows: list[dict[str, object]] = []
     prediction_parts: list[pd.DataFrame] = []
 
     for model_name, builder in model_builders.items():
-        for fold, (outer_train, outer_valid) in enumerate(outer_splits, start=1):
+        for fold, (outer_train, outer_valid) in enumerate(splits, start=1):
             inner_train, inner_valid = inner_group_class_weight_split(
                 dataset.groups,
                 outer_train,

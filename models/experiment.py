@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -91,6 +91,7 @@ def evaluate_nested_class_weights(
     dataset: ModelDataset,
     *,
     model_names: tuple[str, ...] | None = None,
+    outer_splits: Sequence[tuple[np.ndarray, np.ndarray]] | None = None,
 ) -> NestedWeightResult:
     """각 외부 폴드 안에서 기본·balanced를 고른 뒤 OOS를 평가한다."""
 
@@ -100,7 +101,7 @@ def evaluate_nested_class_weights(
         if unknown:
             raise ValueError(f"알 수 없는 모델입니다: {sorted(unknown)}")
         selected_builders = {name: MODEL_BUILDERS[name] for name in model_names}
-    outer_splits = expanding_splits(
+    splits = list(outer_splits) if outer_splits is not None else expanding_splits(
         n_samples=len(dataset.frame),
         n_folds=N_FOLDS,
         min_train=MIN_TRAIN_SIZE,
@@ -108,11 +109,13 @@ def evaluate_nested_class_weights(
         gap=LABEL_HORIZON,
         label_horizon=LABEL_HORIZON,
     )
+    if not splits:
+        raise ValueError("외부 OOS 분할이 없습니다.")
     inner_rows: list[dict[str, object]] = []
     outer_rows: list[dict[str, object]] = []
     prediction_rows: list[dict[str, object]] = []
     for model_name, builder in selected_builders.items():
-        for fold, (outer_train, outer_valid) in enumerate(outer_splits, start=1):
+        for fold, (outer_train, outer_valid) in enumerate(splits, start=1):
             inner_train, inner_valid = inner_class_weight_split(outer_train)
             candidate_rows = []
             for class_weight in CLASS_WEIGHT_CANDIDATES:
