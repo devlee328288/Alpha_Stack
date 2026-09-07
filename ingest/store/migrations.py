@@ -106,7 +106,9 @@ def _add_column(table: str, column: str, definition: str) -> Callable:
 #      v9  수정주가 4칸 · 거래일 달력 (daily_price.adj_* · trading_calendar)
 #                                                                   ← 2026-09-02 적용
 #      v10 종목 신원 · 법인 개요 (stock_identity · corp_profile)      ← 2026-09-03 적용
-#      v11 다음 빈 번호
+#      v11 종목기본정보 (stock_base_info · 우선주 판별)               ← 2026-09-03 적용
+#      v12 텍스트 신호 (text_signal — 공시 제목 감성 확률 3칸)  ← 2026-09-04 적용
+#      v13 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -789,6 +791,126 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             "ON corp_profile(xchg_lstg_dt, xchg_lstg_abol_dt)",
             "CREATE INDEX IF NOT EXISTS idx_profile_known "
             "ON corp_profile(known_at)",
+        ),
+    ),
+    (
+        "v11: 종목기본정보 (KRX) — 우선주 판별의 정본",
+        (
+            # ── 종목기본정보 ───────────────────────────────────────────
+            # 지금 우리는 **종목명이 '우' 로 끝나는지로 우선주를 추측**하고 있다.
+            # 그게 보통주 7종을 우선주로 잘못 뺀다 (실측 2026-09-03 · 세 시장 × 세 날짜):
+            #
+            #   미래에셋대우 · 연우 · 동우 · 신우 · 성우 · 에코글로우 · 이오플로우
+            #
+            # 006800 은 20200102 코스피 시총 **48위**다. 모델 파트가 쓰기로 한
+            # "KOSPI 보통주 시총 상위 50" 후보에서 조용히 빠진다.
+            #
+            # 🔴 이 오류는 **이름이 바뀌는 구간에만** 나타난다 — 대우증권(정상) →
+            #    미래에셋대우(깨짐) → 미래에셋증권(정상). 오늘 유가 943종만 세면
+            #    어긋남이 0건이라 **표본으로는 절대 안 잡힌다.** 전량으로만 보인다.
+            #
+            # 🔴 **기본키가 (bas_dd, code) 인 이유** — `stock_identity` 와 같다.
+            #    이 응답은 오늘 스냅샷이 아니라 **그날의 사실**이다. 같은 엔드포인트를
+            #    다른 날짜로 부르면 다른 답이 온다 (유가 20150102 899행 · 20200102
+            #    916행 · 20260901 943행 / 2015 에만 있고 지금은 없는 종목 159종 /
+            #    공통 740종 중 상장주식수가 다른 종목 534종 · 실측).
+            #    날짜를 키에서 빼면 "지금 무엇인가" 만 남고 "그때는 무엇이었나" 를 잃는다.
+            #
+            # ⚠️ 그리고 이 성질 덕에 #92 에서 오준영님이 걱정한 문제가 여기서는
+            #    안 생긴다 — *"2026년에 확인한 값을 2015년에도 같았다고 적용"* 하지
+            #    않아도 된다. 2015년 값을 2015년에 직접 물어볼 수 있다.
+            """
+            CREATE TABLE IF NOT EXISTS stock_base_info (
+              bas_dd    TEXT NOT NULL,          -- 기준일 YYYYMMDD (그날의 사실)
+              -- 단축코드. `daily_price.code` 와 같은 축이다.
+              -- 🔴 여기서도 코드 전체를 숫자로 단정하지 않는다 — 5·6번째 자리에 영문이
+              --    오는 신형우선주가 있다(`0001A0`·`00088K`). 앞 4자리만 숫자다.
+              code      TEXT NOT NULL,
+              isin_cd   TEXT,                   -- 표준코드 KR7095570008
+              isu_nm    TEXT,                   -- 정식명 (AJ네트웍스보통주)
+              isu_abbrv TEXT,                   -- 한글약명 (AJ네트웍스)
+              isu_eng_nm TEXT,                  -- 영문명
+              -- 상장일. `corp_profile.xchg_lstg_dt` 와 **교차검증**할 수 있다.
+              list_dd   TEXT,
+              market    TEXT,                   -- KOSPI / KOSDAQ / KONEX
+              secugrp_nm TEXT,                  -- 증권구분 (주권 · 외국주권 …)
+              -- 🔴 소속부. **유가에서는 항상 빈 문자열이다** — 업종이 아니다(#92).
+              --    받아 두지만 업종 매핑으로 쓸 수 없다.
+              sect_tp_nm TEXT,
+              -- ⭐ 이 표의 존재 이유. 보통주 · 구형우선주 · 신형우선주 · 종류주권.
+              kind_stkcert_tp_nm TEXT,
+              parval    TEXT,                   -- 액면가. '무액면' 이 와서 숫자가 아니다
+              list_shrs INTEGER,                -- 상장주식수
+              -- 이 사실을 **언제부터 알 수 있었나**. KRX 도 발표 시각을 주지 않아
+              -- `bas_dd` 의 다음 거래일로 계산한다. `stock_identity` 와 같은 규칙이다.
+              --
+              -- ⚠️ 보수적인 선택이다. 주권종류·상장일은 상장 공고에 이미 실리므로
+              --    당일에도 알 수 있었다고 볼 여지가 있다. 그래도 다음 거래일로 미루는
+              --    쪽을 골랐다 — 늦게 아는 것은 성능을 낮출 뿐이고, 일찍 안 것으로
+              --    잘못 적으면 미래참조가 되는데 그건 **에러 없이 성능만 좋아진다.**
+              known_at  TEXT NOT NULL,
+              -- 계산값이라 규칙을 바꾸면 재수집해야 한다. 어느 행이 옛 규칙인지 남긴다.
+              known_rule TEXT NOT NULL,
+              fetched_at TEXT NOT NULL,
+              PRIMARY KEY (bas_dd, code),
+              CHECK (length(bas_dd) = 8),
+              CHECK (substr(code, 1, 4) GLOB '[0-9][0-9][0-9][0-9]')
+            )
+            """,
+            # 종목 하나의 이력을 훑을 때 (언제 상장했고 언제부터 안 보이나).
+            "CREATE INDEX IF NOT EXISTS idx_base_info_code "
+            "ON stock_base_info(code, bas_dd)",
+            # 🔴 유니버스를 만들 때 가장 많이 쓰는 축 — "그날 그 시장의 보통주".
+            "CREATE INDEX IF NOT EXISTS idx_base_info_kind "
+            "ON stock_base_info(bas_dd, market, kind_stkcert_tp_nm)",
+            # as_of 로 자를 때.
+            "CREATE INDEX IF NOT EXISTS idx_base_info_known "
+            "ON stock_base_info(known_at)",
+        ),
+    ),
+    (
+        "v12: 텍스트 신호 — 제목이 아니라 **고유 제목**에 값을 매긴다",
+        (
+            # ── 공시 제목 감성 ──────────────────────────────────────────
+            # 공시 제목에 감성 모델을 돌려 확률 3칸(`p_neg`·`p_neu`·`p_pos`)을 낸다.
+            #
+            # 🔴 **행마다 매기지 않고 고유 제목마다 매긴다.** 공시 제목은 정형 문구라
+            #    155만 행의 고유 제목이 **18,600개(1.2%)** 뿐이다(실측 2026-09-04).
+            #    행마다 추론하면 같은 문장을 83번씩 다시 읽는 셈이고, 시간이 83배 든다.
+            #
+            # **왜 `dart_disclosure` 에 칸을 붙이지 않았나.**
+            #   ① 모델을 바꾸면 155만 행을 다시 써야 한다. 이 표는 18,600행만 다시 쓴다
+            #   ② 모델 둘을 나란히 두고 비교할 수가 없다 — 칸이 하나뿐이라 덮어쓴다
+            #   ③ **어느 모델·어느 리비전이 낸 값인지**를 행에 남길 자리가 없다.
+            #      HF 모델은 주인이 가중치를 갈아 끼울 수 있어 리비전이 곧 재현성이다
+            #
+            # 붙일 때는 `report_nm` 으로 조인한다. 제목이 기본키가 아니라 `text_sha`
+            # 를 쓰는 이유는 제목이 최대 172자라 인덱스가 두꺼워지기 때문이다.
+            """
+            CREATE TABLE IF NOT EXISTS text_signal (
+              -- 제목의 SHA-256 앞 16자. 제목 자체를 키로 쓰면 인덱스가 두껍다.
+              text_sha   TEXT NOT NULL,
+              -- 원문을 함께 둔다. 해시만 있으면 사람이 확인할 수 없다.
+              report_nm  TEXT NOT NULL,
+              -- 🔴 어느 모델이 낸 값인가. 모델을 바꿔도 옛 값이 남아 비교가 된다.
+              model_id   TEXT NOT NULL,
+              -- HF 리비전(커밋 해시). 주인이 가중치를 갈아 끼울 수 있어 이게 재현성이다.
+              revision   TEXT,
+              p_neg      REAL NOT NULL,
+              p_neu      REAL NOT NULL,
+              p_pos      REAL NOT NULL,
+              scored_at  TEXT NOT NULL,
+              PRIMARY KEY (text_sha, model_id),
+              -- 확률이므로 [0,1] 이고 합이 1 이어야 한다. 어긋나면 softmax 를 빠뜨린 것이다.
+              CHECK (p_neg >= 0 AND p_neg <= 1),
+              CHECK (p_neu >= 0 AND p_neu <= 1),
+              CHECK (p_pos >= 0 AND p_pos <= 1),
+              CHECK (ABS(p_neg + p_neu + p_pos - 1.0) < 0.01)
+            )
+            """,
+            # 공시 목록에 붙일 때 쓰는 축 — `report_nm` 으로 조인한다.
+            "CREATE INDEX IF NOT EXISTS idx_text_signal_nm "
+            "ON text_signal(report_nm, model_id)",
         ),
     ),
 )

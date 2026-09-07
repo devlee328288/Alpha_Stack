@@ -168,6 +168,10 @@ def run(args) -> int:
 
     run_id = run_log.new_run_id()
     실행인자 = {
+        # 어느 파이프라인이 남긴 행인지 표에 적어 둔다. `pipelines/refresh.py` 가 같은
+        # 표를 쓰기 시작했고(이슈 #89 ②), 화면은 둘을 갈라 보여 줘야 한다.
+        # ⚠️ 2026-09-05 이전 행에는 이 열쇠가 없다 — 그때는 수집만 이 표를 썼다.
+        "pipeline": "ingest",
         "only": 고를단계, "days": args.days, "years": args.years,
         "macro_years": args.macro_years, "dry_run": bool(args.dry_run),
     }

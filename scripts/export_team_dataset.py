@@ -84,6 +84,7 @@ from features.volume import (  # noqa: E402
 )
 from ingest.store import krx_store  # noqa: E402
 from supply.market import TARGET_INDEX, index_series, price_series  # noqa: E402
+from supply.sector import INDUSTRY_COLUMNS, attach_industry  # noqa: E402
 from supply.training import market_context, training_frame  # noqa: E402
 
 # ── 예측 대상 ─────────────────────────────────────────────────────────────
@@ -656,8 +657,29 @@ def main() -> int:
             daily = pd.read_sql_query(
                 "SELECT * FROM daily_price WHERE bas_dd <= ?", conn, params=(DEV_END,)
             )
+        # 🔴 `sector` 는 KRX 소속부다 — KOSPI 는 100% 빈 값이고 KOSDAQ 은 중견기업부·
+        #    벤처기업부 같은 것이라 산업 업종이 아니다. 업종은 손으로 받은 업종분류 현황
+        #    스냅샷에서 **그 행의 날짜 이전 가장 최근 것**을 `industry` 로 따로 붙인다.
+        #    한 칸에 두 뜻을 섞지 않으려고 `sector` 는 그대로 둔다.
+        daily = attach_industry(daily, as_of=오늘_as_of)
+        industry_rows = int(daily["industry"].notna().sum())
+        snap_days = sorted(daily["industry_bas_dd"].dropna().astype(str).unique().tolist())
         _write_parquet(daily, full / "daily_price_dev.parquet", files,
-                       "개발구간 전 종목 시세")
+                       "개발구간 전 종목 시세 · industry = KRX 업종분류 현황 스냅샷을 "
+                       "행 날짜 이전 가장 최근 것으로 붙임 (sector 는 소속부, 다른 뜻)")
+        stats["industry"] = {
+            "rows_with_industry": industry_rows,
+            "rows_total": int(len(daily)),
+            "coverage": round(industry_rows / len(daily), 4) if len(daily) else 0.0,
+            "snapshot_days": snap_days,
+            "columns": list(INDUSTRY_COLUMNS),
+        }
+        if industry_rows:
+            print(f"     industry 채움 {industry_rows:,}/{len(daily):,}행 "
+                  f"({industry_rows / len(daily):.1%}) · 스냅샷 {len(snap_days)}장")
+        else:
+            print("     ⚠️ industry 가 전부 비었다 — 업종 스냅샷을 아직 들이지 않았다 "
+                  "(docs/데이터파트/version3.2/직접수집_가이드_업종분류현황.md)")
         del daily
         with krx_store.connect() as conn:
             idx = pd.read_sql_query(

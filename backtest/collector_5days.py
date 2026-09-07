@@ -5,6 +5,11 @@
 # - 기준일과 예측일 각각 직전 5평일(월~금, 공휴일 포함)을 추출하여 페어링
 # - 양쪽 모두 영업일이고 market_data에 존재하는 페어에 대해서만 모델 예측 수행 (아니면 "측정 불가")
 
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from datetime import datetime
 from typing import Callable, Dict, List, Union
 
@@ -15,6 +20,8 @@ import pandas as pd
 from huggingface_hub import hf_hub_download
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import LabelEncoder
+
+from config.features import get_features
 
 # ============================================================
 # 1. 캘린더 관련 헬퍼 함수
@@ -86,7 +93,7 @@ def _map_predictions(
     - 그렇지 않으면 "측정 불가"로 표시합니다.
     """
     predictions = {}
-    for ref_date, target_date in zip(ref_dates, target_dates):
+    for ref_date, target_date in zip(ref_dates, target_dates, strict=False):
         # 기준일과 예측일이 모두 영업일인지 확인
         if not is_business_day(ref_date) or not is_business_day(target_date):
             predictions[target_date] = "측정 불가"
@@ -200,9 +207,10 @@ def _map_predictions(
     각 기준일(ref_date)에 대해 모델을 실행하여 해당 예측일(target_date)의 예측값을 매핑합니다.
     """
     predictions = {}
-    for ref_date, target_date in zip(ref_dates, target_dates):
+    for ref_date, target_date in zip(ref_dates, target_dates, strict=False):
         print(
-            f"\n🔍 [디버깅] 기준일={ref_date.strftime('%Y-%m-%d')}, 예측일={target_date.strftime('%Y-%m-%d')}"
+            f"\n🔍 [디버깅] 기준일={ref_date.strftime('%Y-%m-%d')}, "
+            f"예측일={target_date.strftime('%Y-%m-%d')}"
         )
 
         # 1. 영업일 체크
@@ -264,28 +272,7 @@ if __name__ == "__main__":
     df.sort_values("date", inplace=True)
     market_df = df.set_index("date")
 
-    FEATURES = [
-        c
-        for c in df.columns
-        if c
-        not in (
-            "bas_dd",
-            "date",
-            "index_name",
-            "index_class",
-            "open",
-            "high",
-            "low",
-            "close",
-            "change",
-            "change_rate",
-            "volume",
-            "value",
-            "market_cap",
-            "fwd_return_5d",
-            "label",
-        )
-    ]
+    FEATURES = get_features(df)
 
     print(f"✅ 데이터 로드 완료: {len(market_df)}개 행, {len(FEATURES)}개 피처")
 
@@ -316,7 +303,8 @@ if __name__ == "__main__":
             # 데이터 범위 내에 있는지 확인
             if input_date < market_df.index.min() or input_date > market_df.index.max():
                 print(
-                    f"⚠️ 입력한 날짜({input_date.strftime('%Y-%m-%d')})가 데이터 범위({data_start} ~ {data_end})를 벗어났습니다."
+                    f"⚠️ 입력한 날짜({input_date.strftime('%Y-%m-%d')})가 "
+                    f"데이터 범위({data_start} ~ {data_end})를 벗어났습니다."
                 )
                 print("   다시 입력해주세요.\n")
                 continue
@@ -388,9 +376,10 @@ if __name__ == "__main__":
         "📅 예측 대상 날짜 (Target Dates) 및 기준일 (Ref Dates) - 평일 기준 (공휴일 포함)"
     )
     print("-" * 60)
-    for ref, target in zip(results["ref_dates"], results["target_dates"]):
+    for ref, target in zip(results["ref_dates"], results["target_dates"], strict=False):
         print(
-            f"  기준일(Ref): {ref.strftime('%Y-%m-%d')} → 예측일(Target): {target.strftime('%Y-%m-%d')}"
+            f"  기준일(Ref): {ref.strftime('%Y-%m-%d')} → "
+            f"예측일(Target): {target.strftime('%Y-%m-%d')}"
         )
 
     print("\n" + "=" * 60)

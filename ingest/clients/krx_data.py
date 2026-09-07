@@ -455,6 +455,119 @@ def fetch_index_snapshot(bas_dd: str, market: str = "KOSPI",
     return [normalize_index_row(row, bas_dd, keep_raw) for row in rows]
 
 
+# ==================================================
+# 3-2. 종목기본정보 — 보통주인지 우선주인지의 **정본**
+# ==================================================
+# 일별매매정보(`sto/*_bydd_trd`)가 값이라면 이쪽은 **종목의 신분증**이다.
+# 우리에게 없던 것을 넷 준다.
+#
+#   KIND_STKCERT_TP_NM  주권종류 — 보통주 · 구형우선주 · 신형우선주 · 종류주권
+#   LIST_DD             상장일
+#   SECUGRP_NM          증권그룹 (주권 · 외국주권 등)
+#   ISU_CD              ISIN (해외 자료와 잇는 다리)
+#
+# 🔴 왜 필요한가 — 지금 우리는 **종목명이 '우' 로 끝나는지로 우선주를 추측**하고 있고,
+#    그게 보통주 7종을 우선주로 잘못 뺀다 (실측 2026-09-03, 세 시장 × 세 날짜):
+#
+#      미래에셋대우 · 연우 · 동우 · 신우 · 성우 · 에코글로우 · 이오플로우
+#
+#    그중 006800 은 20200102 코스피 시총 **48위**라, 모델 파트가 쓰기로 한
+#    "KOSPI 보통주 시총 상위 50" 후보에서 조용히 빠진다 (#92 오준영님 요청).
+#
+#    ⚠️ 이 오류는 **이름이 바뀌는 구간에만** 나타난다 —
+#       대우증권(정상) → 미래에셋대우(깨짐) → 미래에셋증권(정상).
+#       오늘 유가 943종만 보면 어긋남이 0건이라 표본으로는 절대 안 잡힌다.
+#
+# ⭐ 한 번 부르면 그 시장의 상장종목이 **전부** 온다 (실측 20260901: 유가 943 ·
+#    코스닥 1,822 · 코넥스 108). 지수와 같이 종목 하나를 받든 전부를 받든 콜이 같다.
+BASE_INFO_APIS = {
+    "KOSPI": ("sto/stk_isu_base_info", "유가증권 종목기본정보"),
+    "KOSDAQ": ("sto/ksq_isu_base_info", "코스닥 종목기본정보"),
+    "KONEX": ("sto/knx_isu_base_info", "코넥스 종목기본정보"),
+}
+
+# 정규화 필드명 → KRX 원본 필드명. 실제 응답 12칸을 전부 받는다 (실측 2026-09-03).
+BASE_INFO_FIELD_MAP = {
+    "isin_cd": "ISU_CD",             # 표준코드(ISIN) — KR7095570008
+    "code": "ISU_SRT_CD",            # 단축코드 — 095570
+    "isu_nm": "ISU_NM",              # 정식명 — AJ네트웍스보통주
+    "isu_abbrv": "ISU_ABBRV",        # 한글약명 — AJ네트웍스
+    "isu_eng_nm": "ISU_ENG_NM",      # 영문명
+    "list_dd": "LIST_DD",            # 상장일 (YYYYMMDD)
+    "market": "MKT_TP_NM",           # 시장구분 — KOSPI · KOSDAQ · KONEX
+    "secugrp_nm": "SECUGRP_NM",      # 증권구분 — 주권 · 외국주권 …
+    "sect_tp_nm": "SECT_TP_NM",      # 소속부 — 🔴 유가에서는 항상 빈 문자열이다
+    "kind_stkcert_tp_nm": "KIND_STKCERT_TP_NM",  # 주권종류 ← 우선주 판별의 정본
+    "parval": "PARVAL",              # 액면가 (문자열로 '무액면' 이 올 수 있다)
+    "list_shrs": "LIST_SHRS",        # 상장주식수
+}
+
+# 액면가는 '무액면' 같은 문자열이 섞여 오므로 숫자로 단정하지 않는다.
+BASE_INFO_INT_FIELDS = ("list_shrs",)
+
+#: 주권종류 중 **보통주가 아닌 것**. 유니버스에서 뺄 대상이다.
+#: 실측 2026-09-03 기준 나타난 값은 이 셋 + '보통주' 넷뿐이다.
+NON_COMMON_STOCK_KINDS = ("구형우선주", "신형우선주", "종류주권")
+
+#: 보통주를 가리키는 값. 여기 없는 값이 새로 나타나면 **보통주가 아닌 것으로 본다** —
+#: 모르는 값을 보통주로 넣으면 우선주가 유니버스에 섞이고, 그건 조용히 틀린다.
+COMMON_STOCK_KIND = "보통주"
+
+
+def normalize_base_info_row(row: Dict, bas_dd: str, market: str = "",
+                            keep_raw: bool = False) -> Dict:
+    """종목기본정보 한 줄을 snake_case 로 정규화한다.
+
+    `bas_dd` 를 함께 담는 이유는 이 응답이 **그날의 사실**이기 때문이다 — 같은
+    엔드포인트를 다른 날짜로 부르면 다른 답이 온다 (실측 2026-09-03: 유가 20150102
+    899행 · 20200102 916행 · 20260901 943행, 2015 에만 있고 지금은 없는 종목 159종,
+    공통 740종 중 상장주식수가 다른 종목 534종). 오늘 스냅샷이 아니라 이력이다.
+    """
+    item = {"bas_dd": bas_dd}
+
+    for field, krx_key in BASE_INFO_FIELD_MAP.items():
+        raw = row.get(krx_key)
+        if field in BASE_INFO_INT_FIELDS:
+            item[field] = _to_number(raw, as_int=True)
+        else:
+            item[field] = (raw or "").strip() if isinstance(raw, str) else raw
+
+    # 시장이 비어 오면 요청한 시장으로 채운다 (일별매매정보와 같은 처리)
+    if not item.get("market"):
+        item["market"] = market
+
+    if keep_raw:
+        item["raw"] = row
+    return item
+
+
+def is_common_stock(kind: Optional[str]) -> bool:
+    """주권종류가 보통주인가. **모르는 값은 보통주가 아니라고 본다.**
+
+    빈 문자열·None 을 보통주로 치면, 응답이 깨졌을 때 우선주가 유니버스에 섞인다.
+    유니버스에 종목이 빠지는 것보다 틀린 종목이 들어오는 게 비싸다.
+    """
+    return (kind or "").strip() == COMMON_STOCK_KIND
+
+
+def fetch_base_info(bas_dd: str, market: str = "KOSPI",
+                    keep_raw: bool = False) -> List[Dict]:
+    """해당 거래일·시장의 **상장종목 기본정보 전부**를 받아 정규화해서 돌려준다.
+
+    휴장일이면 빈 배열이다(오류가 아니다).
+    """
+    if not DATE_PATTERN.fullmatch(bas_dd):
+        raise KrxError("bas_dd 는 YYYYMMDD 형식이어야 합니다.")
+    if market not in BASE_INFO_APIS:
+        raise KrxError(
+            f"종목기본정보를 지원하지 않는 시장입니다: {market} "
+            f"(쓸 수 있는 값: {', '.join(BASE_INFO_APIS)})"
+        )
+
+    path, api_name = BASE_INFO_APIS[market]
+    rows = _request_rows(path, bas_dd, api_name)
+    return [normalize_base_info_row(row, bas_dd, market, keep_raw) for row in rows]
+
 
 def _request_rows(path: str, bas_dd: str, api_name: str) -> List[Dict]:
     """`_request_once` 를 감싸 **간헐적 401 을 재시도**한다. 바깥은 이쪽만 부른다.

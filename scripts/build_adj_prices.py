@@ -65,6 +65,21 @@ def all_codes(conn: sqlite3.Connection) -> List[str]:
         "SELECT DISTINCT code FROM daily_price ORDER BY code")]
 
 
+def _count(built: List[tuple], source: str) -> int:
+    """그 출처인 행 수. ⚠️ **`==` 로 세면 안 된다** — `fdr+ca_fix` 처럼 접미사가 붙는다.
+
+    2026-09-04 에 `+ca_fix` 를 도입하며 실제로 겪었다. 16종을 다시 깔았는데 요약이
+    "fdr 5,959 · chain 0" 이라 나왔다 — 43,778행이 어느 쪽에도 안 세어진 것이다.
+    **행 수는 맞는데 내역이 틀리는** 종류의 오류라 눈에 잘 안 띈다.
+    """
+    return sum(1 for r in built if r[4].startswith(source))
+
+
+def _count_ca_fix(built: List[tuple]) -> int:
+    """FDR 이 안 편 자본변동(감자)을 우리가 편 행 수."""
+    return sum(1 for r in built if adj_price.SOURCE_CA_FIX in r[4])
+
+
 def build_one(conn: sqlite3.Connection, code: str) -> Dict:
     """한 종목을 받아 계산해 저장한다. 무슨 일이 있었는지 요약을 돌려준다."""
     try:
@@ -86,16 +101,18 @@ def build_one(conn: sqlite3.Connection, code: str) -> Dict:
         # 커서에 "FDR 이 어디까지 줬나" 를 남긴다. 다음에 다시 돌릴 때 그 경계가
         # 움직였는지(= 새 자료가 3,000일 창 밖으로 밀렸는지) 바로 보인다.
         cursor=(fdr_data.coverage_span(adjusted) or ("", ""))[0] or None,
-        note=f"fdr={sum(1 for r in built if r[4] == fdr_data.SOURCE_FDR)} "
-             f"chain={sum(1 for r in built if r[4] == adj_price.SOURCE_CHAIN)}"
+        note=f"fdr={_count(built, fdr_data.SOURCE_FDR)} "
+             f"chain={_count(built, adj_price.SOURCE_CHAIN)} "
+             f"ca_fix={_count_ca_fix(built)}"
              + (f" error={error}" if error else ""),
         conn=conn,
     )
     return {
         "code": code,
         "rows": len(built),
-        "fdr": sum(1 for r in built if r[4] == fdr_data.SOURCE_FDR),
-        "chain": sum(1 for r in built if r[4] == adj_price.SOURCE_CHAIN),
+        "fdr": _count(built, fdr_data.SOURCE_FDR),
+        "chain": _count(built, adj_price.SOURCE_CHAIN),
+        "ca_fix": _count_ca_fix(built),
         "error": error,
     }
 
@@ -213,7 +230,7 @@ def main() -> int:
               f"{len(codes) * 0.12 / 60:.1f}분\n")
 
         started = time.perf_counter()
-        totals = {"rows": 0, "fdr": 0, "chain": 0}
+        totals = {"rows": 0, "fdr": 0, "chain": 0, "ca_fix": 0}
         empty, failed = [], []
         with write_lock:
             conn.execute("BEGIN IMMEDIATE")
@@ -239,6 +256,11 @@ def main() -> int:
               f"({totals['fdr'] / max(totals['rows'], 1) * 100:.1f}%) · "
               f"chain {totals['chain']:,} "
               f"({totals['chain'] / max(totals['rows'], 1) * 100:.1f}%)")
+        if totals["ca_fix"]:
+            # FDR 이 안 편 감자를 우리가 편 행. 위 둘에 **포함된** 수다(접미사이므로).
+            print(f"  그중 +ca_fix {totals['ca_fix']:,}행 "
+                  f"({totals['ca_fix'] / max(totals['rows'], 1) * 100:.1f}%) "
+                  "— FDR 이 안 편 자본변동을 우리가 폈다")
         if empty:
             print(f"⚠️ 행이 없던 종목 {len(empty)}종: {', '.join(empty[:10])}"
                   + (" …" if len(empty) > 10 else ""))

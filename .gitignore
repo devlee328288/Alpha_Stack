@@ -35,6 +35,9 @@ venv/
 #    KRX 이용약관 제11조 ② 가 제3자 제공을 금지하므로 이 저장소(PUBLIC)에 올라가면 안 된다.
 data/*.db*
 data/*.sqlite*
+# 버튼 갱신(`pipelines/refresh.py`)이 두 번 눌려도 한 번만 돌게 잡는 자물쇠다.
+# 사람마다 자기 PC 에 생기는 것이고 내용이 없으므로 공유할 이유가 없다.
+data/*.lock
 data/raw/
 data/interim/
 data/processed/
@@ -89,6 +92,8 @@ data/outbox/
 # ⚠️ quota_usage.json 은 다르다 — 오늘 몇 번 불렀나는 **사람마다·날마다 다르고**
 #    커밋하면 매번 충돌한다. 게다가 그 값의 정본은 SQLite 의 call_budget 표다.
 reports/quota_usage.json
+# 감자 보정 원장(어느 행을 어떻게 고쳤는지) — 22MB 라 git 에 안 맞는다. 파일은 보관한다.
+reports/fix_*.json
 
 # 🤖 학습 산출물 — 용량이 크고 재현 가능하다
 artifacts/
