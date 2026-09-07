@@ -6,6 +6,8 @@ from features.stock_model_dataset import (
     ALL_STOCK_FEATURE_COLUMNS,
     STOCK_COMBINATION_FEATURES,
     STOCK_FEATURE_COLUMNS,
+    StockModelDataset,
+    align_stock_feature_datasets,
     build_sector_stock_model_dataset,
     build_stock_training_frame,
 )
@@ -303,3 +305,65 @@ def test_조합b부터f까지_수정주가와당일횡단면만으로계산한�
     same_day = dataset.frame.groupby("bas_dd")["market_cap_percentile"]
     assert same_day.max().eq(1.0).all()
     assert same_day.min().eq(0.5).all()
+
+
+def test_조합_비교는_날짜뿐_아니라_종목까지_같은_행으로_맞춘다():
+    first = StockModelDataset(
+        frame=pd.DataFrame(
+            {
+                "bas_dd": ["20200101", "20200101", "20200102"],
+                "code": ["000001", "000002", "000001"],
+                "label_numeric": [1, 0, -1],
+                "daily_return": [0.1, 0.2, 0.3],
+            }
+        ),
+        feature_columns=("daily_return",),
+    )
+    second = StockModelDataset(
+        frame=pd.DataFrame(
+            {
+                "bas_dd": ["20200101", "20200102", "20200102"],
+                "code": ["000001", "000001", "000003"],
+                "label_numeric": [1, -1, 0],
+                "five_day_return": [0.4, 0.5, 0.6],
+            }
+        ),
+        feature_columns=("five_day_return",),
+    )
+
+    aligned = align_stock_feature_datasets({"A": first, "B": second})
+    expected = [("20200101", "000001"), ("20200102", "000001")]
+
+    assert list(aligned) == ["A", "B"]
+    for dataset in aligned.values():
+        keys = list(dataset.frame[["bas_dd", "code"]].itertuples(index=False, name=None))
+        assert keys == expected
+        assert dataset.frame.attrs["stock_panel"]["alignment_keys"] == ["bas_dd", "code"]
+
+
+def test_공통_날짜와_종목의_라벨이_다르면_멈춘다():
+    first = StockModelDataset(
+        pd.DataFrame(
+            {
+                "bas_dd": ["20200101"],
+                "code": ["000001"],
+                "label_numeric": [1],
+                "daily_return": [0.1],
+            }
+        ),
+        feature_columns=("daily_return",),
+    )
+    second = StockModelDataset(
+        pd.DataFrame(
+            {
+                "bas_dd": ["20200101"],
+                "code": ["000001"],
+                "label_numeric": [-1],
+                "five_day_return": [0.2],
+            }
+        ),
+        feature_columns=("five_day_return",),
+    )
+
+    with pytest.raises(ValueError, match="라벨이 다른 조합과 다릅니다"):
+        align_stock_feature_datasets({"A": first, "B": second})

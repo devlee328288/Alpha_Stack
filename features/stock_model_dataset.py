@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
@@ -51,7 +52,6 @@ STOCK_COMBINATION_FEATURES = {
         "dist_high_60",
     ),
     "C": (
-        "ret_1",
         "ret_5",
         "overnight_gap",
         "intraday_return",
@@ -397,15 +397,23 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         amihud = amihud.where(value > 0.0)
         ordered["log_amihud_20"] = np.log(amihud.rolling(20).mean() + 1e-18)
 
-    output_columns = [
-        "bas_dd",
-        "code",
-        *[
-            feature
-            for feature in ALL_STOCK_FEATURE_COLUMNS
-            if feature in ordered.columns
-        ],
-    ]
+    # ret_1은 조합 C의 입력에서는 제외하지만 업종 베타와 Amihud 계산에는 필요하다.
+    # 모델 피처 목록과 파생 계산용 내부 열을 같은 목록으로 취급하면, 조합을 바꿀 때 후속
+    # 파생피처가 조용히 깨질 수 있으므로 내부 열로 따로 유지한다.
+    output_columns = list(
+        dict.fromkeys(
+            [
+                "bas_dd",
+                "code",
+                "ret_1",
+                *[
+                    feature
+                    for feature in ALL_STOCK_FEATURE_COLUMNS
+                    if feature in ordered.columns
+                ],
+            ]
+        )
+    )
     return ordered.loc[:, output_columns].replace(
         [np.inf, -np.inf], np.nan
     )
@@ -717,11 +725,87 @@ def select_stock_feature_dataset(
     return StockModelDataset(frame=selected, feature_columns=tuple(feature_columns))
 
 
+def align_stock_feature_datasets(
+    datasets: Mapping[str, StockModelDataset],
+) -> dict[str, StockModelDataset]:
+    """조합별 패널을 공통 ``(bas_dd, code)`` 행으로 맞춘다.
+
+    공통 날짜만 남기면 같은 날짜 안에서도 조합별 워밍업 결측 때문에 종목 구성이 달라질 수
+    있다. 날짜와 종목코드가 모두 같은 행만 남기고 모든 조합을 같은 순서로 정렬해, 표본
+    차이가 피처 조합의 성능 차이로 섞이지 않게 한다.
+    """
+
+    if not datasets:
+        raise ValueError("정렬할 개별종목 피처 조합이 없습니다.")
+
+    normalized_frames: dict[str, pd.DataFrame] = {}
+    common_keys: pd.MultiIndex | None = None
+    for name, dataset in datasets.items():
+        missing = {"bas_dd", "code", "label_numeric"} - set(dataset.frame.columns)
+        if missing:
+            raise ValueError(f"조합 {name}에 공통 행 정렬 열이 없습니다: {sorted(missing)}")
+
+        frame = dataset.frame.copy()
+        frame["bas_dd"] = _normalize_dates(frame)
+        frame["code"] = frame["code"].astype("string").str.strip().str.zfill(6).astype(str)
+        if frame.duplicated(["bas_dd", "code"]).any():
+            raise ValueError(f"조합 {name}에 같은 날짜·종목 행이 두 번 이상 있습니다.")
+
+        keys = pd.MultiIndex.from_frame(frame.loc[:, ["bas_dd", "code"]])
+        common_keys = keys if common_keys is None else common_keys.intersection(keys, sort=False)
+        normalized_frames[name] = frame
+
+    if common_keys is None or common_keys.empty:
+        raise ValueError("피처 조합 사이에 공통 날짜·종목 행이 없습니다.")
+
+    canonical = common_keys.to_frame(index=False).sort_values(
+        ["bas_dd", "code"], kind="stable"
+    )
+    canonical = canonical.reset_index(drop=True)
+    aligned: dict[str, StockModelDataset] = {}
+    reference_labels: np.ndarray | None = None
+    for name, dataset in datasets.items():
+        frame = canonical.merge(
+            normalized_frames[name],
+            on=["bas_dd", "code"],
+            how="left",
+            validate="one_to_one",
+            sort=False,
+        )
+        labels = frame["label_numeric"].to_numpy(dtype=int)
+        if reference_labels is None:
+            reference_labels = labels
+        elif not np.array_equal(labels, reference_labels):
+            raise ValueError(f"조합 {name}의 공통 날짜·종목 라벨이 다른 조합과 다릅니다.")
+
+        frame.attrs.update(dataset.frame.attrs)
+        panel_rule = dict(frame.attrs.get("stock_panel", {}))
+        panel_rule.update(
+            {
+                "model_rows": int(len(frame)),
+                "dates": int(frame["bas_dd"].nunique()),
+                "stocks": int(frame["code"].nunique()),
+                "first_date": str(frame["bas_dd"].min()),
+                "last_date": str(frame["bas_dd"].max()),
+                "feature_columns": list(dataset.feature_columns),
+                "alignment_keys": ["bas_dd", "code"],
+            }
+        )
+        frame.attrs["stock_panel"] = panel_rule
+        aligned[name] = StockModelDataset(
+            frame=frame,
+            feature_columns=dataset.feature_columns,
+        )
+
+    return aligned
+
+
 __all__ = [
     "ALL_STOCK_FEATURE_COLUMNS",
     "STOCK_COMBINATION_FEATURES",
     "STOCK_FEATURE_COLUMNS",
     "StockModelDataset",
+    "align_stock_feature_datasets",
     "build_sector_stock_model_dataset",
     "build_stock_training_frame",
     "select_stock_feature_dataset",

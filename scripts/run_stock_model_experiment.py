@@ -22,6 +22,7 @@ from features.stock_model_dataset import (  # noqa: E402
     STOCK_COMBINATION_FEATURES,
     STOCK_FEATURE_COLUMNS,
     StockModelDataset,
+    align_stock_feature_datasets,
     build_sector_stock_model_dataset,
     select_stock_feature_dataset,
 )
@@ -188,18 +189,7 @@ def refresh_saved_report_baselines() -> None:
         name: load_stock_model_dataset(features)
         for name, features in STOCK_COMBINATION_FEATURES.items()
     }
-    common_dates = set.intersection(
-        *(set(dataset.frame["bas_dd"].unique()) for dataset in datasets.values())
-    )
-    datasets = {
-        name: StockModelDataset(
-            frame=dataset.frame.loc[dataset.frame["bas_dd"].isin(common_dates)].reset_index(
-                drop=True
-            ),
-            feature_columns=dataset.feature_columns,
-        )
-        for name, dataset in datasets.items()
-    }
+    datasets = align_stock_feature_datasets(datasets)
 
     for combination, dataset in datasets.items():
         combination_report = report["combinations"][combination]
@@ -375,7 +365,7 @@ def _append_trials(
 
 
 def main() -> None:
-    """HF 공통 패널에서 A~F를 같은 날짜 조건으로 비교한다."""
+    """HF 공통 패널에서 A~F를 같은 날짜·종목 조건으로 비교한다."""
 
     source = {
         "repo": "qurious-quant/alphastack-krx-dev",
@@ -390,27 +380,19 @@ def main() -> None:
         name: load_stock_model_dataset(features)
         for name, features in STOCK_COMBINATION_FEATURES.items()
     }
-    common_dates = set.intersection(
-        *(set(dataset.frame["bas_dd"].unique()) for dataset in datasets.values())
-    )
+    datasets = align_stock_feature_datasets(datasets)
+    first_dataset = next(iter(datasets.values()))
+    common_dates = set(first_dataset.frame["bas_dd"].unique())
+    common_rows = len(first_dataset.frame)
     if len(common_dates) < 750 + 5 + 60:
-        raise ValueError("A~F 공통 거래일로 12폴드 평가를 만들 수 없습니다.")
-    datasets = {
-        name: StockModelDataset(
-            frame=dataset.frame.loc[dataset.frame["bas_dd"].isin(common_dates)].reset_index(
-                drop=True
-            ),
-            feature_columns=dataset.feature_columns,
-        )
-        for name, dataset in datasets.items()
-    }
+        raise ValueError("A~F 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
     quality_summary = dict(
         next(iter(datasets.values())).frame.attrs.get("adjustment_quality", {})
     )
     if not quality_summary:
         raise RuntimeError("수정주가 품질 판정 요약이 종목 패널에 기록되지 않았습니다.")
     print(
-        f"      공통 거래일 {len(common_dates):,}일 · 조합별 행 "
+        f"      공통 날짜·종목 {common_rows:,}행 · 거래일 {len(common_dates):,}일 · 조합별 행 "
         + ", ".join(f"{name} {len(dataset.frame):,}" for name, dataset in datasets.items()),
         flush=True,
     )
@@ -541,6 +523,8 @@ def main() -> None:
             "class_weight_candidates": [None, "balanced"],
             "selection": "Accuracy·Macro F1·하락 Recall 조화평균 최대",
             "common_dates_across_combinations": len(common_dates),
+            "common_rows_across_combinations": common_rows,
+            "common_row_keys": ["bas_dd", "code"],
             "baseline_policy": {
                 "comparison": "outer training-window majority class applied to validation",
                 "descriptive_only": "validation-window majority oracle",
