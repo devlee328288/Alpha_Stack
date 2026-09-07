@@ -16,13 +16,25 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sqlite3
+import sys
 from fractions import Fraction
+from pathlib import Path
 
 import pytest
 
 from ingest.clients import fdr_data
 from ingest.store import adj_price, krx_store, migrations
+
+# `scripts/` 는 패키지가 아니라 경로로 읽어 온다. `exec_module` **전에**
+# `sys.modules` 에 등록하는 순서는 `test_check_data.py` 와 같다.
+_SPEC = importlib.util.spec_from_file_location(
+    "build_adj_prices",
+    Path(__file__).resolve().parents[1] / "scripts" / "build_adj_prices.py")
+build_adj_prices = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = build_adj_prices
+_SPEC.loader.exec_module(build_adj_prices)
 
 # ── 시세 원문 만들기 ────────────────────────────────────────────────────────
 
@@ -241,6 +253,46 @@ def test_달력은_실제로_받은_날만_담는다(tmp_path):
     # 20240104 은 코스피만 열렸다. 코스닥 줄을 만들면 "그 날 코스닥도 거래일" 이 된다.
     assert ("20240104", "KOSDAQ") not in 시장별, "한쪽만 열린 날을 양쪽으로 세면 안 된다"
     conn.close()
+
+
+def _달력만_돌린다(tmp_path, monkeypatch, *, 옵션):
+    """`build_adj_prices.py` 를 인자만 바꿔 부르고, `verify` 가 불렸는지 돌려준다."""
+    conn = _migrated(tmp_path)
+    conn.execute(krx_store.UPSERT_SQL,
+                 ("20240102", "005930", "삼성전자", "KOSPI", None,
+                  1, 1, 1, 1, 0, 0.0, 1, 1, 1, 1))
+    conn.close()
+
+    불린검증 = []
+    monkeypatch.setattr(build_adj_prices, "verify",
+                        lambda *a, **k: (불린검증.append(True), True)[1])
+    # FDR 은 네트워크를 탄다. 여기서 보려는 것은 검증을 부르는지지 조정값이 아니다.
+    monkeypatch.setattr(build_adj_prices, "build_one",
+                        lambda conn, code: {"rows": 0, "fdr": 0, "chain": 0,
+                                            "ca_fix": 0, "error": None})
+    monkeypatch.setattr(sys, "argv",
+                        ["build_adj_prices.py", "--db", str(tmp_path / "t.db"),
+                         *옵션])
+    코드 = build_adj_prices.main()
+    return 코드, bool(불린검증)
+
+
+def test_달력만_깔_때는_수정주가_검증을_돌지_않는다(tmp_path, monkeypatch):
+    """🔴 `verify()` 가 보는 넷은 전부 `adj_*` 품질이다 — 달력만 깔면 볼 것이 없다.
+
+    안 만든 것을 검사하느라 900만 행을 훑으면 19초짜리 일이 2분 25초가 된다(실측).
+    이 스크립트는 갱신 파이프라인이 **매번** 부르는 자리에 있어 그대로 비용이 된다.
+    """
+    코드, 검증불림 = _달력만_돌린다(tmp_path, monkeypatch, 옵션=["--calendar-only"])
+    assert 코드 == 0
+    assert not 검증불림, "달력만 깔았는데 adj 검증을 돌면 안 된다"
+
+
+def test_수정주가를_만들면_검증은_그대로_돈다(tmp_path, monkeypatch):
+    """위 시험이 검증을 통째로 꺼 버리지 않았는지 반대편에서 못 박는다."""
+    코드, 검증불림 = _달력만_돌린다(tmp_path, monkeypatch, 옵션=[])
+    assert 코드 == 0
+    assert 검증불림, "수정주가를 만들었으면 검증은 반드시 돈다"
 
 
 def test_달력을_다시_깔아도_낡은_줄이_남지_않는다(tmp_path):

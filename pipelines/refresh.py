@@ -88,10 +88,19 @@ from ingest.store.migrations import migrate_path  # noqa: E402
 #:
 #: 순서에 뜻이 있다. `adj` 가 `ingest` **뒤**인 것은 수정주가가 새로 들어온 시세까지
 #: 덮어야 하기 때문이다. 먼저 돌리면 그날 받은 날짜가 조정되지 않은 채 남는다.
-STAGES = ("ingest", "adj", "gate", "verify", "export", "upload")
+#:
+#: `calendar` 가 `ingest` 바로 뒤이고 `adj` 와 **따로**인 까닭:
+#: 거래일 달력은 시세를 세어 만드는 값이라 새 날짜가 들어오면 곧바로 낡는다. 그런데
+#: 그걸 다시 까는 일은 13분짜리 수정주가 재계산과 한 스크립트에 들어 있었고, 수정주가는
+#: 평소에 꺼 두는 단계다. 그래서 2026-09-02~04 사흘 동안 시세는 앞서 가고 달력만 뒤에
+#: 남았다. 4,102행짜리 재적재는 19초라 끌 이유가 없었는데도 비싼 이웃과 운명을 같이한
+#: 것이다. 값이 싸고 뒤따르는 단계가 전부 의존하는 일은 **제 단계로 세워 둔다** —
+#: 그래야 `--only` 로 무엇을 빼는지도 눈에 보인다.
+STAGES = ("ingest", "calendar", "adj", "gate", "verify", "export", "upload")
 
 단계이름 = {
     "ingest": "수집",
+    "calendar": "거래일 달력",
     "adj": "수정주가",
     "gate": "품질 게이트",
     "verify": "재배포 판정",
@@ -242,6 +251,26 @@ def _단계_수집(ctx: Dict) -> Dict:
     return {"note": f"창 {창}거래일 · {ctx['창설명']}"}
 
 
+def _단계_달력(ctx: Dict) -> Dict:
+    """`daily_price` 를 세어 거래일 달력을 다시 깐다. 수정주가와 무관하게 매번 돈다.
+
+    **이 단계는 끄는 스위치가 없다.** 달력이 시세보다 뒤처지면 `next_session()` 이
+    `CalendarOutOfRange` 로 서고, 그러면 종목기본정보·식별·반입 자료의 `known_at`
+    계산이 통째로 멈춘다. 답을 지어내지 않으니 조용히 틀리지는 않지만, 멈추는 자리가
+    한참 뒤라 원인이 여기라는 걸 알아보기 어렵다.
+
+    비용은 19초다. 4,102행을 지우고 다시 넣을 뿐이고 원가격은 건드리지 않는다
+    (스크립트가 원가격 지문을 앞뒤로 재서 확인한다).
+    """
+    if ctx["dry_run"]:
+        return {"note": "돌리면 scripts/build_adj_prices.py --calendar-only "
+                        "(시세를 세어 거래일 달력만 다시 깐다 · 실측 19초)"}
+    코드, 꼬리 = 돌린다(["scripts/build_adj_prices.py", "--calendar-only"])
+    if 코드 != 0:
+        raise RuntimeError(f"거래일 달력 재구축이 실패했다 (종료코드 {코드}) — {꼬리}")
+    return {"note": 꼬리[:300]}
+
+
 def _단계_수정주가(ctx: Dict) -> Dict:
     if not ctx["with_adj"]:
         return {"skip": True,
@@ -318,6 +347,7 @@ def _단계_업로드(ctx: Dict) -> Dict:
 
 단계함수 = {
     "ingest": _단계_수집,
+    "calendar": _단계_달력,
     "adj": _단계_수정주가,
     "gate": _단계_게이트,
     "verify": _단계_판정,

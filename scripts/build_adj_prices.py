@@ -282,7 +282,15 @@ def main() -> int:
           f"— 행 {after[0]:,} · close합 {after[1]:,}")
 
     ok = same_raw
-    if not args.skip_verify:
+    # `verify()` 가 보는 넷은 전부 `adj_*` 칸의 품질이다 — 분할일 갭 · 무이벤트 배율 ·
+    # 고저 관계 · 0/음수. `--calendar-only` 는 그 칸을 하나도 쓰지 않으므로 검사할
+    # 산출물이 없다. 그런데도 돌리면 900만 행을 훑느라 19초짜리 일이 2분 25초가 되고,
+    # 이 스크립트는 갱신 파이프라인이 매번 부르는 자리에 있다.
+    #
+    # 안 만든 것을 건너뛰는 것이지 검사를 포기하는 게 아니다. 바로 위 `same_raw`
+    # (원가격 지문)는 여기서도 그대로 돈다 — "달력을 까는 동안 시세를 건드리지
+    # 않았다" 는 진짜 안전망은 그쪽이고, 그건 값이 싸다.
+    if not args.skip_verify and not args.calendar_only:
         ok &= verify(conn, [c.strip() for c in args.codes.split(",")]
                      if args.codes else None)
     conn.close()

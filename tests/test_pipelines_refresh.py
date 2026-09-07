@@ -87,6 +87,32 @@ def test_모든_단계에_한국어_이름이_있다():
     assert set(refresh.STAGES) == set(refresh.단계함수)
 
 
+def test_달력이_수집_뒤이고_수정주가_앞이다():
+    """달력은 시세를 세어 만든다 — 받기 전에 깔면 어제 것을 다시 깐다.
+
+    수정주가보다 앞인 까닭은 순서상 필요해서가 아니라, 뒤에 두면 수정주가를 껐을 때
+    같이 밀려 나가기 때문이다. 앞에 세워 두면 그 일이 구조적으로 일어나지 않는다.
+    """
+    assert refresh.STAGES.index("ingest") < refresh.STAGES.index("calendar")
+    assert refresh.STAGES.index("calendar") < refresh.STAGES.index("adj")
+
+
+def test_달력은_게이트보다_먼저_깔린다():
+    """품질 게이트와 `known_at` 계산이 달력을 읽는다. 낡은 채로 검사받으면 안 된다."""
+    assert refresh.STAGES.index("calendar") < refresh.STAGES.index("gate")
+
+
+def test_달력_단계에는_끄는_스위치가_없다():
+    """🔴 2026-09-02~04 에 사흘치가 비었던 원인이 여기다.
+
+    달력 재구축이 13분짜리 수정주가와 한 단계에 묶여 있었고, 수정주가는 평소에 꺼
+    두는 단계다. `with_adj` 가 꺼져 있어도 달력 단계는 **건너뛰지 않아야** 한다.
+    """
+    결과 = refresh._단계_달력({"with_adj": False, "dry_run": True})
+    assert "skip" not in 결과
+    assert "--calendar-only" in 결과["note"]
+
+
 # ==================================================
 # 3. 수정주가는 꺼도 흔적이 남나
 # ==================================================
