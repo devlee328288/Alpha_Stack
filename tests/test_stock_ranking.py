@@ -8,6 +8,7 @@ from models.stock_ranking import (
     build_common_validation_schedule,
     select_for_index_direction,
     summarize_direction_ranking,
+    summarize_random_ranking_baseline,
 )
 
 
@@ -52,6 +53,23 @@ def test_지수방향과_실제종목라벨의_top_n_적중률을계산한다():
     assert summary["top_n"].tolist() == [1, 2]
     assert summary["direction_hit_rate"].tolist() == [1.0, 1.0]
     assert np.allclose(summary["mean_selected_probability"], [0.7, 0.45])
+
+
+def test_무작위_top_k_기준선은_공통_oos의_방향별_후보비율로_계산한다():
+    stocks = _predictions().assign(label_numeric=[1, 0, 1])
+    index_predictions = pd.DataFrame({"bas_dd": ["20240102"], "predicted": [1]})
+
+    result = summarize_random_ranking_baseline(
+        stocks,
+        index_predictions,
+        cutoffs=(1, 2),
+    )
+
+    overall = result.loc[result["index_predicted"].isna()]
+    upward = result.loc[result["index_predicted"].eq(1)]
+    assert overall["top_n"].tolist() == [1, 2]
+    assert np.allclose(overall["random_direction_hit_rate"], 2.0 / 3.0)
+    assert np.allclose(upward["random_direction_hit_rate"], 2.0 / 3.0)
 
 
 def test_종목검증일정과_같은날짜로_지수분할을만든다():

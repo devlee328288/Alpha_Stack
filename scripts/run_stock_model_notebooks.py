@@ -1,4 +1,4 @@
-"""개별종목 기본모델·조합A·best-result 노트북을 순서대로 실행한다."""
+"""개별종목 기본모델·조합 A~F·best-result 노트북을 순서대로 실행한다."""
 
 from __future__ import annotations
 
@@ -10,18 +10,31 @@ from nbclient import NotebookClient
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPERIMENT = ROOT / "notebooks" / "04-모델" / "개별종목" / "실험"
-COMBINATION = EXPERIMENT / "조합A_trend_momentum_volatility_volume_returns"
 BASE = EXPERIMENT / "기본모델"
-BEST = EXPERIMENT / "조합별 best result" / "조합A"
+BEST_ROOT = EXPERIMENT / "조합별 best result"
+
+COMBINATION_DIRECTORIES = (
+    "조합A_trend_momentum_volatility_volume_returns",
+    "조합B_trend_momentum_high_distance",
+    "조합C_short_reversal_intraday",
+    "조합D_volatility_liquidity",
+    "조합E_sector_market_relative_strength",
+    "조합F_cross_sectional_ranks",
+)
 
 
 def _targets() -> list[Path]:
     """기본모델을 먼저, 실제 조합과 요약 노트북을 나중에 실행한다."""
 
     base = sorted(BASE.glob("*.ipynb"))
-    combination_models = sorted(COMBINATION.glob("0[1-4].*.ipynb"))
-    comparison = [COMBINATION / "05.모델비교.ipynb"]
-    best = sorted(BEST.glob("*.ipynb"))
+    combinations = [EXPERIMENT / directory for directory in COMBINATION_DIRECTORIES]
+    combination_models = [
+        notebook
+        for combination in combinations
+        for notebook in sorted(combination.glob("0[1-4].*.ipynb"))
+    ]
+    comparison = [combination / "05.모델비교.ipynb" for combination in combinations]
+    best = sorted(BEST_ROOT.glob("조합*/*.ipynb"))
     return [*base, *combination_models, *comparison, *best]
 
 

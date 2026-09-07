@@ -15,16 +15,19 @@ from pandas.api.types import is_bool_dtype
 
 from evaluation.horizon import HOLDOUT_START
 from features.indicators import bollinger_bands, macd_hist_ratio, percent_b, rsi, sma_gap
+from features.model_dataset import KOSPI200_NAME
 from features.returns import n_day_return
 from features.volatility import atr, historical_volatility
 from features.volume import obv, volume_ratio, volume_sma
+from supply.sector import index_name_for
 
 DEFAULT_TOP_N = 50
 STOCK_LABEL_HORIZON = 5
 STOCK_NEUTRAL_BAND = 0.02
 LABEL_TO_NUMBER = {"하락": -1, "중립": 0, "상승": 1}
 
-STOCK_FEATURE_COLUMNS = (
+STOCK_COMBINATION_FEATURES = {
+    "A": (
     "sma_gap_5_20",
     "sma_gap_20_60",
     "rsi_14",
@@ -37,6 +40,66 @@ STOCK_FEATURE_COLUMNS = (
     "obv_slope_20",
     "daily_return",
     "five_day_return",
+    ),
+    "B": (
+        "ret_5",
+        "ret_20",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "dist_high_20",
+        "dist_high_60",
+    ),
+    "C": (
+        "ret_1",
+        "ret_5",
+        "overnight_gap",
+        "intraday_return",
+        "close_location",
+        "bb_position",
+        "rsi_14",
+        "volume_z_20",
+    ),
+    "D": (
+        "atr_ratio",
+        "hv_20",
+        "range_1",
+        "range_20",
+        "bb_bandwidth",
+        "volume_z_20",
+        "turnover_20",
+        "log_amihud_20",
+    ),
+    "E": (
+        "sector_ret_5",
+        "sector_ret_20",
+        "relative_ret_5_sector",
+        "relative_ret_20_sector",
+        "relative_ret_5_market",
+        "sector_hv_20",
+        "sector_beta_60",
+    ),
+    "F": (
+        "ret_5_rank",
+        "sector_relative_rank",
+        "turnover_rank",
+        "hv_20_rank",
+        "market_cap_percentile",
+        "sector_market_cap_rank",
+        "industry_stock_rank",
+        "volume_z_20",
+        "bb_position",
+    ),
+}
+
+# 기존 호출은 조합 A를 뜻한다. 전체 조합의 합집합은 공통 패널 캐시 검증에 사용한다.
+STOCK_FEATURE_COLUMNS = STOCK_COMBINATION_FEATURES["A"]
+ALL_STOCK_FEATURE_COLUMNS = tuple(
+    dict.fromkeys(
+        feature
+        for combination in STOCK_COMBINATION_FEATURES.values()
+        for feature in combination
+    )
 )
 
 REQUIRED_COLUMNS = {
@@ -58,6 +121,8 @@ PANEL_PRICE_COLUMNS = {
     "adj_close",
     "volume",
 }
+
+OPTIONAL_PANEL_PRICE_COLUMNS = {"value", "market_cap", "industry"}
 
 
 @dataclass(frozen=True)
@@ -270,13 +335,20 @@ def build_stock_training_frame(
 
 
 def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
-    """한 종목의 전체 시계열에서 가격 수준에 무관한 피처를 계산한다."""
+    """한 종목의 전체 시계열에서 가격·거래량·유동성 피처를 계산한다."""
 
-    ordered = group.sort_values("bas_dd", kind="stable").copy()
+    ordered = group.sort_values("bas_dd", kind="stable").reset_index(drop=True).copy()
     close = ordered["adj_close"].to_numpy(dtype=float)
+    open_ = ordered["adj_open"].to_numpy(dtype=float)
     high = ordered["adj_high"].to_numpy(dtype=float)
     low = ordered["adj_low"].to_numpy(dtype=float)
     volume = ordered["volume"].to_numpy(dtype=float)
+    value = pd.to_numeric(
+        ordered.get("value", pd.Series(np.nan, index=ordered.index)), errors="coerce"
+    ).reset_index(drop=True)
+    market_cap = pd.to_numeric(
+        ordered.get("market_cap", pd.Series(np.nan, index=ordered.index)), errors="coerce"
+    ).reset_index(drop=True)
 
     atr_14 = atr(high, low, close, 14)
     bands = bollinger_bands(close, 20)
@@ -299,15 +371,136 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         ) / (volume_average * 20.0)
         ordered["daily_return"] = n_day_return(close, 1)
         ordered["five_day_return"] = n_day_return(close, 5)
-    return ordered.loc[:, ["bas_dd", "code", *STOCK_FEATURE_COLUMNS]].replace(
+        ordered["ret_1"] = ordered["daily_return"]
+        ordered["ret_5"] = ordered["five_day_return"]
+        ordered["ret_20"] = n_day_return(close, 20)
+        ordered["dist_high_20"] = close / pd.Series(close).rolling(20).max() - 1.0
+        ordered["dist_high_60"] = close / pd.Series(close).rolling(60).max() - 1.0
+        previous_close = pd.Series(close).shift(1).to_numpy()
+        ordered["overnight_gap"] = open_ / previous_close - 1.0
+        ordered["intraday_return"] = close / open_ - 1.0
+        price_range = high - low
+        ordered["close_location"] = np.where(
+            price_range > 0.0,
+            (close - low) / price_range,
+            np.nan,
+        )
+        ordered["range_1"] = price_range / close
+        ordered["range_20"] = pd.Series(ordered["range_1"]).rolling(20).mean()
+
+        log_volume = np.log1p(np.where(volume >= 0.0, volume, np.nan))
+        log_volume_series = pd.Series(log_volume)
+        volume_mean = log_volume_series.rolling(20).mean()
+        volume_std = log_volume_series.rolling(20).std(ddof=0)
+        ordered["volume_z_20"] = (log_volume_series - volume_mean) / volume_std
+
+        turnover = value / market_cap
+        turnover = turnover.where((value > 0.0) & (market_cap > 0.0))
+        ordered["turnover_20"] = turnover.rolling(20).mean()
+        amihud = pd.Series(np.abs(ordered["ret_1"])) / value
+        amihud = amihud.where(value > 0.0)
+        ordered["log_amihud_20"] = np.log(amihud.rolling(20).mean() + 1e-18)
+
+    output_columns = [
+        "bas_dd",
+        "code",
+        *[
+            feature
+            for feature in ALL_STOCK_FEATURE_COLUMNS
+            if feature in ordered.columns
+        ],
+    ]
+    return ordered.loc[:, output_columns].replace(
         [np.inf, -np.inf], np.nan
     )
+
+
+def _attach_index_relative_features(
+    features: pd.DataFrame,
+    source: pd.DataFrame,
+    index_prices: pd.DataFrame,
+) -> pd.DataFrame:
+    """종목의 그날 업종과 KOSPI200 과거 수익률만 이용해 상대 피처를 붙인다."""
+
+    required = {"bas_dd", "index_name", "index_class", "close"}
+    missing = required - set(index_prices.columns)
+    if missing:
+        raise ValueError(f"업종 상대강도 지수 열이 없습니다: {sorted(missing)}")
+    if "industry" not in source.columns:
+        raise ValueError("업종 상대강도 계산에 종목별 industry 열이 필요합니다.")
+
+    indices = index_prices.loc[:, sorted(required)].copy()
+    indices["bas_dd"] = _normalize_dates(indices)
+    if (indices["bas_dd"] >= HOLDOUT_START).any():
+        raise RuntimeError("업종 상대강도 원천에 홀드아웃 행이 들어 있습니다.")
+    indices = indices.loc[indices["index_class"].eq("KOSPI")].copy()
+    indices["close"] = pd.to_numeric(indices["close"], errors="coerce")
+    if indices.duplicated(["bas_dd", "index_name"]).any():
+        raise ValueError("업종 상대강도 원천에 같은 날짜·지수가 두 번 이상 있습니다.")
+    indices = indices.sort_values(["index_name", "bas_dd"], kind="stable")
+    grouped_close = indices.groupby("index_name", sort=False)["close"]
+    indices["sector_ret_1"] = grouped_close.pct_change(fill_method=None)
+    indices["sector_ret_5"] = grouped_close.pct_change(5, fill_method=None)
+    indices["sector_ret_20"] = grouped_close.pct_change(20, fill_method=None)
+    log_return = grouped_close.transform(lambda values: np.log(values).diff())
+    indices["sector_hv_20"] = log_return.groupby(
+        indices["index_name"], sort=False
+    ).transform(lambda values: values.rolling(20).std(ddof=1) * np.sqrt(252.0))
+
+    identity = source.loc[:, ["bas_dd", "code", "industry"]].copy()
+    identity["industry_index_name"] = identity["industry"].astype("string").map(
+        index_name_for
+    )
+    out = features.merge(identity, on=["bas_dd", "code"], how="left", validate="one_to_one")
+    sector_columns = [
+        "bas_dd",
+        "index_name",
+        "sector_ret_1",
+        "sector_ret_5",
+        "sector_ret_20",
+        "sector_hv_20",
+    ]
+    out = out.merge(
+        indices.loc[:, sector_columns].rename(columns={"index_name": "industry_index_name"}),
+        on=["bas_dd", "industry_index_name"],
+        how="left",
+        validate="many_to_one",
+    )
+    market = indices.loc[
+        indices["index_name"].eq(KOSPI200_NAME),
+        ["bas_dd", "sector_ret_5"],
+    ].rename(columns={"sector_ret_5": "market_ret_5"})
+    if market.empty:
+        raise ValueError(f"업종 상대강도 원천에 {KOSPI200_NAME!r} 지수가 없습니다.")
+    out = out.merge(market, on="bas_dd", how="left", validate="many_to_one")
+    out["relative_ret_5_sector"] = out["ret_5"] - out["sector_ret_5"]
+    out["relative_ret_20_sector"] = out["ret_20"] - out["sector_ret_20"]
+    out["relative_ret_5_market"] = out["ret_5"] - out["market_ret_5"]
+
+    def _rolling_sector_beta(group: pd.DataFrame) -> pd.Series:
+        stock_return = group["ret_1"]
+        sector_return = group["sector_ret_1"]
+        covariance = stock_return.rolling(60).cov(sector_return)
+        variance = sector_return.rolling(60).var()
+        return covariance / variance
+
+    out = out.sort_values(["code", "bas_dd"], kind="stable")
+    out["sector_beta_60"] = (
+        out.groupby("code", sort=False, group_keys=False)
+        .apply(_rolling_sector_beta, include_groups=False)
+        .reset_index(level=0, drop=True)
+        .reindex(out.index)
+    )
+    return out.drop(columns=["industry", "industry_index_name", "market_ret_5", "sector_ret_1"])
 
 
 def build_sector_stock_model_dataset(
     daily_prices: pd.DataFrame,
     candidates: pd.DataFrame,
     *,
+    index_prices: pd.DataFrame | None = None,
+    feature_columns: tuple[str, ...] = STOCK_FEATURE_COLUMNS,
+    drop_incomplete_features: bool = True,
     holdout_start: str = HOLDOUT_START,
     horizon: int = STOCK_LABEL_HORIZON,
     neutral_band: float = STOCK_NEUTRAL_BAND,
@@ -325,6 +518,17 @@ def build_sector_stock_model_dataset(
         horizon=horizon,
         neutral_band=neutral_band,
     )
+    unknown_features = set(feature_columns) - set(ALL_STOCK_FEATURE_COLUMNS)
+    if unknown_features:
+        raise ValueError(f"아직 계산하지 않는 개별종목 피처입니다: {sorted(unknown_features)}")
+    if not feature_columns or len(set(feature_columns)) != len(feature_columns):
+        raise ValueError("개별종목 피처 조합은 비어 있거나 중복될 수 없습니다.")
+    needs_index = bool(set(feature_columns) & set(STOCK_COMBINATION_FEATURES["E"])) or bool(
+        set(feature_columns) & {"sector_relative_rank"}
+    )
+    if needs_index and index_prices is None:
+        raise ValueError("조합 E·F의 업종 상대강도 피처에는 index_prices가 필요합니다.")
+
     missing_prices = PANEL_PRICE_COLUMNS - set(daily_prices.columns)
     missing_candidates = {"bas_dd", "code"} - set(candidates.columns)
     if missing_prices:
@@ -334,7 +538,10 @@ def build_sector_stock_model_dataset(
     if candidates.empty:
         raise ValueError("종목 후보가 비어 있습니다.")
 
-    source = daily_prices.loc[:, sorted(PANEL_PRICE_COLUMNS)].copy()
+    source_columns = PANEL_PRICE_COLUMNS | (
+        OPTIONAL_PANEL_PRICE_COLUMNS & set(daily_prices.columns)
+    )
+    source = daily_prices.loc[:, sorted(source_columns)].copy()
     source["bas_dd"] = _normalize_dates(source)
     source["code"] = source["code"].astype("string").str.strip().str.zfill(6)
     if (source["bas_dd"] >= holdout_start).any():
@@ -343,7 +550,17 @@ def build_sector_stock_model_dataset(
     source = source.loc[source["market"].eq("KOSPI")].copy()
     if source.duplicated(["bas_dd", "code"]).any():
         raise ValueError("KOSPI에 같은 날짜·종목코드가 두 번 이상 있습니다.")
-    for column in ("adj_open", "adj_high", "adj_low", "adj_close", "volume"):
+    for column in (
+        "adj_open",
+        "adj_high",
+        "adj_low",
+        "adj_close",
+        "volume",
+        "value",
+        "market_cap",
+    ):
+        if column not in source.columns:
+            continue
         source[column] = pd.to_numeric(source[column], errors="coerce")
 
     selected = candidates.copy()
@@ -364,12 +581,38 @@ def build_sector_stock_model_dataset(
         for _, group in feature_source.groupby("code", sort=False, observed=True)
     ]
     features = pd.concat(feature_parts, ignore_index=True)
+    if index_prices is not None:
+        features = _attach_index_relative_features(features, feature_source, index_prices)
     selected = selected.merge(
         features,
         on=["bas_dd", "code"],
         how="left",
         validate="one_to_one",
     )
+
+    # 횡단면 순위는 그날 확정된 최대 50개 후보 안에서만 계산한다. 미래 날짜나
+    # 후보 밖 종목을 사용하지 않으며, 값이 클수록 1에 가까운 백분위로 통일한다.
+    if "ret_5" in selected.columns:
+        selected["ret_5_rank"] = selected.groupby("bas_dd", sort=False)["ret_5"].rank(
+            pct=True, method="average"
+        )
+    if "relative_ret_5_sector" in selected.columns:
+        selected["sector_relative_rank"] = selected.groupby("bas_dd", sort=False)[
+            "relative_ret_5_sector"
+        ].rank(pct=True, method="average")
+    if "turnover_20" in selected.columns:
+        selected["turnover_rank"] = selected.groupby("bas_dd", sort=False)[
+            "turnover_20"
+        ].rank(pct=True, method="average")
+    if "hv_20" in selected.columns:
+        selected["hv_20_rank"] = selected.groupby("bas_dd", sort=False)["hv_20"].rank(
+            pct=True, method="average"
+        )
+    if "market_cap" in selected.columns:
+        market_cap = pd.to_numeric(selected["market_cap"], errors="coerce")
+        selected["market_cap_percentile"] = market_cap.groupby(selected["bas_dd"]).rank(
+            pct=True, method="average"
+        )
 
     calendar = sorted(source["bas_dd"].unique().tolist())
     calendar_frame = pd.DataFrame({"bas_dd": calendar})
@@ -403,10 +646,14 @@ def build_sector_stock_model_dataset(
         validate="one_to_one",
     )
     valid_prices = selected["entry_adj_open"].notna() & selected["exit_adj_open"].notna()
+    missing_calculated = set(feature_columns) - set(selected.columns)
+    if missing_calculated:
+        raise ValueError(f"선택한 피처를 계산하지 못했습니다: {sorted(missing_calculated)}")
     finite_features = np.isfinite(
-        selected.loc[:, STOCK_FEATURE_COLUMNS].to_numpy(dtype=float)
+        selected.loc[:, feature_columns].to_numpy(dtype=float)
     ).all(axis=1)
-    selected = selected.loc[valid_prices & finite_features].copy()
+    keep = valid_prices & finite_features if drop_incomplete_features else valid_prices
+    selected = selected.loc[keep].copy()
     if selected.empty:
         raise ValueError("피처와 정확한 T+1·T+6 수정시가가 있는 후보가 없습니다.")
 
@@ -435,13 +682,51 @@ def build_sector_stock_model_dataset(
         "stocks": int(selected["code"].nunique()),
         "first_date": str(selected["bas_dd"].min()),
         "last_date": str(selected["bas_dd"].max()),
+        "feature_columns": list(feature_columns),
     }
-    return StockModelDataset(frame=selected)
+    return StockModelDataset(frame=selected, feature_columns=tuple(feature_columns))
+
+
+def select_stock_feature_dataset(
+    frame: pd.DataFrame,
+    feature_columns: tuple[str, ...],
+) -> StockModelDataset:
+    """공통 후보 패널에서 한 조합의 유효 피처 행만 선택한다."""
+
+    unknown = set(feature_columns) - set(ALL_STOCK_FEATURE_COLUMNS)
+    missing = set(feature_columns) - set(frame.columns)
+    if unknown:
+        raise ValueError(f"아직 계산하지 않는 개별종목 피처입니다: {sorted(unknown)}")
+    if missing:
+        raise ValueError(f"공통 종목 패널에 선택 피처가 없습니다: {sorted(missing)}")
+    if not feature_columns or len(set(feature_columns)) != len(feature_columns):
+        raise ValueError("개별종목 피처 조합은 비어 있거나 중복될 수 없습니다.")
+    finite = np.isfinite(frame.loc[:, feature_columns].to_numpy(dtype=float)).all(axis=1)
+    selected = frame.loc[finite].copy().reset_index(drop=True)
+    if selected.empty:
+        raise ValueError("선택한 피처 조합에 유효한 종목 행이 없습니다.")
+    selected.attrs.update(frame.attrs)
+    panel_rule = dict(selected.attrs.get("stock_panel", {}))
+    panel_rule.update(
+        {
+            "model_rows": int(len(selected)),
+            "dates": int(selected["bas_dd"].nunique()),
+            "stocks": int(selected["code"].nunique()),
+            "first_date": str(selected["bas_dd"].min()),
+            "last_date": str(selected["bas_dd"].max()),
+            "feature_columns": list(feature_columns),
+        }
+    )
+    selected.attrs["stock_panel"] = panel_rule
+    return StockModelDataset(frame=selected, feature_columns=tuple(feature_columns))
 
 
 __all__ = [
+    "ALL_STOCK_FEATURE_COLUMNS",
+    "STOCK_COMBINATION_FEATURES",
     "STOCK_FEATURE_COLUMNS",
     "StockModelDataset",
     "build_sector_stock_model_dataset",
     "build_stock_training_frame",
+    "select_stock_feature_dataset",
 ]

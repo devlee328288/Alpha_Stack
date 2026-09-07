@@ -3,6 +3,8 @@ import pandas as pd
 import pytest
 
 from features.stock_model_dataset import (
+    ALL_STOCK_FEATURE_COLUMNS,
+    STOCK_COMBINATION_FEATURES,
     STOCK_FEATURE_COLUMNS,
     build_sector_stock_model_dataset,
     build_stock_training_frame,
@@ -219,3 +221,42 @@ def test_종목패널은_홀드아웃행을조용히자르지않고중단한다(
 
     with pytest.raises(RuntimeError, match="홀드아웃 행"):
         build_sector_stock_model_dataset(pd.concat([prices, extra]), candidates)
+
+
+def test_조합b부터f까지_수정주가와당일횡단면만으로계산한다():
+    prices = _panel_prices(periods=100)
+    prices["industry"] = "건설"
+    prices["value"] = prices["volume"] * prices["adj_close"]
+    prices["market_cap"] = np.where(prices["code"].eq("000010"), 2e12, 1e12)
+    dates = sorted(prices["bas_dd"].unique())
+    candidates = prices.loc[prices["bas_dd"].isin(dates[65:90])].copy()
+    candidates["industry_index_name"] = "건설"
+    candidates["sector_market_cap_rank"] = 1
+    candidates["industry_stock_rank"] = candidates["code"].map(
+        {"000010": 1, "000020": 2}
+    )
+    candidates["candidate_rank"] = candidates["industry_stock_rank"]
+    index_rows = []
+    for index, date in enumerate(dates):
+        for name, scale in (("건설", 1.2), ("코스피 200", 1.0)):
+            index_rows.append(
+                {
+                    "bas_dd": date,
+                    "index_name": name,
+                    "index_class": "KOSPI",
+                    "close": (200.0 + index * 0.4) * scale,
+                }
+            )
+
+    dataset = build_sector_stock_model_dataset(
+        prices,
+        candidates,
+        index_prices=pd.DataFrame(index_rows),
+        feature_columns=ALL_STOCK_FEATURE_COLUMNS,
+    )
+
+    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEF")
+    assert np.isfinite(dataset.x.to_numpy()).all()
+    same_day = dataset.frame.groupby("bas_dd")["market_cap_percentile"]
+    assert same_day.max().eq(1.0).all()
+    assert same_day.min().eq(0.5).all()
