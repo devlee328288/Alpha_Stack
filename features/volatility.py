@@ -244,6 +244,19 @@ def atr_ratio(high: Sequence, low: Sequence, close: Sequence, window: int = 14) 
     return result
 
 
+# `hv_regime`의 baseline 판정에만 쓰는 임계값(#155) — 다른 0-나눗셈 가드(`atr_ratio`의
+# `close != 0`, `historical_volatility`의 `px > 0` 등)는 전부 경계를 그대로 `0`으로
+# 두고, 여기만 예외로 eps를 둔다. `_rolling_mean`이 `nancumsum` 누적합 차분으로
+# `regime_window`(기본 250)일 이동평균을 내는데, 다른 호출부(14·20일)보다 창이
+# 훨씬 커 큰 수끼리 빼는 취소오차가 쌓인다 — KOSPI 개발구간 전수 대조(1,224종목·
+# 2,984,824행)에서 최대 절대오차 9.481e-11, `baseline > 0` 판정이 pandas
+# `rolling().mean()` 기준과 갈리는 행이 73개 나왔다(전부 저유동성 종목의 거의
+# 무변동 구간 — 조합 H 실제 학습 패널(업종 시총 상위 164종목·175,914행)로는 실측
+# 불일치 0건, #155). eps는 그 오차보다 한 자리 위(1e-9)로 잡아, 뜬 오차로 인한
+# 판정 흔들림만 걸러내고 실제 유의미한 baseline은 그대로 통과시킨다.
+_HV_REGIME_BASELINE_EPS = 1e-9
+
+
 def hv_regime(
     prices: Sequence,
     window: int = 20,
@@ -263,9 +276,14 @@ def hv_regime(
     1을 기준으로 위(>1)면 평소보다 시끄러운 레짐, 아래(<1)면 평소보다 잠잠한 레짐 —
     `hv_20`의 절대 수준이 종목·시기마다 다른 문제를 자기 자신의 최근 이력으로
     정규화해 비교 가능하게 만든다(#37 검토 의견 — 기존 원자 함수엔 없던 "레짐" 개념).
+
+    baseline 판정은 `> 0`이 아니라 `> _HV_REGIME_BASELINE_EPS`를 쓴다 — 이유는 그
+    상수 정의 주석 참고(#155).
     """
     daily_vol = historical_volatility(prices, window=window, ddof=ddof, annualize=False)
     baseline = _rolling_mean(daily_vol, regime_window)
     with np.errstate(divide="ignore", invalid="ignore"):
-        result = np.where(baseline > 0, daily_vol / baseline, np.nan)
+        result = np.where(
+            baseline > _HV_REGIME_BASELINE_EPS, daily_vol / baseline, np.nan
+        )
     return result
