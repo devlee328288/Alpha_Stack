@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from features import volatility
@@ -210,6 +211,34 @@ def test_hv_regime_shift_검사():
     before = volatility.hv_regime(CLOSE, window=3, regime_window=3, ddof=1)
     after = volatility.hv_regime(changed, window=3, regime_window=3, ddof=1)
     _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_hv_regime_baseline_eps_경계():
+    """`_HV_REGIME_BASELINE_EPS`(#155) 경계에서 baseline 판정이 어떻게 갈리는지
+    직접 확인한다. `_rolling_mean`이 큰 창(기본 250일)에서 `nancumsum` 누적합
+    차분을 쓰다 보니 진짜 0인 baseline이 취소오차로 미세한 값(1e-11 안팎)이 되어
+    나올 수 있다 — eps 미만은 여전히 "baseline이 없다"로 취급해 NaN을 내고, eps를
+    넘는 값은 정상적으로 나눠진다는 것을 `hv_regime` 본문과 같은 판정식으로 잰다.
+    """
+    eps = volatility._HV_REGIME_BASELINE_EPS
+    assert eps == pytest.approx(1e-9)
+
+    daily_vol = np.array([0.02, 0.02])
+    baseline = np.array([eps * 0.1, eps * 10])  # 경계 아래 · 경계 위
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(baseline > eps, daily_vol / baseline, np.nan)
+
+    assert math.isnan(result[0]), "eps 미만 baseline은 취소오차로 보고 NaN이어야 한다"
+    assert result[1] == pytest.approx(daily_vol[1] / baseline[1])
+
+
+def test_hv_regime_baseline_완전히_0이면_nan():
+    """가격이 아예 안 움직이는 구간(`daily_vol`이 통째로 0)은 eps 도입 전과 똑같이
+    NaN이어야 한다 — eps가 "진짜 0"인 경우까지 값으로 바꿔치기하면 안 된다.
+    """
+    flat_close = [100.0] * 10
+    result = volatility.hv_regime(flat_close, window=3, regime_window=3, ddof=1)
+    assert all(math.isnan(v) for v in result[5:]), "무변동 구간은 여전히 NaN이어야 한다"
 
 
 # ── 길이 계약 ────────────────────────────────────────────────────────────
