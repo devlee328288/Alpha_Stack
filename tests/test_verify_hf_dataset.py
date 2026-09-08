@@ -23,7 +23,9 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
+import types
 from pathlib import Path
 
 import numpy as np
@@ -174,3 +176,67 @@ def test_연결은_읽기_전용이라_쓰기가_거부된다(tmp_path, monkeypa
         assert conn.execute("SELECT a FROM t").fetchone()[0] == 1
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
             conn.execute("INSERT INTO t VALUES (2)")
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 낡은 스냅샷 — 거짓 🔴 은 거짓 ✅ 만큼 나쁘다
+#
+# `verify_manifest` 는 스냅샷을 **자기 자신의** MANIFEST 와 대조하므로 낡은 배포본도
+# 자기끼리 일관돼 통과한다. 그 구멍을 `assert_snapshot_is_current` 가 막는다.
+# ══════════════════════════════════════════════════════════════════════════
+def _snap(tmp_path: Path, generated_at: str) -> Path:
+    snap = tmp_path / "snap"
+    snap.mkdir()
+    (snap / "MANIFEST.json").write_text(
+        json.dumps({"generated_at": generated_at, "files": []}), encoding="utf-8")
+    return snap
+
+
+@pytest.fixture
+def 서버가(monkeypatch, tmp_path):
+    """서버 MANIFEST 를 흉내 낸다. 받아 오는 자리만 갈아 끼운다."""
+    def _설정(generated_at: str):
+        서버 = tmp_path / "server_MANIFEST.json"
+        서버.write_text(json.dumps({"generated_at": generated_at, "files": []}),
+                        encoding="utf-8")
+        monkeypatch.setitem(sys.modules, "huggingface_hub",
+                            types.SimpleNamespace(
+                                hf_hub_download=lambda **kw: str(서버)))
+        monkeypatch.setitem(sys.modules, "ingest.clients",
+                            types.SimpleNamespace(
+                                hf_data=types.SimpleNamespace(
+                                    load_hf_key=lambda: ("tok", "테스트"))))
+    return _설정
+
+
+def test_스냅샷이_서버와_같으면_지나간다(tmp_path, 서버가):
+    서버가("2026-09-07T04:58:00Z")
+    snap = _snap(tmp_path, "2026-09-07T04:58:00Z")
+    V.assert_snapshot_is_current("repo", snap)      # 예외가 없으면 통과다
+
+
+def test_스냅샷이_서버보다_낡으면_멈춘다(tmp_path, 서버가):
+    """2026-09-08 에 실제로 겪은 일 — 같은 날 두 번째 배포를 못 받은 사본이었다."""
+    서버가("2026-09-07T04:58:00Z")
+    snap = _snap(tmp_path, "2026-09-07T01:36:00Z")
+    with pytest.raises(SystemExit) as e:
+        V.assert_snapshot_is_current("repo", snap)
+    assert e.value.code == 2
+
+
+def test_스냅샷에_MANIFEST_가_없으면_멈춘다(tmp_path):
+    with pytest.raises(SystemExit, match="MANIFEST"):
+        V.assert_snapshot_is_current("repo", tmp_path / "없는곳")
+
+
+def test_서버를_못_물어보면_막지_않고_알리기만_한다(tmp_path, monkeypatch, capsys):
+    """토큰이 없다고 판정을 통째로 못 하게 만들면, 쓰던 사람이 갈 곳이 없어진다."""
+    monkeypatch.setitem(sys.modules, "huggingface_hub",
+                        types.SimpleNamespace(hf_hub_download=lambda **kw: ""))
+    monkeypatch.setitem(sys.modules, "ingest.clients",
+                        types.SimpleNamespace(
+                            hf_data=types.SimpleNamespace(
+                                load_hf_key=lambda: (None, ".env 없음"))))
+    snap = _snap(tmp_path, "2026-09-07T04:58:00Z")
+    V.assert_snapshot_is_current("repo", snap)      # 멈추지 않는다
+    assert "확인하지 못했다" in capsys.readouterr().out

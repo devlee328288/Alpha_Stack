@@ -188,6 +188,7 @@ docs/TIL/<작성자>/YYYY-MM-DD-짧은-제목.md
 | 2026-09-08 | [검사와 대상이 같은 잘못을 공유하면 초록이 나온다 — 실현수익률이 종가축이었다](이동원/2026-09-08-검사와-대상이-같은-잘못을-공유하면-초록이-나온다.md) | [#172](https://github.com/devlee328288/Alpha_Stack/issues/172) · [#176](https://github.com/devlee328288/Alpha_Stack/issues/176) |
 | 2026-09-08 | [같은 50 이 두 뜻이면 계획이 갈린다 — 업종 10×5 와 전체 상위 50](이동원/2026-09-08-같은-50이-두-뜻이면-계획이-갈린다.md) | [#132](https://github.com/devlee328288/Alpha_Stack/issues/132) · [#173](https://github.com/devlee328288/Alpha_Stack/issues/173) · [#174](https://github.com/devlee328288/Alpha_Stack/issues/174) |
 | 2026-09-08 | [막는 것과 적는 것을 갈라 두었더니 구현이 쉬워졌다 — 품질 원장 구현](이동원/2026-09-08-막는-것과-적는-것을-갈라-두었더니-구현이-쉬워졌다.md) | [#168](https://github.com/devlee328288/Alpha_Stack/issues/168) · 로드맵 ⑯ |
+| 2026-09-08 | [빈칸은 오류처럼 보이지 않아서 세 번 나갔다 — 카드 칸 설명 다섯 · 거짓 🔴 을 낸 낡은 스냅샷](이동원/2026-09-08-빈칸은-오류처럼-보이지-않아서-세-번-나갔다.md) | [#168](https://github.com/devlee328288/Alpha_Stack/issues/168) |
 
 ### 신장환/ — 피처 · 품질 (폴더 미생성)
 

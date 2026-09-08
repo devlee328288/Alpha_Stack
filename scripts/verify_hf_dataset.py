@@ -262,6 +262,59 @@ def fetch_snapshot(repo: str, dest: Path) -> Dict:
     return json.loads((dest / "MANIFEST.json").read_text(encoding="utf-8"))
 
 
+def assert_snapshot_is_current(repo: str, snap: Path) -> None:
+    """받아 둔 스냅샷이 **서버의 지금 것**인지 확인한다. 아니면 멈춘다.
+
+    🔴 **왜 이 확인이 따로 있나.** 아래 `verify_manifest` 는 스냅샷을 **자기 자신의**
+       `MANIFEST.json` 과 대조한다. 낡은 배포본은 자기끼리 일관되므로 그 검사를 그냥
+       통과한다. 그리고 뒤의 모든 판정은 그 낡은 값을 "HF 에 있는 것" 으로 믿고 센다.
+
+    2026-09-08 에 실제로 그랬다. 스냅샷이 09-07 **첫** 배포(01:36Z) 것이었는데 서버는
+    **두 번째**(04:58Z) 였다. 그 사이에 수정주가 51종이 재생성됐다. 판정기는 표본 30종의
+    `adj_*` 이 6,915행(7.73%) 다르다며 **"재배포가 필요하다"** 고 했다. 자료는 이미
+    최신이었고, 다른 것은 손안의 사본뿐이었다.
+
+    거짓 🔴 은 거짓 ✅ 만큼 나쁘다. 한 번 속으면 다음부터 판정을 안 믿게 된다.
+
+    받는 것은 `MANIFEST.json` 하나(10KB)다 — 400MB 를 다시 받지 않고도 갈린다.
+    """
+    from huggingface_hub import hf_hub_download
+
+    from ingest.clients import hf_data
+
+    내것 = snap / "MANIFEST.json"
+    if not 내것.exists():
+        raise SystemExit(f"🔴 {내것} 이 없다 — --skip-download 를 빼고 다시 받을 것")
+
+    token, source = hf_data.load_hf_key()
+    if not token:
+        print(f"  ⚠️ HF 토큰이 없어({source}) 스냅샷이 최신인지 확인하지 못했다")
+        print("     낡은 사본으로 판정하면 없는 차이가 보인다 — .env 를 확인할 것")
+        return
+
+    try:
+        서버것 = hf_hub_download(repo_id=repo, repo_type="dataset",
+                               filename="MANIFEST.json", token=token)
+    except Exception as e:                                # noqa: BLE001
+        print(f"  ⚠️ 서버 MANIFEST 를 못 받아 최신 여부를 확인하지 못했다 "
+              f"({type(e).__name__}: {e})")
+        return
+
+    나 = json.loads(내것.read_text(encoding="utf-8"))
+    서버 = json.loads(Path(서버것).read_text(encoding="utf-8"))
+    if 나.get("generated_at") == 서버.get("generated_at"):
+        print(f"  ✅ 스냅샷이 서버와 같다 (반출 {나.get('generated_at')})")
+        return
+
+    print("  🔴 중단 — 받아 둔 스냅샷이 서버의 지금 배포본이 아니다.")
+    print(f"     스냅샷 {나.get('generated_at')}")
+    print(f"     서버   {서버.get('generated_at')}")
+    print("     이대로 판정하면 **없는 차이**가 보인다. 아래 중 하나를 할 것:")
+    print("       · --skip-download 를 빼고 다시 받는다")
+    print("       · 서버와 같은 것이 확실한 반출 폴더를 --snapshot 으로 준다")
+    raise SystemExit(2)
+
+
 def verify_manifest(snap: Path, manifest: Dict) -> bool:
     기록 = {f["path"]: f for f in manifest.get("files", [])}
     틀린 = []
@@ -469,6 +522,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.skip_download:
         manifest = json.loads((snap / "MANIFEST.json").read_text(encoding="utf-8"))
         print(f"  받아 둔 스냅샷을 쓴다: {snap}")
+        assert_snapshot_is_current(args.repo, snap)
     else:
         manifest = fetch_snapshot(args.repo, snap)
     if not verify_manifest(snap, manifest):
