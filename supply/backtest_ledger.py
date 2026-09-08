@@ -14,9 +14,22 @@ HF 에 먼저 올라간 백테스트 결과 4종은 **전략 단위 요약**이�
     code                 종목 축. 지금은 상수 "KOSPI200" 이라도 종목으로 넓힐 때 그대로 쓴다
     p_up p_flat p_down   예측 확률. 라벨만 있으면 "맞았다/틀렸다" 뿐이지만 확률이 있으면
                          **어느 확신 구간이 실제로 돈이 됐나** 를 잴 수 있다
-    realized_return_5d   그 예측의 실제 5거래일 수익률
+    realized_return_5d   그 예측의 실제 5거래일 수익률 — **T+1 시가에 사서 T+6 시가에 판 값**
     model_id model_rev   어느 모델·어느 버전의 예측인가
     run_id cost_rate     같은 원장에 여러 실행이 섞일 때 가른다
+
+## 실현수익률은 어느 가격에서 어디까지인가
+
+    realized_return_5d = 시가[T+6] / 시가[T+1] − 1
+
+T 종가까지 본 뒤 예측하므로 **T 종가에는 이미 살 수 없다.** 실제로 닿는 첫 가격이 T+1
+시가라 거기서 시작한다. 개별 종목이면 액면분할·감자가 과거 가격을 왜곡하므로 `adj_open`
+을 쓴다. 지수는 산출기관이 이미 반영한 값이라 `open` 그대로다.
+
+**한때 이 파일은 `종가[T+5] / 종가[T]` 로 쟀다.** 같은 5거래일이지만 값이 다르다 — 코스피200
+4,099행에서 두 축이 정확히 같은 행이 **0건**이고, ±1.0% 3분류 라벨이 **21.64%** 어긋났다
+(평균 절대차 0.82%p · 최대 10.32%p). 라벨과 체결은 처음부터 시가축이었으므로 종가축은
+**이 파일만의 잘못**이었다. 이슈 #172 에서 오준영 님이 찾았고 #176 으로 고친다.
 
 ## 무엇을 재나 (붉으면 반출하지 않는다)
 
@@ -24,10 +37,12 @@ HF 에 먼저 올라간 백테스트 결과 4종은 **전략 단위 요약**이�
 2. 확률 — 셋 다 [0, 1] 이고 합이 1 인가 · 결측이 없는가
 3. 시점 — 체결일이 예측일보다 **뒤**인가 (t 에 예측 · t+1 시가 체결)
 4. 봉인 — 예측일이 홀드아웃(20240901~) 안에 있는 행이 없는가
-5. 실현수익률 — 종가를 주면 **다시 계산해 대조**한다. 그리고 t+5 종가가 홀드아웃 안이면
+5. 실현수익률 — **시가**를 주면 다시 계산해 대조한다. 그리고 t+6 시가가 홀드아웃 안이면
    실현수익률이 비어 있어야 한다 (개발구간 예측이 봉인 구간 가격을 엿보면 안 된다)
 6. 라벨 — `signal` 이 상승·중립·하락 셋 중 하나인가
 7. 식별 — `code` · `model_id` · `model_rev` · `run_id` 가 비어 있지 않은가 · `cost_rate` ≥ 0
+8. 계산 기준 — `return_price_basis` · `entry_offset` · `exit_offset` 이 있으면 시가축과 맞는가
+   (아직 없는 원장이 많아 **경고**로만 알린다. 이 세 칸이 있으면 가격 없이도 축을 잴 수 있다)
 
 경고(노랑 · 막지는 않는다): 확률이 전 행에서 상수이면 학습에 정보가 없다 — 지금 랜덤 예측이
 정확히 그 상태다(전 행 0.33/0.34/0.33). 한 `model_id` 에 `model_rev` 가 여럿이면 어느 행이
@@ -43,8 +58,12 @@ HF 에 먼저 올라간 백테스트 결과 4종은 **전략 단위 요약**이�
 
 `backtest/run_cost_sensitivity.py` 가 `run_backtest()` 의 `signal_log`(hold 포함 신호 전량 ·
 17칸) · `trade_log`(체결만 · 22칸)을 모아 아래 두 저장소로 올린다. 행 수는 **거래일 수 − 1**
-이다 — 마지막 거래일은 다음 날 체결이 없어 원장에 남지 않는다. 2026-09-06 실측으로 아직
-올라가 있지 않다(코드만 머지). 올라오면 `scripts/verify_*` 처럼 반출 게이트에 건다.
+이다 — 마지막 거래일은 다음 날 체결이 없어 원장에 남지 않는다.
+
+2026-09-08 06:14 UTC 에 처음 올라왔다 — 4,836행 · 19칸 · 예측일 2023-01-02~2024-08-21.
+**다만 그 원장은 종가축이다** (받아서 대조하니 4,788행 전부 종가축과 1e-9 이내로 일치하고
+시가축과는 한 행도 맞지 않았다). 그래서 이 검증기는 지금 그 원장을 **붉게 잡는다** — 그게
+맞는 동작이다. #176 에서 원장 생성 쪽을 시가축으로 고치고 다시 올리면 초록이 된다.
 """
 
 from __future__ import annotations
@@ -91,6 +110,15 @@ PROB_TOL = 1e-6
 RETURN_TOL = 1e-9
 #: 실현수익률이 앞을 보는 거래일 수. 예측 대상 ADR(5거래일)과 같다.
 RETURN_HORIZON = 5
+#: 예측일 T 에서 **진입**까지의 거래일 수. T 종가를 보고 예측하므로 T 에는 못 산다.
+ENTRY_OFFSET = 1
+#: 예측일 T 에서 **청산**까지의 거래일 수. 진입 뒤 5거래일을 보유한다.
+EXIT_OFFSET = ENTRY_OFFSET + RETURN_HORIZON   # 6
+
+#: 원장이 계산 기준을 스스로 적을 때 쓰는 칸. 있으면 8번 검사가 축을 대조한다.
+BASIS_COLUMNS = ("return_price_basis", "entry_offset", "exit_offset")
+#: 시가축에서 허용하는 가격 계열 — 지수는 `open`, 개별 종목은 `adj_open`.
+VALID_PRICE_BASIS = ("open", "adj_open")
 
 
 def _to_ts(values) -> pd.Series:
@@ -102,39 +130,56 @@ def _holdout_ts(holdout_start: str) -> pd.Timestamp:
     return pd.Timestamp(str(holdout_start))
 
 
-def recompute_realized_return(prediction_dates: Sequence, close: pd.Series,
+def recompute_realized_return(prediction_dates: Sequence, open_prices: pd.Series,
                               horizon: int = RETURN_HORIZON) -> pd.Series:
-    """`close[t+h] / close[t] − 1` 을 종가 축 위에서 다시 계산한다.
+    """`시가[t+1+h] / 시가[t+1] − 1` 을 시가 축 위에서 다시 계산한다.
 
-    `close` 의 인덱스가 **거래일 축**이다(원장의 예측일 열이 아니다 — 원장에는 마지막
-    거래일이 없어 그 축으로 세면 하나가 짧다). `t+h` 가 축 밖이면 NaN.
+    예측일 `t` 의 종가까지 보고 예측하므로 `t` 에는 이미 살 수 없다. 실제로 닿는 첫 가격이
+    `t+1` 시가라 거기서 시작해 `h` 거래일 뒤 시가에 판다.
+
+    `open_prices` 의 인덱스가 **거래일 축**이다(원장의 예측일 열이 아니다 — 원장에는 마지막
+    거래일이 없어 그 축으로 세면 하나가 짧다). 청산일이 축 밖이면 NaN 이라, 종가축이던
+    때보다 **끝에서 한 행이 더 비어 있다.** 그게 맞다 — 그 예측은 아직 팔지 못했다.
     """
-    close = close.sort_index()
-    pos = {d: i for i, d in enumerate(pd.to_datetime(close.index))}
-    vals = close.to_numpy(dtype="float64")
+    open_prices = open_prices.sort_index()
+    pos = {d: i for i, d in enumerate(pd.to_datetime(open_prices.index))}
+    vals = open_prices.to_numpy(dtype="float64")
     out: List[float] = []
     for d in _to_ts(prediction_dates):
         i = pos.get(d)
-        if i is None or i + horizon >= len(vals) or vals[i] == 0:
+        entry, exit_ = (i + ENTRY_OFFSET, i + ENTRY_OFFSET + horizon) if i is not None else (0, 0)
+        if i is None or exit_ >= len(vals) or vals[entry] == 0:
             out.append(np.nan)
         else:
-            out.append(vals[i + horizon] / vals[i] - 1.0)
+            out.append(vals[exit_] / vals[entry] - 1.0)
     return pd.Series(out, dtype="float64")
 
 
 def verify_ledger(df: pd.DataFrame, *, kind: str = "signal",
                   holdout_start: str = HOLDOUT_START,
+                  open_prices: Optional[pd.Series] = None,
                   close: Optional[pd.Series] = None) -> Dict:
     """원장 한 장을 재서 `{"rows", "problems", "warnings", "summary"}` 로 돌려준다.
 
     `problems` 가 비어 있지 않으면 **반출하지 않는다.** `warnings` 는 알리기만 한다.
 
     - `kind` — `"signal"`(hold 포함 전량) 또는 `"trade"`(체결만). 기대 칸이 다르다
-    - `close` — 거래일 축의 종가(`index` = 날짜). 주면 실현수익률을 다시 계산해 대조하고
-      봉인 구간 가격을 엿본 행을 잡는다. 안 주면 그 두 검사는 건너뛴다(`summary` 에 적는다)
+    - `open_prices` — 거래일 축의 **시가**(`index` = 날짜). 주면 실현수익률을 다시 계산해
+      대조하고 봉인 구간 가격을 엿본 행을 잡는다. 안 주면 그 두 검사는 건너뛴다
+      (`summary` 에 적는다). 개별 종목 원장이면 `adj_open` 을 준다
+    - `close` — **더 이상 받지 않는다.** 예전에 종가축으로 재던 흔적이라, 실수로 그대로
+      두면 값이 조용히 어긋난다(#172). 주면 무엇을 해야 하는지 알리고 멈춘다
     """
     if kind not in ("signal", "trade"):
         raise ValueError(f"kind 는 'signal' 또는 'trade' 여야 한다 (받은 값: {kind!r})")
+    if close is not None:
+        raise TypeError(
+            "close 로는 더 이상 재지 않는다 — 실현수익률은 시가[T+1]→시가[T+6] 축이다(#172).\n"
+            "  고치는 법: close=... 를 open_prices=... 로 바꾸고 그 날짜 축의 **시가**를 준다.\n"
+            "  개별 종목 원장이면 adj_open 을 준다(액면분할·감자 보정).\n"
+            "  종가로 잰 값이 정말 필요하면 그것은 realized_return_5d 가 아니므로 "
+            "다른 칸 이름으로 따로 두어야 한다."
+        )
     expected = SIGNAL_LOG_COLUMNS if kind == "signal" else TRADE_LOG_COLUMNS
 
     problems: List[str] = []
@@ -198,33 +243,60 @@ def verify_ledger(df: pd.DataFrame, *, kind: str = "signal",
         # 5. 실현수익률
         rr = pd.to_numeric(df["realized_return_5d"], errors="coerce").reset_index(drop=True)
         summary["realized_nan_rows"] = int(rr.isna().sum())
-        if close is not None:
-            close = close.copy()
-            close.index = pd.to_datetime(close.index)
-            recomputed = recompute_realized_return(pred, close)
+        if open_prices is not None:
+            open_prices = open_prices.copy()
+            open_prices.index = pd.to_datetime(open_prices.index)
+            recomputed = recompute_realized_return(pred, open_prices)
             both = rr.notna() & recomputed.notna()
             mismatch = int(((rr - recomputed).abs() > RETURN_TOL)[both].sum())
             only_one = int((rr.notna() != recomputed.notna()).sum())
             if mismatch:
-                problems.append(f"실현수익률이 종가로 다시 계산한 값과 다르다: {mismatch:,}행")
+                problems.append(
+                    f"실현수익률이 시가[T+1]→시가[T+6] 로 다시 계산한 값과 다르다: "
+                    f"{mismatch:,}행 (종가축으로 적힌 원장이면 #176 을 보라)"
+                )
             if only_one:
-                problems.append("실현수익률의 결측 자리가 종가로 계산한 것과 어긋난다: "
+                problems.append("실현수익률의 결측 자리가 시가로 계산한 것과 어긋난다: "
                                 f"{only_one:,}행")
-            # t+5 가 봉인 구간이면 값이 비어 있어야 한다
-            idx = pd.to_datetime(close.sort_index().index)
+            # 청산일(t+6)이 봉인 구간이면 값이 비어 있어야 한다
+            idx = pd.to_datetime(open_prices.sort_index().index)
             pos = {d: i for i, d in enumerate(idx)}
             peek = 0
             for d, v in zip(pred, rr, strict=True):
                 i = pos.get(d)
                 if i is None or pd.isna(v):
                     continue
-                if i + RETURN_HORIZON < len(idx) and idx[i + RETURN_HORIZON] >= h:
+                if i + EXIT_OFFSET < len(idx) and idx[i + EXIT_OFFSET] >= h:
                     peek += 1
             summary["holdout_peek_rows"] = peek
             if peek:
-                problems.append(f"실현수익률이 홀드아웃 종가를 엿본 행: {peek:,}")
+                problems.append(f"실현수익률이 홀드아웃 시가를 엿본 행: {peek:,}")
         else:
-            summary["note"] = "close 를 안 줘서 실현수익률 재계산·봉인 엿보기 검사는 건너뜀"
+            summary["note"] = "open_prices 를 안 줘서 실현수익률 재계산·봉인 엿보기 검사는 건너뜀"
+
+        # 8. 계산 기준 — 원장이 스스로 적었으면 시가축과 맞는지 본다.
+        #    아직 이 칸을 안 내는 원장이 많아 경고로만 알린다(#172 에서 오준영 님 제안).
+        present = [c for c in BASIS_COLUMNS if c in df.columns]
+        summary["basis_columns"] = present
+        if not present:
+            warnings.append(
+                f"계산 기준 칸 {BASIS_COLUMNS} 이 없다 — 가격을 안 주면 축이 달라도 못 잡는다"
+            )
+        else:
+            for col, want in (("entry_offset", ENTRY_OFFSET), ("exit_offset", EXIT_OFFSET)):
+                if col not in df.columns:
+                    continue
+                bad = int((pd.to_numeric(df[col], errors="coerce") != want).sum())
+                if bad:
+                    problems.append(f"{col} 가 {want} 가 아닌 행: {bad:,}")
+            if "return_price_basis" in df.columns:
+                basis = df["return_price_basis"].astype("string")
+                bad = int((~basis.isin(VALID_PRICE_BASIS)).sum())
+                if bad:
+                    problems.append(
+                        f"return_price_basis 가 {VALID_PRICE_BASIS} 밖인 행: {bad:,} "
+                        f"(종가로 잰 값은 realized_return_5d 가 아니다)"
+                    )
 
     # 6. 라벨
     if "signal" in df.columns:
