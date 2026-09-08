@@ -14,6 +14,8 @@ from models.experiment import (
     CLASS_WEIGHT_CANDIDATES,
     MODEL_BUILDERS,
     classification_metrics,
+    classification_probability_metrics,
+    ordered_class_probabilities,
 )
 
 N_FOLDS = 12
@@ -97,22 +99,6 @@ def inner_group_class_weight_split(
     return inner_train, inner_valid
 
 
-def _ordered_probabilities(model: object, x: pd.DataFrame) -> np.ndarray:
-    """모델 고유 클래스 순서를 프로젝트 순서(-1, 0, 1)로 고정한다."""
-
-    probabilities = np.asarray(model.predict_proba(x), dtype=float)
-    classes = np.asarray(model.classes_, dtype=int)
-    if probabilities.shape != (len(x), len(classes)):
-        raise ValueError("predict_proba 결과 크기와 classes_가 맞지 않습니다.")
-    if set(classes.tolist()) != {-1, 0, 1}:
-        raise ValueError(f"모델 확률 클래스가 -1·0·1이 아닙니다: {classes.tolist()}")
-    positions = [int(np.flatnonzero(classes == label)[0]) for label in (-1, 0, 1)]
-    ordered = probabilities[:, positions]
-    if not np.allclose(ordered.sum(axis=1), 1.0, atol=1e-6):
-        raise ValueError("하락·중립·상승 확률의 합이 1이 아닙니다.")
-    return ordered
-
-
 def evaluate_stock_models(
     dataset: StockModelDataset,
     *,
@@ -184,8 +170,13 @@ def evaluate_stock_models(
             final_model.fit(dataset.x.iloc[outer_train], dataset.y[outer_train])
             valid_x = dataset.x.iloc[outer_valid]
             predicted = np.asarray(final_model.predict(valid_x), dtype=int)
-            probabilities = _ordered_probabilities(final_model, valid_x)
-            metrics = classification_metrics(dataset.y[outer_valid], predicted)
+            probabilities = ordered_class_probabilities(final_model, valid_x)
+            metrics = classification_probability_metrics(
+                dataset.y[outer_valid],
+                predicted,
+                probabilities,
+            )
+            metrics.pop("confusion_matrix")
             baselines = fold_classification_baselines(
                 dataset.y[outer_train],
                 dataset.y[outer_valid],

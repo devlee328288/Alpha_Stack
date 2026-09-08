@@ -47,6 +47,7 @@ dependencies = [
 dev = [
   "pytest>=8.0",
   "ruff>=0.14",
+  "python-docx==1.2.0",  # scripts/build_project_plan.py 의 docx·HTML 동시 생성
 
   # ── 설명용 노트북 (`notebooks/`) ──────────────────────────
   # 왜 넣나 — 팀원 넷이 **데이터가 실제로 어떻게 생겼는지**를 코드와 함께 따라갈 수

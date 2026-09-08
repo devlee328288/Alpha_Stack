@@ -329,8 +329,6 @@ def run_walkforward_6params(
         # ============================================================
         # [ARIMA 기준선 평가 - 수동 예측 버전]
         # ============================================================
-        from timeseries.models import fit_best
-
         # 1. 학습 구간 수익률 준비
         train_ret = df_train['close'].pct_change().dropna().values
 

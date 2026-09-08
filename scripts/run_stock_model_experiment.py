@@ -26,7 +26,14 @@ from features.stock_model_dataset import (  # noqa: E402
     build_sector_stock_model_dataset,
     select_stock_feature_dataset,
 )
-from models.experiment import MODEL_BUILDERS  # noqa: E402
+from models.experiment import (  # noqa: E402
+    MODEL_BUILDERS,
+    classification_probability_metrics,
+)
+from models.selection import (  # noqa: E402
+    final_model_selection_key,
+    rank_final_model_candidates,
+)
 from models.stock_experiment import (  # noqa: E402
     LABEL_HORIZON,
     MIN_TRAIN_DATES,
@@ -135,23 +142,111 @@ def _write_panel_cache(dataset: StockModelDataset, signature: dict[str, object])
 
 
 def _model_summary(outer_results: pd.DataFrame) -> list[dict[str, object]]:
-    metrics = (
+    candidate_metrics = (
         "accuracy",
         "macro_f1",
         "down_recall",
         "core_harmonic_mean",
+        "balanced_accuracy",
+        "mcc",
+        "pr_auc_down",
+        "pr_auc_neutral",
+        "pr_auc_up",
+        "pr_auc_macro_ovr",
         "training_majority_baseline_accuracy",
         "validation_majority_oracle_accuracy",
         "accuracy_minus_training_majority_baseline",
     )
+    metrics = tuple(metric for metric in candidate_metrics if metric in outer_results.columns)
     rows: list[dict[str, object]] = []
     for model, group in outer_results.groupby("model", sort=False):
-        row: dict[str, object] = {"model": model, "folds": int(len(group))}
+        row: dict[str, object] = {
+            "model": model,
+            "folds": int(len(group)),
+            "baseline_win_folds": int(
+                (group["accuracy_minus_training_majority_baseline"] > 0.0).sum()
+            ),
+        }
+        row["baseline_win_rate"] = row["baseline_win_folds"] / row["folds"]
         for metric in metrics:
             row[metric] = float(group[metric].mean())
             row[f"{metric}_fold_std"] = float(group[metric].std(ddof=1))
         rows.append(row)
-    return sorted(rows, key=lambda item: float(item["core_harmonic_mean"]), reverse=True)
+    return sorted(rows, key=final_model_selection_key, reverse=True)
+
+
+def _oos_diagnostics(predictions: pd.DataFrame) -> dict[str, object]:
+    """저장된 OOS 확률에서 확률 지표와 혼동행렬을 다시 계산한다."""
+
+    required = {
+        "label_numeric",
+        "predicted",
+        "p_down",
+        "p_neutral",
+        "p_up",
+    }
+    missing = required - set(predictions.columns)
+    if missing:
+        raise ValueError(f"OOS 진단 열이 없습니다: {sorted(missing)}")
+    return classification_probability_metrics(
+        predictions["label_numeric"].to_numpy(dtype=int),
+        predictions["predicted"].to_numpy(dtype=int),
+        predictions[["p_down", "p_neutral", "p_up"]].to_numpy(dtype=float),
+    )
+
+
+def _enrich_outer_results_with_oos(
+    outer: pd.DataFrame,
+    predictions: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    """폴드 행과 모델 전체에 OOS 불균형 분류 지표를 붙인다."""
+
+    enriched = outer.copy()
+    scalar_metrics = (
+        "balanced_accuracy",
+        "mcc",
+        "pr_auc_down",
+        "pr_auc_neutral",
+        "pr_auc_up",
+        "pr_auc_macro_ovr",
+    )
+    overall: dict[str, object] = {}
+    for model, model_predictions in predictions.groupby("model", sort=False):
+        overall[str(model)] = _oos_diagnostics(model_predictions)
+        for fold, fold_predictions in model_predictions.groupby("fold", sort=True):
+            diagnostics = _oos_diagnostics(fold_predictions)
+            mask = enriched["model"].eq(model) & enriched["fold"].eq(fold)
+            if int(mask.sum()) != 1:
+                raise ValueError(f"{model} {fold}폴드 결과 행을 하나로 찾지 못했습니다.")
+            for metric in scalar_metrics:
+                enriched.loc[mask, metric] = float(diagnostics[metric])
+    return enriched, overall
+
+
+def _final_selection_report(report: dict[str, object]) -> dict[str, object]:
+    """모든 조합·모델을 사전등록 규칙으로 한 번에 비교한다."""
+
+    candidates = []
+    for combination, item in report["combinations"].items():
+        for summary in item["model_summary"]:
+            candidates.append(
+                {
+                    "combination": combination,
+                    "feature_columns": item["features"],
+                    **summary,
+                }
+            )
+    ranked = rank_final_model_candidates(candidates)
+    return {
+        "decision": "ADR 0007",
+        "primary": "accuracy_minus_training_majority_baseline",
+        "secondary": "macro_f1",
+        "tertiary": "baseline_win_folds",
+        "position_policy": "long_only_{0,+1}",
+        "holdout_policy": "선정 고정 뒤 한 번만 평가하고 재선정하지 않는다",
+        "selected": ranked[0],
+        "candidates": ranked,
+    }
 
 
 def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
@@ -180,7 +275,7 @@ def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
 
 
 def refresh_saved_report_baselines() -> None:
-    """기존 A~H 예측을 다시 학습하지 않고 폴드별 기준선만 보고서에 보강한다."""
+    """재학습 없이 기존 A~H OOS의 기준선·진단지표·선정 순위를 갱신한다."""
 
     if not SWEEP_REPORT_PATH.exists():
         raise FileNotFoundError(f"기존 A~H 보고서가 없습니다: {SWEEP_REPORT_PATH}")
@@ -204,8 +299,14 @@ def refresh_saved_report_baselines() -> None:
         outer["accuracy_minus_training_majority_baseline"] = (
             outer["accuracy"] - outer["training_majority_baseline_accuracy"]
         )
+        oos_path = ROOT / combination_report["local_oos_path"]
+        if not oos_path.exists():
+            raise FileNotFoundError(f"기존 OOS 확률 파일이 없습니다: {oos_path}")
+        oos = pd.read_parquet(oos_path)
+        outer, overall_diagnostics = _enrich_outer_results_with_oos(outer, oos)
         combination_report["outer_fold_results"] = outer.to_dict(orient="records")
         combination_report["model_summary"] = _model_summary(outer)
+        combination_report["oos_diagnostics"] = overall_diagnostics
         combination_report["fold_baselines"] = baselines
         combination_report["baseline_summary"] = {
             "training_majority_baseline_accuracy_mean": float(
@@ -228,14 +329,18 @@ def refresh_saved_report_baselines() -> None:
         {"combination": combination, **item["model_summary"][0]}
         for combination, item in report["combinations"].items()
     ]
-    winners.sort(key=lambda row: float(row["core_harmonic_mean"]), reverse=True)
+    winners.sort(key=final_model_selection_key, reverse=True)
     report["combination_winners"] = winners
+    report["final_selection"] = _final_selection_report(report)
     report["baseline_enriched_at_utc"] = datetime.now(timezone.utc).isoformat()
     report["validation"]["baseline_policy"] = {
         "comparison": "outer training-window majority class applied to validation",
         "descriptive_only": "validation-window majority oracle",
         "decision": "ADR 0006",
     }
+    report["validation"]["selection"] = (
+        "ADR 0007: 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수"
+    )
     SWEEP_REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
@@ -424,6 +529,10 @@ def main() -> None:
         ranked = add_probability_ranks(oos)
         oos_path = LOCAL_OOS_PATH.with_name(f"stock_model_oos_combination_{combination}.parquet")
         ranked.to_parquet(oos_path, index=False)
+        overall_diagnostics = {
+            str(model): _oos_diagnostics(model_oos)
+            for model, model_oos in oos.groupby("model", sort=False)
+        }
         selected_weights = (
             outer.assign(selected_class_weight=outer["selected_class_weight"].fillna("None"))
             .groupby(["model", "selected_class_weight"], sort=False)
@@ -477,6 +586,7 @@ def main() -> None:
                 ),
             },
             "model_summary": _model_summary(outer),
+            "oos_diagnostics": overall_diagnostics,
             "selected_class_weight_counts": selected_weights,
             "inner_results": inner.to_dict(orient="records"),
             "outer_fold_results": outer.to_dict(orient="records"),
@@ -492,7 +602,7 @@ def main() -> None:
         }
         for combination, report in combination_reports.items()
     ]
-    winners.sort(key=lambda row: float(row["core_harmonic_mean"]), reverse=True)
+    winners.sort(key=final_model_selection_key, reverse=True)
     report = {
         "generated_at_utc": generated_at,
         "run_id": run_id,
@@ -521,7 +631,7 @@ def main() -> None:
             "valid_dates_per_fold": 60,
             "gap_dates": 5,
             "class_weight_candidates": [None, "balanced"],
-            "selection": "Accuracy·Macro F1·하락 Recall 조화평균 최대",
+            "selection": "ADR 0007: 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수",
             "common_dates_across_combinations": len(common_dates),
             "common_rows_across_combinations": common_rows,
             "common_row_keys": ["bas_dd", "code"],
@@ -538,6 +648,7 @@ def main() -> None:
             for item in combination_reports.values()
         ),
     }
+    report["final_selection"] = _final_selection_report(report)
     SWEEP_REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",

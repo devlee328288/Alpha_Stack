@@ -29,6 +29,7 @@ from typing import Dict, Optional, Sequence
 import numpy as np
 
 UP, DOWN = 1, -1
+THREE_CLASS_TIE_BREAK = (0, -1, 1)
 
 
 def always_up(n_valid: int) -> np.ndarray:
@@ -49,6 +50,47 @@ def majority_class(y_train: Sequence[int], n_valid: int) -> np.ndarray:
     n_down = int(np.sum(y == DOWN))
     choice = UP if n_up >= n_down else DOWN
     return np.full(n_valid, choice, dtype=int)
+
+
+def multiclass_majority_class(y_train: Sequence[int], n_valid: int) -> np.ndarray:
+    """학습구간의 하락·중립·상승 최빈 클래스를 검증구간 전체에 예측한다."""
+
+    y = np.asarray(y_train, dtype=int)
+    if y.size == 0:
+        raise ValueError("3분류 최빈 기준선의 학습 라벨이 비어 있습니다.")
+    unknown = set(y.tolist()) - set(THREE_CLASS_TIE_BREAK)
+    if unknown:
+        raise ValueError(f"3분류 라벨이 아닌 값이 있습니다: {sorted(unknown)}")
+    counts = {label: int(np.sum(y == label)) for label in THREE_CLASS_TIE_BREAK}
+    choice = max(THREE_CLASS_TIE_BREAK, key=counts.__getitem__)
+    return np.full(n_valid, choice, dtype=int)
+
+
+def fold_multiclass_baseline_predictions(
+    labels: Sequence[int],
+    train_indices: Sequence[int],
+    valid_indices: Sequence[int],
+) -> Dict[str, np.ndarray]:
+    """한 워크포워드 폴드의 세 기준선 예측을 같은 검증 위치에 만든다.
+
+    `previous_direction`은 5일 라벨이 확정되기 전에 사용할 수 없으므로 설명용이다. 높은
+    점수가 나와도 실시간 비교 기준선이나 최종 모델 선정에 사용하지 않는다.
+    """
+
+    y = np.asarray(labels, dtype=int)
+    train = np.asarray(train_indices, dtype=int)
+    valid = np.asarray(valid_indices, dtype=int)
+    if train.ndim != 1 or valid.ndim != 1 or train.size == 0 or valid.size == 0:
+        raise ValueError("학습·검증 인덱스는 비어 있지 않은 1차원이어야 합니다.")
+    if valid[0] <= 0 or valid[-1] >= len(y):
+        raise ValueError("직전 방향을 만들 수 없는 검증 인덱스입니다.")
+    return {
+        "always_up": always_up(len(valid)),
+        "majority_class": multiclass_majority_class(y[train], len(valid)),
+        # 3분류에서는 직전 보합도 하나의 예측 클래스다. 이진 기준선의 편의 규칙처럼
+        # 보합을 상승으로 바꾸면 "직전 방향 유지"라는 이름과 다른 기준선이 된다.
+        "previous_direction": y[valid - 1].copy(),
+    }
 
 
 def previous_direction(y_prev: Sequence[int]) -> np.ndarray:

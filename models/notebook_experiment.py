@@ -6,10 +6,14 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import balanced_accuracy_score, classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix
 
 from features.model_dataset import ModelDataset
-from models.experiment import NestedWeightResult, classification_metrics
+from models.experiment import (
+    NestedWeightResult,
+    classification_metrics,
+    classification_probability_metrics,
+)
 
 CLASS_LABELS = (-1, 0, 1)
 CLASS_NAMES = ("하락", "중립", "상승")
@@ -39,7 +43,18 @@ def summarize_notebook_experiment(
         raise ValueError(f"{model_name}의 OOS 예측만 정확히 들어 있어야 합니다.")
     actual = predictions["actual"].to_numpy(dtype=int)
     predicted = predictions["predicted"].to_numpy(dtype=int)
-    metrics = classification_metrics(actual, predicted)
+    probability_columns = ["p_down", "p_neutral", "p_up"]
+    if set(probability_columns).issubset(predictions.columns):
+        metrics = classification_probability_metrics(
+            actual,
+            predicted,
+            predictions[probability_columns].to_numpy(dtype=float),
+        )
+        metrics.pop("confusion_matrix")
+    else:
+        # 과거 저장 결과에는 확률 세 칸이 없다. 재현 가능한 분류 지표는 유지하되,
+        # 확률이 필요한 PR-AUC를 임의의 0으로 채우지는 않는다.
+        metrics = classification_metrics(actual, predicted)
     matrix = confusion_matrix(actual, predicted, labels=CLASS_LABELS)
     report = pd.DataFrame(
         classification_report(
@@ -75,7 +90,6 @@ def summarize_notebook_experiment(
         "dataset_end": str(dataset.frame["bas_dd"].max()),
         "oos_rows": len(actual),
         **metrics,
-        "balanced_accuracy": float(balanced_accuracy_score(actual, predicted)),
         "majority_accuracy": majority_accuracy,
         "down_recall": float(report.loc["하락", "recall"]),
         "neutral_recall": float(report.loc["중립", "recall"]),

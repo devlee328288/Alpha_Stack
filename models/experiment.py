@@ -7,7 +7,15 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import accuracy_score, f1_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    balanced_accuracy_score,
+    confusion_matrix,
+    f1_score,
+    matthews_corrcoef,
+    recall_score,
+)
 
 from evaluation.metrics import sharpe_ratio
 from evaluation.overlapping import OverlappingResult, overlapping_long_only_returns
@@ -63,6 +71,70 @@ def classification_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[st
         "macro_f1": macro_f1,
         "down_recall": down_recall,
         "core_harmonic_mean": harmonic,
+        "balanced_accuracy": float(balanced_accuracy_score(actual, predicted)),
+        "mcc": float(matthews_corrcoef(actual, predicted)),
+    }
+
+
+def ordered_class_probabilities(model: object, x: pd.DataFrame) -> np.ndarray:
+    """모델별 클래스 순서를 프로젝트 공통 순서(-1, 0, 1)로 맞춘다."""
+
+    probabilities = np.asarray(model.predict_proba(x), dtype=float)
+    classes = np.asarray(model.classes_, dtype=int)
+    if probabilities.shape != (len(x), len(classes)):
+        raise ValueError("predict_proba 결과 크기와 classes_가 맞지 않습니다.")
+    if set(classes.tolist()) != {-1, 0, 1}:
+        raise ValueError(f"모델 확률 클래스가 -1·0·1이 아닙니다: {classes.tolist()}")
+    positions = [int(np.flatnonzero(classes == label)[0]) for label in (-1, 0, 1)]
+    ordered = probabilities[:, positions]
+    if not np.isfinite(ordered).all() or (ordered < 0.0).any() or (ordered > 1.0).any():
+        raise ValueError("모델 확률에 결측·무한대 또는 0~1 밖의 값이 있습니다.")
+    if not np.allclose(ordered.sum(axis=1), 1.0, atol=1e-6):
+        raise ValueError("하락·중립·상승 확률의 합이 1이 아닙니다.")
+    return ordered
+
+
+def classification_probability_metrics(
+    actual: object,
+    predicted: object,
+    probabilities: object,
+) -> dict[str, object]:
+    """OOS 예측의 불균형 3분류 지표와 혼동행렬을 계산한다."""
+
+    actual_array = np.asarray(actual, dtype=int)
+    predicted_array = np.asarray(predicted, dtype=int)
+    probability_array = np.asarray(probabilities, dtype=float)
+    if actual_array.ndim != 1 or predicted_array.shape != actual_array.shape:
+        raise ValueError("실제값과 예측값은 길이가 같은 1차원 배열이어야 합니다.")
+    if probability_array.shape != (len(actual_array), 3):
+        raise ValueError("확률은 행마다 하락·중립·상승 세 칸이어야 합니다.")
+    unknown = (set(actual_array.tolist()) | set(predicted_array.tolist())) - {-1, 0, 1}
+    if unknown:
+        raise ValueError(f"3분류 라벨이 아닌 값이 있습니다: {sorted(unknown)}")
+    if not np.isfinite(probability_array).all():
+        raise ValueError("확률에 결측 또는 무한대가 있습니다.")
+
+    labels = (-1, 0, 1)
+    names = ("down", "neutral", "up")
+    one_hot = np.column_stack([actual_array == label for label in labels]).astype(int)
+    average_precisions = {
+        f"pr_auc_{name}": float(
+            average_precision_score(one_hot[:, index], probability_array[:, index])
+        )
+        for index, name in enumerate(names)
+    }
+    matrix = confusion_matrix(actual_array, predicted_array, labels=labels)
+    return {
+        **classification_metrics(actual_array, predicted_array),
+        **average_precisions,
+        "pr_auc_macro_ovr": float(np.mean(list(average_precisions.values()))),
+        "confusion_matrix": {
+            actual_name: {
+                predicted_name: int(matrix[actual_index, predicted_index])
+                for predicted_index, predicted_name in enumerate(names)
+            }
+            for actual_index, actual_name in enumerate(names)
+        },
     }
 
 
@@ -151,7 +223,16 @@ def evaluate_nested_class_weights(
             outer_predicted = np.asarray(
                 final_model.predict(dataset.x.iloc[outer_valid]), dtype=int
             )
-            outer_metrics = classification_metrics(dataset.y[outer_valid], outer_predicted)
+            outer_probabilities = ordered_class_probabilities(
+                final_model,
+                dataset.x.iloc[outer_valid],
+            )
+            outer_metrics = classification_probability_metrics(
+                dataset.y[outer_valid],
+                outer_predicted,
+                outer_probabilities,
+            )
+            outer_metrics.pop("confusion_matrix")
             portfolio = overlapping_long_only_returns(
                 dataset.opens,
                 dataset.signal_positions[outer_valid],
@@ -186,11 +267,15 @@ def evaluate_nested_class_weights(
                     "bas_dd": dataset.frame.iloc[index]["bas_dd"],
                     "actual": int(actual),
                     "predicted": int(predicted),
+                    "p_down": float(probability[0]),
+                    "p_neutral": float(probability[1]),
+                    "p_up": float(probability[2]),
                 }
-                for index, actual, predicted in zip(
+                for index, actual, predicted, probability in zip(
                     outer_valid,
                     dataset.y[outer_valid],
                     outer_predicted,
+                    outer_probabilities,
                     strict=True,
                 )
             )
