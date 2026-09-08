@@ -143,6 +143,20 @@ def test_always_up_은_상승_편향을_그대로_드러낸다():
     assert metrics.hit_rate(baseline.always_up(len(y)), y) == pytest.approx(0.7)
 
 
+def test_3분류_폴드기준선은학습최빈과직전라벨만사용한다():
+    labels = np.array([0, 0, -1, 1, 1, 0, -1])
+
+    predictions = baseline.fold_multiclass_baseline_predictions(
+        labels,
+        train_indices=[0, 1, 2, 3],
+        valid_indices=[4, 5, 6],
+    )
+
+    assert predictions["always_up"].tolist() == [1, 1, 1]
+    assert predictions["majority_class"].tolist() == [0, 0, 0]
+    assert predictions["previous_direction"].tolist() == [1, 1, 0]
+
+
 def test_majority_class_는_학습_구간만_본다():
     """검증 구간 분포를 미리 보면 기준선이 부당하게 강해진다."""
     y_train = np.array([-1] * 80 + [1] * 20)   # 학습은 하락이 다수

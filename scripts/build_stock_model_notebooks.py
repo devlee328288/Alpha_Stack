@@ -105,8 +105,10 @@ def _best_notebook(
     """조합별 best-result에 둘 모델 요약 노트북을 만든다."""
 
     metric_row = (
-        f"| {summary['accuracy']:.4f} | {summary['macro_f1']:.4f} | "
-        f"{summary['down_recall']:.4f} | **{summary['core_harmonic_mean']:.4f}** |"
+        f"| {summary['accuracy']:.4f} | "
+        f"{summary['accuracy_minus_training_majority_baseline']:+.4f} | "
+        f"{summary['macro_f1']:.4f} | {summary['baseline_win_folds']}/12 | "
+        f"{summary['mcc']:.4f} | {summary['pr_auc_macro_ovr']:.4f} |"
     )
     markdown = f"""# 개별종목 조합{combination} — {model_name}
 
@@ -129,12 +131,12 @@ KOSPI200 방향이 상승·보합·하락 중 어디인지 정해졌을 때, 같
 | 최초 학습 | 750거래일 |
 | 검증·gap | 폴드당 60거래일 · 직전 5거래일 제거 |
 | class weight | 각 외부 폴드 내부에서 `None`과 `balanced` 재비교 |
-| 선정 지표 | Accuracy·Macro F1·하락 Recall 조화평균 |
+| 최종 선정 | 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수 (ADR 0007) |
 
 ## OOS 결과
 
-| Accuracy | Macro F1 | 하락 Recall | 핵심지표 조화평균 |
-|---:|---:|---:|---:|
+| Accuracy | 기준선 대비 | Macro F1 | 기준선 승리 | MCC | Macro PR-AUC |
+|---:|---:|---:|---:|---:|---:|
 {metric_row}
 
 아래 셀은 저장된 실측 리포트에서 이 모델의 폴드 결과와 class weight 선택 횟수를 다시
@@ -258,6 +260,9 @@ fold_columns = [
     "training_majority_baseline_accuracy",
     "accuracy_minus_training_majority_baseline",
     "macro_f1",
+    "balanced_accuracy",
+    "mcc",
+    "pr_auc_macro_ovr",
     "down_recall",
     "core_harmonic_mean",
 ]
@@ -268,6 +273,9 @@ metric_columns = [
     "training_majority_baseline_accuracy",
     "accuracy_minus_training_majority_baseline",
     "macro_f1",
+    "balanced_accuracy",
+    "mcc",
+    "pr_auc_macro_ovr",
     "down_recall",
     "core_harmonic_mean",
 ]
@@ -298,14 +306,14 @@ def _comparison_notebook(
             f"| {rank} | {summary['model']}{marker} | {summary['accuracy']:.4f} | "
             f"{summary['training_majority_baseline_accuracy']:.4f} | "
             f"{summary['accuracy_minus_training_majority_baseline']:+.4f} | "
-            f"{summary['macro_f1']:.4f} | {summary['down_recall']:.4f} | "
-            f"**{summary['core_harmonic_mean']:.4f}** |"
+            f"{summary['macro_f1']:.4f} | {summary['baseline_win_folds']}/12 | "
+            f"{summary['mcc']:.4f} | {summary['pr_auc_macro_ovr']:.4f} |"
         )
     table = "\n".join(rows)
     quality = data_quality_policy["adjustment_quality"]
     table_header = (
         "| 순위 | 모델 | Accuracy | 학습 최빈 기준선 | 기준선 대비 | "
-        "Macro F1 | 하락 Recall | 핵심지표 조화평균 |"
+        "Macro F1 | 기준선 승리 | MCC | Macro PR-AUC |"
     )
     training_baseline = report["baseline_summary"][
         "training_majority_baseline_accuracy_mean"
@@ -323,11 +331,11 @@ def _comparison_notebook(
 ## OOS 비교
 
 {table_header}
-|---:|---|---:|---:|---:|---:|---:|---:|
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
 {table}
 
-별표는 합의한 핵심지표 조화평균이 가장 높은 모델입니다. Accuracy 단독 순위가 아니라
-하락 Recall까지 함께 반영하므로, 중립이나 상승 한쪽으로만 쏠린 모델을 피합니다.
+별표는 ADR 0007의 `기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수` 순서로
+선정한 모델입니다. 하락 Recall과 기존 조화평균은 진단값으로 결과에 계속 남깁니다.
 
 ## 데이터 규모
 
@@ -400,10 +408,10 @@ def _feature_selection_markdown(
                 "",
                 "## 선정 결과",
                 "",
-                "- 선정 기준: Accuracy·Macro F1·하락 Recall의 폴드별 조화평균",
+                "- 선정 기준: 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수",
                 (
-                    f"- 최종 1위: **{winner['model']}**, 조화평균 "
-                    f"**{winner['core_harmonic_mean']:.4f}**"
+                    f"- 최종 1위: **{winner['model']}**, 기준선 대비 Accuracy "
+                    f"**{winner['accuracy_minus_training_majority_baseline']:+.4f}**"
                 ),
                 "- 별표가 붙은 노트북이 이 조합의 4모델 중 최종 1위입니다.",
             ]

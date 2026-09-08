@@ -125,7 +125,10 @@ def load_data() -> pd.DataFrame:
 # ============================================================
 
 
-def predict_5d_after(base_date: pd.Timestamp, market_data: pd.DataFrame) -> Tuple[str, Dict[str, float]]:
+def predict_5d_after(
+    base_date: pd.Timestamp,
+    market_data: pd.DataFrame,
+) -> Tuple[str, Dict[str, float]]:
     """
     5영업일 후 방향을 예측합니다.
 

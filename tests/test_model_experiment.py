@@ -8,6 +8,7 @@ from models.experiment import (
     N_FOLDS,
     WINDOW_NAMES,
     classification_metrics,
+    classification_probability_metrics,
     common_window_splits,
     evaluate_nested_class_weights,
     inner_class_weight_split,
@@ -49,6 +50,27 @@ def test_핵심지표_중_하나가_0이면_조화평균도_0이다():
 
     assert metrics["down_recall"] == 0.0
     assert metrics["core_harmonic_mean"] == 0.0
+
+
+def test_확률진단은_pr_auc와_혼동행렬을_함께남긴다():
+    actual = np.array([-1, 0, 1, -1, 0, 1])
+    predicted = np.array([-1, 0, 1, 0, 0, 1])
+    probabilities = np.array(
+        [
+            [0.8, 0.1, 0.1],
+            [0.1, 0.8, 0.1],
+            [0.1, 0.1, 0.8],
+            [0.3, 0.6, 0.1],
+            [0.1, 0.7, 0.2],
+            [0.1, 0.2, 0.7],
+        ]
+    )
+
+    metrics = classification_probability_metrics(actual, predicted, probabilities)
+
+    assert 0.0 <= metrics["pr_auc_macro_ovr"] <= 1.0
+    assert metrics["confusion_matrix"]["down"]["down"] == 1
+    assert metrics["confusion_matrix"]["down"]["neutral"] == 1
 
 
 def test_알_수_없는_모델만_요청하면_학습_전에_막는다():
