@@ -186,6 +186,7 @@ docs/TIL/<작성자>/YYYY-MM-DD-짧은-제목.md
 | 2026-09-07 | [앞당기려면 종목이 아니라 지수가 필요하다 — 공통 OOS 첫 검증일 249거래일](이동원/2026-09-07-앞당기려면-종목이-아니라-지수가-필요하다.md) | [#159](https://github.com/devlee328288/Alpha_Stack/issues/159) |
 | 2026-09-07 | [막는 것과 적는 것은 다르다 — 품질 원장을 설계하며](이동원/2026-09-07-막는-것과-적는-것은-다르다.md) | 데이터파트 v3.9 |
 | 2026-09-08 | [검사와 대상이 같은 잘못을 공유하면 초록이 나온다 — 실현수익률이 종가축이었다](이동원/2026-09-08-검사와-대상이-같은-잘못을-공유하면-초록이-나온다.md) | [#172](https://github.com/devlee328288/Alpha_Stack/issues/172) · [#176](https://github.com/devlee328288/Alpha_Stack/issues/176) |
+| 2026-09-08 | [같은 50 이 두 뜻이면 계획이 갈린다 — 업종 10×5 와 전체 상위 50](이동원/2026-09-08-같은-50이-두-뜻이면-계획이-갈린다.md) | [#132](https://github.com/devlee328288/Alpha_Stack/issues/132) · [#173](https://github.com/devlee328288/Alpha_Stack/issues/173) · [#174](https://github.com/devlee328288/Alpha_Stack/issues/174) |
 
 ### 신장환/ — 피처 · 품질 (폴더 미생성)
 

@@ -148,7 +148,8 @@ def test_극단수익률은_전체종목시계열에서계산하고_해당후보
         }
     )
 
-    result = filter_extreme_adjusted_returns(candidates, prices)
+    with pytest.warns(DeprecationWarning, match="폐기"):
+        result = filter_extreme_adjusted_returns(candidates, prices)
 
     assert list(zip(result["bas_dd"], result["code"], strict=True)) == [
         ("20240104", "000010"),
@@ -156,3 +157,27 @@ def test_극단수익률은_전체종목시계열에서계산하고_해당후보
     ]
     assert result.attrs["extreme_return_filter"]["source_extreme_rows"] == 1
     assert result.attrs["extreme_return_filter"]["removed_candidate_rows"] == 1
+
+
+def test_극단수익률필터는_폐기됐고_무엇을_대신쓸지_알려준다():
+    """크기로 자르는 방식은 폐기했다(#132·#166). 지우지는 않았으니 경고로 알린다.
+
+    노트북 `06/10` 이 두 방식을 나란히 재현하므로 함수 자체는 남는다. 다만 새 코드가
+    모르고 쓰지 않도록, 경고가 **무엇을 대신 쓸지**까지 말해야 한다.
+    """
+    prices = pd.DataFrame(
+        {
+            "bas_dd": ["20240102", "20240103"],
+            "code": ["000010", "000010"],
+            "adj_close": [100.0, 250.0],
+        }
+    )
+    candidates = pd.DataFrame({"bas_dd": ["20240103"], "code": ["000010"]})
+
+    with pytest.warns(DeprecationWarning) as 기록:
+        filter_extreme_adjusted_returns(candidates, prices)
+
+    말 = str(기록[0].message)
+    assert "폐기" in 말
+    assert "attach_adjustment_quality" in 말        # 대신 쓸 것을 짚어 준다
+    assert "is_adj_suspect" in 말

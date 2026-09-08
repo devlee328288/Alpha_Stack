@@ -1,8 +1,23 @@
 """개별 종목 랭킹 모델에 넣을 시점 정합 학습 표를 만든다.
 
-실제 학습 경로는 매 거래일 업종지수 시가총액 상위 10개에서 업종별 KOSPI 보통주
-시가총액 상위 5개를 후보로 삼는다. 구버전 ``top_n`` 함수도 호환용으로 남기지만,
-이 모듈은 현재 후보군에 종목 전체 시계열 피처와 T+1→T+6 라벨을 결합한다.
+## 🔴 "최대 50종목" 이 두 뜻으로 쓰인다 — 헷갈리지 않도록
+
+이 모듈에는 후보를 고르는 경로가 **둘** 있고, 둘 다 하루 최대 50종목인데 **뜻이 다르다.**
+
+    build_sector_stock_model_dataset   ← 현행 학습 경로
+        업종지수 시가총액 상위 10개
+        → 각 업종의 KOSPI 보통주 시가총액 상위 5개
+        → 하루 최대 10 × 5 = 50종목  (업종마다 5개씩 고르게 퍼진다)
+
+    build_stock_training_frame(top_n=50)   ← 구버전. 호환용으로만 남긴다
+        업종을 보지 않고 KOSPI 보통주 전체를 시가총액으로 한 줄 세워
+        → 상위 50종목  (한 업종이 50개를 다 차지할 수도 있다)
+
+**같은 50 이지만 앞의 것은 업종 중립이고 뒤의 것은 아니다.** 값이 우연히 같아 더
+헷갈리므로, 문서나 이슈에 적을 때는 숫자만 쓰지 말고 **어느 경로인지** 함께 적는다
+(이슈 #132·#173·#174 에서 실제로 이 구분이 어긋나 목표가 달라 보인 적이 있다).
+
+현행 경로는 후보군에 종목 전체 시계열 피처와 T+1→T+6 라벨을 결합한다.
 """
 
 from __future__ import annotations
@@ -22,6 +37,8 @@ from features.volatility import atr_ratio, historical_volatility, hv_regime
 from features.volume import obv_slope_20, volume_ratio
 from supply.sector import index_name_for
 
+#: 구버전 ``build_stock_training_frame`` 의 기본값 — **업종을 보지 않은** 전체 시총 상위 N.
+#: 현행 경로(업종 10 × 5)의 "최대 50" 과 값만 같고 뜻이 다르다. 모듈 머리말 참조.
 DEFAULT_TOP_N = 50
 STOCK_LABEL_HORIZON = 5
 STOCK_NEUTRAL_BAND = 0.02
@@ -203,7 +220,15 @@ def build_stock_training_frame(
     horizon: int = STOCK_LABEL_HORIZON,
     neutral_band: float = STOCK_NEUTRAL_BAND,
 ) -> pd.DataFrame:
-    """날짜별 KOSPI 보통주 시총 상위 N개의 5거래일 라벨을 만든다.
+    """⚠️ **구버전.** 날짜별 KOSPI 보통주 시총 상위 N개의 5거래일 라벨을 만든다.
+
+    **업종을 보지 않는다.** 전체 보통주를 시가총액으로 한 줄 세워 위에서 N개를
+    자르므로, 한 업종이 N개를 다 차지할 수 있다. 현행 학습 경로인
+    :func:`build_sector_stock_model_dataset` 은 업종 10개에서 5개씩 골라 업종 중립이다
+    — 기본값이 둘 다 "최대 50" 이라 값만 같고 뜻이 다르다(모듈 머리말 참조).
+
+    새 코드는 :func:`build_sector_stock_model_dataset` 을 쓴다. 이 함수는 기존 실험
+    재현과 두 방식 비교를 위해 남긴다.
 
     ``is_common_stock``은 종목명이나 코드 모양으로 추측하지 않고 데이터 계층에서
     판정해 넘겨야 한다. 이 열이 없으면 조용히 전체 종목을 쓰지 않고 즉시 중단한다.
