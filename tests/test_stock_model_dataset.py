@@ -11,7 +11,7 @@ from features.stock_model_dataset import (
     build_sector_stock_model_dataset,
     build_stock_training_frame,
 )
-from features.volatility import atr_ratio, historical_volatility
+from features.volatility import atr_ratio, historical_volatility, hv_regime
 from features.volume import obv_slope_20
 
 
@@ -268,13 +268,14 @@ def test_종목피처는_인라인이아니라_원자함수와같은값을낸다
         assert np.isclose(result.loc[(date, "000010"), "hv_20"], expected_hv[index])
 
 
-def test_조합b부터g까지_수정주가와당일횡단면만으로계산한다():
-    prices = _panel_prices(periods=100)
+def test_조합b부터h까지_수정주가와당일횡단면만으로계산한다():
+    # hv_regime은 hv_20 20일과 그 250일 평균이 모두 필요하므로 269행 이후를 쓴다.
+    prices = _panel_prices(periods=360)
     prices["industry"] = "건설"
     prices["value"] = prices["volume"] * prices["adj_close"]
     prices["market_cap"] = np.where(prices["code"].eq("000010"), 2e12, 1e12)
     dates = sorted(prices["bas_dd"].unique())
-    candidates = prices.loc[prices["bas_dd"].isin(dates[65:90])].copy()
+    candidates = prices.loc[prices["bas_dd"].isin(dates[275:300])].copy()
     candidates["industry_index_name"] = "건설"
     candidates["sector_market_cap_rank"] = 1
     candidates["industry_stock_rank"] = candidates["code"].map(
@@ -300,7 +301,7 @@ def test_조합b부터g까지_수정주가와당일횡단면만으로계산한�
         feature_columns=ALL_STOCK_FEATURE_COLUMNS,
     )
 
-    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFG")
+    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFGH")
     assert STOCK_COMBINATION_FEATURES["G"] == (
         "dist_high_60",
         "sma_gap_20_60",
@@ -309,7 +310,20 @@ def test_조합b부터g까지_수정주가와당일횡단면만으로계산한�
         "hv_20",
         "turnover_20",
     )
+    assert STOCK_COMBINATION_FEATURES["H"] == (
+        "dist_high_60",
+        "sma_gap_20_60",
+        "relative_ret_5_market",
+        "rsi_14",
+        "hv_regime",
+        "turnover_20",
+    )
     assert np.isfinite(dataset.x.to_numpy()).all()
+    first = dataset.frame.iloc[0]
+    source = prices.loc[prices["code"].eq(first["code"])].sort_values("bas_dd")
+    expected_regime = hv_regime(source["adj_close"].to_numpy(dtype=float), 20, 250)
+    source_position = source["bas_dd"].tolist().index(first["bas_dd"])
+    assert np.isclose(first["hv_regime"], expected_regime[source_position])
     same_day = dataset.frame.groupby("bas_dd")["market_cap_percentile"]
     assert same_day.max().eq(1.0).all()
     assert same_day.min().eq(0.5).all()

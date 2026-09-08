@@ -1,4 +1,4 @@
-"""개별종목 기본모델·조합 A~G·best-result 노트북을 순서대로 실행한다."""
+"""개별종목 기본모델·조합 A~H·best-result 노트북을 순서대로 실행한다."""
 
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ COMBINATION_DIRECTORIES = (
     "조합E_sector_market_relative_strength",
     "조합F_cross_sectional_ranks",
     "조합G_direction_magnitude_interaction",
+    "조합H_volatility_regime_interaction",
 )
 
 

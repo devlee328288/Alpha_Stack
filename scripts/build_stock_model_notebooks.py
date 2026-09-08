@@ -20,6 +20,7 @@ COMBINATION_DIRECTORIES = {
     "E": "조합E_sector_market_relative_strength",
     "F": "조합F_cross_sectional_ranks",
     "G": "조합G_direction_magnitude_interaction",
+    "H": "조합H_volatility_regime_interaction",
 }
 COMBINATION_TITLES = {
     "A": "추세·모멘텀·변동성·거래량·수익률",
@@ -29,6 +30,7 @@ COMBINATION_TITLES = {
     "E": "업종·시장 상대강도",
     "F": "당일 후보군 횡단면 순위",
     "G": "단기 반전 방향축·변동성 크기축",
+    "H": "단기 반전 방향축·변동성 레짐축",
 }
 
 MODEL_FILES = {
@@ -60,6 +62,7 @@ FEATURE_DESCRIPTIONS = {
     "bb_position": "볼린저밴드 안에서 수정종가의 위치",
     "atr_ratio": "14일 ATR을 수정종가로 나눈 상대 변동성",
     "hv_20": "20일 수정종가 로그수익률 변동성",
+    "hv_regime": "20일 변동성을 과거 250일 평균 변동성과 비교한 값",
     "vol_ratio_20": "당일 거래량을 20일 평균 거래량으로 나눈 값",
     "obv_slope_20": "20일 OBV 변화를 평균 거래량으로 정규화한 값",
     "daily_return": "수정종가 1거래일 수익률",
@@ -270,7 +273,7 @@ metric_columns = [
 ]
 display(model_folds.loc[:, metric_columns].mean().to_frame("OOS 폴드 평균").round(4))
 
-# 24개 노트북이 각각 중복 학습하지 않도록 실제 fit은 공통 실행기에서 한 번 수행합니다.
+# 조합별 노트북이 중복 학습하지 않도록 실제 fit은 공통 실행기에서 한 번 수행합니다.
 print("재실행 명령: python scripts/run_stock_model_experiment.py")
 """
     return nbformat.v4.new_notebook(
@@ -409,7 +412,7 @@ def _feature_selection_markdown(
 
 
 def main() -> None:
-    """A~G 각각에 모델 4개·비교·피처 문서와 best-result를 만든다."""
+    """A~H 각각에 모델 4개·비교·피처 문서와 best-result를 만든다."""
 
     report = json.loads(REPORT.read_text(encoding="utf-8"))
 
