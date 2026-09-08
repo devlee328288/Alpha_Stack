@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from common.export_profile import load_profile  # noqa: E402
 from ingest.clients import hf_data  # noqa: E402
+from supply.adj_quality import EXTREME_RETURN_PCT, SUSPECT_GAP_TOLERANCE  # noqa: E402
 from supply.quality_ledger import LEDGER_NAME, render_card_section  # noqa: E402
 
 #: 기본 대상. 조직 이름을 앞에 두면 개인 계정 것과 섞이지 않는다.
@@ -112,6 +113,9 @@ COLUMN_NOTES: Dict[str, str] = {
                 "업종지수와 붙일 때는 `supply.sector.index_name_for` 로 이름을 맞춘다",
     "industry_bas_dd": "그 업종이 어느 스냅샷에서 왔나 (`YYYYMMDD`). 최대 1년 전이다",
     "industry_known_at": "그 스냅샷을 언제부터 알 수 있었나 — 스냅샷 날짜의 다음 거래일",
+    "industry_ambiguous": "그 종목이 그 스냅샷에서 **업종 둘에 실려 있었나.** 참이면 "
+                          "우리가 규칙으로 하나를 골랐다는 뜻이다(종목 수가 많은 쪽 → "
+                          "같으면 사전순). 무시해도 되고 걸러내도 된다",
     "index_name": "지수 이름",
     "index_class": "지수 구분",
     # ── 원문 가격 ──
@@ -145,6 +149,23 @@ COLUMN_NOTES: Dict[str, str] = {
     "vol_sma_20": "거래량 이동평균 20일", "vol_ratio_20": "거래량 / 20일 평균",
     "obv": "누적 거래량 지표", "vwap_20": "거래량 가중 평균가 20일",
     "vol_roc_5": "거래량 변화율 5일",
+    # ── 품질 플래그 ──
+    #
+    # 🔴 이름만 보고 둘 다 거르면 표본이 틀어진다. 거르는 것은 `is_adj_suspect` 하나다.
+    "adj_return_1d": "수정종가로 계산한 **일간수익률(%)**. `adj_close[t] / adj_close[t−1] − 1`. "
+                     "아래 두 플래그의 근거값이라 함께 싣는다",
+    "adj_change_rate_gap": "위 수익률과 KRX `change_rate` 의 **차이(%p)**. "
+                           "`is_adj_suspect` 의 근거값",
+    "is_adj_suspect": "🔴 KRX 등락률과 우리 수정주가가 "
+                      f"**{SUSPECT_GAP_TOLERANCE:g}%p 넘게 어긋난** 행. "
+                      "**거른다** — `df = df[~df[\"is_adj_suspect\"]]`. "
+                      "팀 기준선이 이 표본이다",
+    "is_extreme_return": "✅ 일간수익률 절댓값이 "
+                         f"**{EXTREME_RETURN_PCT:g}%(가격제한폭)를 넘는** 행. "
+                         "**거르지 않는다** — 이름과 달리 \"빼라\" 가 아니라 "
+                         "**\"진짜 일어난 사건이니 남겨라\"** 는 표시다. 권리락·거래정지 "
+                         "해제·상한가 연속이 여기 들어온다. `is_adj_suspect` 인 행은 "
+                         "제외돼 있어 둘은 겹치지 않는다",
     # ── 라벨 ──
     "fwd_return_5d": "진입 t+1 시가 → 청산 t+6 시가 수익률. **예측 대상**",
     "label": "위 수익률의 3분류. **`y` 로 쓸 칸**",
