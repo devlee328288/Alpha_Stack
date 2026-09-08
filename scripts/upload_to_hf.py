@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from common.export_profile import load_profile  # noqa: E402
 from ingest.clients import hf_data  # noqa: E402
+from supply.quality_ledger import LEDGER_NAME, render_card_section  # noqa: E402
 
 #: 기본 대상. 조직 이름을 앞에 두면 개인 계정 것과 섞이지 않는다.
 DEFAULT_REPO = "qurious-quant/alphastack-krx-dev"
@@ -306,6 +307,22 @@ def _adj_source_line(profile: Dict) -> str:
     return "*(PROFILE.json 에 `adj_source` 가 없습니다)*"
 
 
+def _quality_ledger_section(root: Path) -> str:
+    """반출 폴더의 `QUALITY_LEDGER.json` 을 카드 한 절로 편다.
+
+    원장이 없으면 **빈 문자열**이다 — 원장이 생기기 전에 만든 반출본도 그대로 올라가야
+    하기 때문이다. 카드는 원장을 만들지 않고 **있는 것을 읽어 적기만** 한다.
+    """
+    path = root / LEDGER_NAME
+    if not path.exists():
+        return ""
+    try:
+        ledger = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:                                     # noqa: BLE001
+        return ""
+    return render_card_section(ledger) + "\n"
+
+
 def _missing_highlights(profile: Dict) -> str:
     """결측이 있는 칸만 모아 한 표로. 받아서 처음 부딪히는 것이 대개 결측이다."""
     줄 = ["| 파일 | 칸 | 결측 | 비율 |", "|---|---|---:|---:|"]
@@ -541,7 +558,7 @@ df = pd.read_csv(path, dtype={{"code": str, "bas_dd": str}})
 늘어난 구간은 기존 구간을 **대체하는 것이 아니라 더해지는 것**입니다.
 뒤쪽 몇 년만 잘라 쓰면 학습 자료의 대부분을 버리게 됩니다.
 
-## 결측이 있는 칸 — 받아서 처음 부딪히는 것
+{_quality_ledger_section(root)}## 결측이 있는 칸 — 받아서 처음 부딪히는 것
 
 {_missing_highlights(profile)}
 

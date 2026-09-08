@@ -83,7 +83,14 @@ from features.volume import (  # noqa: E402
     vwap,
 )
 from ingest.store import krx_store  # noqa: E402
+from supply.adj_quality import FLAG_COLUMNS, flag_adjustment_quality  # noqa: E402
 from supply.market import TARGET_INDEX, index_series, price_series  # noqa: E402
+from supply.quality_ledger import (  # noqa: E402
+    append_history,
+    build_quality_ledger,
+    read_last_history,
+    write_quality_ledger,
+)
 from supply.sector import INDUSTRY_COLUMNS, attach_industry  # noqa: E402
 from supply.training import market_context, training_frame  # noqa: E402
 
@@ -662,6 +669,25 @@ def main() -> int:
         #    스냅샷에서 **그 행의 날짜 이전 가장 최근 것**을 `industry` 로 따로 붙인다.
         #    한 칸에 두 뜻을 섞지 않으려고 `sector` 는 그대로 둔다.
         daily = attach_industry(daily, as_of=오늘_as_of)
+
+        # 🆕 품질 플래그 넷을 **파일에 싣는다** (이슈 #168 · 24 → 28칸).
+        #
+        # 지금까지 이 플래그는 공급 층에서만 붙어서, HF 에서 받아 쓰는 팀원은 같은 함수를
+        # 각자 돌려야 같은 표본이 됐다. 신장환 님이 짚은 대로 **칸 구성만 보고는 팀
+        # 기준선과 다른 표본을 쓰고 있다는 것을 눈치채기 어렵다.** 정의를 파일 한 곳에
+        # 둔다.
+        #
+        # 🔴 걸러야 하는 것은 `is_adj_suspect` 하나뿐이다. `is_extreme_return` 은 이름과
+        #    달리 "빼라" 가 아니라 "진짜 사건이니 남겨라" 는 표시다 — 카드에도 그렇게
+        #    적어 나간다(`supply.quality_ledger.FLAG_GUIDE`).
+        flags = flag_adjustment_quality(daily)
+        품질요약 = dict(flags.attrs["adjustment_quality"])
+        daily = pd.concat([daily, flags], axis=1)
+        stats["adjustment_quality"] = 품질요약
+        print(f"     품질 플래그 {len(FLAG_COLUMNS)}칸 · 의심 "
+              f"{품질요약['suspect_rows']:,}행 · 극단 {품질요약['extreme_rows']:,}행 "
+              f"(극단은 거르지 않는다)")
+
         industry_rows = int(daily["industry"].notna().sum())
         snap_days = sorted(daily["industry_bas_dd"].dropna().astype(str).unique().tolist())
         _write_parquet(daily, full / "daily_price_dev.parquet", files,
@@ -720,6 +746,32 @@ def main() -> int:
     프로필 = write_profile(root)
     print(f"  ✅ 파일 {len(프로필['files'])}개 · "
           f"칸 {sum(f['칸수'] for f in 프로필['files'])}개")
+
+    # ── 품질 원장 ────────────────────────────────────────────────────
+    #
+    # 🔴 원장은 **막지 않는다.** 붉어도 여기서 멈추지 않고, 붉다는 사실을 적어
+    #    카드까지 내보낸다 — 막는 것은 위의 홀드아웃 검사와 검증기 4종의 몫이다.
+    #    "알면서 내보내는 것" 을 숨기지 않으려는 것이 이 원장의 목적이다.
+    print()
+    print("[품질 원장] QUALITY_LEDGER.json")
+    try:
+        지난 = read_last_history()          # 있으면 "무엇이 달라졌나" 를 카드가 적는다
+        with krx_store.connect() as conn:
+            원장 = build_quality_ledger(root, conn=conn, run_id=root.name,
+                                      previous=지난)
+        경로 = write_quality_ledger(root, 원장)
+        이력 = append_history(원장)
+        붉은 = 원장.get("red", [])
+        print(f"  ✅ {경로.name} · 판정 {원장['status']} · 축 {len(원장['axes'])}개"
+              + (f" · 이력 {이력}" if 이력 else " · 이력에 같은 run_id 가 이미 있다"))
+        for 항목 in 붉은:
+            print(f"     🔴 {항목}")
+        if 붉은:
+            print("     ↑ 원장은 막지 않는다. 카드에 붉게 적혀 나간다")
+    except Exception as e:                                # noqa: BLE001
+        # 원장 생성이 실패해도 반출본은 이미 만들어졌다. 반출을 무르지 않고 알리기만 한다.
+        print(f"  ⚠️ 원장을 만들지 못했다 ({type(e).__name__}: {e})")
+        print("     반출본 자체는 정상이다 — MANIFEST·PROFILE 은 위에서 기록됐다.")
     return 0
 
 
