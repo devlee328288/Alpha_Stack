@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-09-07T06:18:32.758879+00:00",
-  "run_id": "stock-index-ranking-20260907T061832.758879+0000",
+  "generated_at_utc": "2026-09-08T00:48:55.789238+00:00",
+  "run_id": "stock-index-ranking-20260908T004855.789238+0000",
   "source": {
     "repo": "qurious-quant/alphastack-krx-dev",
     "index_path": "full/index_price_dev.parquet",

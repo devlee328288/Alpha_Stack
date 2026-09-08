@@ -1,8 +1,8 @@
 """개별 종목 랭킹 모델에 넣을 시점 정합 학습 표를 만든다.
 
-업종 매핑이 준비되기 전 MVP는 매 거래일 KOSPI 보통주 중 시가총액 상위 50개를
-후보로 삼는다. 이 모듈은 종목 피처를 만들기 전 단계인 후보 선정과 5거래일 라벨만
-담당한다.
+실제 학습 경로는 매 거래일 업종지수 시가총액 상위 10개에서 업종별 KOSPI 보통주
+시가총액 상위 5개를 후보로 삼는다. 구버전 ``top_n`` 함수도 호환용으로 남기지만,
+이 모듈은 현재 후보군에 종목 전체 시계열 피처와 T+1→T+6 라벨을 결합한다.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ from evaluation.horizon import HOLDOUT_START
 from features.indicators import bollinger_bands, macd_hist_ratio, percent_b, rsi, sma_gap
 from features.model_dataset import KOSPI200_NAME
 from features.returns import n_day_return
-from features.volatility import atr_ratio, historical_volatility
+from features.volatility import atr_ratio, historical_volatility, hv_regime
 from features.volume import obv_slope_20, volume_ratio
 from supply.sector import index_name_for
 
@@ -29,18 +29,18 @@ LABEL_TO_NUMBER = {"하락": -1, "중립": 0, "상승": 1}
 
 STOCK_COMBINATION_FEATURES = {
     "A": (
-    "sma_gap_5_20",
-    "sma_gap_20_60",
-    "rsi_14",
-    "macd_hist_ratio",
-    "bb_bandwidth",
-    "bb_position",
-    "atr_ratio",
-    "hv_20",
-    "vol_ratio_20",
-    "obv_slope_20",
-    "daily_return",
-    "five_day_return",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "macd_hist_ratio",
+        "bb_bandwidth",
+        "bb_position",
+        "atr_ratio",
+        "hv_20",
+        "vol_ratio_20",
+        "obv_slope_20",
+        "daily_return",
+        "five_day_return",
     ),
     "B": (
         "ret_5",
@@ -96,6 +96,14 @@ STOCK_COMBINATION_FEATURES = {
         "relative_ret_5_market",
         "rsi_14",
         "hv_20",
+        "turnover_20",
+    ),
+    "H": (
+        "dist_high_60",
+        "sma_gap_20_60",
+        "relative_ret_5_market",
+        "rsi_14",
+        "hv_regime",
         "turnover_20",
     ),
 }
@@ -371,6 +379,7 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         ordered["bb_position"] = percent_b(close, 20)
         ordered["atr_ratio"] = atr_ratio(high, low, close, 14)
         ordered["hv_20"] = historical_volatility(close, 20)
+        ordered["hv_regime"] = hv_regime(close, 20, 250)
         ordered["vol_ratio_20"] = volume_ratio(volume, 20)
         ordered["obv_slope_20"] = obv_slope_20(close, volume, 20)
         ordered["daily_return"] = n_day_return(close, 1)

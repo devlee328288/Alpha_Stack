@@ -1,7 +1,7 @@
 # 개별종목 실험
 
 KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4개, 모델 비교 노트북,
-`피처선정.md`를 둡니다. A~G는 공통 `(bas_dd, code)` 표본에서 피처만 바꿉니다.
+`피처선정.md`를 둡니다. A~H는 공통 `(bas_dd, code)` 표본에서 피처만 바꿉니다.
 
 ## 조합
 
@@ -14,6 +14,7 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 | E | `조합E_sector_market_relative_strength` | 업종·시장 상대강도 7개 |
 | F | `조합F_cross_sectional_ranks` | 당일 후보군 횡단면 순위 9개 |
 | G | `조합G_direction_magnitude_interaction` | 단기 반전 방향축·변동성 크기축 6개 |
+| H | `조합H_volatility_regime_interaction` | 조합 G의 `hv_20`을 `hv_regime`으로 교체한 6개 |
 
 ## 공통 조건
 
@@ -27,7 +28,8 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 - Accuracy·Macro F1·하락 Recall 조화평균으로 선택
 - 폴드별 학습 최빈 Accuracy 기준선과 모델 Accuracy의 차이를 함께 기록
 - 검증 최빈 비율은 정답을 본 `oracle` 참고값으로만 표시
-- A~G 공통 171,557개 `(bas_dd, code)` 행·3,552거래일에서 비교
+- A~H 공통 159,936개 `(bas_dd, code)` 행·3,343거래일에서 비교
+- `hv_regime`은 269거래일 준비구간이 필요하므로 H를 포함한 공통 표본은 A~G만 비교할 때보다 짧음
 - `|수정종가 수익률| > 100%` 자동 제거는 사용하지 않음
 - KRX 등락률과 수정주가 수익률이 1%p 넘게 어긋난 `is_adj_suspect`만 제외
 - 최신 후보 176,705행의 의심 행은 0행, 보존한 실제 극단 사건은 5행
@@ -36,17 +38,18 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 
 | 전체 순위 | 조합 | 모델 | 조화평균 |
 |---:|---|---|---:|
-| 1 | F | LightGBM | **0.3636** |
-| 2 | A | RandomForest | **0.3555** |
-| 3 | C | LogisticRegression | **0.3509** |
-| 4 | B | RandomForest | **0.3508** |
-| 5 | G | RandomForest | **0.3505** |
-| 6 | E | RandomForest | **0.3451** |
-| 7 | D | RandomForest | **0.3385** |
+| 1 | F | LightGBM | **0.3748** |
+| 2 | B | LightGBM | **0.3611** |
+| 3 | H | LightGBM | **0.3584** |
+| 4 | A | LightGBM | **0.3572** |
+| 5 | G | RandomForest | **0.3550** |
+| 6 | C | LogisticRegression | **0.3495** |
+| 7 | E | RandomForest | **0.3435** |
+| 8 | D | RandomForest | **0.3428** |
 
 조합별 4모델 최선 결과는 `조합별 best result/`에 정리합니다.
 
 `기본모델/`은 `models/`의 네 생성 함수를 확인하는 얇은 실행 노트북입니다. 각 조합
 노트북은 같은 생성 함수를 명시적으로 import하고 피처 목록만 지정하므로, Pylance가
-동적 `%run` 변수 때문에 내던 미정의 경고 없이 단독 실행할 수 있습니다. 실제 1,008회
+동적 `%run` 변수 때문에 내던 미정의 경고 없이 단독 실행할 수 있습니다. 실제 1,152회
 fit은 공통 실행기에서 한 번 수행하고, 노트북은 보존된 실측 리포트를 읽습니다.
