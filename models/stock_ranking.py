@@ -205,6 +205,36 @@ def select_for_index_direction(
     return combined.loc[combined["index_direction_rank"] <= top_n].reset_index(drop=True)
 
 
+def select_market_cap_baseline(
+    stock_predictions: pd.DataFrame,
+    index_predictions: pd.DataFrame,
+    *,
+    top_n: int = 5,
+) -> pd.DataFrame:
+    """확률을 보지 않고 당일 후보 시가총액 순서로 고르는 비교 기준선을 만든다."""
+
+    if "candidate_rank" not in stock_predictions.columns:
+        raise ValueError("시가총액 기준선에 candidate_rank 열이 필요합니다.")
+    if stock_predictions["candidate_rank"].isna().any():
+        raise ValueError("시가총액 기준선의 candidate_rank에 결측이 있습니다.")
+    max_candidates = int(stock_predictions.groupby(["model", "bas_dd"]).size().max())
+    combined = select_for_index_direction(
+        stock_predictions,
+        index_predictions,
+        top_n=max_candidates,
+    )
+    combined = combined.sort_values(
+        ["model", "bas_dd", "candidate_rank", "code"],
+        ascending=True,
+        kind="stable",
+    )
+    combined["index_direction_rank"] = (
+        combined.groupby(["model", "bas_dd"], sort=False).cumcount() + 1
+    ).astype("int16")
+    combined["ranking_method"] = "market_cap"
+    return combined.loc[combined["index_direction_rank"] <= top_n].reset_index(drop=True)
+
+
 def summarize_direction_ranking(
     stock_predictions: pd.DataFrame,
     index_predictions: pd.DataFrame,
@@ -320,6 +350,7 @@ __all__ = [
     "aligned_panel_splits",
     "build_common_validation_schedule",
     "select_for_index_direction",
+    "select_market_cap_baseline",
     "summarize_direction_ranking",
     "summarize_random_ranking_baseline",
 ]

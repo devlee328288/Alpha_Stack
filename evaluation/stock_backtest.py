@@ -127,11 +127,10 @@ def _simulate_fold(
         str(date): group
         for date, group in signals.groupby("entry_bas_dd", sort=False)
     }
-    exit_events = {
-        (str(row.exit_bas_dd), int(row.slot))
-        for row in signal_dates.itertuples(index=False)
-        if int(row.index_predicted) == 1
-    }
+    exit_events: dict[str, list[int]] = {}
+    for row in signal_dates.itertuples(index=False):
+        if int(row.index_predicted) == 1:
+            exit_events.setdefault(str(row.exit_bas_dd), []).append(int(row.slot))
     first_entry = str(signal_dates["entry_bas_dd"].min())
     last_exit = str(signal_dates["exit_bas_dd"].max())
     calendar = sorted(
@@ -160,9 +159,7 @@ def _simulate_fold(
                 for code, quantity in shares.items()
             )
 
-        for event_date, slot in sorted(exit_events):
-            if event_date != date:
-                continue
+        for slot in sorted(exit_events.get(date, [])):
             if slot not in holdings:
                 raise RuntimeError("활성 포지션이 없는 슬리브를 청산하려 했습니다.")
             equity_before = float(slot_values.sum())

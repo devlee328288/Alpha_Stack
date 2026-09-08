@@ -7,6 +7,7 @@ from models.stock_ranking import (
     aligned_panel_splits,
     build_common_validation_schedule,
     select_for_index_direction,
+    select_market_cap_baseline,
     summarize_direction_ranking,
     summarize_random_ranking_baseline,
 )
@@ -42,6 +43,17 @@ def test_지수예측클래스확률로_상위종목을고른다():
     assert result["code"].tolist() == ["000002", "000003"]
     assert result["index_predicted"].tolist() == [-1, -1]
     assert np.allclose(result["selected_probability"], [0.7, 0.2])
+
+
+def test_시가총액기준선은_모델확률과_무관하게_candidate_rank로고른다():
+    stocks = _predictions().assign(candidate_rank=[3, 1, 2])
+    index_predictions = pd.DataFrame({"bas_dd": ["20240102"], "predicted": [1]})
+
+    result = select_market_cap_baseline(stocks, index_predictions, top_n=2)
+
+    assert result["code"].tolist() == ["000002", "000003"]
+    assert result["index_direction_rank"].tolist() == [1, 2]
+    assert result["ranking_method"].eq("market_cap").all()
 
 
 def test_지수방향과_실제종목라벨의_top_n_적중률을계산한다():

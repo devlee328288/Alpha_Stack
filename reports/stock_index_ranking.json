@@ -2192,11 +2192,17 @@
       "exit_bas_dd",
       "exit_adj_open"
     ],
-    "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금"
+    "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+    "ledger": {
+      "signal_log": "supply.backtest_ledger.SIGNAL_LOG_COLUMNS (17칸)",
+      "trade_log": "supply.backtest_ledger.TRADE_LOG_COLUMNS (22칸)",
+      "realized_return_basis": "T+1 adj_open to T+6 adj_open"
+    }
   },
   "stock_backtest": {
     "scenarios": [
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.38712084117694534,
         "sharpe": 0.5696858236818346,
@@ -2212,6 +2218,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.264390494182386,
         "sharpe": 0.5500959483058355,
@@ -2227,6 +2234,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.2335550572524372,
         "sharpe": 0.5561501899444038,
@@ -2242,6 +2250,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.21894395504827147,
         "sharpe": 0.39018299997718126,
@@ -2257,6 +2266,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.11146448099748785,
         "sharpe": 0.29191321891493527,
@@ -2272,6 +2282,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.08462116922874374,
         "sharpe": 0.25776101357516873,
@@ -2287,6 +2298,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.1373664485323891,
         "sharpe": 0.293875843430914,
@@ -2302,6 +2314,7 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.03726713051453179,
         "sharpe": 0.15335394862469415,
@@ -2317,11 +2330,156 @@
         "signal_dates": 720
       },
       {
+        "ranking_method": "model_probability",
         "observations": 780,
         "total_return": 0.012347303944451049,
         "sharpe": 0.09767453202825183,
         "max_drawdown": -0.23378442077218597,
         "turnover": 91.97705682255102,
+        "top_n": 5,
+        "round_trip_cost": 0.0043,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 1150,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.713714261421285,
+        "sharpe": 1.49985481306349,
+        "max_drawdown": -0.06262541309285696,
+        "turnover": 92.0547597749748,
+        "top_n": 1,
+        "round_trip_cost": 0.0,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 230,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.7321235265319588,
+        "sharpe": 1.673568949330595,
+        "max_drawdown": -0.07681058510262873,
+        "turnover": 92.13715848009244,
+        "top_n": 3,
+        "round_trip_cost": 0.0,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 690,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.5408261880903642,
+        "sharpe": 1.356286029766644,
+        "max_drawdown": -0.08739870360241075,
+        "turnover": 92.09341189626866,
+        "top_n": 5,
+        "round_trip_cost": 0.0,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 1150,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.5062889840741007,
+        "sharpe": 1.157612139953074,
+        "max_drawdown": -0.0705416888211261,
+        "turnover": 92.06763087698168,
+        "top_n": 1,
+        "round_trip_cost": 0.0028,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 230,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.5223730277628187,
+        "sharpe": 1.296015319500085,
+        "max_drawdown": -0.08345484354873545,
+        "turnover": 92.14984011138142,
+        "top_n": 3,
+        "round_trip_cost": 0.0028,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 690,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.35440873829958597,
+        "sharpe": 0.9694450616367385,
+        "max_drawdown": -0.10025988873533254,
+        "turnover": 92.10623758351531,
+        "top_n": 5,
+        "round_trip_cost": 0.0028,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 1150,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.4056567236998485,
+        "sharpe": 0.9732637875650398,
+        "max_drawdown": -0.08093769422348773,
+        "turnover": 92.07451375156991,
+        "top_n": 1,
+        "round_trip_cost": 0.0043,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 230,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.42061789378760395,
+        "sharpe": 1.0926179709192976,
+        "max_drawdown": -0.08960903568072798,
+        "turnover": 92.15662127527285,
+        "top_n": 3,
+        "round_trip_cost": 0.0043,
+        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "entry": "T+1 adj_open",
+        "exit": "T+6 adj_open",
+        "tracks": 5,
+        "trade_rows": 690,
+        "signal_dates": 720
+      },
+      {
+        "ranking_method": "market_cap",
+        "observations": 780,
+        "total_return": 0.2639642417614301,
+        "sharpe": 0.7612467304325974,
+        "max_drawdown": -0.10720882514641805,
+        "turnover": 92.11309586931273,
         "top_n": 5,
         "round_trip_cost": 0.0043,
         "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
@@ -2340,6 +2498,7 @@
         "sharpe": 0.3979642075840064,
         "max_drawdown": -0.30806045733500476,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0
       },
@@ -2350,6 +2509,7 @@
         "sharpe": 0.11805881214979175,
         "max_drawdown": -0.4831417777492677,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0
       },
@@ -2360,6 +2520,7 @@
         "sharpe": 1.0211695135497194,
         "max_drawdown": -0.2885764057712674,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0
       },
@@ -2370,6 +2531,7 @@
         "sharpe": 0.24966738949342346,
         "max_drawdown": -0.5315220123718318,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0
       },
@@ -2380,6 +2542,7 @@
         "sharpe": 0.0422551010082692,
         "max_drawdown": -0.44531138030662065,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0
       },
@@ -2390,6 +2553,7 @@
         "sharpe": 0.5032995914508763,
         "max_drawdown": -0.12901564324205306,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0
       },
@@ -2400,6 +2564,7 @@
         "sharpe": 0.01602659607646593,
         "max_drawdown": -0.31451336008299224,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0
       },
@@ -2410,6 +2575,7 @@
         "sharpe": 0.5235502552835494,
         "max_drawdown": -0.22886521105875057,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0
       },
@@ -2420,6 +2586,7 @@
         "sharpe": 0.8214837698412554,
         "max_drawdown": -0.2623191060288287,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0
       },
@@ -2430,6 +2597,7 @@
         "sharpe": 0.08784247097890324,
         "max_drawdown": -0.35377848094009223,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0
       },
@@ -2440,6 +2608,7 @@
         "sharpe": 0.674209953595374,
         "max_drawdown": -0.1751397943230325,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0
       },
@@ -2450,6 +2619,7 @@
         "sharpe": -0.17130507627732863,
         "max_drawdown": -0.41905541266396007,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0
       },
@@ -2460,6 +2630,7 @@
         "sharpe": 0.5905539806191206,
         "max_drawdown": -0.25679818929359266,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0
       },
@@ -2470,6 +2641,7 @@
         "sharpe": 1.0039931702143983,
         "max_drawdown": -0.2061722846714541,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0
       },
@@ -2480,6 +2652,7 @@
         "sharpe": -0.10184073028671946,
         "max_drawdown": -0.33408062681381734,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0
       },
@@ -2490,6 +2663,7 @@
         "sharpe": 0.262954411810636,
         "max_drawdown": -0.3151270373738171,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
@@ -2500,6 +2674,7 @@
         "sharpe": -0.01745198008325205,
         "max_drawdown": -0.5058015209366529,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
@@ -2510,6 +2685,7 @@
         "sharpe": 0.9292201392404958,
         "max_drawdown": -0.30516170427986844,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
@@ -2520,6 +2696,7 @@
         "sharpe": 0.12943705228233585,
         "max_drawdown": -0.5626030868604003,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
@@ -2530,6 +2707,7 @@
         "sharpe": -0.10484823689370394,
         "max_drawdown": -0.4967372440494786,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
@@ -2540,6 +2718,7 @@
         "sharpe": 0.28702095338240197,
         "max_drawdown": -0.15614415500966772,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
@@ -2550,6 +2729,7 @@
         "sharpe": -0.1845342216103529,
         "max_drawdown": -0.3747431741868811,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
@@ -2560,6 +2740,7 @@
         "sharpe": 0.36639029008431145,
         "max_drawdown": -0.28023320221673864,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
@@ -2570,6 +2751,7 @@
         "sharpe": 0.630073676919457,
         "max_drawdown": -0.3021935094796112,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
@@ -2580,6 +2762,7 @@
         "sharpe": -0.12589191965133464,
         "max_drawdown": -0.38556260711208834,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
@@ -2590,6 +2773,7 @@
         "sharpe": 0.42067666760946876,
         "max_drawdown": -0.20017548754913927,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
@@ -2600,6 +2784,7 @@
         "sharpe": -0.3955762371477137,
         "max_drawdown": -0.46887754905846624,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
@@ -2610,6 +2795,7 @@
         "sharpe": 0.3904510317997049,
         "max_drawdown": -0.28345190370326945,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
@@ -2620,6 +2806,7 @@
         "sharpe": 0.7748182407217241,
         "max_drawdown": -0.21721611783381645,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
@@ -2630,6 +2817,7 @@
         "sharpe": -0.37112591554157415,
         "max_drawdown": -0.3668335834292492,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
@@ -2640,6 +2828,7 @@
         "sharpe": 0.19064082287999976,
         "max_drawdown": -0.32938444945037537,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
@@ -2650,6 +2839,7 @@
         "sharpe": -0.09000734486426104,
         "max_drawdown": -0.5175416773618875,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
@@ -2660,6 +2850,7 @@
         "sharpe": 0.8797667784414959,
         "max_drawdown": -0.32573324984124874,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
@@ -2670,6 +2861,7 @@
         "sharpe": 0.06534780298504837,
         "max_drawdown": -0.5784131938821668,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
@@ -2680,6 +2872,7 @@
         "sharpe": -0.1837460524545286,
         "max_drawdown": -0.5238711429501157,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
@@ -2690,6 +2883,7 @@
         "sharpe": 0.17148103920555582,
         "max_drawdown": -0.18414391674739505,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
@@ -2700,6 +2894,7 @@
         "sharpe": -0.2917964393946532,
         "max_drawdown": -0.4067777423076193,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
@@ -2710,6 +2905,7 @@
         "sharpe": 0.2819894540693214,
         "max_drawdown": -0.3146196452088108,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
@@ -2720,6 +2916,7 @@
         "sharpe": 0.5276776393168173,
         "max_drawdown": -0.322852932112457,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
@@ -2730,6 +2927,7 @@
         "sharpe": -0.2408899269678128,
         "max_drawdown": -0.40195916994057723,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
@@ -2740,6 +2938,7 @@
         "sharpe": 0.28470065449799076,
         "max_drawdown": -0.21328739501543137,
         "turnover": 90.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
@@ -2750,6 +2949,7 @@
         "sharpe": -0.515274555573871,
         "max_drawdown": -0.4938124537869246,
         "turnover": 94.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
@@ -2760,6 +2960,7 @@
         "sharpe": 0.2828093725791428,
         "max_drawdown": -0.2992824475474031,
         "turnover": 86.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
@@ -2770,6 +2971,7 @@
         "sharpe": 0.6520910062592857,
         "max_drawdown": -0.22366187624070488,
         "turnover": 98.0,
+        "ranking_method": "model_probability",
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
@@ -2780,13 +2982,786 @@
         "sharpe": -0.5151181839214806,
         "max_drawdown": -0.3837299394296465,
         "turnover": 92.0,
+        "ranking_method": "model_probability",
+        "top_n": 5,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.7633679022169702,
+        "sharpe": 1.3896097625624886,
+        "max_drawdown": -0.07843137254901944,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.41021867864377315,
+        "sharpe": 0.8158641550289935,
+        "max_drawdown": -0.12527268058281837,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.9596048938826449,
+        "sharpe": 1.5546114832922462,
+        "max_drawdown": -0.07877280265339959,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 1.0324209552875185,
+        "sharpe": 1.599986454798112,
+        "max_drawdown": -0.10656687450665148,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.4084065481084378,
+        "sharpe": 0.8669466148980832,
+        "max_drawdown": -0.1624453755011941,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.8011944212621849,
+        "sharpe": 1.519935050980994,
+        "max_drawdown": -0.08367484304255435,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.3260866381525227,
+        "sharpe": 0.7526077016974821,
+        "max_drawdown": -0.11842000059710367,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.8885439095194521,
+        "sharpe": 1.641677252859285,
+        "max_drawdown": -0.08201554283494317,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 1.030785409308065,
+        "sharpe": 1.7962965163910318,
+        "max_drawdown": -0.09383893701851675,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.6261919840341399,
+        "sharpe": 1.2678104700112631,
+        "max_drawdown": -0.13322512026796463,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.5463538306682283,
+        "sharpe": 1.179676612751317,
+        "max_drawdown": -0.08906206192049271,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.241115932245195,
+        "sharpe": 0.5982073094622561,
+        "max_drawdown": -0.10253506362620957,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.6498644806168383,
+        "sharpe": 1.3822673914956616,
+        "max_drawdown": -0.06986910853704464,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.7625384133165196,
+        "sharpe": 1.4903051849567215,
+        "max_drawdown": -0.08864356585489663,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.5027313349797227,
+        "sharpe": 1.1034175305478577,
+        "max_drawdown": -0.1624924688316064,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.5544740841649773,
+        "sharpe": 1.0995407169838756,
+        "max_drawdown": -0.08587246050213859,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.23621288039255406,
+        "sharpe": 0.5318234407854905,
+        "max_drawdown": -0.1659620943828345,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.7371720100164385,
+        "sharpe": 1.2943796621823644,
+        "max_drawdown": -0.08764988158619558,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.7716858334377115,
+        "sharpe": 1.3086021355284185,
+        "max_drawdown": -0.10906673612910689,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.2380885685888361,
+        "sharpe": 0.5694000091030428,
+        "max_drawdown": -0.16712584094578486,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.5878195610084838,
+        "sharpe": 1.211707401060921,
+        "max_drawdown": -0.08879549799173525,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.16246182767709483,
+        "sharpe": 0.43372173672790315,
+        "max_drawdown": -0.13873141544767054,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.6741770902622946,
+        "sharpe": 1.348670811276062,
+        "max_drawdown": -0.0858656823253775,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.7702601083022829,
+        "sharpe": 1.4626330013034379,
+        "max_drawdown": -0.1034770417110713,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.4295373082917897,
+        "sharpe": 0.9516891565771115,
+        "max_drawdown": -0.1428855632748336,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.363168146420773,
+        "sharpe": 0.8606212157797654,
+        "max_drawdown": -0.09415261173854106,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.08797559182626968,
+        "sharpe": 0.27574400919645503,
+        "max_drawdown": -0.1084379965410106,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.46258993585648334,
+        "sharpe": 1.070534716213666,
+        "max_drawdown": -0.07894680290119338,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.5364259700426601,
+        "sharpe": 1.1443685434612607,
+        "max_drawdown": -0.0985393900496262,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.32100670079771865,
+        "sharpe": 0.7753433893627691,
+        "max_drawdown": -0.1787590719035821,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.452835624972755,
+        "sharpe": 0.942220388352597,
+        "max_drawdown": -0.09116614372418197,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.15191665802931387,
+        "sharpe": 0.38051297596878403,
+        "max_drawdown": -0.1871990383861869,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.6284747088965259,
+        "sharpe": 1.1527975919546662,
+        "max_drawdown": -0.09719629662208729,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.645922214121976,
+        "sharpe": 1.1504419948830578,
+        "max_drawdown": -0.1104045070516505,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.1553993217551639,
+        "sharpe": 0.4089357370030827,
+        "max_drawdown": -0.1712646388315231,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 1,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.48400082559170365,
+        "sharpe": 1.0443297053787852,
+        "max_drawdown": -0.0915298615217125,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.08319462194831151,
+        "sharpe": 0.2633428622534363,
+        "max_drawdown": -0.16297350736699356,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.5694214700594544,
+        "sharpe": 1.188923204298382,
+        "max_drawdown": -0.08792382155747147,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.6445976944880012,
+        "sharpe": 1.2816343365414316,
+        "max_drawdown": -0.10951888203782656,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.33406161588796146,
+        "sharpe": 0.780650983411529,
+        "max_drawdown": -0.14823020684391497,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 1,
+        "observations": 732,
+        "total_return": 0.27403812396912897,
+        "sharpe": 0.6875402388087335,
+        "max_drawdown": -0.09687089951776995,
+        "turnover": 90.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 2,
+        "observations": 732,
+        "total_return": 0.013787534195581319,
+        "sharpe": 0.10396468945900246,
+        "max_drawdown": -0.11864727948781051,
+        "turnover": 94.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.37107362212585104,
+        "sharpe": 0.9005709428049271,
+        "max_drawdown": -0.08584105368364647,
+        "turnover": 86.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 4,
+        "observations": 732,
+        "total_return": 0.42736233858136274,
+        "sharpe": 0.9578331035802893,
+        "max_drawdown": -0.10394152011847158,
+        "turnover": 98.0,
+        "ranking_method": "market_cap",
+        "top_n": 5,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 5,
+        "observations": 732,
+        "total_return": 0.2327795319807897,
+        "sharpe": 0.5987232027972376,
+        "max_drawdown": -0.18735216197485738,
+        "turnover": 92.0,
+        "ranking_method": "market_cap",
         "top_n": 5,
         "round_trip_cost": 0.0043
       }
     ],
+    "benchmark": {
+      "method": "당일 업종 10×5 후보를 candidate_rank(시가총액 순위)로 선택",
+      "cash_total_return": 0.0,
+      "comparisons": [
+        {
+          "top_n": 1,
+          "round_trip_cost": 0.0,
+          "model_total_return": 0.38712084117694534,
+          "market_cap_total_return": 0.713714261421285,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.3265934202443397,
+          "model_sharpe": 0.5696858236818346,
+          "market_cap_sharpe": 1.49985481306349,
+          "sharpe_lift_over_market_cap": -0.9301689893816555,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 3,
+          "round_trip_cost": 0.0,
+          "model_total_return": 0.264390494182386,
+          "market_cap_total_return": 0.7321235265319588,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.46773303234957275,
+          "model_sharpe": 0.5500959483058355,
+          "market_cap_sharpe": 1.673568949330595,
+          "sharpe_lift_over_market_cap": -1.1234730010247596,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 5,
+          "round_trip_cost": 0.0,
+          "model_total_return": 0.2335550572524372,
+          "market_cap_total_return": 0.5408261880903642,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.307271130837927,
+          "model_sharpe": 0.5561501899444038,
+          "market_cap_sharpe": 1.356286029766644,
+          "sharpe_lift_over_market_cap": -0.8001358398222401,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 1,
+          "round_trip_cost": 0.0028,
+          "model_total_return": 0.21894395504827147,
+          "market_cap_total_return": 0.5062889840741007,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.28734502902582926,
+          "model_sharpe": 0.39018299997718126,
+          "market_cap_sharpe": 1.157612139953074,
+          "sharpe_lift_over_market_cap": -0.7674291399758928,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 3,
+          "round_trip_cost": 0.0028,
+          "model_total_return": 0.11146448099748785,
+          "market_cap_total_return": 0.5223730277628187,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.41090854676533084,
+          "model_sharpe": 0.29191321891493527,
+          "market_cap_sharpe": 1.296015319500085,
+          "sharpe_lift_over_market_cap": -1.0041021005851496,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 5,
+          "round_trip_cost": 0.0028,
+          "model_total_return": 0.08462116922874374,
+          "market_cap_total_return": 0.35440873829958597,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.2697875690708422,
+          "model_sharpe": 0.25776101357516873,
+          "market_cap_sharpe": 0.9694450616367385,
+          "sharpe_lift_over_market_cap": -0.7116840480615698,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 1,
+          "round_trip_cost": 0.0043,
+          "model_total_return": 0.1373664485323891,
+          "market_cap_total_return": 0.4056567236998485,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.2682902751674594,
+          "model_sharpe": 0.293875843430914,
+          "market_cap_sharpe": 0.9732637875650398,
+          "sharpe_lift_over_market_cap": -0.6793879441341258,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 3,
+          "round_trip_cost": 0.0043,
+          "model_total_return": 0.03726713051453179,
+          "market_cap_total_return": 0.42061789378760395,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.38335076327307216,
+          "model_sharpe": 0.15335394862469415,
+          "market_cap_sharpe": 1.0926179709192976,
+          "sharpe_lift_over_market_cap": -0.9392640222946034,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        },
+        {
+          "top_n": 5,
+          "round_trip_cost": 0.0043,
+          "model_total_return": 0.012347303944451049,
+          "market_cap_total_return": 0.2639642417614301,
+          "cash_total_return": 0.0,
+          "total_return_lift_over_market_cap": -0.251616937816979,
+          "model_sharpe": 0.09767453202825183,
+          "market_cap_sharpe": 0.7612467304325974,
+          "sharpe_lift_over_market_cap": -0.6635721984043456,
+          "model_beats_market_cap_return": false,
+          "model_beats_cash_return": true
+        }
+      ]
+    },
     "daily_path": "data/raw/stock_ranking_backtest_daily.parquet",
-    "trade_path": "data/raw/stock_ranking_backtest_trades.parquet"
+    "trade_path": "data/raw/stock_ranking_backtest_trades.parquet",
+    "ledger": {
+      "signal_path": "data/raw/stock_ranking_signal_log.parquet",
+      "trade_path": "data/raw/stock_ranking_trade_log.parquet",
+      "signal_columns": 17,
+      "trade_columns": 22,
+      "realized_return_basis": "T+1 adj_open to T+6 adj_open",
+      "verification": [
+        {
+          "ranking_method": "model_probability",
+          "top_n": 1,
+          "round_trip_cost": 0.0,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 3,
+          "round_trip_cost": 0.0,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 5,
+          "round_trip_cost": 0.0,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 1,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 3,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 5,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 1,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 3,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "model_probability",
+          "top_n": 5,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 1,
+          "round_trip_cost": 0.0,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 3,
+          "round_trip_cost": 0.0,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 5,
+          "round_trip_cost": 0.0,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 1,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 3,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 5,
+          "round_trip_cost": 0.0028,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 1,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 720,
+          "trade_rows": 460,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 3,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 2160,
+          "trade_rows": 1380,
+          "problems": []
+        },
+        {
+          "ranking_method": "market_cap",
+          "top_n": 5,
+          "round_trip_cost": 0.0043,
+          "signal_rows": 3600,
+          "trade_rows": 2300,
+          "problems": []
+        }
+      ]
+    }
   },
   "local_ranking_path": "data/raw/stock_index_direction_ranking.parquet",
-  "note": "지수 방향별 확률 랭킹은 세 방향 모두 남긴다. 실제 수익률은 현재 long-only 정책에 맞춰 지수 상승 예측일만 매수하고 중립·하락 예측일은 현금으로 평가했다."
+  "note": "지수 방향별 확률 랭킹은 세 방향 모두 남긴다. 실제 수익률은 현재 long-only 정책에 맞춰 지수 상승 예측일만 매수하고 중립·하락 예측일은 현금으로 평가했다.",
+  "backtest_refreshed_at_utc": "2026-09-08T03:17:43.438840+00:00"
 }

@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 from evaluation.arima_companion import evaluate_arima_companion  # noqa: E402
 from evaluation.baseline import fold_multiclass_baseline_predictions  # noqa: E402
 from evaluation.stock_backtest import run_overlapping_stock_backtest  # noqa: E402
+from evaluation.stock_ledger import build_stock_ledgers  # noqa: E402
 from features.model_dataset import build_model_dataset  # noqa: E402
 from models.experiment import (  # noqa: E402
     MODEL_BUILDERS,
@@ -31,6 +32,7 @@ from models.stock_ranking import (  # noqa: E402
     aligned_panel_splits,
     build_common_validation_schedule,
     select_for_index_direction,
+    select_market_cap_baseline,
     summarize_direction_ranking,
     summarize_random_ranking_baseline,
 )
@@ -42,6 +44,8 @@ STOCK_REPORT_PATH = ROOT / "reports" / "stock_feature_combinations.json"
 LOCAL_RANKING_PATH = ROOT / "data" / "raw" / "stock_index_direction_ranking.parquet"
 LOCAL_BACKTEST_DAILY_PATH = ROOT / "data" / "raw" / "stock_ranking_backtest_daily.parquet"
 LOCAL_BACKTEST_TRADE_PATH = ROOT / "data" / "raw" / "stock_ranking_backtest_trades.parquet"
+LOCAL_EXECUTION_LEDGER_PATH = ROOT / "data" / "raw" / "stock_ranking_signal_log.parquet"
+LOCAL_TRADE_LEDGER_PATH = ROOT / "data" / "raw" / "stock_ranking_trade_log.parquet"
 REPORT_PATH = ROOT / "reports" / "stock_index_ranking.json"
 TRIALS_PATH = ROOT / "reports" / "trials.jsonl"
 
@@ -242,17 +246,29 @@ def _append_arima_trials(
             stream.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
 
 
-def _run_stock_backtests(ranking: pd.DataFrame) -> dict[str, object]:
-    """저장된 랭킹으로 비용 전·후 Top-K 5슬리브 성과를 만든다."""
+def _run_stock_backtests(
+    rankings: dict[str, pd.DataFrame],
+    *,
+    run_id: str,
+    model_id: str,
+    model_rev: str,
+    holdout_start: str,
+) -> dict[str, object]:
+    """모델 확률 순위와 시가총액 기준선을 같은 조건으로 평가한다."""
+
+    required_methods = {"model_probability", "market_cap"}
+    if set(rankings) != required_methods:
+        raise ValueError(f"백테스트 랭킹은 {sorted(required_methods)} 두 종류여야 합니다.")
+    all_rankings = pd.concat(rankings.values(), ignore_index=True)
 
     daily_prices = pd.read_parquet(
         HF_DAILY_PATH,
         columns=["bas_dd", "code", "market", "adj_open"],
         filters=[("market", "==", "KOSPI")],
     )
-    needed_codes = set(ranking["code"].astype("string").str.zfill(6))
-    needed_start = str(ranking["entry_bas_dd"].min())
-    needed_end = str(ranking["exit_bas_dd"].max())
+    needed_codes = set(all_rankings["code"].astype("string").str.zfill(6))
+    needed_start = str(all_rankings["entry_bas_dd"].min())
+    needed_end = str(all_rankings["exit_bas_dd"].max())
     daily_prices = daily_prices.loc[
         daily_prices["code"].astype("string").str.zfill(6).isin(needed_codes)
         & daily_prices["bas_dd"].astype("string").between(needed_start, needed_end),
@@ -263,27 +279,68 @@ def _run_stock_backtests(ranking: pd.DataFrame) -> dict[str, object]:
     daily_parts = []
     trade_parts = []
     track_rows = []
-    for cost in STOCK_BACKTEST_COSTS:
-        for cutoff in STOCK_BACKTEST_CUTOFFS:
-            backtest = run_overlapping_stock_backtest(
-                ranking,
-                daily_prices,
-                top_n=cutoff,
-                round_trip_cost=cost,
-            )
-            scenarios.append(backtest.summary)
-            daily_parts.append(
-                backtest.daily_returns.assign(top_n=cutoff, round_trip_cost=cost)
-            )
-            trade_parts.append(
-                backtest.trade_log.assign(top_n=cutoff, round_trip_cost=cost)
-            )
-            track_rows.extend(
-                backtest.track_summary.assign(
+    ledger_signal_parts = []
+    ledger_trade_parts = []
+    ledger_verification = []
+    for ranking_method, ranking in rankings.items():
+        ranking = ranking.assign(ranking_method=ranking_method)
+        for cost in STOCK_BACKTEST_COSTS:
+            for cutoff in STOCK_BACKTEST_CUTOFFS:
+                backtest = run_overlapping_stock_backtest(
+                    ranking,
+                    daily_prices,
                     top_n=cutoff,
                     round_trip_cost=cost,
-                ).to_dict(orient="records")
-            )
+                )
+                scenario = {"ranking_method": ranking_method, **backtest.summary}
+                scenarios.append(scenario)
+                daily_parts.append(
+                    backtest.daily_returns.assign(
+                        ranking_method=ranking_method,
+                        top_n=cutoff,
+                        round_trip_cost=cost,
+                    )
+                )
+                trade_parts.append(
+                    backtest.trade_log.assign(
+                        ranking_method=ranking_method,
+                        top_n=cutoff,
+                        round_trip_cost=cost,
+                    )
+                )
+                track_rows.extend(
+                    backtest.track_summary.assign(
+                        ranking_method=ranking_method,
+                        top_n=cutoff,
+                        round_trip_cost=cost,
+                    ).to_dict(orient="records")
+                )
+
+                ledger = build_stock_ledgers(
+                    ranking,
+                    top_n=cutoff,
+                    cost_rate=cost,
+                    model_id=f"{model_id}:{ranking_method}",
+                    model_rev=model_rev,
+                    run_id=run_id,
+                    holdout_start=holdout_start,
+                )
+                ledger_signal_parts.append(ledger.signal_log)
+                ledger_trade_parts.append(ledger.trade_log)
+                ledger_verification.append(
+                    {
+                        "ranking_method": ranking_method,
+                        "top_n": cutoff,
+                        "round_trip_cost": cost,
+                        "signal_rows": int(len(ledger.signal_log)),
+                        "trade_rows": int(len(ledger.trade_log)),
+                        "problems": [
+                            *ledger.verification["signal"]["problems"],
+                            *ledger.verification["trade"]["problems"],
+                            *ledger.verification["stock_execution"]["problems"],
+                        ],
+                    }
+                )
     pd.concat(daily_parts, ignore_index=True).to_parquet(
         LOCAL_BACKTEST_DAILY_PATH,
         index=False,
@@ -292,12 +349,89 @@ def _run_stock_backtests(ranking: pd.DataFrame) -> dict[str, object]:
         LOCAL_BACKTEST_TRADE_PATH,
         index=False,
     )
+    pd.concat(ledger_signal_parts, ignore_index=True).to_parquet(
+        LOCAL_EXECUTION_LEDGER_PATH,
+        index=False,
+    )
+    pd.concat(ledger_trade_parts, ignore_index=True).to_parquet(
+        LOCAL_TRADE_LEDGER_PATH,
+        index=False,
+    )
+
+    by_scenario = {
+        (str(row["ranking_method"]), int(row["top_n"]), float(row["round_trip_cost"])): row
+        for row in scenarios
+    }
+    comparisons = []
+    for cost in STOCK_BACKTEST_COSTS:
+        for cutoff in STOCK_BACKTEST_CUTOFFS:
+            model = by_scenario[("model_probability", cutoff, cost)]
+            market_cap = by_scenario[("market_cap", cutoff, cost)]
+            comparisons.append(
+                {
+                    "top_n": cutoff,
+                    "round_trip_cost": cost,
+                    "model_total_return": float(model["total_return"]),
+                    "market_cap_total_return": float(market_cap["total_return"]),
+                    "cash_total_return": 0.0,
+                    "total_return_lift_over_market_cap": float(
+                        model["total_return"] - market_cap["total_return"]
+                    ),
+                    "model_sharpe": float(model["sharpe"]),
+                    "market_cap_sharpe": float(market_cap["sharpe"]),
+                    "sharpe_lift_over_market_cap": float(
+                        model["sharpe"] - market_cap["sharpe"]
+                    ),
+                    "model_beats_market_cap_return": bool(
+                        model["total_return"] > market_cap["total_return"]
+                    ),
+                    "model_beats_cash_return": bool(model["total_return"] > 0.0),
+                }
+            )
     return {
         "scenarios": scenarios,
         "track_scenarios": track_rows,
+        "benchmark": {
+            "method": "당일 업종 10×5 후보를 candidate_rank(시가총액 순위)로 선택",
+            "cash_total_return": 0.0,
+            "comparisons": comparisons,
+        },
         "daily_path": str(LOCAL_BACKTEST_DAILY_PATH.relative_to(ROOT)).replace("\\", "/"),
         "trade_path": str(LOCAL_BACKTEST_TRADE_PATH.relative_to(ROOT)).replace("\\", "/"),
+        "ledger": {
+            "signal_path": str(LOCAL_EXECUTION_LEDGER_PATH.relative_to(ROOT)).replace(
+                "\\", "/"
+            ),
+            "trade_path": str(LOCAL_TRADE_LEDGER_PATH.relative_to(ROOT)).replace("\\", "/"),
+            "signal_columns": 17,
+            "trade_columns": 22,
+            "realized_return_basis": "T+1 adj_open to T+6 adj_open",
+            "verification": ledger_verification,
+        },
     }
+
+
+def _saved_market_cap_ranking(
+    model_ranking: pd.DataFrame,
+    report: dict[str, object],
+) -> pd.DataFrame:
+    """재학습 없이 저장된 전체 OOS에서 시가총액 기준선 순위를 복원한다."""
+
+    selection = report["stock_model"]["selection"]["selected"]
+    combination = str(selection["combination"])
+    model = str(selection["model"])
+    stock_report = json.loads(STOCK_REPORT_PATH.read_text(encoding="utf-8"))
+    oos_path = ROOT / stock_report["combinations"][combination]["local_oos_path"]
+    stock_oos = pd.read_parquet(oos_path)
+    stock_oos = stock_oos.loc[stock_oos["model"].eq(model)].copy()
+    index_oos = (
+        model_ranking.loc[:, ["fold", "bas_dd", "index_predicted"]]
+        .drop_duplicates()
+        .rename(columns={"index_predicted": "predicted"})
+    )
+    if index_oos.duplicated("bas_dd").any():
+        raise ValueError("저장된 랭킹에서 KOSPI200 날짜별 예측을 하나로 복원하지 못했습니다.")
+    return select_market_cap_baseline(stock_oos, index_oos, top_n=5)
 
 
 def refresh_saved_backtests() -> None:
@@ -307,7 +441,31 @@ def refresh_saved_backtests() -> None:
         raise FileNotFoundError("먼저 KOSPI200-종목 OOS 랭킹을 생성해야 합니다.")
     ranking = pd.read_parquet(LOCAL_RANKING_PATH)
     report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
-    report["stock_backtest"] = _run_stock_backtests(ranking)
+    ranking = ranking.assign(ranking_method="model_probability")
+    market_cap_ranking = _saved_market_cap_ranking(ranking, report)
+    model_id = (
+        f"stock-{report['stock_model']['combination']}-{report['stock_model']['model']}"
+        f"+index-{report['index_model']['combination']}-{report['index_model']['model']}"
+    )
+    model_rev = (
+        f"daily-{report['source']['daily_sha256'][:12]}"
+        f"-index-{report['source']['index_sha256'][:12]}"
+    )
+    report["stock_backtest"] = _run_stock_backtests(
+        {
+            "model_probability": ranking,
+            "market_cap": market_cap_ranking,
+        },
+        run_id=str(report["run_id"]),
+        model_id=model_id,
+        model_rev=model_rev,
+        holdout_start=str(report["source"]["holdout_start"]),
+    )
+    report.setdefault("output_contract", {})["ledger"] = {
+        "signal_log": "supply.backtest_ledger.SIGNAL_LOG_COLUMNS (17칸)",
+        "trade_log": "supply.backtest_ledger.TRADE_LOG_COLUMNS (22칸)",
+        "realized_return_basis": "T+1 adj_open to T+6 adj_open",
+    }
     report["backtest_refreshed_at_utc"] = datetime.now(timezone.utc).isoformat()
     REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
@@ -465,7 +623,10 @@ def main() -> None:
         outer_splits=stock_splits,
     )
     stock_oos = stock_result.oos_predictions
-    ranking = select_for_index_direction(stock_oos, index_oos, top_n=5)
+    ranking = select_for_index_direction(stock_oos, index_oos, top_n=5).assign(
+        ranking_method="model_probability"
+    )
+    market_cap_ranking = select_market_cap_baseline(stock_oos, index_oos, top_n=5)
     LOCAL_RANKING_PATH.parent.mkdir(parents=True, exist_ok=True)
     ranking.to_parquet(LOCAL_RANKING_PATH, index=False)
 
@@ -501,8 +662,34 @@ def main() -> None:
         baseline["label_numeric"].eq(baseline["index_predicted"]).mean()
     )
 
+    generated_at = datetime.now(timezone.utc).isoformat()
+    run_id = "stock-index-ranking-" + generated_at.replace(":", "").replace("-", "")
+    source = {
+        "repo": stock_report["source"]["repo"],
+        "index_path": stock_report["source"]["index_path"],
+        "index_sha256": index_sha,
+        "daily_path": stock_report["source"]["daily_path"],
+        "daily_sha256": stock_report["source"]["daily_sha256"],
+        "holdout_start": stock_report["source"]["holdout_start"],
+    }
+    model_id = (
+        f"stock-{stock_combination}-{stock_model}"
+        f"+index-{INDEX_COMBINATION}-{INDEX_MODEL}"
+    )
+    model_rev = (
+        f"daily-{source['daily_sha256'][:12]}-index-{source['index_sha256'][:12]}"
+    )
     print("      T+1~T+6 수정 시가 · 5슬리브 · 비용 전/0.28%/0.43%", flush=True)
-    stock_backtest = _run_stock_backtests(ranking)
+    stock_backtest = _run_stock_backtests(
+        {
+            "model_probability": ranking,
+            "market_cap": market_cap_ranking,
+        },
+        run_id=run_id,
+        model_id=model_id,
+        model_rev=model_rev,
+        holdout_start=str(source["holdout_start"]),
+    )
 
     index_diagnostics = classification_probability_metrics(
         index_oos["actual"].to_numpy(dtype=int),
@@ -519,16 +706,6 @@ def main() -> None:
         stock_oos["predicted"].to_numpy(dtype=int),
         stock_oos[["p_down", "p_neutral", "p_up"]].to_numpy(dtype=float),
     )
-    generated_at = datetime.now(timezone.utc).isoformat()
-    run_id = "stock-index-ranking-" + generated_at.replace(":", "").replace("-", "")
-    source = {
-        "repo": stock_report["source"]["repo"],
-        "index_path": stock_report["source"]["index_path"],
-        "index_sha256": index_sha,
-        "daily_path": stock_report["source"]["daily_path"],
-        "daily_sha256": stock_report["source"]["daily_sha256"],
-        "holdout_start": stock_report["source"]["holdout_start"],
-    }
     _append_alignment_trials(
         run_id=run_id,
         track="index",
@@ -640,6 +817,11 @@ def main() -> None:
                 "exit_adj_open",
             ],
             "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+            "ledger": {
+                "signal_log": "supply.backtest_ledger.SIGNAL_LOG_COLUMNS (17칸)",
+                "trade_log": "supply.backtest_ledger.TRADE_LOG_COLUMNS (22칸)",
+                "realized_return_basis": "T+1 adj_open to T+6 adj_open",
+            },
         },
         "stock_backtest": stock_backtest,
         "local_ranking_path": str(LOCAL_RANKING_PATH.relative_to(ROOT)).replace(

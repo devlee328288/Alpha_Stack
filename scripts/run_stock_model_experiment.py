@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 from evaluation.horizon import HOLDOUT_START  # noqa: E402
+from evaluation.multiple_comparison import compare_accuracy_to_baseline  # noqa: E402
 from evaluation.walk_forward import expanding_group_splits  # noqa: E402
 from features.stock_model_dataset import (  # noqa: E402
     ALL_STOCK_FEATURE_COLUMNS,
@@ -249,6 +250,17 @@ def _final_selection_report(report: dict[str, object]) -> dict[str, object]:
     }
 
 
+def _multiple_comparison_report(report: dict[str, object]) -> dict[str, object]:
+    """A~H 32개 후보를 같은 폴드 기준선과 비교하고 가족오류율을 통제한다."""
+
+    parts = []
+    for combination, item in report["combinations"].items():
+        part = pd.DataFrame(item["outer_fold_results"])
+        part.insert(0, "combination", combination)
+        parts.append(part)
+    return compare_accuracy_to_baseline(pd.concat(parts, ignore_index=True))
+
+
 def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
     """저장된 실험과 같은 날짜 분할에서 비누수 기준선과 사후 분포를 계산한다."""
 
@@ -332,6 +344,7 @@ def refresh_saved_report_baselines() -> None:
     winners.sort(key=final_model_selection_key, reverse=True)
     report["combination_winners"] = winners
     report["final_selection"] = _final_selection_report(report)
+    report["multiple_comparison"] = _multiple_comparison_report(report)
     report["baseline_enriched_at_utc"] = datetime.now(timezone.utc).isoformat()
     report["validation"]["baseline_policy"] = {
         "comparison": "outer training-window majority class applied to validation",
@@ -340,6 +353,9 @@ def refresh_saved_report_baselines() -> None:
     }
     report["validation"]["selection"] = (
         "ADR 0007: 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수"
+    )
+    report["validation"]["multiple_comparison"] = (
+        "32개 후보의 폴드 Accuracy 차이를 단측 Wilcoxon으로 검정하고 Holm 보정"
     )
     SWEEP_REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
@@ -649,6 +665,10 @@ def main() -> None:
         ),
     }
     report["final_selection"] = _final_selection_report(report)
+    report["multiple_comparison"] = _multiple_comparison_report(report)
+    report["validation"]["multiple_comparison"] = (
+        "32개 후보의 폴드 Accuracy 차이를 단측 Wilcoxon으로 검정하고 Holm 보정"
+    )
     SWEEP_REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",

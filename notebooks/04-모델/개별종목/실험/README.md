@@ -29,6 +29,7 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 - 최종 조합·모델은 기준선 대비 Accuracy → Macro F1 → 기준선 승리 폴드 수로 선택
 - MCC·Balanced Accuracy·클래스별 및 Macro PR-AUC·혼동행렬 함께 기록
 - 폴드별 학습 최빈 Accuracy 기준선과 모델 Accuracy의 차이를 함께 기록
+- 32개 후보의 폴드 Accuracy 차이를 단측 Wilcoxon으로 검정하고 Holm 보정
 - 검증 최빈 비율은 정답을 본 `oracle` 참고값으로만 표시
 - A~H 공통 159,936개 `(bas_dd, code)` 행·3,343거래일에서 비교
 - `hv_regime`은 269거래일 준비구간이 필요하므로 H를 포함한 공통 표본은 A~G만 비교할 때보다 짧음
@@ -50,6 +51,18 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 | 8 | C | XGBoost | **-0.0052** | 4/12 |
 
 조합별 4모델 최선 결과는 `조합별 best result/`에 정리합니다.
+
+## 다중비교 결과
+
+A~H 8개 조합 × 4개 모델의 32개 후보를 같은 폴드의 학습 최빈 기준선과 비교했습니다.
+단측 Wilcoxon signed-rank 검정 뒤 Holm 보정을 적용한 결과 유의수준 0.05에서 유의한 후보는
+0개였습니다. 가장 작은 원 p-value는 조합 D XGBoost의 `0.0171`이었지만 보정 뒤
+`0.5469`였습니다. 최종 선택된 조합 A LogisticRegression의 보정 p-value는 `0.9915`입니다.
+
+후보당 12폴드뿐이고 expanding 학습창이 겹치므로 검정력이 제한됩니다. 따라서 개발구간
+순위는 후보 선택 규칙으로 사용하되, 어느 후보의 일반화 우위가 통계적으로 입증됐다고
+해석하지 않습니다. 전체 값은 `reports/stock_feature_combinations.json`의
+`multiple_comparison`에 기록했습니다.
 
 `기본모델/`은 `models/`의 네 생성 함수를 확인하는 얇은 실행 노트북입니다. 각 조합
 노트북은 같은 생성 함수를 명시적으로 import하고 피처 목록만 지정하므로, Pylance가
