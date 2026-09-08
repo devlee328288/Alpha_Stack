@@ -21,6 +21,8 @@ HF 일별시세에는 주권종류가 없다. 대신 GitHub에 저장된 기본�
 
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 
 from evaluation.horizon import HOLDOUT_START
@@ -254,12 +256,44 @@ def filter_extreme_adjusted_returns(
     *,
     absolute_limit: float = 1.0,
 ) -> pd.DataFrame:
-    """수정종가 일간 수익률 절댓값이 한계를 넘는 후보 행을 제거한다.
+    """⚠️ **폐기됨.** 수정종가 일간 수익률 절댓값이 한계를 넘는 후보 행을 제거한다.
 
-    수익률은 후보만 잘라 계산하지 않고 종목의 전체 개발 시계열에서 먼저 계산한다.
-    후보로 뽑히지 않은 전날을 버린 뒤 계산하면 업종 진입일의 수익률이 며칠짜리로
-    늘어나 다른 값을 재게 된다. 제거는 극단값이 발생한 정확한 날짜·종목에만 한다.
+    새 코드는 쓰지 않는다. 대신 :func:`supply.adj_quality.attach_adjustment_quality`
+    가 붙이는 ``is_adj_suspect`` 로 거른다.
+
+    왜 폐기했나 — **크기로 자르면 진짜 사건까지 지운다**
+
+    이 함수는 "하루에 100% 넘게 움직였으면 이상하다" 는 **크기** 기준이다. 그런데
+    하루 100% 는 실제로 일어난다 — 무상증자 권리락, 거래정지 해제, 상한가 연속이
+    그렇다. 그것들은 지워야 할 오류가 아니라 **모델이 배워야 할 사건**이다.
+
+    지금은 **어긋남**으로 가른다. KRX 가 발표한 등락률과 우리가 수정주가로 계산한
+    일간 수익률이 1%p 넘게 다르면 그때만 의심한다(``is_adj_suspect``). 값이 크든
+    작든 KRX 와 맞으면 진짜이고, 작아도 어긋나면 우리 계산이 틀린 것이다.
+
+    실측(이슈 #132) — 후보군 176,705행에서 **이 필터가 지우는 행은 0건**이었고,
+    ``is_adj_suspect`` 로 제외되는 행도 0건, 극단 사건 5건은 그대로 남았다. 즉 이
+    필터는 후보군에서 아무 일도 하지 않으면서 "무언가 거르고 있다" 는 인상만 주고
+    있었다.
+
+    남겨 두는 이유 — 노트북
+    ``06-검토·발견/10.이상치는-크기가-아니라-어긋남으로-가른다.ipynb`` 가 두 방식을
+    나란히 놓고 재현한다. 지우면 그 노트북이 못 돈다.
+
+    .. deprecated::
+        ``supply.adj_quality.attach_adjustment_quality`` 를 쓰고
+        ``is_adj_suspect`` 인 행만 제외한다.
     """
+
+    warnings.warn(
+        "filter_extreme_adjusted_returns 는 폐기됐습니다. 크기(절댓값 한계)로 자르면 "
+        "권리락·거래정지 해제 같은 진짜 사건까지 지웁니다.\n"
+        "  대신: supply.adj_quality.attach_adjustment_quality 로 is_adj_suspect 를 붙이고 "
+        "그 행만 제외하십시오 — KRX 등락률과 1%p 넘게 어긋난 행만 거릅니다.\n"
+        "  실측(#132): 후보군 176,705행에서 이 필터가 지우는 행은 0건입니다.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     if absolute_limit <= 0.0:
         raise ValueError("absolute_limit은 0보다 커야 합니다.")

@@ -16,7 +16,7 @@
 
 | 무엇 | 어디 | 코드 |
 |---|---|---|
-| ③ 종목 트랙 극단수익률 필터 실측 — top_n=50 후보군과 **0건** 겹침 · `supply/stock_training_universe.py` 설계 | [#132](https://github.com/devlee328288/Alpha_Stack/issues/132) | 없음 (오준영 님 top_n 결정 대기) |
+| ③ 종목 트랙 극단수익률 필터 실측 — **업종 10 × 업종별 5(하루 최대 50)** 후보군과 **0건** 겹침 · `supply/stock_training_universe.py` 설계 | [#132](https://github.com/devlee328288/Alpha_Stack/issues/132) | `filter_extreme_adjusted_returns` 는 **폐기**(경고만) · `supply/adj_quality.attach_adjustment_quality` 의 `is_adj_suspect` 로 대체 |
 | ~~파생 피처 4개~~ ✅ **v1.1 에 담았다** (PR #147 머지 · 재현 실측 포함) | [#37 댓글](https://github.com/devlee328288/Alpha_Stack/issues/37) | `features/volatility.py`·`indicators.py`·`volume.py` |
 
 코드가 들어오면 v1.1 로 옮겨 적습니다.
