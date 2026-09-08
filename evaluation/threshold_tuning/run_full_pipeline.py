@@ -5,7 +5,7 @@ import warnings
 import numpy as np
 import step6_live_signal
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from evaluation_backtest import calculate_all_classification_metrics
 
@@ -49,6 +49,7 @@ STEP_MONTHS = 1
 MD_THRESHOLD = 0.20  # 허용 MDD 20%
 LAMBDA_MDD = 0.5  # MDD 패널티 강도
 
+
 # ============================================================
 # 2. 메인 파이프라인 실행 함수
 # ============================================================
@@ -62,12 +63,12 @@ def run_full_pipeline():
     df = load_data()
     print(f"✅ 데이터 로드 완료: {df.shape[0]}일 ({df.index.min()} ~ {df.index.max()})")
 
-    # 실제 레이블 생성 (평가용)
-    if 'code' in df.columns:
-        ret = df.groupby('code')['close'].pct_change()
+    # 🔥 수정: 5일 후 수익률 ±1% 기준 라벨 생성 (MD v4.1)
+    if "code" in df.columns:
+        ret_5d = df.groupby("code")["close"].transform(lambda x: x.shift(-5) / x - 1)
     else:
-        ret = df['close'].pct_change()
-    y_true = np.where(ret > 0.005, 2, np.where(ret < -0.003, 0, 1))
+        ret_5d = df["close"].shift(-5) / df["close"] - 1
+    y_true = np.where(ret_5d > 0.01, 2, np.where(ret_5d < -0.01, 0, 1))
 
     # ---- 2) 5단계 실행 (6개 파라미터 CMA-ES Walk-Forward) ----
     print("\n" + "=" * 70)
@@ -105,24 +106,25 @@ def run_full_pipeline():
         ].head()
     )
 
+    # 🔥 수정: 143개 폴드 → 실제 폴드 수로 변경 (Expanding 기준)
     print("\n" + "=" * 70)
-    print("📊 [Rolling 파라미터 실태 진단 (143개 폴드 평균)]")
+    print(f"📊 [Rolling 파라미터 실태 진단 (총 {result_5['total_folds']}개 폴드 평균)]")
     print("=" * 70)
 
-    alpha_up_mean = fold_details['alpha_up'].mean()
-    alpha_up_max = fold_details['alpha_up'].max()
+    alpha_up_mean = fold_details["alpha_up"].mean()
+    alpha_up_max = fold_details["alpha_up"].max()
     print(f"   α_up  : 평균={alpha_up_mean:.3f}, 최대={alpha_up_max:.3f}")
 
-    alpha_down_mean = fold_details['alpha_down'].mean()
-    alpha_down_max = fold_details['alpha_down'].max()
+    alpha_down_mean = fold_details["alpha_down"].mean()
+    alpha_down_max = fold_details["alpha_down"].max()
     print(f"   α_down  : 평균={alpha_down_mean:.3f}, 최대={alpha_down_max:.3f}")
 
-    beta_up_mean = fold_details['beta_up'].mean()
-    beta_up_max = fold_details['beta_up'].max()
+    beta_up_mean = fold_details["beta_up"].mean()
+    beta_up_max = fold_details["beta_up"].max()
     print(f"   β_up  : 평균={beta_up_mean:.3f}, 최대={beta_up_max:.3f}")
 
-    beta_down_mean = fold_details['beta_down'].mean()
-    beta_down_max = fold_details['beta_down'].max()
+    beta_down_mean = fold_details["beta_down"].mean()
+    beta_down_max = fold_details["beta_down"].max()
     print(f"   β_down  : 평균={beta_down_mean:.3f}, 최대={beta_down_max:.3f}")
 
     print(f"   Vol_Period  : 중앙값={int(fold_details['vol_period'].median())}일")
@@ -156,10 +158,10 @@ def run_full_pipeline():
 
         # ===== 🆕 Proxy Probability 생성 (PR-AUC 계산용) =====
         # Upper/Lower/Base까지의 거리 기반 각 클래스에 대한 대리 확률을 생성합니다.
-        close = df_signals_rolling['close'].values[valid_mask]
-        upper = df_signals_rolling['upper'].values[valid_mask]
-        lower = df_signals_rolling['lower'].values[valid_mask]
-        base = df_signals_rolling['base'].values[valid_mask]
+        close = df_signals_rolling["close"].values[valid_mask]
+        upper = df_signals_rolling["upper"].values[valid_mask]
+        lower = df_signals_rolling["lower"].values[valid_mask]
+        base = df_signals_rolling["base"].values[valid_mask]
 
         _eps = 1e-6
         dist_up = np.abs(close - upper)
@@ -202,8 +204,12 @@ def run_full_pipeline():
         if macro_key in cls_results and not np.isnan(cls_results[macro_key]):
             print(f"Macro Avg Precision (PR-AUC OVR) : {cls_results[macro_key]:.4f}")
 
-        if "Binary PR-AUC (AP)" in cls_results and not np.isnan(cls_results["Binary PR-AUC (AP)"]):
-            print(f"Binary PR-AUC (AP) (상승 vs 비상승) : {cls_results['Binary PR-AUC (AP)']:.4f}")
+        if "Binary PR-AUC (AP)" in cls_results and not np.isnan(
+            cls_results["Binary PR-AUC (AP)"]
+        ):
+            print(
+                f"Binary PR-AUC (AP) (상승 vs 비상승) : {cls_results['Binary PR-AUC (AP)']:.4f}"
+            )
 
         print("\n[실제 Class Distribution]")
         for cls, ratio in cls_results["Class Distribution"].items():
@@ -236,14 +242,16 @@ def run_full_pipeline():
 
         # 2) 클래스별 Precision / Recall / F1
         print("\n[클래스별 성능 리포트 (Precision / Recall / F1-score)]")
-        target_names = ['하락 (0)', '중립 (1)', '상승 (2)']
-        print(classification_report(y_true_valid, y_pred_valid,
-                                    target_names=target_names,
-                                    digits=4
-                                    ))
+        target_names = ["하락 (0)", "중립 (1)", "상승 (2)"]
+        print(
+            classification_report(
+                y_true_valid, y_pred_valid, target_names=target_names, digits=4
+            )
+        )
 
         # 3) 전체 정확도 (Accuracy)
         from sklearn.metrics import accuracy_score
+
         acc = accuracy_score(y_true_valid, y_pred_valid)
         print(f"\n✅ 전체 정확도 (Accuracy): {acc:.4f} ({acc*100:.2f}%)")
 
