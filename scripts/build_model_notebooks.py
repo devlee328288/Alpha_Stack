@@ -1,7 +1,8 @@
-"""A~F의 96개 모델 노트북과 24개 비교 노트북을 같은 형식으로 만든다."""
+"""KOSPI200 조합별 모델·비교 노트북을 같은 형식으로 만든다."""
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -18,7 +19,9 @@ COMBINATION_DIRS = {
     "D": "조합D_option2_volatility_focus",
     "E": "조합E_option5_volatility_only",
     "F": "조합F_option6_maximum",
+    "G": "조합G_e_b_feature_union",
 }
+
 VARIANTS = {
     "base": ("", (), "기본 조합"),
     "daily": (" + Daily_Return", ("daily_return",), "Daily_Return 추가"),
@@ -28,6 +31,13 @@ VARIANTS = {
         ("daily_return", "five_day_return"),
         "Daily_Return·5Day_Return 추가",
     ),
+}
+
+# A~F는 기존 네 수익률 변형을 유지한다. G는 E와 B에서 실제 선정된 5Day 피처까지
+# 합친 고정 조합이므로 같은 수익률을 다시 덧붙이는 변형을 만들지 않는다.
+COMBINATION_VARIANTS = {
+    **{combination: tuple(VARIANTS) for combination in "ABCDEF"},
+    "G": ("base",),
 }
 MODELS = {
     "LogisticRegression": "01.LogisticRegression.ipynb",
@@ -45,13 +55,24 @@ def experiment_directory(combination: str, variant: str) -> Path:
     return base if not suffix else base / f"조합{combination}{suffix}"
 
 
-def notebook_targets() -> list[tuple[str, str, Path]]:
-    """정해진 24개 실험 폴더를 순서대로 열거한다."""
+def notebook_targets(requested: tuple[str, ...] | None = None) -> list[tuple[str, str, Path]]:
+    """정의된 실험 폴더를 순서대로 열거한다."""
+
+    combinations = tuple(COMBINATION_DIRS)
+    if requested is not None:
+        normalized = tuple(str(name).strip().upper() for name in requested)
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("생성할 조합 이름이 중복되었습니다.")
+        unknown = set(normalized) - set(combinations)
+        if unknown:
+            raise ValueError(f"정의되지 않은 KOSPI200 조합입니다: {sorted(unknown)}")
+        selected = set(normalized)
+        combinations = tuple(name for name in combinations if name in selected)
 
     return [
         (combination, variant, experiment_directory(combination, variant))
-        for combination in COMBINATION_DIRS
-        for variant in VARIANTS
+        for combination in combinations
+        for variant in COMBINATION_VARIANTS[combination]
     ]
 
 
@@ -321,18 +342,26 @@ display(Markdown(f"""
     return notebook
 
 
-def main() -> int:
+def main(requested: tuple[str, ...] | None = None) -> int:
     written = 0
-    for combination, variant, directory in notebook_targets():
+    for combination, variant, directory in notebook_targets(requested):
         directory.mkdir(parents=True, exist_ok=True)
         for model_name, filename in MODELS.items():
             nbformat.write(_model_notebook(combination, variant, model_name), directory / filename)
             written += 1
         nbformat.write(_comparison_notebook(combination, variant), directory / "05.모델비교.ipynb")
         written += 1
-    print(f"노트북 {written}개 생성 완료: 모델 96개 + 비교 24개")
+    print(f"노트북 {written}개 생성 완료")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--combinations",
+        nargs="+",
+        metavar="NAME",
+        help="지정한 조합 폴더만 생성합니다. 생략하면 전체를 다시 생성합니다.",
+    )
+    arguments = parser.parse_args()
+    raise SystemExit(main(tuple(arguments.combinations) if arguments.combinations else None))

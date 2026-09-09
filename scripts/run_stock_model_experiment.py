@@ -61,6 +61,12 @@ DAILY_COLUMNS = (
     "code",
     "name",
     "market",
+    # 보통주 판정은 2026-09-09(PR #189)부터 이름 규칙이 아니라 이 칸이 한다. 공급 층
+    # `build_sector_candidate_frame`이 요구하는 칸이 늘면 로더도 함께 갱신한다.
+    "kind_stkcert_tp_nm",
+    "is_liquidation",
+    "is_halted",
+    "is_first_listing",
     "market_cap",
     "value",
     "industry",
@@ -71,12 +77,9 @@ DAILY_COLUMNS = (
     "close",
     "change_rate",
     "volume",
-    # 보통주 판정은 2026-09-09(PR #189) 부터 이름 규칙이 아니라 이 칸이 한다. 공급 층
-    # `build_sector_candidate_frame` 이 요구하는 칸(`DAILY_REQUIRED`)이 늘면 여기도 따라와야
-    # 한다 — `tests/test_stock_experiment_loader_contract.py` 가 그 둘을 맞댄다.
-    "kind_stkcert_tp_nm",
 )
 INDEX_COLUMNS = ("bas_dd", "index_name", "index_class", "market_cap", "close")
+SAMPLE_EXCLUSION_COLUMNS = ("is_liquidation", "is_halted", "is_first_listing")
 
 
 def _sha256(path: Path) -> str:
@@ -113,6 +116,7 @@ def _panel_cache_signature() -> dict[str, object]:
         "index_sha256": _sha256(INDEX_PATH),
         "panel_code_sha256": digest.hexdigest(),
         "features": list(ALL_STOCK_FEATURE_COLUMNS),
+        "sample_selection_policy": "exclude_corporate_action_flags_after_top10x5_selection",
         "adjustment_quality_policy": "exclude_only_is_adj_suspect_gap_over_1pct_point",
     }
 
@@ -128,6 +132,9 @@ def _read_cached_panel(signature: dict[str, object]) -> StockModelDataset | None
     adjustment_quality = metadata.get("adjustment_quality")
     if not isinstance(adjustment_quality, dict) or not adjustment_quality:
         return None
+    sample_selection = metadata.get("sample_selection")
+    if not isinstance(sample_selection, dict) or not sample_selection:
+        return None
     frame = pd.read_parquet(PANEL_CACHE_PATH)
     required = {"bas_dd", "label_numeric", *ALL_STOCK_FEATURE_COLUMNS}
     if required - set(frame.columns):
@@ -135,6 +142,7 @@ def _read_cached_panel(signature: dict[str, object]) -> StockModelDataset | None
     if frame.empty or (frame["bas_dd"].astype("string") >= HOLDOUT_START).any():
         return None
     frame.attrs["adjustment_quality"] = adjustment_quality
+    frame.attrs["sample_selection"] = sample_selection
     return StockModelDataset(frame=frame, feature_columns=ALL_STOCK_FEATURE_COLUMNS)
 
 
@@ -146,11 +154,15 @@ def _write_panel_cache(dataset: StockModelDataset, signature: dict[str, object])
     adjustment_quality = dataset.frame.attrs.get("adjustment_quality")
     if not isinstance(adjustment_quality, dict) or not adjustment_quality:
         raise RuntimeError("종목 패널 캐시에 저장할 수정주가 품질 요약이 없습니다.")
+    sample_selection = dataset.frame.attrs.get("sample_selection")
+    if not isinstance(sample_selection, dict) or not sample_selection:
+        raise RuntimeError("종목 패널 캐시에 저장할 기업행위 표본 선택 요약이 없습니다.")
     PANEL_CACHE_META_PATH.write_text(
         json.dumps(
             {
                 "signature": signature,
                 "adjustment_quality": adjustment_quality,
+                "sample_selection": sample_selection,
             },
             ensure_ascii=False,
             indent=2,
@@ -176,6 +188,35 @@ def _requested_combinations(requested: tuple[str, ...] | None) -> tuple[str, ...
         raise ValueError(f"정의되지 않은 개별종목 조합입니다: {sorted(unknown)}")
     selected = set(normalized)
     return tuple(name for name in available if name in selected)
+
+
+def _exclude_corporate_action_samples(
+    candidates: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, object]]:
+    """업종 10×5를 먼저 정한 뒤 기업행위 표본만 빼며 차순위를 채우지 않는다."""
+
+    missing = set(SAMPLE_EXCLUSION_COLUMNS) - set(candidates.columns)
+    if missing:
+        raise ValueError(f"기업행위 표본 선택 열이 없습니다: {sorted(missing)}")
+    flags = candidates.loc[:, SAMPLE_EXCLUSION_COLUMNS]
+    if flags.isna().any().any():
+        raise ValueError("기업행위 표본 선택 열에 결측이 있습니다.")
+    flags = flags.astype(bool)
+    excluded = flags.any(axis=1)
+    summary: dict[str, object] = {
+        "method": "exclude_after_sector_top10_and_stock_top5_without_backfill",
+        "columns": list(SAMPLE_EXCLUSION_COLUMNS),
+        "candidate_rows_before": int(len(candidates)),
+        "excluded_rows": int(excluded.sum()),
+        "candidate_rows_after": int((~excluded).sum()),
+        "excluded_by_flag": {
+            column: int(flags[column].sum()) for column in SAMPLE_EXCLUSION_COLUMNS
+        },
+        "used_as_features": False,
+    }
+    selected = candidates.loc[~excluded].copy()
+    selected.attrs.update(candidates.attrs)
+    return selected, summary
 
 
 def _model_summary(outer_results: pd.DataFrame) -> list[dict[str, object]]:
@@ -312,14 +353,14 @@ def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
 
 
 def refresh_saved_report_baselines() -> None:
-    """재학습 없이 기존 A~J OOS의 기준선·진단지표·선정 순위를 갱신한다."""
+    """재학습 없이 보고서에 이미 있는 OOS의 기준선·진단지표·순위를 갱신한다."""
 
     if not SWEEP_REPORT_PATH.exists():
-        raise FileNotFoundError(f"기존 A~J 보고서가 없습니다: {SWEEP_REPORT_PATH}")
+        raise FileNotFoundError(f"기존 조합 보고서가 없습니다: {SWEEP_REPORT_PATH}")
     report = json.loads(SWEEP_REPORT_PATH.read_text(encoding="utf-8"))
     datasets = {
-        name: load_stock_model_dataset(features)
-        for name, features in STOCK_COMBINATION_FEATURES.items()
+        name: load_stock_model_dataset(tuple(item["features"]))
+        for name, item in report["combinations"].items()
     }
     datasets = align_stock_feature_datasets(datasets)
 
@@ -382,7 +423,7 @@ def refresh_saved_report_baselines() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"A~J 기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
+    print(f"기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
 
 
 def load_stock_model_dataset(
@@ -413,6 +454,7 @@ def load_stock_model_dataset(
             filters=[("index_class", "==", "KOSPI")],
         )
         candidates = build_sector_candidate_frame(daily, indices)
+        candidates, sample_selection = _exclude_corporate_action_samples(candidates)
         candidates = attach_adjustment_quality(candidates, daily)
         quality_summary = dict(candidates.attrs["adjustment_quality"])
         # 수익률 크기만으로 행을 지우지 않는다. KRX 등락률과 1%p 넘게 어긋난
@@ -426,6 +468,7 @@ def load_stock_model_dataset(
             drop_incomplete_features=False,
         )
         base_dataset.frame.attrs["adjustment_quality"] = quality_summary
+        base_dataset.frame.attrs["sample_selection"] = sample_selection
         _write_panel_cache(base_dataset, signature)
 
     return select_stock_feature_dataset(base_dataset.frame, tuple(feature_columns))
@@ -511,7 +554,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
 
     selected_combinations = _requested_combinations(requested)
     all_combinations = tuple(STOCK_COMBINATION_FEATURES)
-    selection_label = "A~J" if selected_combinations == all_combinations else "·".join(
+    selection_label = "전체" if selected_combinations == all_combinations else "·".join(
         selected_combinations
     )
 
@@ -523,7 +566,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
         "index_sha256": _sha256(INDEX_PATH),
         "holdout_start": HOLDOUT_START,
     }
-    print(f"[1/4] HF 공통 종목 패널과 A~J 피처 준비 · 실행 {selection_label}", flush=True)
+    print(f"[1/4] HF 공통 종목 패널 준비 · 실행 {selection_label}", flush=True)
     datasets = {
         name: load_stock_model_dataset(features)
         for name, features in STOCK_COMBINATION_FEATURES.items()
@@ -533,12 +576,17 @@ def main(requested: tuple[str, ...] | None = None) -> None:
     common_dates = set(first_dataset.frame["bas_dd"].unique())
     common_rows = len(first_dataset.frame)
     if len(common_dates) < 750 + 5 + 60:
-        raise ValueError("A~J 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
+        raise ValueError("조합 간 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
     quality_summary = dict(
         next(iter(datasets.values())).frame.attrs.get("adjustment_quality", {})
     )
     if not quality_summary:
         raise RuntimeError("수정주가 품질 판정 요약이 종목 패널에 기록되지 않았습니다.")
+    sample_selection = dict(
+        next(iter(datasets.values())).frame.attrs.get("sample_selection", {})
+    )
+    if not sample_selection:
+        raise RuntimeError("기업행위 표본 선택 요약이 종목 패널에 기록되지 않았습니다.")
     print(
         f"      공통 날짜·종목 {common_rows:,}행 · 거래일 {len(common_dates):,}일 · 조합별 행 "
         + ", ".join(f"{name} {len(dataset.frame):,}" for name, dataset in datasets.items()),
@@ -566,7 +614,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
             or int(validation.get("common_dates_across_combinations", -1))
             != len(common_dates)
         ):
-            raise RuntimeError("기존 보고서와 현재 A~J 공통 표본 크기가 다릅니다.")
+            raise RuntimeError("기존 보고서와 현재 조합 공통 표본 크기가 다릅니다.")
         existing_combinations = existing_report.get("combinations", {})
         existing_run_ids = existing_report.get("combination_run_ids", {})
         previous_run_id = str(existing_report.get("run_id", "unknown"))
@@ -723,6 +771,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
                 "is_adj_suspect 행만 제외한다."
             ),
             "adjustment_quality": quality_summary,
+            "sample_selection": sample_selection,
         },
         "validation": {
             "window": "expanding",
@@ -753,7 +802,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"[3/4] A~J 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
+    print(f"[3/4] 조합 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
     print("[4/4] 조합별 1위", flush=True)
     for row in winners:
         print(
@@ -768,7 +817,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--refresh-baselines-only",
         action="store_true",
-        help="기존 모델을 다시 학습하지 않고 A~J 보고서의 폴드별 기준선만 갱신합니다.",
+        help="기존 모델을 다시 학습하지 않고 저장된 조합의 폴드별 기준선만 갱신합니다.",
     )
     parser.add_argument(
         "--combinations",

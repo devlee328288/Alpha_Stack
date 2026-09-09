@@ -1,4 +1,4 @@
-"""HF 지수 원시 Parquet에서 A~F 모델 입력을 재현한다."""
+"""HF 지수 원시 Parquet에서 KOSPI200 조합별 모델 입력을 재현한다."""
 
 from __future__ import annotations
 
@@ -107,6 +107,18 @@ COMBINATION_FEATURES = {
         "bb_bandwidth",
         "hv_regime",
         "obv_slope_20",
+    ),
+    # 개발구간 1위 E(RandomForest+5Day)와 2위 B(XGBoost+5Day)의 실제 선정 피처
+    # 합집합이다. 두 선정안에 공통으로 들어간 five_day_return도 조합 자체에 고정한다.
+    "G": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "sma_gap_5_20",
+        "macd_hist_ratio",
+        "rsi_14",
+        "hv_20",
     ),
 }
 
@@ -267,7 +279,7 @@ def build_model_dataset(
     return_features: Sequence[str] = (),
     holdout_start: str = HOLDOUT_START,
 ) -> ModelDataset:
-    """A~F와 선택한 수익률 피처를 만들고, 쓸 수 있는 행만 남긴다."""
+    """조합 피처와 선택한 수익률 피처를 만들고, 쓸 수 있는 행만 남긴다."""
 
     key = combination.upper()
     if key not in COMBINATION_FEATURES:
@@ -278,6 +290,9 @@ def build_model_dataset(
         raise ValueError(f"알 수 없는 수익률 피처입니다: {sorted(unknown_returns)}")
     if len(set(returns)) != len(returns):
         raise ValueError("수익률 피처가 중복되었습니다.")
+    duplicated = set(COMBINATION_FEATURES[key]) & set(returns)
+    if duplicated:
+        raise ValueError(f"조합 기본 피처와 수익률 피처가 중복되었습니다: {sorted(duplicated)}")
 
     raw = build_kospi200_feature_frame(index_prices, holdout_start=holdout_start)
     derived = _add_derived_features(raw)

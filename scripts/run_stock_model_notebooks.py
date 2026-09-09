@@ -1,4 +1,4 @@
-"""개별종목 기본모델·조합 A~J·best-result 노트북을 순서대로 실행한다."""
+"""개별종목 기본모델·조합별·best-result 노트북을 순서대로 실행한다."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ COMBINATION_DIRECTORIES = {
     "H": "조합H_volatility_regime_interaction",
     "I": "조합I_kospi200_e_same_features",
     "J": "조합J_kospi200_e_market_relative_strength",
+    "K": "조합K_j_a_feature_union",
 }
 
 
@@ -51,16 +52,19 @@ def _targets(requested: tuple[str, ...] | None = None) -> list[Path]:
     comparison = [combination / "05.모델비교.ipynb" for combination in combinations]
     best = []
     for name in names:
-        starred = BEST_ROOT / f"⭐조합{name}"
-        directory = starred if starred.is_dir() else BEST_ROOT / f"조합{name}"
-        best.extend(sorted(directory.glob("*.ipynb")))
+        candidates = [
+            BEST_ROOT / f"{marker}조합{name}" for marker in ("⭐", "❤️", "♡", "")
+        ]
+        directory = next((path for path in candidates if path.is_dir()), None)
+        if directory is not None:
+            best.extend(sorted(directory.glob("*.ipynb")))
     return [*base, *combination_models, *comparison, *best]
 
 
 def main(requested: tuple[str, ...] | None = None) -> int:
     """저장소 루트를 작업경로로 고정해 모든 노트북의 출력을 채운다."""
 
-    # Windows 기본 CP949 콘솔에서도 별표가 붙은 best-result 파일명을 출력할 수 있게 한다.
+    # Windows 기본 CP949 콘솔에서도 순위 기호가 붙은 best-result 파일명을 출력할 수 있게 한다.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 

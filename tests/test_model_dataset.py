@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 
 from features.indicators import macd_hist_atr
-from features.model_dataset import build_model_dataset
+from features.model_dataset import COMBINATION_FEATURES, build_model_dataset
 from features.volatility import atr, atr_ratio, hv_regime
 from features.volume import obv_slope_20
 
@@ -81,3 +81,18 @@ def test_지수파생피처는_인라인이아니라_원자함수와같은값을
             expected.loc[shared, column].to_numpy(dtype=float),
             equal_nan=True,
         )
+
+
+def test_G조합은_E와_B의_선정피처_합집합이다():
+    assert COMBINATION_FEATURES["G"] == (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "sma_gap_5_20",
+        "macd_hist_ratio",
+        "rsi_14",
+        "hv_20",
+    )
+    dataset = build_model_dataset(_index_prices(), "G")
+    assert dataset.feature_columns == COMBINATION_FEATURES["G"]

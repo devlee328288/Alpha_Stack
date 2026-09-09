@@ -13,6 +13,11 @@ from features.stock_model_dataset import (
 )
 from features.volatility import atr_ratio, historical_volatility, hv_regime
 from features.volume import obv_slope_20
+from scripts.run_stock_model_experiment import (
+    DAILY_COLUMNS,
+    SAMPLE_EXCLUSION_COLUMNS,
+    _exclude_corporate_action_samples,
+)
 
 
 def _daily_rows(
@@ -301,7 +306,7 @@ def test_조합b부터h까지_수정주가와당일횡단면만으로계산한�
         feature_columns=ALL_STOCK_FEATURE_COLUMNS,
     )
 
-    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFGHIJ")
+    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFGHIJK")
     assert STOCK_COMBINATION_FEATURES["G"] == (
         "dist_high_60",
         "sma_gap_20_60",
@@ -330,6 +335,22 @@ def test_조합b부터h까지_수정주가와당일횡단면만으로계산한�
         "hv_regime",
         "five_day_return",
         "relative_ret_5_market",
+    )
+    assert STOCK_COMBINATION_FEATURES["K"] == (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "macd_hist_ratio",
+        "bb_position",
+        "hv_20",
+        "vol_ratio_20",
+        "obv_slope_20",
+        "daily_return",
     )
     assert np.isfinite(dataset.x.to_numpy()).all()
     first = dataset.frame.iloc[0]
@@ -402,3 +423,28 @@ def test_공통_날짜와_종목의_라벨이_다르면_멈춘다():
 
     with pytest.raises(ValueError, match="라벨이 다른 조합과 다릅니다"):
         align_stock_feature_datasets({"A": first, "B": second})
+def test_종목_실험_로더가_보통주_판정열을_읽는다():
+    """후보 생성 전에 HF 주권종류 열을 누락하지 않는다."""
+
+    assert "kind_stkcert_tp_nm" in DAILY_COLUMNS
+    assert set(SAMPLE_EXCLUSION_COLUMNS) <= set(DAILY_COLUMNS)
+
+
+def test_기업행위_표본은_후보선정뒤_제외하고_차순위를_채우지_않는다():
+    candidates = pd.DataFrame(
+        {
+            "bas_dd": ["20240102"] * 3,
+            "code": ["000001", "000002", "000003"],
+            "candidate_rank": [1, 2, 3],
+            "is_liquidation": [False, False, False],
+            "is_halted": [False, True, False],
+            "is_first_listing": [False, False, False],
+        }
+    )
+
+    selected, summary = _exclude_corporate_action_samples(candidates)
+
+    assert selected["code"].tolist() == ["000001", "000003"]
+    assert selected["candidate_rank"].tolist() == [1, 3]
+    assert summary["excluded_rows"] == 1
+    assert summary["used_as_features"] is False

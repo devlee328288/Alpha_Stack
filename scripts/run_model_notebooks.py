@@ -1,7 +1,8 @@
-"""생성된 96개 모델 노트북과 24개 비교 노트북을 순서대로 실행한다."""
+"""생성된 KOSPI200 모델·비교 노트북을 조합별로 실행한다."""
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -14,9 +15,11 @@ sys.path.insert(0, str(ROOT))
 from scripts.build_model_notebooks import MODELS, notebook_targets  # noqa: E402
 
 
-def main() -> int:
+def main(requested: tuple[str, ...] | None = None) -> int:
+    """요청한 조합만 실행하며, 생략하면 정의된 전체 조합을 실행한다."""
+
     targets = []
-    for _combination, _variant, directory in notebook_targets():
+    for _combination, _variant, directory in notebook_targets(requested):
         targets.extend(directory / filename for filename in MODELS.values())
         targets.append(directory / "05.모델비교.ipynb")
 
@@ -38,4 +41,12 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--combinations",
+        nargs="+",
+        metavar="NAME",
+        help="실행할 조합 이름입니다. 생략하면 전체를 실행합니다.",
+    )
+    arguments = parser.parse_args()
+    raise SystemExit(main(tuple(arguments.combinations) if arguments.combinations else None))
