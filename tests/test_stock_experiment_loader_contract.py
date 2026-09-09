@@ -45,6 +45,25 @@ def test_로더가_읽는_일별시세_칸이_종목피처_원천칸을_전부_�
     assert not 빠짐, f"종목 피처가 요구하는데 로더가 안 읽는 칸: {sorted(빠짐)}"
 
 
+def test_패널캐시서명은_직접사용하는피처공식과후보코드를_전부해시한다():
+    relative_paths = {
+        path.relative_to(ROOT).as_posix() for path in exp.PANEL_CACHE_CODE_PATHS
+    }
+    expected = {
+        "features/stock_model_dataset.py",
+        "features/indicators.py",
+        "features/returns.py",
+        "features/volatility.py",
+        "features/volume.py",
+        "supply/adj_quality.py",
+        "supply/stock_training_universe.py",
+        "supply/sector.py",
+    }
+
+    assert relative_paths == expected
+    assert exp._panel_cache_signature()["holdout_start"] == exp.HOLDOUT_START
+
+
 def test_로더가_읽는_칸은_반출본_카드에_실제로_있다():
     """반출이 싣지 않는 칸을 읽으려 하면 pyarrow 가 먼저 멈춘다 — 카드 칸 사전과 맞댄다.
 

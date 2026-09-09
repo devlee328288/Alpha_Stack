@@ -58,6 +58,17 @@ REPORT_PATH = ROOT / "reports" / "stock_model_experiment.json"
 SWEEP_REPORT_PATH = ROOT / "reports" / "stock_feature_combinations.json"
 TRIALS_PATH = ROOT / "reports" / "trials.jsonl"
 
+PANEL_CACHE_CODE_PATHS = (
+    ROOT / "features" / "stock_model_dataset.py",
+    ROOT / "features" / "indicators.py",
+    ROOT / "features" / "returns.py",
+    ROOT / "features" / "volatility.py",
+    ROOT / "features" / "volume.py",
+    ROOT / "supply" / "adj_quality.py",
+    ROOT / "supply" / "stock_training_universe.py",
+    ROOT / "supply" / "sector.py",
+)
+
 DAILY_COLUMNS = (
     "bas_dd",
     "code",
@@ -105,18 +116,14 @@ def _json_default(value: object) -> object:
 def _panel_cache_signature() -> dict[str, object]:
     """HF 원천과 패널 생성 코드가 같을 때만 재사용할 캐시 서명을 만든다."""
 
-    code_paths = (
-        ROOT / "features" / "stock_model_dataset.py",
-        ROOT / "supply" / "adj_quality.py",
-        ROOT / "supply" / "stock_training_universe.py",
-    )
     digest = hashlib.sha256()
-    for path in code_paths:
+    for path in PANEL_CACHE_CODE_PATHS:
         digest.update(path.read_bytes())
     return {
         "daily_sha256": _sha256(DAILY_PATH),
         "index_sha256": _sha256(INDEX_PATH),
         "panel_code_sha256": digest.hexdigest(),
+        "holdout_start": HOLDOUT_START,
         "features": list(ALL_STOCK_FEATURE_COLUMNS),
         "sample_selection_policy": "exclude_corporate_action_flags_after_top10x5_selection",
         "adjustment_quality_policy": "exclude_only_is_adj_suspect_gap_over_1pct_point",
