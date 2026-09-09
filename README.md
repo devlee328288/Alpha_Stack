@@ -17,8 +17,12 @@
 >
 > 넣을 때는 `docs/media/hero.png` 를 가리키는 이미지 문법 한 줄이면 됩니다.
 
+<!-- 🔴 절대 URL 인 이유: GitLab 은 마크다운 이미지 문법의 상대경로만 저장소 경로로 리라이트하고,
+     raw HTML <img src="상대경로"> 는 그대로 이미지 프록시에 넘겨 404 가 난다 (2026-09-09 실측).
+     단점 — 이 그림은 GitHub 저장소 main 에 매달린다. Private 전환·파일 이동 시 GitLab README 가 다시 깨진다.
+     그때는 마크다운 문법 ![](docs/…/시스템아키텍처.png) 으로 바꾸면 양쪽 다 뜬다 (width 지정은 포기). -->
 <p align="center">
-  <img src="docs/아키텍처/version1.2/시스템아키텍처.png" alt="AlphaStack 시스템 구성도" width="820">
+  <img src="https://raw.githubusercontent.com/devlee328288/Alpha_Stack/main/docs/%EC%95%84%ED%82%A4%ED%85%8D%EC%B2%98/version1.2/%EC%8B%9C%EC%8A%A4%ED%85%9C%EC%95%84%ED%82%A4%ED%85%8D%EC%B2%98.png" alt="AlphaStack 시스템 구성도" width="820">
   <br><sub>수집 → 저장 → 공급(as_of) → 피처 → 모델 → 검증 → 화면</sub>
 </p>
 
