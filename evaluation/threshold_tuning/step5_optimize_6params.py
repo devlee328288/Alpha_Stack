@@ -1,9 +1,10 @@
+import os
+import sys
 import warnings
+
 import cma
 import numpy as np
 import pandas as pd
-import sys
-import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -11,10 +12,10 @@ from sklearn.metrics import (
     balanced_accuracy_score,
     f1_score,
     recall_score,
-    accuracy_score,
 )
 from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
 from tqdm import tqdm
+
 from timeseries.models import fit_best
 
 warnings.filterwarnings("ignore")
@@ -174,7 +175,7 @@ def objective_6params(
     close = df_train["close"].values
     upper = bands["upper"].values
     lower = bands["lower"].values
-    base = bands["base"].values
+    _base = bands["base"].values
 
     # 2) 예측 클래스
     preds = np.where(close > upper, 2, np.where(close < lower, 0, 1))
@@ -262,15 +263,13 @@ def run_walkforward_6params(
     train_ends = sorted(set(train_ends))
 
     print(f"📅 전체 데이터: {total_len}일")
-    print(f"🔹 평가 방식: Expanding (전체 구간에 걸친 12폴드 균등 분배)")
-    print(
-        f"   - 첫 학습 종료일: {first_train_end}일 (약 {df.index[first_train_end-1].strftime('%Y-%m-%d')})"
-    )
-    print(
-        f"   - 마지막 학습 종료일: {last_train_end}일 (약 {df.index[last_train_end-1].strftime('%Y-%m-%d')})"
-    )
+    print("🔹 평가 방식: Expanding (전체 구간에 걸친 12폴드 균등 분배)")
+    first_date = df.index[first_train_end - 1].strftime("%Y-%m-%d")
+    print(f"   - 첫 학습 종료일: {first_train_end}일 (약 {first_date})")
+    last_date = df.index[last_train_end - 1].strftime("%Y-%m-%d")
+    print(f"   - 마지막 학습 종료일: {last_train_end}일 (약 {last_date})")
     print(f"🔹 Gap: {GAP}일, 검증(horizon): {VAL_DAYS}일")
-    print(f"🔹 라벨: 5일 후 수익률 ±1.0% (고정)")
+    print("🔹 라벨: 5일 후 수익률 ±1.0% (고정)")
     print("🔍 최적화 파라미터: α_up, α_down, β_up, β_down, Vol_Period, Volume_Period")
 
     all_oos_returns = []
@@ -375,7 +374,7 @@ def run_walkforward_6params(
                     for i in range(len(df_val)):
                         temp_hist = history.copy()
                         cum_ret = 1.0
-                        for step in range(5):
+                        for _step in range(5):
                             next_val = const
                             for j in range(len(phi)):
                                 if j < len(temp_hist):
@@ -414,7 +413,7 @@ def run_walkforward_6params(
                             )
                 else:
                     if total_folds == 0:
-                        print(f"   ❌ model_dict에 'levels' 또는 'phi'가 없습니다.")
+                        print("   ❌ model_dict에 'levels' 또는 'phi'가 없습니다.")
             except Exception as e:
                 if total_folds == 0:
                     print(f"   ❌ ARIMA 실행 중 예외 발생: {e}")
@@ -465,10 +464,9 @@ def run_walkforward_6params(
         total_folds += 1
 
         if total_folds % 5 == 0:
-            print(
-                f"   → {total_folds}개 폴드 완료 "
-                f"(OOS: {df.index[val_start].strftime('%Y-%m-%d')} ~ {df.index[val_end-1].strftime('%Y-%m-%d')})"
-            )
+            start_date = df.index[val_start].strftime("%Y-%m-%d")
+            end_date = df.index[val_end - 1].strftime("%Y-%m-%d")
+            print(f"   → {total_folds}개 폴드 완료 (OOS: {start_date} ~ {end_date})")
 
     # ---- 연결된 OOS 최종 평가 ----
     oos_returns = np.array(all_oos_returns)
