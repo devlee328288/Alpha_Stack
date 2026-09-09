@@ -267,9 +267,11 @@ def _달력만_돌린다(tmp_path, monkeypatch, *, 옵션):
     monkeypatch.setattr(build_adj_prices, "verify",
                         lambda *a, **k: (불린검증.append(True), True)[1])
     # FDR 은 네트워크를 탄다. 여기서 보려는 것은 검증을 부르는지지 조정값이 아니다.
+    # `**k` 로 받는다 — 드라이버가 코드 재사용 판정용 `calendar_index`·`listing_days`
+    # 를 함께 넘기므로(이슈 #195), 인자를 못 박으면 그 배선이 바뀔 때마다 여기서 깨진다.
     monkeypatch.setattr(build_adj_prices, "build_one",
-                        lambda conn, code: {"rows": 0, "fdr": 0, "chain": 0,
-                                            "ca_fix": 0, "error": None})
+                        lambda conn, code, **k: {"rows": 0, "fdr": 0, "chain": 0,
+                                                 "ca_fix": 0, "error": None})
     monkeypatch.setattr(sys, "argv",
                         ["build_adj_prices.py", "--db", str(tmp_path / "t.db"),
                          *옵션])

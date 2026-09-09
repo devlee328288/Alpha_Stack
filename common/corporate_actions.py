@@ -116,7 +116,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 from fractions import Fraction
-from typing import Dict, List, Mapping, Sequence, Set, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 # ==================================================
 # 1. 상수 — 전부 실측 근거가 있다
@@ -591,18 +591,48 @@ def adjustment_factor(prev_row: Mapping, row: Mapping) -> Fraction:
     return 기준가비
 
 
-def factor_series(rows: Sequence[Mapping]) -> List[Fraction]:
+def factor_series(rows: Sequence[Mapping], *,
+                  calendar_index: Optional[Mapping[str, int]] = None,
+                  listing_days: Sequence[str] = ()) -> List[Fraction]:
     """한 종목의 행마다 그 날의 조정 배율. `rows` 와 길이가 같다.
 
     `rows` 는 `bas_dd` 오름차순이어야 하고 **그 종목의 전부**여야 한다.
     첫 행은 앞이 없으므로 `Fraction(1)` 이다.
 
+    🔴 **`calendar_index` 와 `listing_days` 를 주면 코드 재사용 자리를 끊는다.**
+    ---------------------------------------------------------------------
+    `adjustment_factor` 는 두 행만 받아 거래일 공백을 볼 수 없으므로, 상장폐지된 회사의
+    마지막 종가와 몇 년 뒤 신규상장한 **다른 회사**의 기준가로 배율을 만든다. 그 자리에서
+    `Fraction(1)` 을 돌려주는 것이 이 두 인자의 역할이다 — **다른 회사 사이에는 조정이
+    없다.** 판정은 `is_series_restart` 가 한다.
+
+    실측으로 무슨 일이 벌어졌나 (2026-09-09)
+
+        101970  20150316 종가 830  →  20250328 기준가 18,640     배율 1864/83 = 22.4578
+                FDR 은 2012~2015 를 모른다(3,000거래일 창 밖). 그래서
+                `adj_price.scale_series` ③ 이 그 배율을 **과거로 퍼뜨려**
+                648행(20120726~20150316)의 수준이 22.4578배 부풀었다.
+
+        🔴 그런데 `is_adj_suspect` 는 False 였다 — 같은 배율로 밀린 이웃 두 날의 비율은
+           보존되므로 KRX 등락률과 갭이 0.0050%p 다. **검사와 대상이 같은 잘못을 같은
+           크기로 공유하면 초록이 나온다.** 크기 필터로도 영원히 안 잡힌다.
+
+    안 주면 예전 그대로다 — **모르는 것을 단절로 치지 않는다.**
+
     ⚠️ `float` 이 아니라 `Fraction` 을 준다. 1/50 · 1/3 같은 계수가 4,000행에 걸쳐
        곱해지므로, 부동소수로 누적하면 반올림 잡음이 다시 들어온다.
        쓰는 쪽에서 **마지막에 한 번만** `float()` 한다.
     """
-    return [adjustment_factor(rows[i - 1] if i > 0 else None, row)
-            for i, row in enumerate(rows)]
+    out: List[Fraction] = []
+    for i, row in enumerate(rows):
+        prev = rows[i - 1] if i > 0 else None
+        if (prev is not None and calendar_index is not None
+                and is_series_restart(prev, row, calendar_index=calendar_index,
+                                      listing_days=listing_days)):
+            out.append(Fraction(1))          # 다른 회사다 — 이어 붙일 것이 없다
+            continue
+        out.append(adjustment_factor(prev, row))
+    return out
 
 
 def span_factor(factors: Sequence[float], entry: int, exit_: int) -> float:
