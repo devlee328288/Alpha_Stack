@@ -1,8 +1,15 @@
 import warnings
-from typing import Dict, Optional
+from typing import Optional
 
 import numpy as np
 import pandas as pd
+from focal_classifier import (
+    FocalConfig,
+    build_features,
+    make_labels,
+    predict_focal,
+    train_focal_model,
+)
 from sklearn.metrics import (
     accuracy_score,
     average_precision_score,
@@ -12,16 +19,8 @@ from sklearn.metrics import (
     f1_score,
     matthews_corrcoef,
 )
-from tqdm import tqdm
-
 from step1_core_features import compute_atr, compute_base, compute_log_rv
-from focal_classifier import (
-    FocalConfig,
-    build_features,
-    make_labels,
-    predict_focal,
-    train_focal_model,
-)
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -102,7 +101,7 @@ def generate_signals_rolling(
     This replaces the previous hard rule/proxy-probability classifier.
     """
     cfg = focal_config or FocalConfig()
-    y = make_labels(df)
+    _y = make_labels(df)
     result = pd.DataFrame(index=df.index)
     for c in [
         "close",
@@ -132,7 +131,8 @@ def generate_signals_rolling(
     device = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 
     print(
-        f"🧠 Focal classifier: γ={cfg.gamma:.2f}, α=[{cfg.alpha_down:.2f}, {cfg.alpha_neutral:.2f}, {cfg.alpha_up:.2f}]"
+        f"🧠 Focal classifier: γ={cfg.gamma:.2f}, α=[{cfg.alpha_down:.2f}, "
+        f"{cfg.alpha_neutral:.2f}, {cfg.alpha_up:.2f}]"
     )
     print(f"🧠 Device: {device}")
 

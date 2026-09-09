@@ -5,15 +5,13 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
+from focal_classifier import FocalLoss, FocalMLP, build_features, make_labels, set_seed
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-
 from step1_core_features import load_data
 from step5_optimize_6params import compute_bands_flexible
-from focal_classifier import build_features, make_labels, FocalMLP, set_seed, FocalLoss
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -127,7 +125,7 @@ def train_focal_model(
     )
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=DEVICE)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
 
     best_score = -np.inf
     best_state = None
@@ -332,7 +330,8 @@ def print_alpha_results(results: Dict[str, Dict]):
 
     # 테이블 헤더
     print(
-        f"{'α (Down, Neut, Up)':<22} | {'Mean':>8} | {'Std':>8} | {'Median':>8} | {'Min':>8} | {'Max':>8} | {'Folds':>5}"
+        f"{'α (Down, Neut, Up)':<22} | {'Mean':>8} | {'Std':>8} | {'Median':>8} | "
+        f"{'Min':>8} | {'Max':>8} | {'Folds':>5}"
     )
     print("-" * 80)
 
@@ -343,11 +342,13 @@ def print_alpha_results(results: Dict[str, Dict]):
         r = results[alpha_key]
         if r["n_folds"] == 0:
             print(
-                f"{alpha_key:<22} | {'N/A':>8} | {'N/A':>8} | {'N/A':>8} | {'N/A':>8} | {'N/A':>8} | {0:>5}"
+                f"{alpha_key:<22} | {'N/A':>8} | {'N/A':>8} | {'N/A':>8} | "
+                f"{'N/A':>8} | {'N/A':>8} | {0:>5}"
             )
         else:
             print(
-                f"{alpha_key:<22} | {r['mean']:>8.4f} | {r['std']:>8.4f} | {r['median']:>8.4f} | {r['min']:>8.4f} | {r['max']:>8.4f} | {r['n_folds']:>5}"
+                f"{alpha_key:<22} | {r['mean']:>8.4f} | {r['std']:>8.4f} | "
+                f"{r['median']:>8.4f} | {r['min']:>8.4f} | {r['max']:>8.4f} | {r['n_folds']:>5}"
             )
             if r["mean"] > best_mean:
                 best_mean = r["mean"]
@@ -444,6 +445,6 @@ if __name__ == "__main__":
     summary_df = pd.DataFrame(summary_rows)
     summary_df.to_csv("alpha_tuning_results/alpha_summary.csv", index=False)
 
-    print(f"\n💾 결과 저장: alpha_tuning_results/")
+    print("\n💾 결과 저장: alpha_tuning_results/")
     print(f"   - 최적 α: {best_alpha_key}")
     print("\n✅ 5단계 완료! 다음 단계(Threshold 튜닝)로 진행하세요.")

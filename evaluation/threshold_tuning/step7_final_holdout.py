@@ -5,23 +5,20 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
+from focal_classifier import FocalLoss, FocalMLP, build_features, make_labels, set_seed
 from sklearn.metrics import (
     accuracy_score,
+    average_precision_score,
     balanced_accuracy_score,
+    classification_report,
+    confusion_matrix,
     f1_score,
     matthews_corrcoef,
-    confusion_matrix,
-    classification_report,
-    average_precision_score,
 )
 from sklearn.preprocessing import StandardScaler
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-
 from step1_core_features import load_data
 from step5_optimize_6params import compute_bands_flexible
-from focal_classifier import build_features, make_labels, FocalMLP, set_seed, FocalLoss
+from torch.utils.data import DataLoader, TensorDataset
 
 warnings.filterwarnings("ignore")
 
@@ -130,7 +127,7 @@ def train_final_model(
     )
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=DEVICE)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
 
     best_score = -np.inf
     best_state = None
@@ -271,7 +268,7 @@ def calculate_all_metrics(
 
     # 예측 클래스 비율
     unique, counts = np.unique(y_pred, return_counts=True)
-    ratio_dict = dict(zip(unique, counts / len(y_pred)))
+    ratio_dict = dict(zip(unique, counts / len(y_pred), strict=True))
     metrics["pred_ratio_down"] = ratio_dict.get(0, 0.0)
     metrics["pred_ratio_neutral"] = ratio_dict.get(1, 0.0)
     metrics["pred_ratio_up"] = ratio_dict.get(2, 0.0)
@@ -297,7 +294,7 @@ if __name__ == "__main__":
 
     # Fold 11만 사용 (마지막 Fold)
     fold_11 = fold_details.iloc[-1]
-    print(f"\n📌 Fold 11 (최종 Holdout)")
+    print("\n📌 Fold 11 (최종 Holdout)")
     print(f"   Train End : {fold_11['train_end']}")
     print(f"   OOS Start : {fold_11['val_start']}")
     print(f"   OOS End   : {fold_11['val_end']}")
@@ -378,39 +375,42 @@ if __name__ == "__main__":
     metrics = calculate_all_metrics(y_true, pred, proba)
 
     # 주요 지표 출력
-    print(f"\n[분류 지표]")
+    print("\n[분류 지표]")
     print(f"  Accuracy         : {metrics['accuracy']:.4f}")
     print(f"  Balanced Accuracy: {metrics['balanced_accuracy']:.4f}")
     print(f"  Macro-F1         : {metrics['f1_macro']:.4f}")
     print(f"  Weighted-F1      : {metrics['f1_weighted']:.4f}")
     print(f"  MCC              : {metrics['mcc']:.4f}")
 
-    print(f"\n[클래스별 F1]")
+    print("\n[클래스별 F1]")
     print(f"  하락  : {metrics['f1_down']:.4f}")
     print(f"  중립  : {metrics['f1_neutral']:.4f}")
     print(f"  상승  : {metrics['f1_up']:.4f}")
 
-    print(f"\n[PR-AUC]")
+    print("\n[PR-AUC]")
     print(f"  Macro : {metrics.get('pr_auc_macro', np.nan):.4f}")
     print(f"  하락  : {metrics.get('pr_auc_down', np.nan):.4f}")
     print(f"  중립  : {metrics.get('pr_auc_neutral', np.nan):.4f}")
     print(f"  상승  : {metrics.get('pr_auc_up', np.nan):.4f}")
 
-    print(f"\n[예측 클래스 비율]")
+    print("\n[예측 클래스 비율]")
     print(f"  하락  : {metrics['pred_ratio_down']:.2%}")
     print(f"  중립  : {metrics['pred_ratio_neutral']:.2%}")
     print(f"  상승  : {metrics['pred_ratio_up']:.2%}")
 
-    print(f"\n[혼동 행렬]")
+    print("\n[혼동 행렬]")
     print("         Pred Down  Pred Neut  Pred Up")
     print(
-        f"True Down  {metrics['confusion_matrix'][0][0]:>6}  {metrics['confusion_matrix'][0][1]:>9}  {metrics['confusion_matrix'][0][2]:>7}"
+        f"True Down  {metrics['confusion_matrix'][0][0]:>6}  "
+        f"{metrics['confusion_matrix'][0][1]:>9}  {metrics['confusion_matrix'][0][2]:>7}"
     )
     print(
-        f"True Neut  {metrics['confusion_matrix'][1][0]:>6}  {metrics['confusion_matrix'][1][1]:>9}  {metrics['confusion_matrix'][1][2]:>7}"
+        f"True Neut  {metrics['confusion_matrix'][1][0]:>6}  "
+        f"{metrics['confusion_matrix'][1][1]:>9}  {metrics['confusion_matrix'][1][2]:>7}"
     )
     print(
-        f"True Up    {metrics['confusion_matrix'][2][0]:>6}  {metrics['confusion_matrix'][2][1]:>9}  {metrics['confusion_matrix'][2][2]:>7}"
+        f"True Up    {metrics['confusion_matrix'][2][0]:>6}  "
+        f"{metrics['confusion_matrix'][2][1]:>9}  {metrics['confusion_matrix'][2][2]:>7}"
     )
 
     print("\n[분류 리포트]")
@@ -450,5 +450,5 @@ if __name__ == "__main__":
     with open("final_holdout_results/classification_report.txt", "w") as f:
         f.write(metrics["report"])
 
-    print(f"\n💾 결과 저장: final_holdout_results/")
+    print("\n💾 결과 저장: final_holdout_results/")
     print("\n✅ 7단계 완료! 전체 파이프라인 종료.")
