@@ -7,6 +7,8 @@
 3. **정지일은 거래량으로 판정한다** — 종가로 판정하면 한 건도 못 잡는다.
 4. **이력은 append-only** — 같은 `run_id` 를 두 번 쓰지 않는다.
 5. **카드에 플래그 사용법이 함께 나간다** — `is_extreme_return` 을 거꾸로 거르지 않도록.
+6. **유효성은 체결이 있던 행만 잰다** — 정지행을 위반으로 세면 2.9%가 통째로 붉어진다.
+7. **거래량 급변은 붉지 않고, 기준선을 함께 남긴다** — 배수만 베끼면 값이 2배 갈린다.
 
 실제 DB·반출본을 쓰지 않는다. 인메모리 sqlite 와 손으로 만든 폴더로 잰다.
 """
@@ -229,7 +231,116 @@ def test_원장을_MANIFEST_옆에_쓴다(반출폴더):
     assert 다시["status"] == led["status"]
 
 
-def test_다섯_축이_모두_있다(반출폴더):
+def test_일곱_축이_모두_있다(반출폴더):
     led = ql.build_quality_ledger(반출폴더, daily=_daily())
     assert tuple(led["axes"]) == ql.AXES
     assert led["run_id"] and led["generated_at"]
+
+
+# ── 6. 유효성 — 정지행을 위반으로 세지 않는다 ────────────────────────────────
+#
+# KRX 는 거래정지 중에도 행을 준다. `open=high=low=0` 이고 종가만 직전 값이 남는다.
+# 그 행을 "OHLC 순서 위반" 으로 세면 개발구간 231,808행(2.938%)이 통째로 붉어진다.
+# 규칙 위반이 아니라 **KRX 의 정지 표기**다.
+
+def _가격행(**덮어쓰기):
+    행 = {"bas_dd": "20240102", "code": "000010", "market": "KOSPI",
+          "open": 100.0, "high": 110.0, "low": 95.0, "close": 105.0,
+          "volume": 1000, "value": 105_000.0,
+          "market_cap": 1000.0, "listed_shares": 10.0,
+          "adj_close": 105.0, "change_rate": 0.0, "adj_source": "fdr"}
+    행.update(덮어쓰기)
+    return 행
+
+
+def test_정지행은_유효성_위반이_아니다():
+    """`open=high=low=0` 이고 거래량 0 인 행. 재면 안 된다."""
+    daily = pd.DataFrame([
+        _가격행(),
+        _가격행(bas_dd="20240103", open=0.0, high=0.0, low=0.0, close=105.0,
+                volume=0, value=0.0),
+    ])
+    축 = ql._axis_validity(daily)
+    assert 축["ohlc_order_rows"]["value"] == 0
+    assert 축["ohlc_order_rows"]["status"] == "ok"
+
+
+def test_시간외_단일가만_체결된_행은_따로_센다():
+    """개발구간 124행이 이 모양이다 — OHL 이 0 인데 종가·거래량이 있다.
+
+    처음에는 "고가·저가는 살아 있는 행" 이라고 적었는데 실제로는 고가·저가도 0 이다.
+    계산 오류가 아니라 정규장 체결이 없었던 날이므로 붉게 보지 않는다.
+    """
+    daily = pd.DataFrame([
+        _가격행(),
+        _가격행(bas_dd="20240103", open=0.0, high=0.0, low=0.0, close=105.0,
+                volume=1),
+    ])
+    축 = ql._axis_validity(daily)
+    assert 축["nonpositive_open_rows"]["value"] == 1
+    assert 축["nonpositive_open_rows"]["status"] == "ok"
+    # 그 행이 순서 위반으로 이중 계상되면 안 된다
+    assert 축["ohlc_order_rows"]["value"] == 0
+
+
+def test_고가가_종가보다_낮으면_붉다():
+    """어떤 시장 사건으로도 설명되지 않는다. 계산이 틀린 것이다."""
+    daily = pd.DataFrame([_가격행(high=100.0, close=105.0)])
+    축 = ql._axis_validity(daily)
+    assert 축["ohlc_order_rows"]["value"] == 1
+    assert 축["ohlc_order_rows"]["status"] == "red"
+
+
+def test_시가총액_항등식이_깨지면_붉다():
+    """`market_cap == close x listed_shares`. 1.8경이라 상대오차로 잰다."""
+    daily = pd.DataFrame([_가격행(market_cap=9999.0)])   # 105 x 10 = 1050 이어야 한다
+    축 = ql._axis_validity(daily)
+    assert 축["market_cap_identity_rows"]["value"] == 1
+    assert 축["market_cap_identity_rows"]["status"] == "red"
+
+
+# ── 7. 거래량 급변 — 붉지 않고, 기준선을 남긴다 ──────────────────────────────
+
+def _거래량시계열(마지막: int) -> pd.DataFrame:
+    """5일 평균이 100 이 되도록 앞을 채우고, 마지막 날 거래량만 바꾼다."""
+    행 = [_가격행(bas_dd=f"2024010{i}", volume=100) for i in range(1, 6)]
+    행.append(_가격행(bas_dd="20240106", volume=마지막))
+    return pd.DataFrame(행)
+
+
+def test_거래량_급변은_붉지_않다():
+    """상위가 전부 설명되는 사건이다 — 액면분할·보호예수 해제·인수전.
+
+    붉게 두면 배포마다 게이트가 막히고, 붉은불이 흔해지면 아무도 보지 않는다.
+    """
+    축 = ql._axis_volume(_거래량시계열(100_000))
+    assert 축["surge_rows"]["value"] == 1
+    assert 축["surge_rows"]["status"] == "ok"
+
+
+def test_거래량_급변의_기준선이_노트에_적힌다():
+    """배수(3배)는 세 표준이 같지만 **무엇에 대한 3배인지**가 다르다.
+
+    우리 데이터에서 KRX 5일 평균 5.426% · qlib 전일 7.977% · 20일 중앙값 10.329% 로
+    2배 가까이 갈린다. 기준선이 없으면 다음 사람이 배수만 보고 베낀다.
+    """
+    노트 = ql._axis_volume(_거래량시계열(100_000))["surge_rows"]["note"]
+    assert "KRX" in 노트
+    assert f"{ql.SURGE_WINDOW}일 평균" in 노트
+    assert f"{ql.SURGE_MULTIPLE:g}배" in 노트
+
+
+def test_그날_거래량은_자기_기준선에_들어가지_않는다():
+    """`shift(1)` 이 빠지면 급변이 스스로를 희석해 큰 값일수록 덜 잡힌다."""
+    작음 = ql._axis_volume(_거래량시계열(301))["surge_rows"]["value"]
+    assert 작음 == 1, "5일 평균 100 의 3배를 갓 넘겼는데 안 잡혔다"
+
+
+def test_정지일_0_은_기준선에_섞이지_않는다():
+    """0 을 평균에 넣으면 기준선이 내려가 재개일이 전부 급변으로 잡힌다."""
+    행 = [_가격행(bas_dd=f"2024010{i}", volume=100) for i in range(1, 4)]
+    행 += [_가격행(bas_dd="20240104", open=0.0, high=0.0, low=0.0, volume=0),
+           _가격행(bas_dd="20240105", open=0.0, high=0.0, low=0.0, volume=0)]
+    행.append(_가격행(bas_dd="20240106", volume=250))     # 100 의 2.5배 — 급변이 아니다
+    축 = ql._axis_volume(pd.DataFrame(행))
+    assert 축["surge_rows"]["value"] == 0

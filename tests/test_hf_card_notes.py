@@ -35,12 +35,15 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from supply import quality_ledger as QL  # noqa: E402
 from supply.adj_quality import (  # noqa: E402
     EXTREME_RETURN_PCT,
     FLAG_COLUMNS,
     SUSPECT_GAP_TOLERANCE,
 )
 from supply.sector import INDUSTRY_COLUMNS  # noqa: E402
+from supply.training import CORPORATE_ACTION_COLUMNS  # noqa: E402
+from supply.universe import SECURITY_TYPE_COLUMNS  # noqa: E402
 
 
 def _load():
@@ -66,6 +69,18 @@ def test_품질_플래그_넷은_전부_설명이_있다():
 def test_업종_칸_넷은_전부_설명이_있다():
     """`industry_ambiguous` 가 세 번의 배포에서 비어 나갔던 자리다."""
     빈것 = [칸 for 칸 in INDUSTRY_COLUMNS if not U.COLUMN_NOTES.get(칸, "").strip()]
+    assert not 빈것, f"카드에 뜻 없이 나가는 칸: {빈것}"
+
+
+def test_주권종류_칸_셋은_전부_설명이_있다():
+    빈것 = [칸 for 칸 in SECURITY_TYPE_COLUMNS
+            if not U.COLUMN_NOTES.get(칸, "").strip()]
+    assert not 빈것, f"카드에 뜻 없이 나가는 칸: {빈것}"
+
+
+def test_기업행위_칸_셋은_전부_설명이_있다():
+    빈것 = [칸 for 칸 in CORPORATE_ACTION_COLUMNS
+            if not U.COLUMN_NOTES.get(칸, "").strip()]
     assert not 빈것, f"카드에 뜻 없이 나가는 칸: {빈것}"
 
 
@@ -95,7 +110,8 @@ def test_표로_그려도_뜻_칸이_비지_않는다():
         "칸들": [
             {"이름": 칸, "형": "bool", "결측": 0, "결측률": 0.0,
              "분포": {"False": 100}}
-            for 칸 in (*FLAG_COLUMNS, *INDUSTRY_COLUMNS)
+            for 칸 in (*FLAG_COLUMNS, *INDUSTRY_COLUMNS,
+                       *SECURITY_TYPE_COLUMNS, *CORPORATE_ACTION_COLUMNS)
         ]
     }
     for 줄 in U._column_table(파일).splitlines()[2:]:
@@ -134,3 +150,56 @@ def test_그_행이_없는_파일에는_경고를_붙이지_않는다():
     보통 = {"min": -15.38, "max": 23.42}
     for 칸이름 in ("change_rate", "adj_return_1d"):
         assert not _경고들(_칸(칸이름, **보통))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑤ 기업행위 판정은 "표본 선택용" 이라고 적혀 있다
+#
+# `is_liquidation` 은 "이 뒤로 체결이 끊긴다" 를 보고 매기므로 그 시점에는 알 수
+# 없는 사실이다. 피처로 넣으면 곧 미래참조인데, 이름만 보면 그냥 불리언 칸이라
+# 다른 피처와 똑같아 보인다. 한 줄이 없으면 그대로 모델에 들어간다.
+# ══════════════════════════════════════════════════════════════════════════
+def test_기업행위_칸은_피처로_쓰지_말라고_적혀_있다():
+    for 칸 in CORPORATE_ACTION_COLUMNS:
+        뜻 = U.COLUMN_NOTES[칸]
+        assert "표본" in 뜻, f"`{칸}` 에 표본 선택용이라는 말이 없다"
+
+
+def test_정리매매_칸은_미래참조_위험을_적는다():
+    assert "미래참조" in U.COLUMN_NOTES["is_liquidation"]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑥ 큰 벌과 작은 벌이 다른 표본이라는 것이 카드에 나간다
+#
+# 이슈 #186 ①. 큰 벌은 정리매매·거래정지·신규상장을 안 뺀 표본인데 카드는 그것을
+# "최종 학습용" 이라 불렀다. 칸 구성만 보고는 알 수 없고, 그대로 학습하면 팀
+# 기준선과 표본이 갈리는데 아무 경고도 없다.
+# ══════════════════════════════════════════════════════════════════════════
+def test_큰벌과_작은벌이_다른_표본이라고_카드에_적힌다():
+    안내 = QL.SAMPLE_GUIDE
+    assert "다른 표본" in 안내
+    for 칸 in CORPORATE_ACTION_COLUMNS:
+        assert 칸 in 안내, f"`{칸}` 이 표본 안내에 없다"
+
+
+def test_큰벌_소개가_최종학습용이라고_말하지_않는다():
+    """그 문구가 정확히 #186 ① 이 짚은 자리다 — 안 걸러 놓고 그렇게 부르고 있었다."""
+    소개 = U.FILE_HEADLINE["full/daily_price_dev.parquet"]
+    assert "최종 학습용" not in 소개
+    assert "안 걸러" in 소개
+
+
+def test_거래량_급변_기준선이_KRX_라고_적힌다():
+    """배수(3배)는 세 표준이 같지만 **무엇에 대한 3배인지**가 다르다.
+
+    KRX 5일 평균 / qlib 전일 / 20일 중앙값에서 전체 비율이 5.426% / 7.977% /
+    10.329% 로 갈린다. 기준선을 안 적으면 다음 사람이 배수만 보고 베낀다.
+    """
+    ledger = {"status": "ok", "generated_at": "", "axes": {
+        "volume": {"surge_rows": {
+            "value": 1, "red_if": "", "status": "ok",
+            "note": f"KRX 시장경보 기준: 최근 {QL.SURGE_WINDOW}일 평균 대비 "
+                    f"{QL.SURGE_MULTIPLE:g}배 초과"}}}}
+    본문 = QL.render_card_section(ledger)
+    assert "KRX" in 본문 and f"{QL.SURGE_WINDOW}일 평균" in 본문
