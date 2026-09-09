@@ -236,14 +236,26 @@ def _feature_markdown(
 
 def main() -> int:
     records = load_results()
+    selected_by_combination = {
+        combination: select_best_results(records, combination)
+        for combination in COMBINATION_DIRS
+    }
+    overall_best_combination = max(
+        selected_by_combination,
+        key=lambda combination: max(
+            float(record["summary"]["core_harmonic_mean"])
+            for record in selected_by_combination[combination].values()
+        ),
+    )
     report_combinations = {}
     for combination in COMBINATION_DIRS:
-        selected = select_best_results(records, combination)
+        selected = selected_by_combination[combination]
         overall_best = max(
             selected,
             key=lambda model_name: float(selected[model_name]["summary"]["core_harmonic_mean"]),
         )
-        target = BEST_ROOT / f"조합{combination}"
+        best_prefix = "⭐" if combination == overall_best_combination else ""
+        target = BEST_ROOT / f"{best_prefix}조합{combination}"
         target.mkdir(parents=True, exist_ok=True)
         for old_notebook in target.glob("*.ipynb"):
             old_notebook.unlink()

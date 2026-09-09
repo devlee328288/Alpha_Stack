@@ -301,7 +301,7 @@ def test_조합b부터h까지_수정주가와당일횡단면만으로계산한�
         feature_columns=ALL_STOCK_FEATURE_COLUMNS,
     )
 
-    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFGH")
+    assert set(STOCK_COMBINATION_FEATURES) == set("ABCDEFGHIJ")
     assert STOCK_COMBINATION_FEATURES["G"] == (
         "dist_high_60",
         "sma_gap_20_60",
@@ -317,6 +317,19 @@ def test_조합b부터h까지_수정주가와당일횡단면만으로계산한�
         "rsi_14",
         "hv_regime",
         "turnover_20",
+    )
+    assert STOCK_COMBINATION_FEATURES["I"] == (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+    )
+    assert STOCK_COMBINATION_FEATURES["J"] == (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
     )
     assert np.isfinite(dataset.x.to_numpy()).all()
     first = dataset.frame.iloc[0]

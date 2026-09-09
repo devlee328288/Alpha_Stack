@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 from pathlib import Path
 
@@ -21,6 +22,8 @@ COMBINATION_DIRECTORIES = {
     "F": "조합F_cross_sectional_ranks",
     "G": "조합G_direction_magnitude_interaction",
     "H": "조합H_volatility_regime_interaction",
+    "I": "조합I_kospi200_e_same_features",
+    "J": "조합J_kospi200_e_market_relative_strength",
 }
 COMBINATION_TITLES = {
     "A": "추세·모멘텀·변동성·거래량·수익률",
@@ -31,6 +34,8 @@ COMBINATION_TITLES = {
     "F": "당일 후보군 횡단면 순위",
     "G": "단기 반전 방향축·변동성 크기축",
     "H": "단기 반전 방향축·변동성 레짐축",
+    "I": "KOSPI200 조합 E와 동일한 변동성·5일 수익률",
+    "J": "KOSPI200 조합 E 피처·KOSPI200 대비 5일 상대강도",
 }
 
 MODEL_FILES = {
@@ -419,16 +424,29 @@ def _feature_selection_markdown(
     return "\n".join(lines) + "\n"
 
 
-def main() -> None:
-    """A~H 각각에 모델 4개·비교·피처 문서와 best-result를 만든다."""
+def main(requested: tuple[str, ...] | None = None) -> None:
+    """선택한 조합에 모델 4개·비교·피처 문서와 best-result를 만든다."""
 
     report = json.loads(REPORT.read_text(encoding="utf-8"))
+    overall_best_combination = report["final_selection"]["selected"]["combination"]
+    combinations = tuple(COMBINATION_DIRECTORIES)
+    if requested is not None:
+        normalized = tuple(str(name).strip().upper() for name in requested)
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("생성할 조합 이름이 중복되었습니다.")
+        unknown = set(normalized) - set(combinations)
+        if unknown:
+            raise ValueError(f"정의되지 않은 개별종목 조합입니다: {sorted(unknown)}")
+        selected = set(normalized)
+        combinations = tuple(name for name in combinations if name in selected)
 
-    BASE_OUTPUT.mkdir(parents=True, exist_ok=True)
-    for model_name, filename in MODEL_FILES.items():
-        nbformat.write(_base_model_notebook(model_name), BASE_OUTPUT / filename)
+    if requested is None:
+        BASE_OUTPUT.mkdir(parents=True, exist_ok=True)
+        for model_name, filename in MODEL_FILES.items():
+            nbformat.write(_base_model_notebook(model_name), BASE_OUTPUT / filename)
 
-    for combination, directory in COMBINATION_DIRECTORIES.items():
+    for combination in combinations:
+        directory = COMBINATION_DIRECTORIES[combination]
         combination_report = report["combinations"][combination]
         summaries = {
             item["model"]: item for item in combination_report["model_summary"]
@@ -452,7 +470,12 @@ def main() -> None:
             encoding="utf-8",
         )
 
-        best_output = EXPERIMENT_ROOT / "조합별 best result" / f"조합{combination}"
+        best_prefix = "⭐" if combination == overall_best_combination else ""
+        best_output = (
+            EXPERIMENT_ROOT
+            / "조합별 best result"
+            / f"{best_prefix}조합{combination}"
+        )
         best_output.mkdir(parents=True, exist_ok=True)
         winner = combination_report["model_summary"][0]
         # 1위 모델이 바뀌면 이전의 일반 파일과 별표 파일이 함께 남을 수 있다.
@@ -470,4 +493,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--combinations",
+        nargs="+",
+        metavar="NAME",
+        help="지정한 조합 폴더만 생성합니다. 생략하면 전체를 다시 생성합니다.",
+    )
+    arguments = parser.parse_args()
+    main(tuple(arguments.combinations) if arguments.combinations else None)
