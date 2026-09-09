@@ -39,6 +39,10 @@ from typing import Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from common.corporate_actions import (  # noqa: E402
+    listing_days_by_code,
+    market_calendar_index,
+)
 from common.paths import krx_db_path  # noqa: E402
 from ingest.clients import fdr_data  # noqa: E402
 from ingest.store import adj_price, collect_log  # noqa: E402
@@ -80,8 +84,15 @@ def _count_ca_fix(built: List[tuple]) -> int:
     return sum(1 for r in built if adj_price.SOURCE_CA_FIX in r[4])
 
 
-def build_one(conn: sqlite3.Connection, code: str) -> Dict:
-    """한 종목을 받아 계산해 저장한다. 무슨 일이 있었는지 요약을 돌려준다."""
+def build_one(conn: sqlite3.Connection, code: str, *,
+              calendar_index: Optional[Dict[str, int]] = None,
+              listing_days: Optional[Dict[str, tuple]] = None) -> Dict:
+    """한 종목을 받아 계산해 저장한다. 무슨 일이 있었는지 요약을 돌려준다.
+
+    `calendar_index`·`listing_days` 는 **코드 재사용 자리에서 배율을 1 로** 만드는 데
+    쓴다(이슈 #195). 부르는 쪽이 한 번 만들어 넘긴다 — 종목마다 달력을 다시 만들면
+    3,677종에 한 시간이 넘는다.
+    """
     try:
         adjusted = fdr_data.fetch_adjusted(code)
         error = None
@@ -92,7 +103,9 @@ def build_one(conn: sqlite3.Connection, code: str) -> Dict:
     if not rows:
         return {"code": code, "rows": 0, "fdr": 0, "chain": 0, "error": error}
 
-    built = adj_price.build_rows(rows, adjusted)
+    built = adj_price.build_rows(
+        rows, adjusted, calendar_index=calendar_index,
+        listing_days=(listing_days or {}).get(code, ()))
     adj_price.save(conn, code, built)
     collect_log.record(
         adj_price.COLLECT_SOURCE, code,
@@ -229,13 +242,20 @@ def main() -> int:
         print(f"\n대상 {len(codes):,}종 · FDR 종목당 약 0.1초 → 예상 "
               f"{len(codes) * 0.12 / 60:.1f}분\n")
 
+        # 코드 재사용 판정에 쓸 달력·상장일을 **한 번** 만든다 (이슈 #195).
+        calendar_index, _ = market_calendar_index(conn)
+        listing_days = listing_days_by_code(conn)
+        재사용 = sum(1 for v in listing_days.values() if len(v) > 1)
+        print(f"거래일 달력 {len(calendar_index):,}일 · 상장일이 둘 이상인 코드 {재사용}종")
+
         started = time.perf_counter()
         totals = {"rows": 0, "fdr": 0, "chain": 0, "ca_fix": 0}
         empty, failed = [], []
         with write_lock:
             conn.execute("BEGIN IMMEDIATE")
             for i, code in enumerate(codes, 1):
-                summary = build_one(conn, code)
+                summary = build_one(conn, code, calendar_index=calendar_index,
+                                    listing_days=listing_days)
                 for key in totals:
                     totals[key] += summary[key]
                 if summary["error"]:
