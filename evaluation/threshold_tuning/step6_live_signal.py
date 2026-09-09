@@ -9,8 +9,9 @@ from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
+
 # ============================================================
-# 0. 기준선 계산
+# 0. 기준선 계산 (변경 없음)
 # ============================================================
 def compute_bands_flexible(
     df: pd.DataFrame,
@@ -27,7 +28,6 @@ def compute_bands_flexible(
     atr = compute_atr(df, period=vol_period)
     log_rv = compute_log_rv(df, period=volume_period)
 
-    # 🔥 step5와 동일: exp 없이 선형, 최소값 0.05로 클리핑
     raw_up = alpha_up + beta_up * log_rv
     raw_down = alpha_down + beta_down * log_rv
 
@@ -42,7 +42,7 @@ def compute_bands_flexible(
 
 
 # ============================================================
-# 1. 단일 파라미터 세트로 신호 생성 (Look-ahead 방지 적용)
+# 1. 단일 파라미터 세트로 신호 생성 - 단일 돌파
 # ============================================================
 def generate_signals_single(
     df: pd.DataFrame,
@@ -66,7 +66,7 @@ def generate_signals_single(
     upper = bands["upper"].values
     lower = bands["lower"].values
 
-    # 신호 (0:하락, 1:중립, 2:상승)
+    # 단일 일봉 돌파
     signal = np.where(close > upper, 2, np.where(close < lower, 0, 1))
 
     # 포지션 (상승=+1, 중립=0, 하락=-1)
@@ -76,17 +76,16 @@ def generate_signals_single(
     result["signal"] = signal
     result["position"] = position
 
-    # Look-ahead 방지: t일 포지션을 t+1일 수익률에 적용
+    # 명시적 Shift (순환 버그 제거)
     market_ret = df["close"].pct_change().values
-    pos_shifted = np.roll(position, 1)
-    pos_shifted[0] = 0
+    pos_shifted = np.concatenate([[0], position[:-1]])  # 첫날 포지션 0
     result["strategy_return"] = pos_shifted * market_ret
 
     return result
 
 
 # ============================================================
-# 2. Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터 사용) - 🔥 Lookback 추가!
+# 2. Rolling 파라미터 적용 - 단일 돌파 (Expanding 평가용)
 # ============================================================
 def generate_signals_rolling(
     df: pd.DataFrame,
@@ -94,12 +93,10 @@ def generate_signals_rolling(
 ) -> pd.DataFrame:
     """
     Walk-Forward 폴드 정보를 기반으로 각 날짜에 해당하는 OOS 파라미터를 적용합니다.
-    🔥 Step 5와 동일하게 Lookback(35일)을 포함하여 지표를 계산한 후 OOS만 슬라이싱합니다.
-    fold_details: step5 또는 step4에서 반환된 데이터프레임
+    🔥 Expanding 방식으로 생성된 fold_details를 그대로 사용합니다.
     """
-    LOOKBACK_DAYS = 35  # Step 5와 동일한 Lookback 기간
+    LOOKBACK_DAYS = 35
 
-    # 결과를 담을 빈 데이터프레임 생성
     result = pd.DataFrame(index=df.index)
     result["close"] = df["close"]
     result["signal"] = np.nan
@@ -118,8 +115,8 @@ def generate_signals_rolling(
     print(f"🔍 Rolling 파라미터 적용: 총 {len(fold_details)}개 폴드")
     print(f"📦 Lookback 기간: {LOOKBACK_DAYS}일 (OOS 이전 데이터 포함)")
 
-    # 각 폴드의 인덱스 위치를 미리 계산 (성능 최적화)
     date_to_idx = {date: i for i, date in enumerate(df.index)}
+    prev_last_position = 0
 
     for _idx, row in tqdm(
         fold_details.iterrows(), total=len(fold_details), desc="OOS 구간 적용"
@@ -127,21 +124,17 @@ def generate_signals_rolling(
         val_start = row["val_start"]
         val_end = row["val_end"]
 
-        # 해당 OOS 구간의 인덱스 위치
         start_idx = date_to_idx.get(val_start)
         end_idx = date_to_idx.get(val_end)
 
         if start_idx is None or end_idx is None:
             continue
 
-        # 🔥 Lookback을 포함한 계산 구간 설정
         calc_start_idx = max(0, start_idx - LOOKBACK_DAYS)
-        calc_end_idx = end_idx + 1  # 슬라이싱은 end_idx 미만이므로 +1
+        calc_end_idx = end_idx + 1
 
-        # 계산용 데이터프레임 (Lookback 포함)
         df_calc = df.iloc[calc_start_idx:calc_end_idx].copy()
 
-        # 해당 폴드의 파라미터
         params = {
             "alpha_up": row["alpha_up"],
             "alpha_down": row["alpha_down"],
@@ -151,7 +144,6 @@ def generate_signals_rolling(
             "volume_period": int(row["volume_period"]),
         }
 
-        # 신호 생성 (Step 5와 동일한 방식)
         bands = compute_bands_flexible(
             df_calc,
             vol_period=params["vol_period"],
@@ -166,32 +158,30 @@ def generate_signals_rolling(
         upper = bands["upper"].values
         lower = bands["lower"].values
 
-        # 전체 계산 구간에 대한 신호 생성
         signal_full = np.where(close > upper, 2, np.where(close < lower, 0, 1))
         position_full = np.where(signal_full == 2, 1, np.where(signal_full == 0, -1, 0))
 
-        # 🔥 OOS 구간만 슬라이싱 (Step 5와 동일)
-        oos_offset = start_idx - calc_start_idx  # OOS 시작 위치
+        oos_offset = start_idx - calc_start_idx
         signal = signal_full[oos_offset:]
         position = position_full[oos_offset:]
 
-        # OOS 데이터 (수익률 계산용)
         df_oos = df.iloc[start_idx : end_idx + 1].copy()
         market_ret = df_oos["close"].pct_change().values
 
-        # Look-ahead 방지: 포지션 1일 Shift
-        pos_shifted = np.roll(position, 1)
+        pos_shifted = np.concatenate([[prev_last_position], position[:-1]])
         if len(pos_shifted) > 0:
-            pos_shifted[0] = 0  # 첫날은 포지션 없음
+            pos_shifted[0] = prev_last_position
+
+        if len(position) > 0:
+            prev_last_position = position[-1]
+
         strategy_ret = pos_shifted * market_ret
 
-        # 결과 저장
         mask = (df.index >= val_start) & (df.index <= val_end)
         result.loc[mask, "signal"] = signal
         result.loc[mask, "position"] = position
         result.loc[mask, "strategy_return"] = strategy_ret
 
-        # 기준선 값은 Lookback 포함된 전체 값에서 OOS만 슬라이싱하여 저장
         bands_oos = bands.iloc[oos_offset:]
         result.loc[mask, "base"] = bands_oos["base"].values
         result.loc[mask, "upper"] = bands_oos["upper"].values
@@ -281,7 +271,7 @@ def evaluate_signals(
             cls["f1_macro"] = f1_score(y_true_clean, y_pred, average="macro")
             cls["balanced_acc"] = balanced_accuracy_score(y_true_clean, y_pred)
             unique, counts = np.unique(y_pred, return_counts=True)
-            ratio_dict = dict(zip(unique, counts / len(y_pred),strict=False))
+            ratio_dict = dict(zip(unique, counts / len(y_pred), strict=False))
             cls["ratio_up"] = ratio_dict.get(2, 0.0)
             cls["ratio_neutral"] = ratio_dict.get(1, 0.0)
             cls["ratio_down"] = ratio_dict.get(0, 0.0)
@@ -309,9 +299,9 @@ if __name__ == "__main__":
     df = load_data()
     print(f"📊 데이터 로드 완료: {df.shape[0]}일")
 
-    # 2) 실제 레이블 생성 (평가용)
-    ret = df["close"].pct_change().values
-    y_true = np.where(ret > 0.005, 2, np.where(ret < -0.005, 0, 1))
+    # 2) 5일 후 수익률 ±1% 기준으로 라벨 생성 (MD v4.1)
+    ret_5d = (df["close"].shift(-5) / df["close"] - 1).values
+    y_true = np.where(ret_5d > 0.01, 2, np.where(ret_5d < -0.01, 0, 1))
 
     # ============================================================
     # 3-1) Rolling 파라미터 적용 (CSV 자동 로드)
