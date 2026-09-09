@@ -53,7 +53,7 @@ import json
 import subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Mapping, Optional
 
 import pandas as pd
 
@@ -702,7 +702,14 @@ df = df[~df["is_adj_suspect"]]        # 걸러야 하는 것은 이것 하나뿐
 
 #: 🔴 작은 벌과 큰 벌이 **다른 규칙 위에 서 있다**는 사실. 이슈 #186 ① 이 짚은 것이다.
 #: 칸 구성만 보고는 알 수 없고, 큰 벌로 학습하면 작은 벌과 결과가 갈리는데 경고가 없다.
-SAMPLE_GUIDE = """### 🔴 큰 벌과 작은 벌은 **다른 표본**입니다
+#:
+#: 🔴 **숫자는 여기 적지 않는다** — `{차이}`·`{표}` 자리를 `sample_guide` 가 실측값으로
+#:    채운다. `build_dataset_card` 의 docstring 이 *"숫자는 MANIFEST.json 과
+#:    PROFILE.json 에서만 가져온다 — 카드에 손으로 적지 않는다"* 라고 못박아 두었는데
+#:    이 절만 예외였고, 2026-09-09 에 실제로 어긋났다: 코드 재사용 판정(이슈 #195)으로
+#:    `is_first_listing` 이 1,501 → 1,502 · 셋 중 하나가 251,282 → 251,283 으로 늘었는데
+#:    **카드는 옛 숫자를 계속 적었다.**
+SAMPLE_GUIDE_TEMPLATE = """### 🔴 큰 벌과 작은 벌은 **다른 표본**입니다
 
 같은 자료를 두 벌로 냅니다. **둘은 표본이 다릅니다.**
 
@@ -711,8 +718,7 @@ SAMPLE_GUIDE = """### 🔴 큰 벌과 작은 벌은 **다른 표본**입니다
 | **큰 벌** | `full/daily_price_dev.parquet` | **안 뺐습니다** — 그대로 있습니다 |
 | **작은 벌** | `small/stocks_sample30_train_dev.csv` | **뺐습니다** |
 
-큰 벌로 그냥 학습하면 작은 벌·팀 기준선과 **표본이 달라집니다.** 개발구간 7,888,945행
-중 **251,282행(3.185%)** 이 그 차이입니다.
+큰 벌로 그냥 학습하면 작은 벌·팀 기준선과 **표본이 달라집니다.**{차이}
 
 같은 표본으로 맞추려면 한 줄입니다.
 
@@ -720,11 +726,7 @@ SAMPLE_GUIDE = """### 🔴 큰 벌과 작은 벌은 **다른 표본**입니다
 df = df[~(df.is_liquidation | df.is_halted | df.is_first_listing)]
 ```
 
-| 칸 | 무엇 | 개발구간 |
-|---|---|---:|
-| `is_liquidation` | 정리매매 — 체결이 끊기기 직전 10체결일 | 17,973 (0.228%) |
-| `is_halted` | 거래정지 — 그 행에 체결이 없었다 | 231,808 (2.938%) |
-| `is_first_listing` | 신규상장 첫 거래일 — 등락률이 공모가 기준 | 1,501 (0.019%) |
+{표}
 
 > 🔴 **이 셋을 피처로 넣지 마십시오.** `is_liquidation` 은 *"이 뒤로 체결이 끊긴다"* 를
 > 보고 매깁니다. 그 시점에는 알 수 없는 사실이라 피처로 쓰면 곧 미래참조입니다.
@@ -754,6 +756,49 @@ df = df[~빼기]
 > 그래서 판정을 한 칸으로 뭉치지 않고 **원문 값 그대로** 실어 보냅니다.
 """
 
+#: 표본 안내 표의 칸 설명. 숫자는 `sample_guide` 가 채운다.
+_SAMPLE_FLAG_NOTES = (
+    ("is_liquidation", "정리매매 — 체결이 끊기기 직전 10체결일"),
+    ("is_halted", "거래정지 — 그 행에 체결이 없었다"),
+    ("is_first_listing", "신규상장 첫 거래일 — 등락률이 공모가 기준"),
+)
+
+
+def sample_guide(flags: Optional[Mapping[str, Any]] = None,
+                 total_rows: Optional[int] = None) -> str:
+    """"큰 벌과 작은 벌은 다른 표본" 절. **숫자를 실측값으로 채운다.**
+
+    `flags` 는 `MANIFEST.json` 의 `stats.corporate_action_flags` 다
+    (`{"is_liquidation": …, "is_halted": …, "is_first_listing": …, "any": …}`),
+    `total_rows` 는 큰 벌 행 수다.
+
+    못 읽었으면 숫자 자리를 비우고 **비운 이유를 적는다** — 조용히 옛 숫자를 쓰는 것보다
+    "여기 숫자가 없다" 가 낫다. 이 절이 옛 숫자를 계속 적어 나간 것이 이 함수가 생긴
+    이유다(모듈 안 `SAMPLE_GUIDE_TEMPLATE` 주석).
+    """
+    총 = int(total_rows) if total_rows else 0
+    값들 = dict(flags or {})
+    없음 = "*(MANIFEST 에서 못 읽었다)*"
+
+    def 칸(값: Any) -> str:
+        if 값 is None:
+            return 없음
+        return f"{int(값):,}" + (f" ({int(값) / 총:.3%})" if 총 else "")
+
+    표 = ["| 칸 | 무엇 | 개발구간 |", "|---|---|---:|"]
+    표 += [f"| `{이름}` | {설명} | {칸(값들.get(이름))} |"
+           for 이름, 설명 in _SAMPLE_FLAG_NOTES]
+
+    어느것 = 값들.get("any")
+    if 어느것 is None:
+        차이 = f" 그 차이는 {없음} 입니다."
+    else:
+        비율 = f"({int(어느것) / 총:.3%})" if 총 else ""
+        앞 = f" 개발구간 {총:,}행 중" if 총 else ""
+        차이 = f"{앞} **{int(어느것):,}행{비율}** 이 그 차이입니다."
+
+    return SAMPLE_GUIDE_TEMPLATE.replace("{차이}", 차이).replace("{표}", "\n".join(표))
+
 
 def _fmt_value(값: Any) -> str:
     """지표 값을 표 한 칸에 넣는다. 축별로 나눈 dict 은 `키 값` 을 가운뎃점으로 잇는다.
@@ -780,10 +825,16 @@ def _fmt_value(값: Any) -> str:
     return str(값)
 
 
-def render_card_section(ledger: Dict[str, Any]) -> str:
+def render_card_section(ledger: Dict[str, Any], *,
+                        corporate_action_flags: Optional[Mapping[str, Any]] = None,
+                        total_rows: Optional[int] = None) -> str:
     """HF 데이터셋 카드에 붙일 "품질 원장" 절을 만든다.
 
     붉은 것은 붉게 적어 내보낸다 — 숨기지 않는 것이 이 원장의 목적이다.
+
+    `corporate_action_flags`·`total_rows` 는 `MANIFEST.json` 의
+    `stats.corporate_action_flags` 와 큰 벌 행 수다. 표본 안내 절의 숫자를 **실측값으로**
+    채우는 데 쓴다 — 안 주면 그 자리에 "MANIFEST 에서 못 읽었다" 가 적힌다.
     """
     머리 = ledger.get("status", _OK)
     줄: list[str] = [
@@ -819,7 +870,7 @@ def render_card_section(ledger: Dict[str, Any]) -> str:
     붉은 = ledger.get("red", [])
     if 붉은:
         줄 += ["", f"🔴 **붉은 항목 {len(붉은)}개** — " + " · ".join(f"`{x}`" for x in 붉은)]
-    줄 += ["", SAMPLE_GUIDE, "", FLAG_GUIDE]
+    줄 += ["", sample_guide(corporate_action_flags, total_rows), "", FLAG_GUIDE]
     return "\n".join(줄) + "\n"
 
 
@@ -827,7 +878,8 @@ __all__ = [
     "AXES",
     "EXPORT_DAILY_COLUMNS",
     "FLAG_GUIDE",
-    "SAMPLE_GUIDE",
+    "SAMPLE_GUIDE_TEMPLATE",
+    "sample_guide",
     "HISTORY_PATH",
     "LEDGER_NAME",
     "append_history",
