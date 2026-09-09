@@ -3,13 +3,12 @@ import warnings
 
 import numpy as np
 import pandas as pd
-
+from focal_classifier import build_features, make_labels
 from step1_core_features import load_data
 from step5_optimize_6params import (
-    run_walkforward_6params,
     compute_bands_flexible,
+    run_walkforward_6params,
 )
-from focal_classifier import build_features, make_labels
 
 warnings.filterwarnings("ignore")
 

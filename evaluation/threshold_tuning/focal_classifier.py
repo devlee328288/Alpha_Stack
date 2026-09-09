@@ -280,7 +280,7 @@ def train_focal_model(
     wait = 0
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=device)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=device)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=device)
 
     for epoch in range(1, cfg.max_epochs + 1):
         model.train()

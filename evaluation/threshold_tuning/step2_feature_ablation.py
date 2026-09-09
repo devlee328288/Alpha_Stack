@@ -1,19 +1,18 @@
 import os
 import warnings
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
 import torch
+from focal_classifier import FocalMLP, build_features, make_labels, set_seed
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
+from step1_core_features import load_data
+from step5_optimize_6params import compute_bands_flexible
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-
-from step1_core_features import load_data
-from step5_optimize_6params import compute_bands_flexible
-from focal_classifier import build_features, make_labels, FocalMLP, set_seed
 
 warnings.filterwarnings("ignore")
 
@@ -153,7 +152,7 @@ def train_ce_model(
     )
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=DEVICE)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
 
     best_score = -np.inf
     best_state = None
@@ -365,7 +364,8 @@ def print_ablation_results(results: Dict[str, Dict]):
     print("📊 [2단계] Feature Ablation Test 결과 (CE Baseline)")
     print("=" * 70)
     print(
-        f"{'Feature Set':<20} | {'Feat':>4} | {'Macro-F1':>8} | {'Std':>6} | {'Min':>6} | {'Max':>6} | {'Folds':>5}"
+        f"{'Feature Set':<20} | {'Feat':>4} | {'Macro-F1':>8} | {'Std':>6} "
+        f"| {'Min':>6} | {'Max':>6} | {'Folds':>5}"
     )
     print("-" * 70)
 
@@ -382,11 +382,13 @@ def print_ablation_results(results: Dict[str, Dict]):
         r = results[key]
         if r["n_folds"] == 0:
             print(
-                f"{key:<20} | {r['n_features']:>4} | {'N/A':>8} | {'N/A':>6} | {'N/A':>6} | {'N/A':>6} | {0:>5}"
+                f"{key:<20} | {r['n_features']:>4} | {'N/A':>8} "
+                f"| {'N/A':>6} | {'N/A':>6} | {'N/A':>6} | {0:>5}"
             )
         else:
             print(
-                f"{key:<20} | {r['n_features']:>4} | {r['mean']:>8.4f} | {r['std']:>6.4f} | {r['min']:>6.4f} | {r['max']:>6.4f} | {r['n_folds']:>5}"
+                f"{key:<20} | {r['n_features']:>4} | {r['mean']:>8.4f} | "
+                f"{r['std']:>6.4f} | {r['min']:>6.4f} | {r['max']:>6.4f} | {r['n_folds']:>5}"
             )
 
     print("=" * 70)

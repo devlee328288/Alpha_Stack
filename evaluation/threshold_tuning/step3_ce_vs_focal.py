@@ -5,15 +5,14 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
+from focal_classifier import FocalLoss, FocalMLP, build_features, make_labels, set_seed
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
+from step1_core_features import load_data
+from step5_optimize_6params import compute_bands_flexible
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-
-from step1_core_features import load_data
-from step5_optimize_6params import compute_bands_flexible
-from focal_classifier import build_features, make_labels, FocalMLP, set_seed, FocalLoss
 
 warnings.filterwarnings("ignore")
 
@@ -111,7 +110,7 @@ def train_model(
     )
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=DEVICE)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
 
     best_score = -np.inf
     best_state = None
@@ -324,20 +323,26 @@ def print_comparison(results: Dict[str, Dict]):
 
     print(f"{'Metric':<15} | {'CE':>10} | {'Focal':>10} | {'차이 (F-C)':>12}")
     print("-" * 70)
+
     print(
-        f"{'Mean':<15} | {ce_arr.mean():>10.4f} | {focal_arr.mean():>10.4f} | {focal_arr.mean() - ce_arr.mean():>+12.4f}"
+        f"{'Mean':<15} | {ce_arr.mean():>10.4f} | {focal_arr.mean():>10.4f} | "
+        f"{focal_arr.mean() - ce_arr.mean():>+12.4f}"
     )
     print(
-        f"{'Std':<15} | {ce_arr.std():>10.4f} | {focal_arr.std():>10.4f} | {focal_arr.std() - ce_arr.std():>+12.4f}"
+        f"{'Std':<15} | {ce_arr.std():>10.4f} | {focal_arr.std():>10.4f} | "
+        f"{focal_arr.std() - ce_arr.std():>+12.4f}"
     )
     print(
-        f"{'Median':<15} | {np.median(ce_arr):>10.4f} | {np.median(focal_arr):>10.4f} | {np.median(focal_arr) - np.median(ce_arr):>+12.4f}"
+        f"{'Median':<15} | {np.median(ce_arr):>10.4f} | {np.median(focal_arr):>10.4f} | "
+        f"{np.median(focal_arr) - np.median(ce_arr):>+12.4f}"
     )
     print(
-        f"{'Min':<15} | {ce_arr.min():>10.4f} | {focal_arr.min():>10.4f} | {focal_arr.min() - ce_arr.min():>+12.4f}"
+        f"{'Min':<15} | {ce_arr.min():>10.4f} | {focal_arr.min():>10.4f} | "
+        f"{focal_arr.min() - ce_arr.min():>+12.4f}"
     )
     print(
-        f"{'Max':<15} | {ce_arr.max():>10.4f} | {focal_arr.max():>10.4f} | {focal_arr.max() - ce_arr.max():>+12.4f}"
+        f"{'Max':<15} | {ce_arr.max():>10.4f} | {focal_arr.max():>10.4f} | "
+        f"{focal_arr.max() - ce_arr.max():>+12.4f}"
     )
     print(f"{'Folds':<15} | {len(ce_scores):>10} | {len(focal_scores):>10} | {'':>12}")
 
@@ -346,7 +351,8 @@ def print_comparison(results: Dict[str, Dict]):
     print("-" * 40)
     for i in range(len(ce_scores)):
         print(
-            f"{i+1:>6} | {ce_scores[i]:>10.4f} | {focal_scores[i]:>10.4f} | {focal_scores[i] - ce_scores[i]:>+10.4f}"
+            f"{i+1:>6} | {ce_scores[i]:>10.4f} | {focal_scores[i]:>10.4f} | "
+            f"{focal_scores[i] - ce_scores[i]:>+10.4f}"
         )
 
     if focal_arr.mean() > ce_arr.mean():
@@ -385,6 +391,6 @@ if __name__ == "__main__":
     focal_df = pd.DataFrame(results["Focal"]["details"])
     ce_df.to_csv("ce_vs_focal_results/ce_fold_results.csv", index=False)
     focal_df.to_csv("ce_vs_focal_results/focal_fold_results.csv", index=False)
-    print(f"\n💾 결과 저장: ce_vs_focal_results/")
+    print("\n💾 결과 저장: ce_vs_focal_results/")
 
     print("\n✅ 3단계 완료!")

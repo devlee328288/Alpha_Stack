@@ -5,15 +5,13 @@ from typing import Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import torch
+from focal_classifier import FocalLoss, FocalMLP, build_features, make_labels, set_seed
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-
 from step1_core_features import load_data
 from step5_optimize_6params import compute_bands_flexible
-from focal_classifier import build_features, make_labels, FocalMLP, set_seed, FocalLoss
+from torch.utils.data import DataLoader, TensorDataset
+from tqdm import tqdm
 
 warnings.filterwarnings("ignore")
 
@@ -117,7 +115,7 @@ def train_focal_model(
     )
 
     xva_t = torch.tensor(xva, dtype=torch.float32, device=DEVICE)
-    yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
+    _yva_t = torch.tensor(y_va, dtype=torch.long, device=DEVICE)
 
     best_score = -np.inf
     best_state = None
@@ -204,7 +202,7 @@ def apply_threshold(proba: np.ndarray, t_down: float, t_up: float) -> np.ndarray
     """
     pred = np.full(len(proba), 1, dtype=int)  # 기본 중립
     p_down = proba[:, 0]
-    p_neutral = proba[:, 1]
+    _p_neutral = proba[:, 1]
     p_up = proba[:, 2]
 
     # 하락 조건
@@ -318,7 +316,7 @@ def run_threshold_tuning(
         # Train의 마지막 20%를 내부 검증으로 사용
         split = int(len(x_all) * 0.8)
         x_tr, x_val = x_all.iloc[:split], x_all.iloc[split:]
-        y_tr, y_val = y_all[:split], y_all[split:]
+        _y_tr, y_val = y_all[:split], y_all[split:]
 
         # Scaling (Train으로 fit)
         scaler_inner = StandardScaler()
@@ -409,7 +407,7 @@ def print_threshold_results(results: Dict):
     min_f1 = fold_df["oos_f1"].min()
     max_f1 = fold_df["oos_f1"].max()
 
-    print(f"\n[OOS Macro-F1 통계]")
+    print("\n[OOS Macro-F1 통계]")
     print(f"  Mean  : {mean_f1:.4f}")
     print(f"  Std   : {std_f1:.4f}")
     print(f"  Median: {median_f1:.4f}")
@@ -417,7 +415,7 @@ def print_threshold_results(results: Dict):
     print(f"  Max   : {max_f1:.4f}")
 
     # Threshold 분포
-    print(f"\n[Threshold 분포]")
+    print("\n[Threshold 분포]")
     print(
         f"  T_down 평균: {fold_df['t_down'].mean():.3f} (중앙: {fold_df['t_down'].median():.3f})"
     )
@@ -498,6 +496,6 @@ if __name__ == "__main__":
         "threshold_tuning_results/final_config.csv", index=False
     )
 
-    print(f"\n💾 결과 저장: threshold_tuning_results/")
+    print("\n💾 결과 저장: threshold_tuning_results/")
     print("\n✅ 6단계 완료! 최종 설정이 확정되었습니다.")
     print("   → 7단계: 최종 OOS 평가 (Fold 11 Holdout)을 실행하세요.")
