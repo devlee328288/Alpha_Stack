@@ -7,12 +7,16 @@
 두 쪽이 각자 초록이어도 **칸 이름 하나 · 날짜 순서 하나**가 어긋나면 되먹임은 조용히 틀린다.
 원장이 HF 에 올라오기 전에(2026-09-06 실측 · 아직 없다) 그 사이를 못박아 둔다.
 
+실제로 갈렸다 — 이 계약을 세운 날 원장은 `close[T+5]/close[T]` 였고 검증기는
+`open[T+6]/open[T+1]` 이었다. 그 어긋남을 `xfail(strict=True)` 로 표시해 두었더니,
+원장이 시가축으로 옮겨진 날(PR #218) XPASS 로 뒤집혀 **시험이 스스로 해소를 알렸다**(#176).
+
 ## 두 층으로 잰다
 
 1. **규격 층** — `supply/backtest_ledger.py::verify_ledger` 가 손으로 만든 원장에서 아홉 규칙을
    잡아내는가. 이쪽은 백테스트 코드를 import 하지 않는다.
 2. **종단 층** — `run_backtest()` 를 **실제로 돌려** 나온 원장이 그 검증기를 통과하는가.
-   칸 수(17 · 22) · 행 수(거래일 − 1) · 체결일(다음 거래일) · 실현수익률(종가로 재계산) ·
+   칸 수(17 · 22) · 행 수(거래일 − 1) · 체결일(다음 거래일) · 실현수익률(시가 T+1→T+6 재계산) ·
    구버전 예측 함수 호환까지 코드에서 그대로 잰다.
 
 ## 🔴 `datasets` 대역
@@ -37,13 +41,10 @@ from supply import backtest_ledger as bl
 
 HOLDOUT = "20240901"
 
-#: `backtest_strategies.py:713` 이 아직 `close[T+5]/close[T]` 로 원장을 적는다(#176).
-#: 검증기는 이미 시가축이라 종단 층은 지금 어긋난다 — 그쪽이 고쳐지면 `strict` 가
-#: xpass 로 알려주므로, 그때 이 표시를 지운다.
-_원장이_아직_종가축 = pytest.mark.xfail(
-    strict=True,
-    reason="#176 — backtest_strategies.py:713 이 아직 종가축이다",
-)
+#: 🟢 2026-09-09 해소. 원장이 `close[T+5]/close[T]` 로 적히던 것을 강민석 님이
+#: PR #218 에서 `open[T+6]/open[T+1]` 로 고치셨다(#176). 그때까지 아래 세 시험에
+#: `xfail(strict=True)` 를 걸어 두었고, 고쳐지자 `strict` 가 XPASS 로 알려 줘서 지웠다.
+#: 표식을 되살릴 일이 생기면 그건 원장이 다시 종가축으로 돌아갔다는 뜻이다.
 
 
 # ── 손으로 만드는 원장 ────────────────────────────────────────────────────────
@@ -315,7 +316,6 @@ def test_종단_행_수는_거래일_빼기_하나(종단_원장):
     assert len(res["signal_log"]) == len(days) - 1
 
 
-@_원장이_아직_종가축
 def test_종단_원장이_검증기를_통과한다(종단_원장):
     _, market, res = 종단_원장
     r = bl.verify_execution_log(res["signal_log"], holdout_start=HOLDOUT,
@@ -335,7 +335,6 @@ def test_종단_체결일은_바로_다음_거래일이다(종단_원장):
     assert set(gaps) == {1}
 
 
-@_원장이_아직_종가축
 def test_종단_실현수익률은_시가_T1에서_T6_수익률이다(종단_원장):
     _, market, res = 종단_원장
     s = res["signal_log"]
@@ -352,7 +351,6 @@ def test_종단_확률이_원장에_그대로_실린다(종단_원장):
     assert (s["model_id"] == "contract-v0").all() and (s["run_id"] == "run_contract").all()
 
 
-@_원장이_아직_종가축
 def test_종단_구버전_예측함수도_기본_확률로_채워_통과한다(백테스트):
     days = _days("2024-06-03", 30)
     market = _market(days, _price_walk(days, seed=2))
