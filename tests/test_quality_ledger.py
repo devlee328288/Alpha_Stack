@@ -394,3 +394,49 @@ def test_새_축을_넣으면_이력에도_따라_들어간다(반출폴더, tmp
     경로 = ql.append_history(led, path=tmp_path / "h.jsonl")
     줄 = json.loads(경로.read_text(encoding="utf-8").splitlines()[-1])
     assert tuple(줄["summary"]) == ql.AXES
+
+
+# ── 카드의 표본 안내 숫자는 손으로 적지 않는다 (이슈 #195) ───────────────────
+#
+# `build_dataset_card` 의 docstring 이 *"숫자는 MANIFEST.json 과 PROFILE.json 에서만
+# 가져온다 — 카드에 손으로 적지 않는다"* 라고 못박아 두었는데 이 절만 예외였다.
+# 2026-09-09 에 코드 재사용 판정으로 `is_first_listing` 이 1,501 → 1,502 ·
+# 셋 중 하나가 251,282 → 251,283 으로 늘었는데 **카드는 옛 숫자를 계속 적었다.**
+
+def test_표본_안내_숫자는_넘긴_값으로_채운다():
+    글 = ql.sample_guide(
+        {"is_liquidation": 17_973, "is_halted": 231_808,
+         "is_first_listing": 1_502, "any": 251_283},
+        total_rows=7_888_945,
+    )
+    assert "1,502" in 글 and "251,283" in 글
+    assert "17,973" in 글 and "231,808" in 글
+    assert "1,501" not in 글 and "251,282" not in 글, "옛 숫자가 남아 있다"
+    assert "(0.019%)" in 글, "비율도 함께 적는다"
+
+
+def test_표본_안내_템플릿에는_행수가_박혀_있지_않다():
+    """행 수를 템플릿에 다시 박으면 이 시험이 잡는다.
+
+    쉼표가 든 수(`251,282` · `1,501`)만 본다 — `KOSPI200` 처럼 이름에 든 숫자는
+    행 수가 아니다.
+    """
+    import re
+    남은 = re.findall(r"\d{1,3}(?:,\d{3})+", ql.SAMPLE_GUIDE_TEMPLATE)
+    assert not 남은, f"템플릿에 박힌 행 수: {남은}"
+    assert "{차이}" in ql.SAMPLE_GUIDE_TEMPLATE and "{표}" in ql.SAMPLE_GUIDE_TEMPLATE
+
+
+def test_숫자를_못_읽으면_옛_숫자를_쓰지_않고_비운다():
+    """조용히 옛 숫자를 쓰는 것보다 "여기 숫자가 없다" 가 낫다."""
+    글 = ql.sample_guide(None, None)
+    assert "MANIFEST 에서 못 읽었다" in 글
+    assert "1,501" not in 글 and "1,502" not in 글
+
+
+def test_원장_카드_절이_표본_숫자를_받아_넘긴다():
+    led = {"status": "ok", "run_id": "t", "generated_at": "now", "axes": {}, "red": []}
+    글 = ql.render_card_section(
+        led, corporate_action_flags={"is_first_listing": 1_502, "any": 251_283},
+        total_rows=7_888_945)
+    assert "1,502" in 글 and "251,283" in 글
