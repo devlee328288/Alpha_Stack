@@ -59,7 +59,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from common.corporate_actions import flag_series, is_traded  # noqa: E402
+from supply.adj_quality import flag_adjustment_quality  # noqa: E402
 from supply.sector import attach_industry  # noqa: E402
+from supply.training import CORPORATE_ACTION_COLUMNS  # noqa: E402
 
 
 def 오늘_as_of() -> str:
@@ -338,6 +341,71 @@ def verify_manifest(snap: Path, manifest: Dict) -> bool:
           "index_name": str, "index_class": str, "date": str}
 
 
+def _corporate_action_table(conn) -> pd.DataFrame:
+    """기업행위 판정 세 칸을 **전 구간에서 한 번** 만든다.
+
+    🔴 `flag_series` 는 그 종목의 전 구간을 요구한다 — 정리매매는 이력의 끝을,
+       신규상장은 첫 행을 본다. 연도별 루프 안에서 부르면 해마다 다른 답이 나온다.
+    """
+    calendar = [r[0] for r in conn.execute(
+        "SELECT DISTINCT bas_dd FROM daily_price ORDER BY bas_dd")]
+    index = {d: i for i, d in enumerate(calendar)}
+    listed = {r[0] for r in conn.execute(
+        "SELECT code FROM daily_price WHERE bas_dd = ?", (calendar[-1],))}
+
+    df = pd.read_sql_query(
+        "SELECT bas_dd, code, open, high, low, volume, listed_shares "
+        "FROM daily_price ORDER BY code, bas_dd", conn)
+    keys, vals = [], []
+    for code, g in df.groupby("code", sort=False):
+        rows = g.to_dict("records")
+        flags = flag_series(rows, calendar_index=index,
+                            market_last_index=len(calendar) - 1,
+                            still_listed=code in listed,
+                            collect_start=calendar[0])
+        for r, f in zip(rows, flags, strict=True):
+            keys.append((str(r["bas_dd"]), str(code)))
+            vals.append((f.liquidation, not is_traded(r), f.first_listing))
+    out = pd.DataFrame(vals, columns=list(CORPORATE_ACTION_COLUMNS))
+    out["bas_dd"] = [k[0] for k in keys]
+    out["code"] = [k[1] for k in keys]
+    return out
+
+
+def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame) -> pd.DataFrame:
+    """반출이 붙이는 **파생 칸을 판정기도 똑같이 붙인다.**
+
+    🔴 이 함수가 없으면 반출이 칸을 늘릴 때마다 "칸 구성이 다르다" 로 영원히 붉다.
+       **09-05 에 업종 3칸으로 겪고 `attach_industry` 를 넣었는데, 그 뒤 09-08 에
+       품질 4칸, 09-09 에 주권종류·기업행위 6칸이 늘면서 또 났다.** 주석까지 있는데
+       반복된 이유는 붙이는 자리가 반출 스크립트에만 있고 판정기가 그것을 참조하지
+       않았기 때문이다. **한 함수에 모아** 다음에 칸이 늘면 여기만 고치게 한다.
+
+    반출본(`scripts/export_team_dataset.py`)이 `daily_price` 위에 얹는 것 —
+
+        업종 4칸      attach_industry            supply/sector.py
+        품질 4칸      flag_adjustment_quality    supply/adj_quality.py
+        주권종류 3칸  stock_base_info 조인       supply/universe.py
+        기업행위 3칸  flag_series                common/corporate_actions.py
+    """
+    out = attach_industry(db, as_of=오늘_as_of())
+
+    flags = flag_adjustment_quality(out)
+    out = pd.concat([out, flags], axis=1)
+
+    lo, hi = str(out["bas_dd"].min()), str(out["bas_dd"].max())
+    base = pd.read_sql_query(
+        "SELECT bas_dd, code, kind_stkcert_tp_nm, secugrp_nm, sect_tp_nm "
+        "FROM stock_base_info WHERE bas_dd BETWEEN ? AND ?",
+        conn, params=(lo, hi))
+    out = out.merge(base, on=["bas_dd", "code"], how="left")
+
+    out = out.merge(ca, on=["bas_dd", "code"], how="left")
+    for c in CORPORATE_ACTION_COLUMNS:
+        out[c] = out[c].fillna(False).astype(bool)
+    return out
+
+
 def compare_raw(snap: Path, dev_end: str) -> bool:
     import pyarrow.parquet as pq
 
@@ -362,6 +430,11 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
 
     # daily_price 는 599만 행이라 연도로 끊는다
     print("\n  daily_price_dev.parquet — 연도별")
+    # 🔴 기업행위 판정은 종목의 전 구간이 있어야 맞다. 루프 밖에서 한 번 만든다.
+    print("  기업행위 판정 준비 중… (전 구간 1회 · 약 2분)")
+    with ro_connect() as conn0:
+        ca_table = _corporate_action_table(conn0)
+    print(f"  기업행위 판정 {len(ca_table):,}행 준비 완료")
     총 = 0
     for year in YEARS:
         lo, hi = f"{year}0101", min(f"{year}1231", dev_end)
@@ -372,15 +445,21 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
                            ).to_pandas()
         if hf.empty:
             continue
+        # 🔴 **전년도 12월부터 읽는다.** `flag_adjustment_quality` 는
+        #    `groupby("code")["adj_close"].shift(1)` 로 전일을 보는데, 연도로 잘라
+        #    계산하면 각 해 첫 행의 전일이 없어 `adj_return_1d` 가 NaN 이 된다.
+        #    반출본은 전 구간을 한 번에 계산했으므로 값이 있다 — 그 차이가 2,658행
+        #    "결측 엇갈림" 으로 붉게 나왔다. 여유를 두고 계산한 뒤 그 해만 남긴다.
+        pad_lo = f"{year - 1}1201"
         with ro_connect() as conn:
             db = pd.read_sql_query(
                 "SELECT * FROM daily_price WHERE bas_dd BETWEEN ? AND ?",
-                conn, params=(lo, hi))
-        # 🔴 업종 세 칸은 `daily_price` 에 없다 — 반출이 업종 스냅샷에서 붙인다.
-        #    여기서 같은 규칙으로 붙이지 않으면 "칸 구성이 다르다" 로 영원히 붉다.
-        #    2026-09-05 에 실제로 겪었다: 업종 칸을 올리고 나서도 재배포 필요가
-        #    나왔는데, 원인은 배포본이 아니라 **판정기가 반출을 안 따라간 것**이었다.
-        db = attach_industry(db, as_of=오늘_as_of())
+                conn, params=(pad_lo, hi))
+        # 🔴 반출이 `daily_price` 위에 얹는 파생 칸을 판정기도 똑같이 얹는다.
+        #    안 그러면 "칸 구성이 다르다" 로 영원히 붉다 — 09-05·09-08·09-09 세 번 겪었다.
+        with ro_connect() as conn2:
+            db = _attach_export_derived(db, conn2, ca_table)
+        db = db[db["bas_dd"] >= lo].reset_index(drop=True)
         총 += len(hf)
         모두 &= compare_frames(hf, db, ["bas_dd", "code"], f"{year}년")["같다"]
         del hf, db
