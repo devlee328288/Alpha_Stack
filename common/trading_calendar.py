@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 import math
-from bisect import bisect_right
+from bisect import bisect_left, bisect_right
 from datetime import date, datetime, timedelta, timezone
 from typing import List, Optional, Tuple
 
@@ -241,3 +241,43 @@ def next_session(bas_dd: str, db_path=None, *, inclusive: bool = False) -> str:
             "  할 일: 더 이른 구간을 받거나, 그 행을 격리한다."
         )
     return 정렬본[자리]
+
+
+def prev_session(bas_dd: str, db_path=None, *, inclusive: bool = False) -> str:
+    """그 날(포함 여부는 `inclusive`) **이전**에 마지막으로 열린 거래일.
+
+    `next_session` 의 거울이다. 배당락일 계산이 이걸 쓴다 — 배당기준일은 대개 12월 31일
+    같은 **달력 날짜**라 휴장일이고(실측 · 12월 기준일 중 거래일은 0.3%), 값이 실제로
+    움직이는 날은 그보다 앞이다.
+
+        ex_date = prev_session(prev_session(기준일, inclusive=True))
+
+    안쪽이 "기준일까지 마지막으로 열린 날", 바깥이 "그 하루 앞" 이다. 두 걸음인 이유는
+    결제가 T+2 이기 때문이다 — 기준일 명부에 오르려면 마지막 거래일까지 결제가 끝나야
+    하므로 마지막 거래일 **전날**부터는 사도 못 받는다. 그날이 배당락일이다.
+
+    `inclusive=True` 면 그 날이 거래일일 때 그 날을 돌려준다.
+
+    달력 밖은 `next_session` 과 같은 이유로 **세운다** — 지어내면 열리지 않은 장에 자료를
+    붙이게 된다.
+    """
+    days = load_session_days(db_path)
+    first, last = _SESSION_SPAN
+
+    if inclusive and bas_dd in days:
+        return bas_dd
+
+    정렬본 = _sorted_days(days)
+    자리 = bisect_left(정렬본, bas_dd)          # `bas_dd` 보다 **작은** 마지막 자리
+    if 자리 == 0:
+        raise CalendarOutOfRange(
+            f"{bas_dd} 이전 거래일을 모른다 — 달력이 {first} 부터 시작한다.\n"
+            "  왜 세우나: 이전 거래일을 지어내면 우리가 안 받은 구간을 아는 척하게 된다.\n"
+            "  할 일: 더 이른 구간을 받거나, 그 행을 격리한다."
+        )
+    if bas_dd > last:
+        raise CalendarOutOfRange(
+            f"{bas_dd} 는 달력 끝({last})보다 늦다 — 그 사이 거래일을 우리는 모른다.\n"
+            "  할 일: 시세를 더 받아 달력을 넓히거나, 그 행을 격리한다."
+        )
+    return 정렬본[자리 - 1]

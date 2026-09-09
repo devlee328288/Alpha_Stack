@@ -5,6 +5,7 @@
     python scripts/fetch_data_go_kr.py --listed --limit 5    # 종목 목록 5일치
     python scripts/fetch_data_go_kr.py --listed              # 종목 목록 전 구간
     python scripts/fetch_data_go_kr.py --profile --limit 50  # 법인 개요 50곳
+    python scripts/fetch_data_go_kr.py --dividend            # 배당 전량 (72콜)
 
 시세의 `fetch_krx.py`, 재무의 `fetch_dart.py`, 거시의 `fetch_macro.py` 와 같은 자리다.
 
@@ -42,7 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from common import budget  # noqa: E402
 from common.trading_calendar import load_session_days  # noqa: E402
 from ingest.clients import data_go_kr  # noqa: E402
-from ingest.store import collect_log, identity_store  # noqa: E402
+from ingest.store import collect_log, dividend_store, identity_store  # noqa: E402
 
 
 def 받을_날짜들(*, limit: int = 0, force: bool = False,
@@ -173,11 +174,51 @@ def 개요를_받는다(*, limit: int, dry_run: bool) -> int:
     return 1 if 실패 else 0
 
 
+def 배당을_받는다(*, dry_run: bool) -> int:
+    """배당 전량을 한 번에 받는다. **날짜별로 돌지 않는다.**
+
+    포털의 `basDt` 는 이벤트 날짜가 아니라 **적재일**이라 날짜 축으로 훑을 이유가 없다.
+    빼고 부르면 전량이 온다 — 2026-09-09 실측 71,681행 · 72콜.
+    """
+    if dry_run:
+        print("[모의] 배당 전량 — 받지 않는다 (약 72콜)")
+        return 0
+    if not data_go_kr.available():
+        print("🔴 DATA_GO_KR_API_KEY 가 없다.")
+        print("   할 일: .env 에 넣는다. 발급 절차는")
+        print("         docs/데이터파트/version3.2/API키_발급_가이드.md")
+        return 1
+
+    identity_store.ensure_schema()          # 같은 DB · 마이그레이션을 한 번에 올린다
+    try:
+        결과 = dividend_store.sync_all()
+    except data_go_kr.DataGoKrError as exc:
+        print(f"  🔴 배당 실패 — 여기서 멈춘다\n{exc}")
+        return 1
+
+    print(f"\n  배당: 받은 {결과['rows']:,}행 · 담은 {결과['saved']:,}행")
+    현황 = dividend_store.coverage()
+    print(f"  표 전체 {현황['rows']:,}행 · 기준일 {현황['span'][0]} ~ {현황['span'][1]}")
+    print(f"\n  2010년 이후 현금·동시배당 {현황['cash_rows_since']:,}행 중")
+    print(f"    우리 종목에 붙은 것 : {현황['with_code']:,} "
+          f"({현황['with_code'] / 현황['cash_rows_since']:.1%})")
+    print(f"    배당락일을 계산한 것: {현황['with_ex_date']:,} "
+          f"({현황['with_ex_date'] / 현황['cash_rows_since']:.1%})")
+    print(f"    금액이 있는 것      : {현황['with_amount']:,} "
+          f"({현황['with_amount'] / 현황['cash_rows_since']:.1%})")
+    print("\n  연도별 (우리 종목 · 행 / 금액 있는 행)")
+    for 연, 행, 금액 in 현황["by_year"]:
+        print(f"    {연}  {행:>5,}  {금액:>5,}  ({금액 / 행:.1%})" if 행 else f"    {연}  0")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="공공데이터포털 금융위 — 종목 신원 · 법인 개요를 받는다")
     parser.add_argument("--listed", action="store_true", help="종목 목록을 받는다")
     parser.add_argument("--profile", action="store_true", help="법인 개요를 받는다")
+    parser.add_argument("--dividend", action="store_true",
+                        help="배당 전량을 받는다 (약 72콜 · 날짜별로 돌지 않는다)")
     parser.add_argument("--status", action="store_true", help="받지 않고 현황만")
     parser.add_argument("--plan", action="store_true", help="받지 않고 콜 수만 센다")
     parser.add_argument("--dry-run", action="store_true", help="무엇을 할지만 보여 준다")
@@ -196,11 +237,11 @@ def main() -> int:
     if args.plan:
         return 계획을_보여준다(날짜들)
 
-    if not (args.listed or args.profile):
+    if not (args.listed or args.profile or args.dividend):
         # 🔴 아무것도 안 고르면 **아무것도 하지 않는다.** 기본값을 "전부 받기" 로 두면
         #    실수로 한 번 돌렸을 때 한도를 다 태운다.
         parser.print_help()
-        print("\n  받으려면 --listed 또는 --profile 을 고른다.")
+        print("\n  받으려면 --listed · --profile · --dividend 중에서 고른다.")
         print("  먼저 --plan 으로 몇 콜을 쓸지 세어 보는 것을 권한다.")
         return 0
 
@@ -209,6 +250,8 @@ def main() -> int:
         코드 |= 목록을_받는다(날짜들, dry_run=args.dry_run)
     if args.profile:
         코드 |= 개요를_받는다(limit=args.limit, dry_run=args.dry_run)
+    if args.dividend:
+        코드 |= 배당을_받는다(dry_run=args.dry_run)
     return 코드
 
 

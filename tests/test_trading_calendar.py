@@ -129,3 +129,70 @@ def test_세울_때_무엇을_해야_하는지까지_알려준다(달력끼우�
     with pytest.raises(tc.CalendarOutOfRange) as 잡힌것:
         tc.next_session("20210112")
     assert "할 일" in str(잡힌것.value)
+
+
+# ==================================================
+# 5. `prev_session` — `next_session` 의 거울
+# ==================================================
+def prev_session_옛(bas_dd: str, days: frozenset) -> str:
+    """선형 구현. 기대값을 **다른 경로에서** 얻으려고 둔다 — 위 §1 과 같은 이유다."""
+    earlier = [d for d in days if d < bas_dd]
+    if not earlier:
+        raise tc.CalendarOutOfRange("범위 밖")
+    return max(earlier)
+
+
+@pytest.mark.parametrize("물음", [
+    "20210104", "20210105", "20210106", "20210107", "20210108",
+    "20210109", "20210110", "20210111", "20210112",
+])
+def test_이전_거래일도_선형스캔과_같은_답을_준다(달력끼우기, 물음):
+    달력끼우기(달력_가)
+    assert tc.prev_session(물음) == prev_session_옛(물음, 달력_가)
+
+
+def test_거래일을_inclusive로_이전을_물으면_그_날이_나온다(달력끼우기):
+    달력끼우기(달력_가)
+    assert tc.prev_session("20210105", inclusive=True) == "20210105"
+    assert tc.prev_session("20210105") == "20210104"
+
+
+def test_휴장일을_inclusive로_물어도_이전_거래일이_나온다(달력끼우기):
+    """1월 1~3일은 신정·주말이라 열리지 않았다 — 그 앞은 작년 마지막 거래일이다."""
+    달력끼우기(달력_가)
+    for 휴장 in ("20210101", "20210102", "20210103"):
+        assert tc.prev_session(휴장, inclusive=True) == "20201231"
+
+
+def test_배당락일_두_걸음이_연말_휴장을_건너뛴다(달력끼우기):
+    """이 함수가 생긴 이유 — 12월 기준일의 배당락일은 날짜 계산으로 못 맞힌다."""
+    연말 = frozenset({"20231226", "20231227", "20231228", "20240102", "20240103"})
+    달력끼우기(연말)
+    마지막거래일 = tc.prev_session("20231231", inclusive=True)
+    assert 마지막거래일 == "20231228"                       # 12-29~31 은 휴장
+    assert tc.prev_session(마지막거래일) == "20231227"       # 실제 배당락일
+
+
+def test_달력보다_이른_날의_이전은_세운다(달력끼우기):
+    달력끼우기(달력_가)
+    with pytest.raises(tc.CalendarOutOfRange) as 잡힌것:
+        tc.prev_session("20201231")
+    assert "할 일" in str(잡힌것.value)
+
+
+def test_달력보다_늦은_날의_이전도_세운다(달력끼우기):
+    """지어내면 우리가 안 받은 구간을 아는 척하게 된다."""
+    달력끼우기(달력_가)
+    with pytest.raises(tc.CalendarOutOfRange) as 잡힌것:
+        tc.prev_session("20260101")
+    assert "할 일" in str(잡힌것.value)
+
+
+def test_이전_거래일도_달력을_갈아_끼우면_새_달력으로_답한다(달력끼우기):
+    """정렬본이 낡으면 조용히 옛 달력으로 답한다 — `next_session` 과 같은 위험이다."""
+    달력끼우기(달력_가)
+    assert tc.prev_session("20210112") == "20210111"
+    달력끼우기(달력_나)
+    # 달력_나 에는 20210112 가 없다. 같은 물음에 같은 답이 나오면 정렬본이 낡은 것이다.
+    assert tc.prev_session("20210112") == "20210111"
+    assert tc.prev_session("20210115") == "20210111"       # 12 가 없고 15 가 있다
