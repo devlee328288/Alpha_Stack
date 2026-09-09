@@ -19,6 +19,7 @@ from evaluation.arima_companion import evaluate_arima_companion  # noqa: E402
 from evaluation.baseline import fold_multiclass_baseline_predictions  # noqa: E402
 from evaluation.stock_backtest import run_overlapping_stock_backtest  # noqa: E402
 from features.model_dataset import build_model_dataset  # noqa: E402
+from features.stock_model_dataset import HALTED_VOLUME_FEATURE_POLICY  # noqa: E402
 from models.experiment import (  # noqa: E402
     MODEL_BUILDERS,
     classification_metrics,
@@ -587,7 +588,10 @@ def main() -> None:
         "source": {
             **source,
         },
-        "data_quality_policy": stock_report["data_quality_policy"],
+        "data_quality_policy": {
+            **stock_report["data_quality_policy"],
+            "halted_volume_feature_policy": HALTED_VOLUME_FEATURE_POLICY,
+        },
         "index_model": {
             "combination": index_combination,
             "return_features": list(index_return_features),
