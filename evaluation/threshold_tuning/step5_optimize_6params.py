@@ -56,7 +56,7 @@ def compute_bands_flexible(
 
 
 # ============================================================
-# 1. 포지션 생성 (6개 파라미터) - 단일 돌파 (2일 확인 제거)
+# 1. 포지션 생성 (6개 파라미터) - 🔥 반전 제거 (상단돌파=상승, 하단돌파=하락)
 # ============================================================
 def get_positions_6params(
     df: pd.DataFrame,
@@ -80,6 +80,7 @@ def get_positions_6params(
     upper = bands["upper"].values
     lower = bands["lower"].values
 
+    # 🔥 [수정] 반전 제거: 상단 돌파 = 상승(2), 하단 돌파 = 하락(0)
     pred = np.where(close > upper, 2, np.where(close < lower, 0, 1))
     positions = np.where(pred == 2, 1, np.where(pred == 0, -1, 0))
     return positions, pred
@@ -140,12 +141,16 @@ def calculate_metrics(returns: np.ndarray) -> dict:
     }
 
 
+# ============================================================
+# 3. 목적 함수 (🔥 반전 제거 + threshold 적용)
+# ============================================================
 def objective_6params(
     params: list,
     df_train: pd.DataFrame,
+    threshold: float = 0.02,
 ) -> float:
     """
-    🔥 [긴급 수정] Focal Loss + 안정화 조치 + Macro-F1 백업
+    🔥 [수정] 반전 제거 + ADR-0002 open 기준 레이블 + threshold 적용
     """
     (
         alpha_up,
@@ -177,17 +182,17 @@ def objective_6params(
     lower = bands["lower"].values
     _base = bands["base"].values
 
-    # 2) 예측 클래스
+    # 2) 예측 클래스 (🔥 반전 제거: 상단돌파=상승(2), 하단돌파=하락(0))
     preds = np.where(close > upper, 2, np.where(close < lower, 0, 1))
 
-    # 3) 실제 레이블 - 5일 후 수익률 ±1%
+    # 3) 실제 레이블 - ADR-0002 기준 (open shift(-5) / open)
     if "label" in df_train.columns:
         label_map = {"상승": 2, "중립": 1, "하락": 0}
         y_true_series = df_train["label"].map(label_map)
         y_true = y_true_series.fillna(1).astype(int).values
     else:
-        ret_5d = (df_train["close"].shift(-5) / df_train["close"] - 1).values
-        y_true = np.where(ret_5d > 0.01, 2, np.where(ret_5d < -0.01, 0, 1))
+        ret_5d = (df_train["open"].shift(-5) / df_train["open"] - 1).values
+        y_true = np.where(ret_5d > threshold, 2, np.where(ret_5d < -threshold, 0, 1))
 
     # 4) NaN 제거
     valid_mask = ~(np.isnan(preds) | np.isnan(y_true))
@@ -197,14 +202,10 @@ def objective_6params(
     y_true_clean = y_true[valid_mask]
     y_pred_clean = preds[valid_mask]
 
-    # ============================================================
-    # 5) Macro-F1 계산 (안정적인 백업 목적 함수)
-    # ============================================================
+    # 5) Macro-F1 계산
     f1_macro = f1_score(y_true_clean, y_pred_clean, average="macro")
 
-    # ============================================================
-    # 6) 중립 Recall 패널티 (가장 중요!)
-    # ============================================================
+    # 6) 중립 Recall 패널티
     neutral_recall = recall_score(y_true_clean, y_pred_clean, labels=[1], average=None)[
         0
     ]
@@ -213,18 +214,14 @@ def objective_6params(
     if neutral_recall < target_recall:
         recall_penalty = 10.0 * (target_recall - neutral_recall)
 
-    # ============================================================
     # 7) 최종 Fitness (CMA-ES는 최소화)
-    # ============================================================
-    # F1은 클수록 좋으므로 음수로 변환 (최소화 문제로 변환)
-    # recall_penalty는 클수록 나쁨 (그대로 더함)
     fitness = -f1_macro + recall_penalty
 
     return fitness
 
 
 # ============================================================
-# 4. Walk-Forward 실행 - 🔥 Expanding (12폴드, Gap 5, 5일 ±1%)
+# 4. Walk-Forward 실행 (🔥 반전 제거 + threshold + ARIMA 통일)
 # ============================================================
 def run_walkforward_6params(
     df: pd.DataFrame,
@@ -232,14 +229,17 @@ def run_walkforward_6params(
     val_months: int = 3,
     step_months: int = 1,
     max_evals: int = 300,
+    threshold: float = 0.02,
 ) -> dict:
     """
-    🔥 Expanding Window (12폴드, Gap 5, 5일 ±1%)
-    - MD v4.1 합의안 완벽 반영
+    🔥 Expanding Window (12폴드, Gap 5, 5일 ±threshold%)
+    - ADR-0002 open 기준 레이블
+    - 신호 반전 제거 (상단돌파=상승)
+    - ARIMA도 동일한 threshold로 통일
     """
     # ===== 기본 설정 =====
     INITIAL_TRAIN = train_years * 252  # 504일
-    VAL_DAYS = val_months * 21  # 60일 (3개월)
+    VAL_DAYS = val_months * 21  # 63일 (3개월)
     GAP = 5  # Gap 5일 (고정)
     N_FOLDS = 12  # 12폴드 (고정)
     LOOKBACK_DAYS = 35
@@ -269,7 +269,8 @@ def run_walkforward_6params(
     last_date = df.index[last_train_end - 1].strftime("%Y-%m-%d")
     print(f"   - 마지막 학습 종료일: {last_train_end}일 (약 {last_date})")
     print(f"🔹 Gap: {GAP}일, 검증(horizon): {VAL_DAYS}일")
-    print("🔹 라벨: 5일 후 수익률 ±1.0% (고정)")
+    print(f"🔹 라벨: ADR-0002 기준 (open 5일 수익률 ±{threshold*100:.0f}%)")
+    print("🔹 신호: 상단돌파=상승(2), 하단돌파=하락(0) [반전 제거]")
     print("🔍 최적화 파라미터: α_up, α_down, β_up, β_down, Vol_Period, Volume_Period")
 
     all_oos_returns = []
@@ -291,7 +292,7 @@ def run_walkforward_6params(
             )
             break
 
-        # 🔥 Expanding: 학습 데이터는 0부터 train_end까지
+        # Expanding: 학습 데이터는 0부터 train_end까지
         df_train = df.iloc[0:train_end].copy()
         df_val = df.iloc[val_start:val_end].copy()
 
@@ -302,13 +303,12 @@ def run_walkforward_6params(
         x0 = [0.50, 0.50, 0.0, 0.0, 14.0, 20.0]
         sigma0 = 0.5
 
-        # α_up 상한 0.40, α_down 상한 0.30 (비대칭: 상승은 넓게, 하락은 좁게)
         bounds_low = [0.05, 0.05, 0.0, 0.0, 10.0, 10.0]
         bounds_high = [2.0, 2.0, 2.0, 2.0, 30.0, 30.0]
 
-        def obj_func(p, df_train=df_train):
+        def obj_func(p, df_train=df_train, th=threshold):
             p_8 = list(p) + [0.01, -0.01]
-            return objective_6params(p_8, df_train)
+            return objective_6params(p_8, df_train, threshold=th)
 
         es = cma.CMAEvolutionStrategy(
             x0,
@@ -347,13 +347,14 @@ def run_walkforward_6params(
         positions = positions_full[oos_offset : oos_offset + VAL_DAYS]
         preds = preds_full[oos_offset : oos_offset + VAL_DAYS]
 
-        ret_5d = (df_val["close"].shift(-5) / df_val["close"] - 1).values
-        y_true = np.where(ret_5d > 0.01, 2, np.where(ret_5d < -0.01, 0, 1))
+        # ADR-0002 open 기준 레이블 + threshold 적용
+        ret_5d = (df_val["open"].shift(-5) / df_val["open"] - 1).values
+        y_true = np.where(ret_5d > threshold, 2, np.where(ret_5d < -threshold, 0, 1))
 
         # ============================================================
-        # [ARIMA 기준선 평가 - 5일 누적 예측]
+        # [ARIMA 기준선 평가 - open 기준 + threshold 통일]
         # ============================================================
-        train_ret = df_train["close"].pct_change().dropna().values
+        train_ret = df_train["open"].pct_change().dropna().values
 
         if len(train_ret) > 10:
             try:
@@ -385,7 +386,7 @@ def run_walkforward_6params(
                         arima_pred_5d_cum.append(cum_ret - 1)
 
                         if i < len(df_val):
-                            actual_ret = df_val["close"].pct_change().values[i]
+                            actual_ret = df_val["open"].pct_change().values[i]
                             if not np.isnan(actual_ret):
                                 history.append(actual_ret)
                             else:
@@ -393,10 +394,11 @@ def run_walkforward_6params(
 
                     arima_pred_5d_cum = np.array(arima_pred_5d_cum)
 
+                    # ARIMA 예측 라벨도 동일한 threshold로 통일
                     arima_preds = np.where(
-                        arima_pred_5d_cum > 0.01,
+                        arima_pred_5d_cum > threshold,
                         2,
-                        np.where(arima_pred_5d_cum < -0.01, 0, 1),
+                        np.where(arima_pred_5d_cum < -threshold, 0, 1),
                     )
 
                     if len(arima_preds) == len(y_true):
@@ -422,9 +424,9 @@ def run_walkforward_6params(
                 print(f"   ❌ train_ret 길이 부족 (실제: {len(train_ret)})")
 
         # ============================================================
-        # 포지션 수익률 계산 (명시적 Shift)
+        # 포지션 수익률 계산 (open 기준)
         # ============================================================
-        market_ret = df_val["close"].pct_change().values
+        market_ret = df_val["open"].pct_change().values
 
         pos_shifted = np.concatenate([[prev_last_position], positions[:-1]])
         if len(pos_shifted) > 0:
@@ -467,6 +469,20 @@ def run_walkforward_6params(
             start_date = df.index[val_start].strftime("%Y-%m-%d")
             end_date = df.index[val_end - 1].strftime("%Y-%m-%d")
             print(f"   → {total_folds}개 폴드 완료 (OOS: {start_date} ~ {end_date})")
+
+    # ===== [진단] 반전 제거 후 정확도 확인 =====
+    from sklearn.metrics import accuracy_score
+
+    y_true_arr = np.array(all_oos_y_true)
+    y_pred_arr = np.array(all_oos_y_pred)
+    if len(y_true_arr) > 0:
+        acc_current = accuracy_score(y_true_arr, y_pred_arr)
+        print(f"\n🔍 [진단] 반전 제거 후 현재 정확도: {acc_current:.4f}")
+        # 반전을 다시 적용해보면 어떤지 참고용
+        invert_back = {0: 2, 1: 1, 2: 0}
+        y_pred_reversed = np.array([invert_back[p] for p in y_pred_arr])
+        acc_reversed = accuracy_score(y_true_arr, y_pred_reversed)
+        print(f"   (참고) 만약 반전을 적용했다면: {acc_reversed:.4f}")
 
     # ---- 연결된 OOS 최종 평가 ----
     oos_returns = np.array(all_oos_returns)
@@ -526,52 +542,85 @@ def run_walkforward_6params(
 
 
 # ============================================================
-# 5. 메인 실행
+# 5. 메인 실행 (1%와 2% 비교)
 # ============================================================
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 5단계: Expanding + 5일 ±1% + ARIMA 누적 (분류 1순위)")
+    print("🚀 5단계: Expanding + ADR-0002(open) + 1% vs 2% 비교 (반전 제거)")
     print("=" * 60)
 
     df = load_data()
     print(f"📊 데이터 로드 완료: {df.shape[0]}일")
 
-    result = run_walkforward_6params(
-        df,
-        train_years=2,
-        val_months=3,
-        step_months=1,
-        max_evals=300,
+    results = {}
+
+    for thresh in [0.01, 0.02]:
+        print("\n" + "=" * 60)
+        print(f"📌 [실험 시작] Threshold = {thresh*100:.0f}% (상승/하락 기준)")
+        print("=" * 60)
+
+        result = run_walkforward_6params(
+            df,
+            train_years=2,
+            val_months=3,
+            step_months=1,
+            max_evals=300,
+            threshold=thresh,
+        )
+        results[thresh] = result
+
+    # ============================================================
+    # 최종 비교 결과 출력
+    # ============================================================
+    print("\n\n" + "=" * 70)
+    print("📊 [최종 비교] 1% 기준 vs 2% 기준 Walk-Forward 성능 (반전 제거)")
+    print("=" * 70)
+
+    compare_df = pd.DataFrame(
+        {
+            "Metric": [
+                "Sharpe",
+                "CAGR",
+                "MDD",
+                "Calmar",
+                "Win Rate",
+                "Macro-F1",
+                "Balanced Acc",
+            ],
+            "1% Threshold": [
+                results[0.01]["perf_metrics"]["sharpe"],
+                results[0.01]["perf_metrics"]["cagr"],
+                results[0.01]["perf_metrics"]["mdd"],
+                results[0.01]["perf_metrics"]["calmar"],
+                results[0.01]["perf_metrics"]["win_rate"],
+                results[0.01]["cls_metrics"]["f1_macro"],
+                results[0.01]["cls_metrics"]["balanced_acc"],
+            ],
+            "2% Threshold": [
+                results[0.02]["perf_metrics"]["sharpe"],
+                results[0.02]["perf_metrics"]["cagr"],
+                results[0.02]["perf_metrics"]["mdd"],
+                results[0.02]["perf_metrics"]["calmar"],
+                results[0.02]["perf_metrics"]["win_rate"],
+                results[0.02]["cls_metrics"]["f1_macro"],
+                results[0.02]["cls_metrics"]["balanced_acc"],
+            ],
+        }
     )
 
-    perf = result["perf_metrics"]
-    cls = result["cls_metrics"]
+    for col in ["1% Threshold", "2% Threshold"]:
+        compare_df[col] = compare_df[col].apply(
+            lambda x: f"{x:.4f}" if pd.notna(x) else "NaN"
+        )
 
-    print("\n" + "=" * 60)
-    print("📈 최종 OOS 성능 (Expanding 12폴드, Gap 5, 5일 ±1%)")
-    print("=" * 60)
-    print(f"🔹 총 Walk-Forward 폴드 수: {result['total_folds']}")
-    print("\n[수익률 기반 지표]")
-    print(f"   Sharpe Ratio       : {perf['sharpe']:.4f}")
-    print(f"   CAGR               : {perf['cagr']:.4%}")
-    print(f"   MDD                : {perf['mdd']:.4%}")
-    print(f"   Calmar Ratio       : {perf['calmar']:.4f}")
-    print(f"   승률 (Win Rate)    : {perf['win_rate']:.4%}")
-    print(f"   Profit Factor      : {perf['profit_factor']:.4f}")
+    print(compare_df.to_string(index=False))
 
-    print("\n[분류 품질]")
-    print(f"   Macro-F1           : {cls['f1_macro']:.4f}")
-    print(f"   Balanced Accuracy  : {cls['balanced_acc']:.4f}")
-    print(f"   예측 상승 비율     : {cls['ratio_up']:.4%}")
-    print(f"   예측 중립 비율     : {cls['ratio_neutral']:.4%}")
-    print(f"   예측 하락 비율     : {cls['ratio_down']:.4%}")
+    if (
+        results[0.01]["perf_metrics"]["sharpe"]
+        > results[0.02]["perf_metrics"]["sharpe"]
+    ):
+        print("\n🏆 1% 기준의 Sharpe Ratio가 더 높습니다.")
+    else:
+        print("\n🏆 2% 기준의 Sharpe Ratio가 더 높습니다.")
 
-    print("\n📊 전체 WF 파라미터 중앙값 (안정성 분석용):")
-    for k, v in result["params_median"].items():
-        if k in ["vol_period", "volume_period"]:
-            print(f"   {k} = {int(v)}일")
-        else:
-            print(f"   {k} = {v:.4f}")
-
-    print("\n✅ Expanding 기준 재측정 완료! (12폴드, Gap=5, 5일 ±1%)")
-    print("   🔥 ARIMA와 동일한 조건에서 분류 성능을 비교합니다.")
+    print("\n✅ 전체 비교 실험 완료!")
