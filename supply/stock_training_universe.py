@@ -3,11 +3,17 @@
 이 모듈은 로컬 수집 DB를 읽지 않는다. 입력은 HF의 ``daily_price_dev.parquet``와
 ``index_price_dev.parquet``에서 읽은 표다.
 
-HF 일별시세에는 주권종류가 없다. 대신 GitHub에 저장된 기본정보 전량검증 노트북
-(``notebooks/01-데이터수집/08.액면가로판정하니감자가빠졌다.ipynb``)이
-9,220,879행을 이름 규칙과 대조해 어긋난 10개 (코드, 당시 이름)를 전부 남겼다.
-``attach_audited_common_stock``은 그 고정된 감사 결과를 이름 규칙에 보정해 개발본의
-보통주 판정을 재현한다. 새 날짜나 실시간 추론에는 쓰지 않는다.
+보통주 판정은 **HF 일별시세의 ``kind_stkcert_tp_nm`` 칸**이 한다 (2026-09-09 · #186 ①).
+
+그전에는 개발본에 주권종류가 없어서 **종목명이 '우'로 끝나는지**로 추측하고, 어긋나는
+10건을 감사 예외 목록으로 기웠다. 그 방식에는 두 가지 문제가 있었다.
+
+    ① 목록이 대조한 날짜(20260831)까지만 유효해서, 그 뒤 날짜는 판정을 거부했다
+    ② 새로 상장하는 '우'로 끝나는 보통주가 나오면 다시 사람이 대조해야 했다
+
+반출본에 주권종류를 실으면서 둘 다 사라졌다. 실측으로 판정이 바뀌지 않는 것을 먼저
+확인했다 — 개발구간 7,888,945행 전량에서 **이름 규칙+예외 10건과 주권종류의 불일치가
+0행**이다. 즉 유니버스가 한 종목도 달라지지 않는다.
 
 후보 규칙은 이슈 #92·#132에서 합의한 MVP다.
 
@@ -28,24 +34,8 @@ import pandas as pd
 from evaluation.horizon import HOLDOUT_START
 from supply.sector import index_name_for
 
-AUDIT_END = "20260831"
-
-# GitHub 저장 실행 출력의 전량 대조 결과다. 앞의 아홉은 이름 규칙이 우선주로
-# 오인한 보통주이고, 마지막 하나는 반대로 보통주로 오인한 우선주다.
-AUDITED_COMMON_EXCEPTIONS = frozenset(
-    {
-        ("115960", "연우"),
-        ("088910", "동우"),
-        ("025620", "신우"),
-        ("294090", "이오플로우"),
-        ("006800", "미래에셋대우"),
-        ("047050", "포스코대우"),
-        ("064960", "S&T대우"),
-        ("458650", "성우"),
-        ("159910", "에코글로우"),
-    }
-)
-AUDITED_NON_COMMON_EXCEPTIONS = frozenset({("000327", "디피아이홀딩스2B")})
+#: KRX 종목기본정보의 주권종류 값. 이것과 정확히 같아야 보통주다.
+COMMON_STOCK_NAME = "보통주"
 
 # 제조·금융은 상위 묶음이라 뺀다. 2025년 체계에서 새로 생긴 IT 서비스·부동산·
 # 오락·문화도 개발구간의 19개 업종 비교와 조건을 맞추기 위해 넣지 않는다.
@@ -73,7 +63,8 @@ ELIGIBLE_INDUSTRY_INDICES = frozenset(
     }
 )
 
-DAILY_REQUIRED = {"bas_dd", "code", "name", "market", "market_cap", "industry"}
+DAILY_REQUIRED = {"bas_dd", "code", "name", "market", "market_cap", "industry",
+                  "kind_stkcert_tp_nm"}
 INDEX_REQUIRED = {"bas_dd", "index_name", "index_class", "market_cap"}
 
 
@@ -91,51 +82,38 @@ def _normalize_dates(values: pd.Series, *, column: str) -> pd.Series:
     return dates
 
 
-def _looks_preferred(name: str) -> bool:
-    """GitHub 전량검증에서 비교 대상으로 쓴 옛 이름 규칙을 그대로 재현한다."""
+def attach_common_stock(daily_prices: pd.DataFrame) -> pd.DataFrame:
+    """HF 개발본에 ``is_common_stock``을 붙인다 — **KRX 주권종류가 정한다.**
 
-    normalized = (name or "").strip()
-    return bool(normalized) and (
-        normalized.endswith("우")
-        or "우B" in normalized
-        or "우(전환)" in normalized
-        or normalized.endswith("우C")
-    )
+    ``kind_stkcert_tp_nm``이 정확히 ``"보통주"``인 행만 참이다. 우선주(구형·신형)와
+    종류주권은 거짓이다.
 
+    🔴 **모르는 주권종류는 보통주가 아니라고 본다.** 빈 값을 보통주로 치면 우선주가
+       후보에 섞이는데, 빠진 종목은 개수로 드러나지만 섞인 종목은 성능이 조금
+       이상해질 뿐 아무 데도 안 걸린다.
 
-def attach_audited_common_stock(daily_prices: pd.DataFrame) -> pd.DataFrame:
-    """HF 개발본에 GitHub 전량검증 근거의 ``is_common_stock``을 붙인다.
-
-    이 함수는 2026-08-31까지 전량 대조한 고정 자료에만 유효하다. 그 뒤의 날짜를
-    받으면 새 이름·주권종류를 검증하지 못했으므로 추측하지 않고 중단한다.
+    🔴 **칸이 없으면 추측하지 않고 멈춘다.** 2026-09-09 이전 반출본에는 이 칸이 없다.
+       옛 파일을 그대로 넣으면 종목명으로 되돌아가는 대신 여기서 터진다 — 조용히
+       다른 표본으로 학습하는 것보다 낫다.
     """
 
-    required = {"bas_dd", "code", "name"}
+    required = {"bas_dd", "code", "name", "kind_stkcert_tp_nm"}
     missing = required - set(daily_prices.columns)
     if missing:
-        raise ValueError(f"보통주 감사 판정에 필요한 열이 없습니다: {sorted(missing)}")
+        raise ValueError(
+            f"보통주 판정에 필요한 열이 없습니다: {sorted(missing)}. "
+            "2026-09-09 이후 반출본(daily_price_dev.parquet 34칸)을 쓰세요 — "
+            "그 전 파일에는 주권종류가 없습니다."
+        )
 
     out = daily_prices.copy()
     out["bas_dd"] = _normalize_dates(out["bas_dd"], column="bas_dd")
-    if not out.empty and out["bas_dd"].max() > AUDIT_END:
-        raise RuntimeError(
-            f"GitHub 전량검증 범위({AUDIT_END}) 뒤의 행은 판정할 수 없습니다: "
-            f"{out['bas_dd'].max()}"
-        )
-    out["code"] = out["code"].astype("string").str.strip().str.zfill(6)
-    names = out["name"].astype("string").fillna("").str.strip()
-    if names.eq("").any():
-        raise ValueError("종목명이 빈 행은 GitHub 감사 규칙으로 판정할 수 없습니다.")
-
-    is_common = ~names.map(_looks_preferred)
-    pairs = pd.Series(zip(out["code"], names, strict=True), index=out.index)
-    is_common.loc[pairs.isin(AUDITED_COMMON_EXCEPTIONS)] = True
-    is_common.loc[pairs.isin(AUDITED_NON_COMMON_EXCEPTIONS)] = False
-    out["is_common_stock"] = is_common.astype(bool)
+    out["code"] = out["code"].astype("string").str.strip()
+    종류 = out["kind_stkcert_tp_nm"].astype("string").str.strip()
+    out["is_common_stock"] = 종류.eq(COMMON_STOCK_NAME).fillna(False).astype(bool)
     out.attrs["common_stock_source"] = (
-        "GitHub 기본정보 전량검증 9,220,879행의 이름 규칙 예외 10개"
+        "KRX 종목기본정보 kind_stkcert_tp_nm (개발구간 커버리지 100.0000%)"
     )
-    out.attrs["common_stock_audit_end"] = AUDIT_END
     return out
 
 
@@ -166,7 +144,7 @@ def build_sector_candidate_frame(
     kospi_rows = daily_prices["market"].eq("KOSPI")
     stock_input = daily_prices.loc[kospi_rows].copy()
     stock_input["bas_dd"] = daily_dates.loc[kospi_rows]
-    stocks = attach_audited_common_stock(stock_input)
+    stocks = attach_common_stock(stock_input)
     indices = index_prices.copy()
     indices["bas_dd"] = _normalize_dates(indices["bas_dd"], column="bas_dd")
     if (indices["bas_dd"] >= holdout_start).any():
@@ -339,11 +317,8 @@ def filter_extreme_adjusted_returns(
 
 
 __all__ = [
-    "AUDITED_COMMON_EXCEPTIONS",
-    "AUDITED_NON_COMMON_EXCEPTIONS",
-    "AUDIT_END",
     "ELIGIBLE_INDUSTRY_INDICES",
-    "attach_audited_common_stock",
+    "attach_common_stock",
     "build_sector_candidate_frame",
     "filter_extreme_adjusted_returns",
 ]

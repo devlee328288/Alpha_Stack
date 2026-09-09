@@ -29,13 +29,19 @@ KOSPI 와 KOSDAQ 이 같은 이름의 업종지수를 갖는데 기본키에 시
 
 그래서 §2.4 는 **같은 표를 두 축으로 세서 비교**한다.
 
-## 무엇을 싣나 — 다섯 축
+## 무엇을 싣나 — 일곱 축
 
     missing     결측 — 칸별 결측률 · 정지일이 0 이 아니라 NaN 인가 · 층별 정지일 비율
+    validity    유효성 — 값이 규칙을 지키나 (OHLC 순서 · 시가총액 항등식 · 부호)
     outlier     이상치 — is_adj_suspect 를 adj_source 별로 · 후보군 교집합 · 극단 사건
+    volume      거래량 급변 — KRX 시장경보 기준(최근 5일 평균 대비 3배)으로 센다
     calendar    달력 정합 — 최신일 일치 · 시장별 거래일 수 · 반출본과 DB 의 차이
     duplicate   중복 — 축마다 (위 참조)
     sealing     시점·봉인 — 반출본 최대 날짜 < 홀드아웃 시작
+
+`validity` 는 표준 6차원(completeness·validity·accuracy·consistency·uniqueness·
+timeliness) 중 우리에게 없던 하나다. `volume` 은 qlib 건강검사에는 있는데 우리에게
+없던 것인데, **기준값을 그대로 가져오지 않았다** — §거래량 급변 참조.
 
 각 지표는 `{"value", "red_if", "status", "note"}` 넷을 갖는다. `status` 는
 `ok` · `red` · `warn` · `skip`(잴 자료가 없다) 중 하나다.
@@ -58,8 +64,25 @@ LEDGER_NAME = "QUALITY_LEDGER.json"
 #: 저장소에 쌓는 이력. append-only — 고치지 않고 새 줄을 쓴다.
 HISTORY_PATH = Path("reports") / "quality_ledger.jsonl"
 
-#: 다섯 축의 이름과 순서. 카드 표도 이 순서로 나간다.
-AXES = ("missing", "outlier", "calendar", "duplicate", "sealing")
+#: 일곱 축의 이름과 순서. 카드 표도 이 순서로 나간다.
+AXES = ("missing", "validity", "outlier", "volume", "calendar", "duplicate",
+        "sealing")
+
+#: 거래량 급변을 재는 기준 — **KRX 시장경보제도**가 쓰는 정의를 그대로 따른다.
+#: 시장감시규정 시행세칙의 투자주의 지정 요건 중 하나가 *"당일의 거래량이 최근
+#: 5일 평균 거래량 대비 3배 이상 증가"* 다. 한국 시장의 공식 정의라 방어가 쉽고,
+#: 셋 중 가장 보수적이다.
+#:
+#: 실측 2026-09-09 · 개발구간 · 3배 초과 비율
+#:
+#:     기준선              전체      KOSPI 상위 50
+#:     KRX 5일 평균      5.426%          1.374%     ← 이걸 쓴다
+#:     qlib 전일         7.977%          1.908%
+#:     20일 중앙값      10.329%          2.353%
+#:
+#: 🔴 **기준선을 바꾸면 값이 2배 갈린다.** 배수만 베끼면 안 되는 이유다.
+SURGE_WINDOW = 5
+SURGE_MULTIPLE = 3.0
 
 #: KST. 반출 시각은 사람이 읽는 값이라 현지 시간으로 적는다.
 KST = timezone(timedelta(hours=9))
@@ -132,7 +155,94 @@ def _axis_missing(profile: Optional[Dict], daily: Optional[pd.DataFrame]) -> Dic
     return axis
 
 
-# ── 축 2. 이상치 — 크기가 아니라 어긋남 ───────────────────────────────────────
+# ── 축 2. 유효성 — 값이 규칙을 지키나 ─────────────────────────────────────────
+
+def _axis_validity(daily: Optional[pd.DataFrame]) -> Dict:
+    """유효성 — *"Does the data match the rules?"* 표준 6차원 중 우리에게 없던 축.
+
+    ## 정지행을 위반으로 세면 전부가 붉어진다
+
+    KRX 는 거래정지 중에도 행을 준다. 그 행은 `open=high=low=0` 이고 종가만 직전 값을
+    물고 있다 — 개발구간에 231,808행(2.938%)이다. 이건 규칙 위반이 아니라 **KRX 의
+    정지 표기**다. 그래서 **체결이 있던 행만**(`volume > 0`) 재고, 나머지는
+    `is_halted` 칸으로 따로 표시한다.
+
+    ## 실측이 뒤집은 것 — 124행은 "고가·저가가 살아 있는" 행이 아니었다
+
+    처음에는 이 124행을 *"`open ≤ 0` 인데 고가·저가는 살아 있는 행"* 이라고 적었다.
+    실제로 열어 보니 **고가·저가도 0** 이고 종가와 거래량만 있다. 거래량이 1주·30주인
+    행이 많고, 96종목이 우선주·리츠·스팩이다. 정규장 체결 없이 **시간외 단일가만
+    체결된 날**이다.
+
+    실측 2026-09-09 · 개발구간 · `volume > 0` 인 7,657,137행:
+
+        high >= low                       0
+        high >= max(open, close)        124   ← high=0 이고 close>0
+        low  <= min(open, close)          0
+        open > 0                        124   ← 같은 행이다
+        market_cap == close x shares      0
+        value >= 0 · listed_shares > 0    0
+
+    그 124행은 `is_traded` 가 거짓이라 **작은 벌에서는 이미 빠져 있다.** 큰 벌에만
+    남아 있었고, `is_halted` 칸을 실으면서 큰 벌에서도 보이게 됐다.
+
+    붉게 보는 것은 **OHLC 순서**와 **시가총액 항등식**뿐이다. 둘은 어떤 시장 사건으로도
+    설명되지 않는 계산 오류다. `open <= 0` 은 위 이유로 기록만 한다.
+    """
+    axis: Dict[str, Any] = {}
+    필요 = {"open", "high", "low", "close", "volume", "market_cap", "listed_shares"}
+    if daily is None or daily.empty or 필요 - set(daily.columns):
+        return {k: _metric(None, "반출본을 못 읽었다", _SKIP)
+                for k in ("ohlc_order_rows", "market_cap_identity_rows",
+                          "nonpositive_open_rows", "negative_value_rows")}
+
+    체결 = daily["volume"].fillna(0) > 0
+    sub = daily.loc[체결]
+
+    순서 = (
+        (sub["high"] < sub["low"])
+        | (sub["high"] < sub[["open", "close"]].max(axis=1))
+        | (sub["low"] > sub[["open", "close"]].min(axis=1))
+    )
+    # 🔴 `open <= 0` 한 갈래를 따로 뺀다. 시간외 단일가만 체결된 날이라 고가·저가가
+    #    0 인데, 그건 계산 오류가 아니라 그 날 정규장에 체결이 없었다는 뜻이다.
+    시간외 = sub["open"] <= 0
+    진짜순서 = 순서 & ~시간외
+
+    axis["ohlc_order_rows"] = _metric(
+        int(진짜순서.sum()), "> 0 (어떤 시장 사건으로도 설명되지 않는다)",
+        _RED if int(진짜순서.sum()) else _OK,
+        f"체결이 있던 {int(체결.sum()):,}행에서 잰다 · 시간외 단일가 행은 아래로 뺀다",
+    )
+    axis["nonpositive_open_rows"] = _metric(
+        int(시간외.sum()), "(붉지 않다 — 시간외 단일가만 체결된 날이다)", _OK,
+        "정규장 체결이 없어 시·고·저가가 0 이고 종가·거래량만 있다 · "
+        "`is_halted` 가 참이라 학습 표본에서는 이미 빠진다",
+    )
+
+    쓸수있음 = (sub["market_cap"].notna() & sub["listed_shares"].notna()
+                & sub["close"].notna())
+    계산 = sub["close"] * sub["listed_shares"]
+    어긋남 = 쓸수있음 & (
+        (sub["market_cap"] - 계산).abs() > 1e-7 * sub["market_cap"].abs())
+    axis["market_cap_identity_rows"] = _metric(
+        int(어긋남.sum()), "> 0 (시가총액 = 종가 x 상장주식수 가 깨졌다)",
+        _RED if int(어긋남.sum()) else _OK,
+        f"상대오차 1e-7 · 비교 가능 {int(쓸수있음.sum()):,}행 · "
+        "1.8경이라 float64 유효숫자를 넘어 절대오차로는 못 잰다",
+    )
+
+    음수 = (sub["volume"] < 0) | (sub["market_cap"] < 0) | (sub["listed_shares"] <= 0)
+    if "value" in sub.columns:
+        음수 = 음수 | (sub["value"] < 0)
+    axis["negative_value_rows"] = _metric(
+        int(음수.fillna(False).sum()), "> 0 (음수 거래량·시가총액·상장주식수)",
+        _RED if int(음수.fillna(False).sum()) else _OK,
+    )
+    return axis
+
+
+# ── 축 3. 이상치 — 크기가 아니라 어긋남 ───────────────────────────────────────
 
 def _axis_outlier(daily: Optional[pd.DataFrame]) -> Dict:
     """이상치 — KRX 등락률과 우리 수정주가 수익률이 어긋난 행만 의심한다.
@@ -177,7 +287,72 @@ def _axis_outlier(daily: Optional[pd.DataFrame]) -> Dict:
     return axis
 
 
-# ── 축 3. 달력 정합 ───────────────────────────────────────────────────────────
+# ── 축 4. 거래량 급변 — 기준을 베끼지 않는다 ──────────────────────────────────
+
+def _axis_volume(daily: Optional[pd.DataFrame]) -> Dict:
+    """거래량 급변 — **KRX 시장경보 기준**(최근 5일 평균 대비 3배)으로 센다.
+
+    ## 왜 붉게 두지 않나
+
+    qlib 은 `large_step_threshold_volume=3` 으로 3배 초과를 붉게 본다. 우리도 세지만
+    **판정은 하지 않는다.** 실측이 그 이유를 준다.
+
+    실측 2026-09-09 · KOSPI 시총 상위 50 · 10배 초과 254행:
+
+        자본변동 ±5거래일 안        38행 (15.0%)   액면분할·증자·감자
+        is_extreme_return 과 겹침    0행 ( 0.0%)   완전히 독립된 축이다
+        나머지                     216행          수급 사건
+
+    상위를 열어 보면 전부 설명된다 — 2018-05-04 삼성전자 158배(50:1 액면분할 재상장),
+    2021-02-24 SK바이오팜 73배(보호예수 해제 · −17.29%), 2023-12-20 HMM 50배(인수전
+    · +19.91%), 2024-01-11 카카오페이 37배(+21.59%).
+
+    **데이터 오류가 아니라 시장 사건이다.** KRX 자신도 이걸 "오류" 가 아니라 투자주의
+    지정 요건으로 쓴다. 붉게 두면 배포마다 게이트가 막히고, 붉은불이 흔해지면 아무도
+    보지 않게 된다 — `is_extreme_return` 을 "빼라" 가 아니라 "남겨라" 로 적은 것과
+    같은 이유다.
+
+    ## 기준선을 함께 적는 이유
+
+    배수(3배)는 세 표준이 같은데 **무엇에 대한 3배인지가 다르다.** KRX 는 최근 5일
+    평균, qlib 은 전일, 흔한 관행은 20일 중앙값이다. 우리 데이터에서 전체 비율이
+    5.426% / 7.977% / 10.329% 로 **2배 가까이 갈린다.** 그래서 값과 함께 기준선을
+    남긴다.
+    """
+    axis: Dict[str, Any] = {}
+    if daily is None or daily.empty or {"code", "bas_dd", "volume"} - set(daily.columns):
+        return {k: _metric(None, "반출본을 못 읽었다", _SKIP)
+                for k in ("surge_rows", "surge_ratio_p999")}
+
+    v = daily[["bas_dd", "code", "volume"]].sort_values(["code", "bas_dd"])
+    # 체결이 있던 날만 기준선에 넣는다. 정지·무거래 0 을 평균에 섞으면 재개일이
+    # 전부 급변으로 잡힌다.
+    vol = v["volume"].where(v["volume"] > 0)
+    # 🔴 `shift(1)` — 그 날을 뺀 과거만 본다. 자기 자신을 평균에 넣으면 급변이
+    #    스스로를 희석해서 큰 값일수록 덜 잡힌다.
+    기준선 = (vol.groupby(v["code"])
+                 .transform(lambda s: s.shift(1)
+                            .rolling(SURGE_WINDOW, min_periods=3).mean()))
+    비율 = (vol / 기준선).replace([float("inf"), float("-inf")], pd.NA)
+    잴수있음 = 비율.notna()
+    급변 = int((비율 > SURGE_MULTIPLE).fillna(False).sum())
+
+    axis["surge_rows"] = _metric(
+        급변, "(붉지 않다 — 시장 사건이다)", _OK,
+        f"KRX 시장경보 기준: 최근 {SURGE_WINDOW}일 평균 대비 {SURGE_MULTIPLE:g}배 초과 · "
+        f"잴 수 있는 {int(잴수있음.sum()):,}행의 "
+        f"{급변 / max(int(잴수있음.sum()), 1):.3%} · "
+        "`is_extreme_return` 과 겹치지 않는 독립된 축이다",
+    )
+    axis["surge_ratio_p999"] = _metric(
+        round(float(비율[잴수있음].quantile(0.999)), 2) if 잴수있음.any() else None,
+        "(붉지 않다 · 분포를 남긴다)", _OK,
+        "99.9% 분위수 — 임계를 옮길 일이 생기면 이 값을 근거로 삼는다",
+    )
+    return axis
+
+
+# ── 축 5. 달력 정합 ───────────────────────────────────────────────────────────
 
 def _axis_calendar(conn, daily: Optional[pd.DataFrame]) -> Dict:
     """달력 — `trading_calendar` 는 날짜마다 시장 수만큼 행이 있다. DISTINCT 로 센다."""
@@ -214,7 +389,7 @@ def _axis_calendar(conn, daily: Optional[pd.DataFrame]) -> Dict:
     return axis
 
 
-# ── 축 4. 중복 — 합계가 아니라 축마다 ─────────────────────────────────────────
+# ── 축 6. 중복 — 합계가 아니라 축마다 ─────────────────────────────────────────
 
 def _axis_duplicate(conn, daily: Optional[pd.DataFrame]) -> Dict:
     """중복 — **같은 표를 두 축으로 세서 비교**한다. 합계는 덮어쓰기를 못 잡는다."""
@@ -275,7 +450,7 @@ def _axis_duplicate(conn, daily: Optional[pd.DataFrame]) -> Dict:
     return axis
 
 
-# ── 축 5. 시점 · 봉인 ─────────────────────────────────────────────────────────
+# ── 축 7. 시점 · 봉인 ─────────────────────────────────────────────────────────
 
 def _axis_sealing(manifest: Optional[Dict], daily: Optional[pd.DataFrame],
                   holdout_start: str) -> Dict:
@@ -335,7 +510,9 @@ def build_quality_ledger(
 
     axes = {
         "missing": _axis_missing(profile, daily),
+        "validity": _axis_validity(daily),
         "outlier": _axis_outlier(daily),
+        "volume": _axis_volume(daily),
         "calendar": _axis_calendar(conn, daily),
         "duplicate": _axis_duplicate(conn, daily),
         "sealing": _axis_sealing(manifest, daily, holdout_start),
@@ -368,13 +545,25 @@ def _read_json(path: Path) -> Optional[Dict]:
         return None
 
 
+#: 원장이 반출본에서 읽는 칸. **축이 요구하는 칸이 여기 없으면 그 축은 조용히
+#: `skip` 된다** — 예외도 경고도 없이 값이 `None` 으로 나갈 뿐이다. 실제로 그렇게
+#: 됐다: `validity` 축을 넣으면서 이 목록에 `open`·`high`·`low`·`market_cap`·
+#: `listed_shares` 를 안 더해서, 첫 반출에서 네 지표가 전부 `None` 이었다.
+#: 축을 더할 때 여기도 같이 늘린다. `test_원장이_읽는_칸이_모든_축을_덮는다` 가 지킨다.
+EXPORT_DAILY_COLUMNS = (
+    "bas_dd", "code", "market",
+    "open", "high", "low", "close",
+    "volume", "value", "market_cap", "listed_shares",
+    "change_rate", "adj_open", "adj_high", "adj_low", "adj_close", "adj_source",
+)
+
+
 def _read_export_daily(outbox: Path) -> Optional[pd.DataFrame]:
-    """반출본 시세를 읽는다 — 품질 판정에 쓰는 칸만. 전량은 320MB 라 칸을 좁힌다."""
+    """반출본 시세를 읽는다 — 품질 판정에 쓰는 칸만. 전량은 376MB 라 칸을 좁힌다."""
     path = outbox / "full" / "daily_price_dev.parquet"
     if not path.exists():
         return None
-    칸 = ["bas_dd", "code", "close", "adj_close", "change_rate", "volume",
-         "adj_open", "adj_high", "adj_low", "adj_source", "market"]
+    칸 = list(EXPORT_DAILY_COLUMNS)
     try:
         return pd.read_parquet(path, columns=칸)
     except Exception:                                     # noqa: BLE001 — 칸이 다를 수 있다
@@ -470,7 +659,9 @@ def read_last_history(path: Path = HISTORY_PATH) -> Optional[Dict]:
 
 _축이름 = {
     "missing": "결측",
+    "validity": "유효성",
     "outlier": "이상치",
+    "volume": "거래량 급변",
     "calendar": "달력 정합",
     "duplicate": "중복",
     "sealing": "시점·봉인",
@@ -503,6 +694,60 @@ df = df[~df["is_adj_suspect"]]        # 걸러야 하는 것은 이것 하나뿐
 
 팀 기준선은 `is_adj_suspect` 만 제외한 표본입니다. 이 칸들이 파일에 함께 있는 이유가
 그것입니다 — 각자 같은 함수를 다시 돌리지 않아도 **같은 표본**이 되도록.
+"""
+
+#: 🔴 작은 벌과 큰 벌이 **다른 규칙 위에 서 있다**는 사실. 이슈 #186 ① 이 짚은 것이다.
+#: 칸 구성만 보고는 알 수 없고, 큰 벌로 학습하면 작은 벌과 결과가 갈리는데 경고가 없다.
+SAMPLE_GUIDE = """### 🔴 큰 벌과 작은 벌은 **다른 표본**입니다
+
+같은 자료를 두 벌로 냅니다. **둘은 표본이 다릅니다.**
+
+| | 파일 | 정리매매·거래정지·신규상장 |
+|---|---|---|
+| **큰 벌** | `full/daily_price_dev.parquet` | **안 뺐습니다** — 그대로 있습니다 |
+| **작은 벌** | `small/stocks_sample30_train_dev.csv` | **뺐습니다** |
+
+큰 벌로 그냥 학습하면 작은 벌·팀 기준선과 **표본이 달라집니다.** 개발구간 7,888,945행
+중 **251,282행(3.185%)** 이 그 차이입니다.
+
+같은 표본으로 맞추려면 한 줄입니다.
+
+```python
+df = df[~(df.is_liquidation | df.is_halted | df.is_first_listing)]
+```
+
+| 칸 | 무엇 | 개발구간 |
+|---|---|---:|
+| `is_liquidation` | 정리매매 — 체결이 끊기기 직전 10체결일 | 17,973 (0.228%) |
+| `is_halted` | 거래정지 — 그 행에 체결이 없었다 | 231,808 (2.938%) |
+| `is_first_listing` | 신규상장 첫 거래일 — 등락률이 공모가 기준 | 1,501 (0.019%) |
+
+> 🔴 **이 셋을 피처로 넣지 마십시오.** `is_liquidation` 은 *"이 뒤로 체결이 끊긴다"* 를
+> 보고 매깁니다. 그 시점에는 알 수 없는 사실이라 피처로 쓰면 곧 미래참조입니다.
+> **표본을 고르는 데만** 쓰십시오.
+
+### 유니버스를 좁히려면 — 주권종류 3칸
+
+`kind_stkcert_tp_nm` · `secugrp_nm` · `sect_tp_nm` 이 그 날의 KRX 판정을 그대로 담고
+있습니다. **무엇을 뺄지는 정해 두지 않았습니다** — 쓰는 쪽이 고르십시오.
+
+```python
+# 보통주만 (KOSPI200 방법론 · CRSP share code 10/11 에 해당)
+df = df[df.kind_stkcert_tp_nm == "보통주"]
+
+# KOSPI200 지수 방법론에 맞추려면 — 리츠·선박투자회사·SPAC·관리종목도 뺍니다
+빼기 = (
+    df.secugrp_nm.isin(["부동산투자회사", "선박투자회사", "투자회사",
+                        "사회간접자본투융자회사", "외국주권",
+                        "주식예탁증권", "주식예탁증서"])
+    | df.sect_tp_nm.astype(str).str.contains("SPAC|관리종목|투자주의환기|외국기업")
+)
+df = df[~빼기]
+```
+
+> ⚠️ 이렇게 걸러도 **KOSPI200 과 똑같아지지는 않습니다.** 방법론은 "유동주식비율 10%
+> 미만"과 "상장 후 6개월 미경과"도 제외하는데, 유동주식비율은 우리가 수집하지 않습니다.
+> 그래서 판정을 한 칸으로 뭉치지 않고 **원문 값 그대로** 실어 보냅니다.
 """
 
 
@@ -546,8 +791,12 @@ def render_card_section(ledger: Dict[str, Any]) -> str:
         "> 이 표는 **막지 않고 적습니다.** 반출을 막는 것은 검증기와 게이트이고, 원장은 "
         "붉은 것을 붉게 적어 함께 내보냅니다 — 알면서 내보내는 것을 숨기지 않기 위해서입니다.",
         "",
-        "| 축 | 지표 | 값 | 붉은 기준 | 판정 |",
-        "|---|---|---|---|---|",
+        # 🔴 `note` 를 빼면 값이 무슨 뜻인지 알 수 없다. 거래량 급변의 "3배" 는
+        #    기준선(KRX 5일 평균 / qlib 전일 / 20일 중앙값)에 따라 전체 비율이
+        #    5.426% ~ 10.329% 로 갈린다. 근거를 같이 실어야 다음 사람이 배수만
+        #    베끼지 않는다.
+        "| 축 | 지표 | 값 | 붉은 기준 | 판정 | 근거 |",
+        "|---|---|---|---|---|---|",
     ]
     변화 = (ledger.get("previous") or {}).get("changed", {})
     for 축 in AXES:
@@ -556,7 +805,7 @@ def render_card_section(ledger: Dict[str, Any]) -> str:
             값글 = _fmt_value(m.get("value"))
             줄.append(
                 f"| {_축이름.get(축, 축)} | `{이름}` | {값글} | {m.get('red_if', '')} | "
-                f"{_표시.get(m.get('status'), '')} |"
+                f"{_표시.get(m.get('status'), '')} | {m.get('note', '')} |"
             )
     if 변화:
         줄 += ["", "### 지난 반출본에서 달라진 것", "",
@@ -566,13 +815,15 @@ def render_card_section(ledger: Dict[str, Any]) -> str:
     붉은 = ledger.get("red", [])
     if 붉은:
         줄 += ["", f"🔴 **붉은 항목 {len(붉은)}개** — " + " · ".join(f"`{x}`" for x in 붉은)]
-    줄 += ["", FLAG_GUIDE]
+    줄 += ["", SAMPLE_GUIDE, "", FLAG_GUIDE]
     return "\n".join(줄) + "\n"
 
 
 __all__ = [
     "AXES",
+    "EXPORT_DAILY_COLUMNS",
     "FLAG_GUIDE",
+    "SAMPLE_GUIDE",
     "HISTORY_PATH",
     "LEDGER_NAME",
     "append_history",

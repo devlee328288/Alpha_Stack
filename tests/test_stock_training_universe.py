@@ -3,22 +3,28 @@ import pytest
 
 from supply.stock_training_universe import (
     ELIGIBLE_INDUSTRY_INDICES,
-    attach_audited_common_stock,
+    attach_common_stock,
     build_sector_candidate_frame,
     filter_extreme_adjusted_returns,
 )
 
 
-def test_github_전량검증의_이름예외를_보통주판정에반영한다():
+def test_이름이_우로끝나는_보통주를_주권종류가_구해낸다():
+    """옛 이름 규칙이 우선주로 잘못 뺐던 넷. 주권종류는 바로 답한다.
+
+    `미래에셋대우` 는 20200102 코스피 시총 48위라, 잘못 빠지면 상위 50 후보가
+    조용히 한 종목 줄어든다.
+    """
     frame = pd.DataFrame(
         {
             "bas_dd": ["20200102"] * 4,
             "code": ["006800", "025620", "000327", "000335"],
             "name": ["미래에셋대우", "신우", "디피아이홀딩스2B", "삼성전자우"],
+            "kind_stkcert_tp_nm": ["보통주", "보통주", "신형우선주", "구형우선주"],
         }
     )
 
-    result = attach_audited_common_stock(frame).set_index("code")
+    result = attach_common_stock(frame).set_index("code")
 
     assert bool(result.loc["006800", "is_common_stock"]) is True
     assert bool(result.loc["025620", "is_common_stock"]) is True
@@ -26,13 +32,34 @@ def test_github_전량검증의_이름예외를_보통주판정에반영한다()
     assert bool(result.loc["000335", "is_common_stock"]) is False
 
 
-def test_github_감사범위뒤의날짜는_추측하지않는다():
+def test_모르는_주권종류는_보통주로_보지않는다():
+    """빈 값을 보통주로 치면 우선주가 후보에 조용히 섞인다."""
     frame = pd.DataFrame(
-        {"bas_dd": ["20260901"], "code": ["005930"], "name": ["삼성전자"]}
+        {
+            "bas_dd": ["20200102"] * 2,
+            "code": ["005930", "999999"],
+            "name": ["삼성전자", "이름만있는것"],
+            "kind_stkcert_tp_nm": ["보통주", None],
+        }
     )
 
-    with pytest.raises(RuntimeError, match="전량검증 범위"):
-        attach_audited_common_stock(frame)
+    result = attach_common_stock(frame).set_index("code")
+
+    assert bool(result.loc["005930", "is_common_stock"]) is True
+    assert bool(result.loc["999999", "is_common_stock"]) is False
+
+
+def test_주권종류칸이_없으면_이름으로_되돌아가지않고_멈춘다():
+    """2026-09-09 이전 반출본(28칸)을 그대로 넣은 경우다.
+
+    조용히 종목명 규칙으로 되돌아가면 팀 기준선과 다른 표본으로 학습하게 된다.
+    """
+    frame = pd.DataFrame(
+        {"bas_dd": ["20240102"], "code": ["005930"], "name": ["삼성전자"]}
+    )
+
+    with pytest.raises(ValueError, match="kind_stkcert_tp_nm"):
+        attach_common_stock(frame)
 
 
 def test_업종상위10개와_업종별보통주상위5개를고른다():
@@ -76,9 +103,10 @@ def test_업종상위10개와_업종별보통주상위5개를고른다():
                     "market": "KOSPI",
                     "market_cap": float(10_000 - within),
                     "industry": sector,
+                    "kind_stkcert_tp_nm": "보통주",
                 }
             )
-    # 가장 큰 종목이어도 이름 규칙상 우선주는 업종별 다섯 종목에 들어오면 안 된다.
+    # 가장 큰 종목이어도 우선주는 업종별 다섯 종목에 들어오면 안 된다.
     stock_rows.append(
         {
             "bas_dd": date,
@@ -87,6 +115,19 @@ def test_업종상위10개와_업종별보통주상위5개를고른다():
             "market": "KOSPI",
             "market_cap": 1_000_000.0,
             "industry": sectors[0],
+            "kind_stkcert_tp_nm": "구형우선주",
+        }
+    )
+    # 🔴 이름은 '우' 로 끝나지 않는데 우선주인 종목. 옛 이름 규칙은 이것을 못 걸렀다.
+    stock_rows.append(
+        {
+            "bas_dd": date,
+            "code": "999994",
+            "name": "가상기업2우B",
+            "market": "KOSPI",
+            "market_cap": 999_999.0,
+            "industry": sectors[1],
+            "kind_stkcert_tp_nm": "신형우선주",
         }
     )
 
@@ -99,6 +140,7 @@ def test_업종상위10개와_업종별보통주상위5개를고른다():
     assert result.groupby("industry_index_name").size().eq(5).all()
     assert set(result["industry_index_name"]).isdisjoint({"제조", "금융"})
     assert "999995" not in set(result["code"])
+    assert "999994" not in set(result["code"])
 
 
 def test_후보입력에홀드아웃행이있으면중단한다():
@@ -110,6 +152,7 @@ def test_후보입력에홀드아웃행이있으면중단한다():
             "market": ["KOSPI"],
             "market_cap": [1.0],
             "industry": ["전기전자"],
+            "kind_stkcert_tp_nm": ["보통주"],
         }
     )
     index = pd.DataFrame(

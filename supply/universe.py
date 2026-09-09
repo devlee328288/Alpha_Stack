@@ -28,11 +28,12 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import List
 
 import pandas as pd
 
-from ingest.store import base_info_store
+from ingest.store import base_info_store, krx_store
 from supply.clock import AsOf, as_bas_dd, latest_known_day, to_kst
 
 #: 후보 표가 내는 칸. 부르는 쪽이 이 이름에 기대므로 함부로 바꾸지 않는다.
@@ -41,6 +42,9 @@ UNIVERSE_COLUMNS = (
     "market_cap", "listed_shares", "kind_stkcert_tp_nm", "list_dd",
     "isin_cd", "isu_abbrv", "info_bas_dd", "info_known_at",
 )
+
+#: 반출본에 싣는 주권종류 세 칸. 이 순서로 카드 표에 나간다.
+SECURITY_TYPE_COLUMNS = ("kind_stkcert_tp_nm", "secugrp_nm", "sect_tp_nm")
 
 
 def _known_by(as_of: AsOf) -> str:
@@ -128,6 +132,95 @@ def _to_frame(rows: List[dict]) -> pd.DataFrame:
     return frame[앞 + 뒤].reset_index(drop=True)
 
 
+def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
+                         db_path=None) -> pd.DataFrame:
+    """시세 표(`bas_dd`·`code` 가 있는 것)에 **그 날의** 주권종류 세 칸을 붙인다.
+
+    `common_stocks` 가 하루씩 답하는 것을 표 전체에 한 번에 하는 함수다. 반출본은
+    788만 행이라 날짜마다 부르면 4,105번 조회가 된다.
+
+    ## 왜 이름 규칙을 대신할 수 있나
+
+    지금까지 개발본에는 주권종류가 없어서, 받아 쓰는 쪽이 **종목명이 '우' 로 끝나는지**로
+    보통주를 추측했다. 그 규칙은 연우·동우·신우처럼 이름이 '우' 인 보통주를 우선주로
+    잘못 뺀다. 감사 예외 목록으로 기워 왔지만 목록은 대조한 날짜까지만 유효하다.
+
+    실측 2026-09-09 · 개발구간 7,888,945행 전량:
+
+        stock_base_info 조인 커버리지        100.0000%   (미매칭 0행)
+        이름 규칙 + 예외 10건 vs 주권종류      불일치 0행
+
+    **판정이 한 행도 바뀌지 않으므로** 이름 규칙과 예외 목록을 지워도 유니버스가 같다.
+
+    ## 세 칸을 다 싣는 이유
+
+    `kind_stkcert_tp_nm` 만으로는 우선주밖에 못 거른다. KOSPI200 지수 방법론은 리츠·
+    선박투자회사·기업인수목적회사·관리종목도 후보에서 빼고, CRSP 는 REIT·closed-end
+    fund·외국주권·ADR 을 뺀다. 그 판정이 나머지 두 칸에 들어 있다.
+
+        secugrp_nm   주권 · 외국주권 · 부동산투자회사(리츠) · 선박투자회사 ·
+                     투자회사 · 사회간접자본투융자회사 · 주식예탁증권 · 주식예탁증서
+        sect_tp_nm   소속부 — 우량기업부·중견기업부·벤처기업부·기술성장기업부 ·
+                     SPAC(소속부없음) · 관리종목(소속부없음) · 투자주의환기종목 · 외국기업
+
+    ⚠️ **무엇을 뺄지는 여기서 정하지 않는다.** 값을 그대로 실어 보내고, 거르는 규칙은
+       쓰는 쪽이 고른다. 유동주식비율이 없어 KOSPI200 방법론을 완전히 재현할 수 없는데
+       파생 판정 한 칸으로 뭉치면 "이대로 쓰면 KOSPI200 과 같다" 는 오해를 부른다.
+    """
+    for col in ("bas_dd", "code"):
+        if col not in frame.columns:
+            raise ValueError(f"주권종류를 붙이려면 '{col}' 칸이 있어야 한다 — 시세 표를 넘겨라.")
+
+    out = frame.copy()
+    if out.empty:
+        for col in SECURITY_TYPE_COLUMNS:
+            out[col] = pd.Series([], dtype="object")
+        return out
+
+    # 🔴 `as_of` 시점에 알 수 있었던 행만 본다. 오늘 알게 된 주권종류로 2015년을
+    #    판정하면 그게 미래참조다. `known_at` 은 basDd 의 다음 거래일로 적혀 있다.
+    상한 = _known_by(as_of)
+    처음, 끝 = str(out["bas_dd"].min()), str(out["bas_dd"].max())
+
+    conn = sqlite3.connect(db_path) if db_path else None
+    try:
+        if conn is None:
+            with krx_store.connect() as c:
+                right = _read_security_type(c, 처음, 끝, 상한)
+        else:
+            right = _read_security_type(conn, 처음, 끝, 상한)
+    finally:
+        if conn is not None:
+            conn.close()
+
+    left = out[["bas_dd", "code"]].copy()
+    left["bas_dd"] = left["bas_dd"].astype(str)
+    left["code"] = left["code"].astype(str)
+    left["_order"] = range(len(left))
+    merged = left.merge(right, on=["bas_dd", "code"], how="left")
+    # 🔴 기본키가 (bas_dd, code) 라 1:1 이어야 한다. 늘어났다면 저장소가 중복을 물고
+    #    있다는 뜻이고, 그대로 두면 반출본 행 수가 조용히 불어난다.
+    if len(merged) != len(left):
+        raise ValueError(
+            f"주권종류 조인이 행을 늘렸다: {len(left):,} → {len(merged):,}. "
+            "stock_base_info 에 (bas_dd, code) 중복이 있다."
+        )
+    merged = merged.sort_values("_order")
+    for col in SECURITY_TYPE_COLUMNS:
+        out[col] = merged[col].to_numpy()
+    return out
+
+
+def _read_security_type(conn, 처음: str, 끝: str, 상한: str) -> pd.DataFrame:
+    """`stock_base_info` 에서 세 칸을 날짜 범위만큼 읽는다."""
+    return pd.read_sql_query(
+        "SELECT bas_dd, code, kind_stkcert_tp_nm, secugrp_nm, sect_tp_nm "
+        "FROM stock_base_info "
+        "WHERE bas_dd BETWEEN ? AND ? AND known_at <= ?",
+        conn, params=(처음, 끝, 상한),
+    )
+
+
 def coverage(bas_dd: str, *, as_of: AsOf, market: str = "KOSPI") -> dict:
     """그날 기본정보를 못 이은 종목이 얼마나 되나. 반출 전에 확인하는 값이다.
 
@@ -148,5 +241,5 @@ def coverage(bas_dd: str, *, as_of: AsOf, market: str = "KOSPI") -> dict:
     }
 
 
-__all__ = ["UNIVERSE_COLUMNS", "common_stocks", "top_by_market_cap",
-           "excluded", "coverage"]
+__all__ = ["SECURITY_TYPE_COLUMNS", "UNIVERSE_COLUMNS", "attach_security_type",
+           "common_stocks", "top_by_market_cap", "excluded", "coverage"]

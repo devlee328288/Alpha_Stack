@@ -92,7 +92,16 @@ from supply.quality_ledger import (  # noqa: E402
     write_quality_ledger,
 )
 from supply.sector import INDUSTRY_COLUMNS, attach_industry  # noqa: E402
-from supply.training import market_context, training_frame  # noqa: E402
+from supply.training import (  # noqa: E402
+    CORPORATE_ACTION_COLUMNS,
+    attach_corporate_action_flags,
+    market_context,
+    training_frame,
+)
+from supply.universe import (  # noqa: E402
+    SECURITY_TYPE_COLUMNS,
+    attach_security_type,
+)
 
 # ── 예측 대상 ─────────────────────────────────────────────────────────────
 #: 진입 t+1 시가 → 청산 t+6 시가. 5거래일.
@@ -669,6 +678,45 @@ def main() -> int:
         #    스냅샷에서 **그 행의 날짜 이전 가장 최근 것**을 `industry` 로 따로 붙인다.
         #    한 칸에 두 뜻을 섞지 않으려고 `sector` 는 그대로 둔다.
         daily = attach_industry(daily, as_of=오늘_as_of)
+
+        # 🆕 주권종류 세 칸 (#186 ① · 28 → 31칸).
+        #
+        # 개발본에 주권종류가 없어서, 받아 쓰는 쪽이 **종목명이 '우' 로 끝나는지**로
+        # 보통주를 추측하고 있었다. 그 규칙은 연우·동우·신우를 우선주로 잘못 뺀다.
+        # 실측하니 KRX 주권종류와 이름 규칙+감사 예외 10건의 판정이 **한 행도 다르지
+        # 않아서**, 예외 목록을 지우고 이 칸으로 옮겼다.
+        #
+        # `secugrp_nm`·`sect_tp_nm` 까지 싣는 이유는 우선주만으로는 유니버스를 못
+        # 고르기 때문이다. KOSPI200 지수 방법론은 리츠·선박투자회사·SPAC·관리종목도
+        # 빼고, CRSP 는 REIT·closed-end fund·외국주권·ADR 을 뺀다.
+        daily = attach_security_type(daily, as_of=오늘_as_of)
+
+        # 🆕 기업행위 판정 세 칸 (#186 ① · 31 → 34칸).
+        #
+        # 🔴 **작은 벌과 큰 벌이 다른 규칙 위에 서 있었다.** `stocks30_train` 은 이
+        #    셋을 덜어낸 표본(89,424 → 82,852행)인데 `full/daily_price_dev.parquet`
+        #    은 안 덜어낸 표본이다. 그런데 카드는 큰 벌을 "최종 학습용" 이라 부른다.
+        #    판정을 실어 그 차이를 눈에 보이게 한다 — 덜어내지는 않는다.
+        #
+        # 🔴 이 셋은 **피처로 쓰면 안 된다.** `is_liquidation` 은 "이 뒤로 체결이
+        #    끊긴다" 를 보고 매기므로 그 시점에는 알 수 없다. 표본 선택에만 쓴다.
+        daily = attach_corporate_action_flags(daily, context=ctx)
+        판정요약 = {
+            칸: int(daily[칸].sum()) for 칸 in CORPORATE_ACTION_COLUMNS
+        }
+        판정요약["any"] = int(
+            daily[list(CORPORATE_ACTION_COLUMNS)].any(axis=1).sum())
+        stats["corporate_action_flags"] = 판정요약
+        stats["security_type"] = {
+            칸: {str(k): int(v) for k, v in daily[칸].value_counts().items()}
+            for 칸 in SECURITY_TYPE_COLUMNS
+        }
+        print(f"     주권종류 {len(SECURITY_TYPE_COLUMNS)}칸 · 보통주 "
+              f"{int(daily['kind_stkcert_tp_nm'].eq('보통주').sum()):,}행")
+        print(f"     기업행위 {len(CORPORATE_ACTION_COLUMNS)}칸 · 정리매매 "
+              f"{판정요약['is_liquidation']:,} · 거래정지 {판정요약['is_halted']:,} · "
+              f"신규상장 {판정요약['is_first_listing']:,} "
+              f"(셋 중 하나 {판정요약['any']:,}행 — 덜어내지 않는다)")
 
         # 🆕 품질 플래그 넷을 **파일에 싣는다** (이슈 #168 · 24 → 28칸).
         #
