@@ -6,8 +6,10 @@ from models.stock_ranking import (
     aligned_index_splits,
     aligned_panel_splits,
     build_common_validation_schedule,
+    build_full_stock_prediction_output,
     select_for_index_direction,
     summarize_direction_ranking,
+    summarize_full_stock_prediction_output,
     summarize_random_ranking_baseline,
 )
 
@@ -24,6 +26,77 @@ def _predictions() -> pd.DataFrame:
             "p_up": [0.7, 0.1, 0.2],
         }
     )
+
+
+def _full_output_predictions() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "model": ["모델"] * 4,
+            "fold": [1] * 4,
+            "bas_dd": ["20240102"] * 4,
+            "code": ["B00002", "000001", "000004", "000003"],
+            "industry_index_name": ["금속", "건설", "금속", "건설"],
+            "sector_market_cap_rank": [2, 1, 2, 1],
+            "industry_stock_rank": [1, 1, 2, 2],
+            "predicted": [1, 1, 0, -1],
+            "label_numeric": [1, 0, 0, -1],
+            "p_down": [0.1, 0.1, 0.2, 0.7],
+            "p_neutral": [0.2, 0.2, 0.6, 0.2],
+            "p_up": [0.7, 0.7, 0.2, 0.1],
+        }
+    )
+
+
+def test_최대_50종목_기본_출력은_후보를_자르지_않고_결정적_순서로_정렬한다():
+    index_predictions = pd.DataFrame(
+        {
+            "fold": [1],
+            "bas_dd": ["20240102"],
+            "predicted": [1],
+            "p_down": [0.1],
+            "p_neutral": [0.2],
+            "p_up": [0.7],
+        }
+    )
+
+    result = build_full_stock_prediction_output(
+        _full_output_predictions(),
+        index_predictions,
+    )
+
+    assert len(result) == 4
+    assert result["code"].tolist() == ["000001", "000003", "B00002", "000004"]
+    assert result["stock_hit"].tolist() == [False, True, True, True]
+    assert result["sector_hit_rate"].tolist() == [0.5, 0.5, 1.0, 1.0]
+    assert result["daily_hit_rate"].tolist() == [0.75] * 4
+    assert result["buy_signal"].tolist() == [True, False, True, False]
+    assert result.loc[result["code"].eq("B00002"), "code"].item() == "B00002"
+
+
+def test_최대_50종목_요약은_종목_적중률과_상승_precision을_계산한다():
+    index_predictions = pd.DataFrame(
+        {
+            "fold": [1],
+            "bas_dd": ["20240102"],
+            "predicted": [1],
+            "p_down": [0.1],
+            "p_neutral": [0.2],
+            "p_up": [0.7],
+        }
+    )
+    output = build_full_stock_prediction_output(
+        _full_output_predictions(),
+        index_predictions,
+    )
+
+    summary = summarize_full_stock_prediction_output(output)
+
+    assert summary["rows"] == 4
+    assert summary["stock_hit_rate"] == 0.75
+    assert summary["predicted_up_rows"] == 2
+    assert summary["true_up_rows"] == 1
+    assert summary["up_precision"] == 0.5
+    assert summary["buy_signal_rows"] == 2
 
 
 def test_하락중립상승확률순위를_각각남긴다():

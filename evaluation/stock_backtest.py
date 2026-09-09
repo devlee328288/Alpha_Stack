@@ -33,6 +33,7 @@ def validate_stock_ranking_contract(ranking: pd.DataFrame) -> None:
         "code",
         "industry_index_name",
         "index_predicted",
+        "predicted",
         "selected_probability",
         "index_direction_rank",
         "entry_bas_dd",
@@ -127,10 +128,14 @@ def _simulate_fold(
         str(date): group
         for date, group in signals.groupby("entry_bas_dd", sort=False)
     }
+    eligible = signals.loc[
+        signals["index_predicted"].eq(1) & signals["predicted"].eq(1)
+    ]
     exit_events = {
         (str(row.exit_bas_dd), int(row.slot))
-        for row in signal_dates.itertuples(index=False)
-        if int(row.index_predicted) == 1
+        for row in eligible[["exit_bas_dd", "slot"]]
+        .drop_duplicates()
+        .itertuples(index=False)
     }
     first_entry = str(signal_dates["entry_bas_dd"].min())
     last_exit = str(signal_dates["exit_bas_dd"].max())
@@ -178,6 +183,11 @@ def _simulate_fold(
                 if slot in holdings:
                     raise RuntimeError("5거래일 전에 같은 슬리브에 다시 진입했습니다.")
                 if int(slot_rows["index_predicted"].iloc[0]) != 1:
+                    continue
+                # 실제 long-only 체결은 지수와 종목이 모두 상승으로 예측됐을 때만 한다.
+                # 지수 상승일의 하락·보합 종목까지 사면 #190에서 확정한 정책과 달라진다.
+                slot_rows = slot_rows.loc[slot_rows["predicted"].eq(1)]
+                if slot_rows.empty:
                     continue
                 equity_before = float(slot_values.sum())
                 turnover += slot_values[slot] / equity_before
@@ -255,7 +265,9 @@ def run_overlapping_stock_backtest(
         track_returns = pd.concat(parts, ignore_index=True)["net_return"].to_numpy(float)
         track_rows.append({"track": track + 1, **_summary(track_returns, track_turnover)})
 
-    positioned = signals.loc[signals["index_predicted"].eq(1)].copy()
+    positioned = signals.loc[
+        signals["index_predicted"].eq(1) & signals["predicted"].eq(1)
+    ].copy()
     positioned["gross_return"] = (
         positioned["exit_adj_open"] / positioned["entry_adj_open"] - 1.0
     )
@@ -270,6 +282,8 @@ def run_overlapping_stock_backtest(
         "exit_bas_dd",
         "code",
         "industry_index_name",
+        "index_predicted",
+        "predicted",
         "index_direction_rank",
         "selected_probability",
         "entry_adj_open",
@@ -282,7 +296,10 @@ def run_overlapping_stock_backtest(
         **_summary(returns, turnover),
         "top_n": top_n,
         "round_trip_cost": round_trip_cost,
-        "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+        "position_policy": (
+            "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, "
+            "그 외는 현금"
+        ),
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": HORIZON,
