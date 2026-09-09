@@ -180,6 +180,7 @@ def _panel_prices(periods: int = 90) -> pd.DataFrame:
                     "adj_low": close * 0.99,
                     "adj_close": close,
                     "volume": 10_000.0 + index * 10.0,
+                    "is_halted": False,
                 }
             )
     return pd.DataFrame(rows)
@@ -205,6 +206,78 @@ def test_종목피처는_후보행사이가아니라_전체종목시계열에서
     assert np.isclose(result.loc[(dates[70], "000010"), "daily_return"], expected)
     assert np.isfinite(dataset.x.to_numpy()).all()
     assert dataset.groups.tolist() == [dates[65], dates[65], dates[70], dates[70]]
+
+
+def test_거래정지일거래량은_원천을보존하고_피처창에서만결측으로가린다():
+    prices = _panel_prices(periods=60)
+    prices = prices.loc[prices["code"].eq("000010")].reset_index(drop=True)
+    dates = prices["bas_dd"].tolist()
+    halted_rows = prices.index.to_series().between(10, 28)
+    prices.loc[halted_rows, "volume"] = 0.0
+    prices.loc[halted_rows, "is_halted"] = True
+    candidates = pd.DataFrame(
+        {
+            "bas_dd": [dates[29], dates[48]],
+            "code": ["000010", "000010"],
+            "candidate_rank": [1, 1],
+        }
+    )
+    original_volume = prices["volume"].copy()
+
+    dataset = build_sector_stock_model_dataset(
+        prices,
+        candidates,
+        feature_columns=("vol_ratio_20", "obv_slope_20", "volume_z_20"),
+        drop_incomplete_features=False,
+    )
+    result = dataset.frame.set_index("bas_dd")
+
+    assert result.loc[dates[29], ["vol_ratio_20", "obv_slope_20", "volume_z_20"]].isna().all()
+    assert np.isfinite(
+        result.loc[dates[48], ["vol_ratio_20", "obv_slope_20", "volume_z_20"]]
+        .to_numpy(dtype=float)
+    ).all()
+    pd.testing.assert_series_equal(prices["volume"], original_volume)
+
+
+def test_정상거래일의실제거래량0은_피처결측으로바꾸지않는다():
+    prices = _panel_prices(periods=60)
+    prices = prices.loc[prices["code"].eq("000010")].reset_index(drop=True)
+    dates = prices["bas_dd"].tolist()
+    prices.loc[48, "volume"] = 0.0
+    candidates = pd.DataFrame(
+        {"bas_dd": [dates[48]], "code": ["000010"], "candidate_rank": [1]}
+    )
+
+    dataset = build_sector_stock_model_dataset(
+        prices,
+        candidates,
+        feature_columns=("vol_ratio_20", "obv_slope_20", "volume_z_20"),
+    )
+    row = dataset.frame.iloc[0]
+
+    assert row["vol_ratio_20"] == 0.0
+    assert np.isfinite(row[["obv_slope_20", "volume_z_20"]].to_numpy(dtype=float)).all()
+
+
+def test_종목피처원천의_거래정지판정은_bool이고_결측이없어야한다():
+    prices = _panel_prices()
+    dates = sorted(prices["bas_dd"].unique())
+    candidates = pd.DataFrame({"bas_dd": [dates[70]], "code": ["000010"]})
+
+    with pytest.raises(ValueError, match="is_halted"):
+        build_sector_stock_model_dataset(prices.drop(columns="is_halted"), candidates)
+
+    invalid_type = prices.copy()
+    invalid_type["is_halted"] = invalid_type["is_halted"].astype("string")
+    with pytest.raises(TypeError, match="is_halted"):
+        build_sector_stock_model_dataset(invalid_type, candidates)
+
+    missing_flag = prices.copy()
+    missing_flag["is_halted"] = missing_flag["is_halted"].astype("boolean")
+    missing_flag.loc[0, "is_halted"] = pd.NA
+    with pytest.raises(ValueError, match="is_halted"):
+        build_sector_stock_model_dataset(missing_flag, candidates)
 
 
 def test_종목패널라벨은_시장달력의_t1과_t6수정시가를쓴다():

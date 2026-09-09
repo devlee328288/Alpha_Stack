@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 import scripts.run_stock_model_experiment as exp  # noqa: E402
+from features.stock_model_dataset import PANEL_PRICE_COLUMNS  # noqa: E402
 from supply import stock_training_universe as stu  # noqa: E402
 
 
@@ -35,6 +36,13 @@ def test_로더가_읽는_일별시세_칸이_공급_층_요구_칸을_전부_�
 def test_로더가_읽는_지수_칸이_공급_층_요구_칸을_전부_담는다():
     빠짐 = set(stu.INDEX_REQUIRED) - set(exp.INDEX_COLUMNS)
     assert not 빠짐, f"지수 표에서 로더가 안 읽는 칸: {sorted(빠짐)}"
+
+
+def test_로더가_읽는_일별시세_칸이_종목피처_원천칸을_전부_담는다():
+    """정지일 거래량을 가리려면 `is_halted`도 피처 함수 끝까지 전달돼야 한다(#205)."""
+
+    빠짐 = set(PANEL_PRICE_COLUMNS) - set(exp.DAILY_COLUMNS)
+    assert not 빠짐, f"종목 피처가 요구하는데 로더가 안 읽는 칸: {sorted(빠짐)}"
 
 
 def test_로더가_읽는_칸은_반출본_카드에_실제로_있다():

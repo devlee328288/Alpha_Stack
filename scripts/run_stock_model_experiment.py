@@ -19,6 +19,7 @@ from evaluation.horizon import HOLDOUT_START  # noqa: E402
 from evaluation.walk_forward import expanding_group_splits  # noqa: E402
 from features.stock_model_dataset import (  # noqa: E402
     ALL_STOCK_FEATURE_COLUMNS,
+    HALTED_VOLUME_FEATURE_POLICY,
     STOCK_COMBINATION_FEATURES,
     STOCK_FEATURE_COLUMNS,
     StockModelDataset,
@@ -119,6 +120,7 @@ def _panel_cache_signature() -> dict[str, object]:
         "features": list(ALL_STOCK_FEATURE_COLUMNS),
         "sample_selection_policy": "exclude_corporate_action_flags_after_top10x5_selection",
         "adjustment_quality_policy": "exclude_only_is_adj_suspect_gap_over_1pct_point",
+        "halted_volume_feature_policy": HALTED_VOLUME_FEATURE_POLICY,
     }
 
 
@@ -775,6 +777,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
             ),
             "adjustment_quality": quality_summary,
             "sample_selection": sample_selection,
+            "halted_volume_feature_policy": HALTED_VOLUME_FEATURE_POLICY,
         },
         "validation": {
             "window": "expanding",
