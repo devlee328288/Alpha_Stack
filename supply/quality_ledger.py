@@ -545,13 +545,25 @@ def _read_json(path: Path) -> Optional[Dict]:
         return None
 
 
+#: 원장이 반출본에서 읽는 칸. **축이 요구하는 칸이 여기 없으면 그 축은 조용히
+#: `skip` 된다** — 예외도 경고도 없이 값이 `None` 으로 나갈 뿐이다. 실제로 그렇게
+#: 됐다: `validity` 축을 넣으면서 이 목록에 `open`·`high`·`low`·`market_cap`·
+#: `listed_shares` 를 안 더해서, 첫 반출에서 네 지표가 전부 `None` 이었다.
+#: 축을 더할 때 여기도 같이 늘린다. `test_원장이_읽는_칸이_모든_축을_덮는다` 가 지킨다.
+EXPORT_DAILY_COLUMNS = (
+    "bas_dd", "code", "market",
+    "open", "high", "low", "close",
+    "volume", "value", "market_cap", "listed_shares",
+    "change_rate", "adj_open", "adj_high", "adj_low", "adj_close", "adj_source",
+)
+
+
 def _read_export_daily(outbox: Path) -> Optional[pd.DataFrame]:
-    """반출본 시세를 읽는다 — 품질 판정에 쓰는 칸만. 전량은 320MB 라 칸을 좁힌다."""
+    """반출본 시세를 읽는다 — 품질 판정에 쓰는 칸만. 전량은 376MB 라 칸을 좁힌다."""
     path = outbox / "full" / "daily_price_dev.parquet"
     if not path.exists():
         return None
-    칸 = ["bas_dd", "code", "close", "adj_close", "change_rate", "volume",
-         "adj_open", "adj_high", "adj_low", "adj_source", "market"]
+    칸 = list(EXPORT_DAILY_COLUMNS)
     try:
         return pd.read_parquet(path, columns=칸)
     except Exception:                                     # noqa: BLE001 — 칸이 다를 수 있다
@@ -809,6 +821,7 @@ def render_card_section(ledger: Dict[str, Any]) -> str:
 
 __all__ = [
     "AXES",
+    "EXPORT_DAILY_COLUMNS",
     "FLAG_GUIDE",
     "SAMPLE_GUIDE",
     "HISTORY_PATH",

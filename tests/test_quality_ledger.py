@@ -344,3 +344,50 @@ def test_정지일_0_은_기준선에_섞이지_않는다():
     행.append(_가격행(bas_dd="20240106", volume=250))     # 100 의 2.5배 — 급변이 아니다
     축 = ql._axis_volume(pd.DataFrame(행))
     assert 축["surge_rows"]["value"] == 0
+
+
+# ── 8. 원장이 읽는 칸이 모든 축을 덮는다 ─────────────────────────────────────
+#
+# 🔴 `_read_export_daily` 는 376MB 를 다 읽지 않으려고 칸을 좁힌다. 그런데 축이
+#    요구하는 칸이 그 목록에 없으면 **그 축은 조용히 `skip` 된다** — 예외도 경고도
+#    없이 값이 `None` 으로 나갈 뿐이다.
+#
+#    실제로 그렇게 됐다. `validity` 축을 넣고 첫 반출을 돌렸더니 네 지표가 전부
+#    `None` 이었다. 원장 파일에는 축 이름이 멀쩡히 있고 판정도 실려 있어서, 이력
+#    한 줄을 열어 보기 전까지 아무도 몰랐다. 축은 늘었는데 재는 것은 없었다.
+
+def test_원장이_읽는_칸이_모든_축을_덮는다(반출폴더):
+    """읽는 칸만 준 표로 원장을 만들면 `skip` 이 하나도 없어야 한다.
+
+    새 축을 넣으면서 `EXPORT_DAILY_COLUMNS` 를 안 늘리면 여기서 걸린다.
+    """
+    행 = []
+    for i in range(1, 7):
+        r = {c: 0 for c in ql.EXPORT_DAILY_COLUMNS}
+        r.update({"bas_dd": f"2024010{i}", "code": "000010", "market": "KOSPI",
+                  "open": 100.0, "high": 110.0, "low": 95.0, "close": 105.0,
+                  "volume": 1000, "value": 105_000.0,
+                  "market_cap": 1050.0, "listed_shares": 10.0,
+                  "change_rate": 0.0, "adj_open": 100.0, "adj_high": 110.0,
+                  "adj_low": 95.0, "adj_close": 105.0, "adj_source": "fdr"})
+        행.append(r)
+    daily = pd.DataFrame(행)[list(ql.EXPORT_DAILY_COLUMNS)]
+
+    led = ql.build_quality_ledger(반출폴더, daily=daily)
+
+    건너뛴 = [f"{축}.{이름}"
+             for 축, 표 in led["axes"].items()
+             for 이름, m in 표.items()
+             if m.get("status") == "skip" and 축 not in ("calendar", "duplicate")]
+    assert not 건너뛴, (
+        f"이 축들이 조용히 건너뛰어졌다: {건너뛴}. "
+        "`EXPORT_DAILY_COLUMNS` 에 그 축이 쓰는 칸을 더해라."
+    )
+
+
+def test_새_축을_넣으면_이력에도_따라_들어간다(반출폴더, tmp_path):
+    """이력 한 줄에 일곱 축이 다 있어야 나중에 추세를 볼 수 있다."""
+    led = ql.build_quality_ledger(반출폴더, daily=_daily())
+    경로 = ql.append_history(led, path=tmp_path / "h.jsonl")
+    줄 = json.loads(경로.read_text(encoding="utf-8").splitlines()[-1])
+    assert tuple(줄["summary"]) == ql.AXES
