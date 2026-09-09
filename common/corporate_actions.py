@@ -53,6 +53,45 @@
    첫 행이 생기는 종목이 1,961개다. 그건 상장이 아니라 수집 경계다. 실제로 그 1,961개의
    첫 행에는 극단이 **0건**이라 둘이 깨끗하게 갈린다.
 
+### D 는 **한 종목의 첫 행**만이 아니다 — 종목코드는 재사용된다
+
+상장폐지된 종목의 코드를 몇 년 뒤 다른 회사가 다시 받는다. 그러면 한 코드 안에 서로
+다른 회사의 시계열이 둘 들어 있고, 뒤 회사의 첫 거래일도 **신규상장**이다.
+
+    036220  인포피아 ~2016-05-04  →  오상헬스케어 2024-03-13~   공백 1,931 거래일
+    101970  우양에이치씨 ~2015-03-16 → 우양에이치씨 2025-03-28~  공백 2,465 거래일
+
+**이름으로는 못 가른다** — `101970` 은 앞뒤가 같은 이름이다. **ISIN 으로도 못 가른다** —
+KRX 가 표준코드를 재발급해 `KR7036220002` · `KR7101970002` 가 양쪽에서 같다. (CRSP 의
+PERMNO 는 영구 식별자로 재사용되지 않지만, 우리가 받는 KRX 표준코드는 그렇지 않다.)
+
+가르는 것은 **상장일**(`stock_base_info.list_dd`)이다 — 거래소가 직접 주는 사실이다.
+
+    036220   list_dd 20070605 → 20240313
+    101970   list_dd 20120726 → 20250328
+
+🔴 **그런데 상장일만 보면 시장 이전이 섞인다.** `list_dd` 가 바뀐 코드는 전 구간 24종인데
+   그 중 **22종이 KOSDAQ → KOSPI 이전**이다(카카오 20170710 · 동서 20160715 · 무학
+   20100720 · 신세계푸드 20100429 · 포스코퓨처엠 20190529 …). 시장을 옮겨도 같은 회사이고
+   하루도 안 쉬므로 **공백이 없다.**
+
+그래서 조건 **둘을 함께** 본다 — `is_series_restart` 다.
+
+    거래일 공백이 있다  AND  상장일이 그 공백 뒤에 새로 생겼다  →  새 시계열의 첫 행
+
+**경계값이 없다.** 전 구간 9,231,938행에서 같은 코드 안의 공백은 **2건뿐이고 1~1000
+거래일 구간은 통째로 0건**이다(2026-09-09 실측). 정상적인 거래정지는 공백을 만들지
+않기 때문이다 — 정지 중에도 행이 있고 `volume=0` 이다. 그래서 60이든 250이든 500이든,
+거래일이든 달력일이든 **잡히는 것이 같은 2건**이라 문턱을 고를 필요가 없다.
+
+    공백 있음 · 상장일 신규   →  새 시계열      2종 (위 둘)
+    공백 없음 · 상장일 신규   →  그대로        22종 (시장 이전 — 같은 회사)
+    공백 있음 · 상장일 그대로 →  그대로         0종 (실측에 없다)
+    정상 거래정지            →  그대로        행이 있고 volume=0 이라 공백이 아니다
+
+⚠️ **`list_dd` 는 `stock_base_info` 에 있고 그 표는 2010-01-04 부터다.** 수집 시작 이전에
+   일어난 재상장은 알 수 없다. 지금 자료의 공백 2건은 둘 다 2015년 이후라 문제가 없다.
+
 🔴 이 플래그는 **미래를 본다** — 피처로 쓰면 안 된다
 ------------------------------------------------------
 A 는 *"이 뒤로 체결이 끊긴다"* 를 보고 판정한다. 즉 그 시점에는 알 수 없는 사실이다.
@@ -183,6 +222,56 @@ def market_calendar_index(con: sqlite3.Connection) -> Tuple[Dict[str, int], int]
     return {d: i for i, d in enumerate(days)}, len(days) - 1
 
 
+def listing_days_by_code(con: sqlite3.Connection) -> Dict[str, Tuple[str, ...]]:
+    """`종목코드 → 그 코드에 붙었던 상장일들` (오름차순).
+
+    코드를 재사용한 종목은 값이 둘이다 — `036220` 은 `('20070605', '20240313')`.
+    나머지는 하나뿐이고, 시장 이전 22종도 둘이지만 공백이 없어 `is_series_restart` 가
+    걸러 낸다.
+
+    `stock_base_info` 는 날짜마다 행이 있어 920만 행이지만 `DISTINCT` 로 줄이면 수천
+    행이다 — 종목마다 다시 부르지 말고 한 번 만들어 `MarketContext` 에 담아 돌려 쓴다.
+    """
+    out: Dict[str, list] = {}
+    for code, list_dd in con.execute(
+        "SELECT DISTINCT code, list_dd FROM stock_base_info "
+        "WHERE list_dd IS NOT NULL ORDER BY code, list_dd"
+    ):
+        out.setdefault(str(code), []).append(str(list_dd))
+    return {code: tuple(days) for code, days in out.items()}
+
+
+def is_series_restart(prev_row: Mapping, row: Mapping, *,
+                      calendar_index: Mapping[str, int],
+                      listing_days: Sequence[str]) -> bool:
+    """이 행이 **다른 회사의 첫 거래일**인가 — 즉 앞 행과 같은 시계열이 아닌가.
+
+    조건 둘을 함께 본다 (근거는 모듈 머리말의 "종목코드는 재사용된다" 절).
+
+        ① 앞 행과 사이에 거래일 공백이 있다        (길이 무관 — 문턱이 없다)
+        ② 그 공백 뒤에 새 상장일이 생겼다          (`prev < list_dd <= 이 행`)
+
+    ①만으로는 부족하다 — 상장폐지 뒤 재등장인지 우리가 모르는 자료 구멍인지 갈리지
+    않는다. ②만으로는 시장 이전 22종을 새 회사로 잘못 본다(공백이 없다).
+
+    `listing_days` 는 그 코드에 붙었던 상장일 전부다(`listing_days_by_code`). 비어
+    있으면 늘 `False` 다 — **모르는 것을 단절로 치지 않는다.** 조정을 놓치면 값이
+    틀리지만, 없는 단절을 만들면 멀쩡한 시계열을 둘로 쪼갠다.
+
+    ⚠️ 달력에 없는 날짜가 오면 그 행은 판정하지 않는다(`False`). 달력은 시세 표에서
+       만들므로 정상 경로에서는 일어나지 않지만, 부분 표를 넘겼을 때 조용히 틀린
+       공백을 만드는 것보다 판정을 포기하는 쪽이 안전하다.
+    """
+    if not listing_days:
+        return False
+    앞날, 이날 = str(prev_row["bas_dd"]), str(row["bas_dd"])
+    if 앞날 not in calendar_index or 이날 not in calendar_index:
+        return False
+    if calendar_index[이날] - calendar_index[앞날] - 1 <= 0:      # ① 공백이 없다
+        return False
+    return any(앞날 < str(day) <= 이날 for day in listing_days)   # ② 새 상장일
+
+
 def codes_present_on(con: sqlite3.Connection, bas_dd: str) -> Set[str]:
     """그 날 시세 표에 **행이 있는** 종목들.
 
@@ -241,6 +330,7 @@ def flag_series(rows: Sequence[Mapping], *,
                 market_last_index: int,
                 still_listed: bool,
                 collect_start: str,
+                listing_days: Sequence[str] = (),
                 liquidation_days: int = LIQUIDATION_DAYS,
                 gap_days: int = SUSPENSION_GAP_DAYS) -> List[RowFlags]:
     """한 종목의 전 구간에 대해 행마다 `RowFlags` 를 매긴다.
@@ -250,6 +340,11 @@ def flag_series(rows: Sequence[Mapping], *,
 
     `collect_start` 는 수집 시작 거래일이다. 그 날의 첫 행은 상장이 아니라 수집
     경계이므로 `first_listing` 을 켜지 않는다.
+
+    `listing_days` 는 그 코드에 붙었던 상장일 전부다(`listing_days_by_code` 의 그 코드
+    항목). 주면 **코드 재사용으로 시계열이 끊긴 자리도 `first_listing`** 이 된다 —
+    한 코드 안에 회사가 둘이면 뒤 회사의 첫 거래일도 신규상장이기 때문이다.
+    안 주면 예전 그대로 종목의 첫 행만 본다.
     """
     liquidation = liquidation_positions(
         rows, calendar_index=calendar_index, market_last_index=market_last_index,
@@ -264,11 +359,18 @@ def flag_series(rows: Sequence[Mapping], *,
             and row["listed_shares"] is not None
             and row["listed_shares"] != prev["listed_shares"]
         )
+        # 코드 재사용으로 시계열이 끊긴 자리도 신규상장이다 — 한 코드 안에 회사가
+        # 둘이면 뒤 회사의 첫 거래일이 그 회사의 상장일이다.
+        재시작 = bool(
+            prev is not None
+            and is_series_restart(prev, row, calendar_index=calendar_index,
+                                  listing_days=listing_days)
+        )
         out.append(RowFlags(
             liquidation=i in liquidation,
             halt_resume=prev is not None and is_halted(prev),
             capital_change=capital,
-            first_listing=i == 0 and row["bas_dd"] != collect_start,
+            first_listing=(i == 0 and row["bas_dd"] != collect_start) or 재시작,
         ))
     return out
 
@@ -434,6 +536,31 @@ def adjustment_factor(prev_row: Mapping, row: Mapping) -> Fraction:
 
     앞 행이 없거나 값이 비면 `1` 이다 — **모르는 것을 조정으로 치지 않는다.**
     조정을 놓치면 수익률이 틀리지만, 없는 조정을 만들면 멀쩡한 가격을 망친다.
+
+    🔴 **알려진 결함 — 코드 재사용 자리에서 이 함수는 틀린 배율을 낸다** (2026-09-09)
+    ----------------------------------------------------------------------
+    이 함수는 `(앞 행, 이 행)` 두 행만 받으므로 **거래일 공백을 볼 수 없다.** 그래서
+    상장폐지된 회사의 마지막 종가와 몇 년 뒤 신규상장한 다른 회사의 기준가로 배율을
+    만든다. `is_series_restart` 가 판정하는 바로 그 자리다.
+
+        101970  20150316 종가 830  →  20250328 기준가 18,640    배율 1864/83 = 22.4578배
+                그런데 두 행은 **다른 회사**다 (우양에이치씨 → 우양에이치씨, 이름만 같다)
+
+    실측 영향 (`adj_source` 로 전수 확인):
+
+        101970   fdr+ca_fix  648행 (20120726~20150316)  배율 15.379776 ~ 22.457831
+                 2015-03-16 의 배율이 정확히 22.457831 = 1864/83 이다 — 위 값이
+                 그대로 들어가 2012~2015 **전 구간 수준이 22.46배 부풀었다.**
+        036220   fdr        2,171행 전부 배율 1.000000 — FDR 이 직접 준 값이라 새지 않았다
+
+    **수익률은 안 틀린다** — 같은 블록 안 이웃 두 날은 같은 배율로 움직이므로 비율이
+    보존되고, 그래서 `adj_quality.is_adj_suspect` 도 그 648행에서 False 다. 틀린 것은
+    **수준(level)** 이고, 우리 피처는 대부분 비율이라 지금 결과를 바꾸지 않는다.
+    `101970` 은 KOSDAQ 이라 KOSPI 후보군에도 들어오지 않는다.
+
+    고치려면 `factor_series` 가 달력과 상장일을 받아 재시작 자리에서 `1` 을 내야 하고,
+    그러면 **수정주가 전체 재생성**이 따라온다(FDR 창이 밀려 옛 행이 함께 바뀐다).
+    값이 바뀌는 변경이라 여기서 조용히 하지 않고 이슈로 낸다.
     """
     if prev_row is None:
         return Fraction(1)

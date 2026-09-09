@@ -499,3 +499,91 @@ def test_수정주가로_계산한_수익률이_등락률과_맞는다():
 
     assert round(raw * 100, 2) == -98.04              # 고치기 전
     assert round(fixed * 100, 2) == rows[2]["change_rate"] == -2.08
+
+
+# ── 코드 재사용 — 한 코드 안에 회사가 둘이다 (이슈 #195) ─────────────────────
+#
+# 실측 (2026-09-09 · daily_price 전 구간 9,231,938행 · 3,678종)
+#
+#     같은 코드 안의 거래일 공백      2건뿐 · 1~1000 거래일 구간은 통째로 0건
+#     036220  인포피아 ~2016-05-04  → 오상헬스케어 2024-03-13~   공백 1,931
+#     101970  우양에이치씨 ~2015-03-16 → 우양에이치씨 2025-03-28~  공백 2,465 (이름 같음)
+#     list_dd 가 바뀐 코드 24종 중 22종은 KOSDAQ→KOSPI 이전 — 공백이 없다
+#
+# 그래서 조건 **둘을 함께** 봐야 한다. 하나만 보면 각각 이렇게 틀린다.
+
+def test_코드_재사용은_새_시계열의_첫_행이다():
+    """공백이 있고 그 뒤에 새 상장일이 생겼으면 다른 회사다."""
+    rows = [_행(CAL[0]), _행(CAL[1]), _행(CAL[30]), _행(CAL[31])]
+    flags = ca.flag_series(
+        rows, calendar_index=INDEX, market_last_index=LAST, still_listed=True,
+        collect_start=CAL[0], listing_days=(CAL[0], CAL[30]))
+    assert flags[2].first_listing                    # 공백 뒤 첫 행 = 새 회사
+    assert not flags[0].first_listing                # 수집 시작일은 여전히 아니다
+    assert not flags[1].first_listing
+    assert not flags[3].first_listing                # 그 다음 날은 같은 회사다
+
+
+def test_시장이전은_공백이_없어_새_시계열이_아니다():
+    """상장일만 보면 KOSDAQ→KOSPI 이전 22종을 새 회사로 잘못 본다.
+
+    카카오 20170710 · 동서 20160715 · 무학 20100720 처럼 시장을 옮기면 `list_dd` 가
+    바뀌지만 하루도 안 쉬므로 공백이 없다. 같은 회사다.
+    """
+    rows = [_행(CAL[i]) for i in range(5)]           # 공백 없이 이어진다
+    flags = ca.flag_series(
+        rows, calendar_index=INDEX, market_last_index=LAST, still_listed=True,
+        collect_start=CAL[0], listing_days=(CAL[0], CAL[3]))   # 3번째 날 상장일 변경
+    assert not any(f.first_listing for f in flags)
+
+
+def test_공백만_있고_새_상장일이_없으면_그대로다():
+    """공백만 보면 우리가 모르는 자료 구멍까지 회사 교체로 만든다."""
+    rows = [_행(CAL[0]), _행(CAL[1]), _행(CAL[30])]
+    flags = ca.flag_series(
+        rows, calendar_index=INDEX, market_last_index=LAST, still_listed=True,
+        collect_start=CAL[0], listing_days=(CAL[0],))          # 상장일은 하나뿐
+    assert not any(f.first_listing for f in flags)
+
+
+def test_상장일을_모르면_단절로_치지_않는다():
+    """`listing_days` 를 안 주면 옛 동작 그대로다 — 없는 단절을 만들지 않는다."""
+    rows = [_행(CAL[0]), _행(CAL[1]), _행(CAL[30])]
+    없이 = _플래그(rows, still_listed=True)
+    빈것 = ca.flag_series(rows, calendar_index=INDEX, market_last_index=LAST,
+                          still_listed=True, collect_start=CAL[0], listing_days=())
+    assert [f.first_listing for f in 없이] == [False, False, False]
+    assert [f.first_listing for f in 빈것] == [False, False, False]
+
+
+def test_거래정지는_공백이_아니다():
+    """정지 중에도 행이 있고 `volume=0` 이다 — 그래서 실측 공백이 2건뿐이었다."""
+    rows = [_행(CAL[0]), _행(CAL[1], halted=True), _행(CAL[2])]
+    flags = ca.flag_series(
+        rows, calendar_index=INDEX, market_last_index=LAST, still_listed=True,
+        collect_start=CAL[0], listing_days=(CAL[0], CAL[2]))   # 상장일이 바뀌어도
+    assert not any(f.first_listing for f in flags)              # 공백이 없으니 아니다
+
+
+def test_is_series_restart_는_경계값이_없다():
+    """공백 길이에 문턱이 없다 — 1거래일이든 30이든 상장일이 새로 생겼으면 새 회사다.
+
+    실측에서 1~1000 거래일 공백이 0건이라 문턱을 고를 필요가 없었다. 그래서 길이로
+    가르지 않는다 — 문턱을 두면 그 값을 정당화할 근거가 자료에 없다.
+    """
+    for 뒤 in (2, 5, 21, 30):
+        앞행, 뒷행 = _행(CAL[0]), _행(CAL[뒤])
+        assert ca.is_series_restart(앞행, 뒷행, calendar_index=INDEX,
+                                    listing_days=(CAL[0], CAL[뒤])) is True
+    # 붙어 있으면(공백 0) 상장일이 새로 생겨도 아니다
+    assert ca.is_series_restart(_행(CAL[0]), _행(CAL[1]), calendar_index=INDEX,
+                                listing_days=(CAL[0], CAL[1])) is False
+
+
+def test_달력에_없는_날짜는_판정하지_않는다():
+    """부분 표를 넘겼을 때 조용히 틀린 공백을 만드는 것보다 판정을 포기하는 쪽이 안전하다."""
+    밖 = _행("20991231")
+    assert ca.is_series_restart(_행(CAL[0]), 밖, calendar_index=INDEX,
+                                listing_days=(CAL[0], "20991231")) is False
+    assert ca.is_series_restart(밖, _행(CAL[5]), calendar_index=INDEX,
+                                listing_days=(CAL[0], CAL[5])) is False

@@ -18,11 +18,19 @@ from supply.adj_quality import (
 )
 
 
-def _frame(rows):
-    """(bas_dd, code, close, adj_close, change_rate) 튜플 목록 → 원천 모양의 프레임."""
-    return pd.DataFrame(
+def _frame(rows, *, first_listing=None):
+    """(bas_dd, code, close, adj_close, change_rate) 튜플 목록 → 원천 모양의 프레임.
+
+    `is_first_listing` 은 필수 칸이라(코드 재사용 자리를 알아야 한다 · 이슈 #195)
+    기본값 False 로 채운다. 그 칸을 켜서 시험할 때는 `first_listing=[...]` 로 준다.
+    """
+    frame = pd.DataFrame(
         rows, columns=["bas_dd", "code", "close", "adj_close", "change_rate"]
     )
+    frame["is_first_listing"] = (
+        [False] * len(frame) if first_listing is None else list(first_listing)
+    )
+    return frame
 
 
 # 경남에너지 — 10,250 → 26,000 (+153.66%), KRX 도 +153.66
@@ -217,3 +225,67 @@ def test_학습에서는_의심_행만_빼고_진짜_사건은_남긴다():
     kept = out.loc[~out["is_adj_suspect"], ["bas_dd", "code"]]
     assert ("20160511", "008020") in set(map(tuple, kept.to_numpy()))
     assert ("20110610", "004170") not in set(map(tuple, kept.to_numpy()))
+
+
+# ── 코드 재사용 — "전일" 은 shift(1) 이 아니다 (이슈 #195) ──────────────────
+
+# 036220 — 인포피아(~2016-05-04) 코드를 오상헬스케어(2024-03-13~)가 다시 받았다.
+# 실제 값이다: shift(1) 로 재면 +738.57% 인데 KRX 등락률은 +46.75% 다.
+코드재사용 = [
+    ("20160503", "036220", 3100, 3100.0, -1.90),
+    ("20160504", "036220", 3500, 3500.0, 12.90),      # 인포피아 마지막 거래일
+    ("20240313", "036220", 29350, 29350.0, 46.75),    # 오상헬스케어 첫 거래일
+    ("20240314", "036220", 26200, 26200.0, -10.73),
+]
+
+
+def test_새_시계열의_첫_행은_전일이_없다():
+    """8년 전 다른 회사의 종가로 수익률을 만들지 않는다.
+
+    이 판정을 안 하면 `adj_return_1d` 가 +738.57% 로 나오고 `is_adj_suspect` 가 켜져
+    검증기가 붉어진다(2026-09-09 실제로 겪었다). 켜는 근거는
+    `common.corporate_actions.is_series_restart` 다.
+    """
+    끔 = flag_adjustment_quality(_frame(코드재사용))
+    켬 = flag_adjustment_quality(
+        _frame(코드재사용, first_listing=[False, False, True, False]))
+
+    # 끄면 8년을 가로지르는 가짜 수익률이 생기고 오류로 표시된다
+    assert 끔["adj_return_1d"].iloc[2] == pytest.approx(738.57, abs=0.01)
+    assert bool(끔["is_adj_suspect"].iloc[2]) is True
+
+    # 켜면 비교 자체를 하지 않는다 — 모르는 것을 오류로 치지 않는다
+    assert np.isnan(켬["adj_return_1d"].iloc[2])
+    assert np.isnan(켬["adj_change_rate_gap"].iloc[2])
+    assert bool(켬["is_adj_suspect"].iloc[2]) is False
+    assert bool(켬["is_extreme_return"].iloc[2]) is False
+
+    # 그 다음 날부터는 새 회사 안에서 정상적으로 이어진다 — 둘 다 같다
+    assert 켬["adj_return_1d"].iloc[3] == pytest.approx(-10.73, abs=0.01)
+    assert 켬["adj_return_1d"].iloc[3] == pytest.approx(끔["adj_return_1d"].iloc[3])
+    # 앞 회사 구간도 건드리지 않는다
+    assert 켬["adj_return_1d"].iloc[1] == pytest.approx(끔["adj_return_1d"].iloc[1])
+    assert 켬.attrs["adjustment_quality"]["comparable_rows"] == 2
+    assert 끔.attrs["adjustment_quality"]["comparable_rows"] == 3
+
+
+def test_종목의_진짜_첫_행에_켜져도_결과는_같다():
+    """`is_first_listing` 은 신규상장 1,502행 전부에 켜져 있다.
+
+    그 중 코드 재사용 2행을 뺀 나머지는 애초에 전일 adj 가 없어 비교 불가다. 즉 이
+    조건은 **그 행들에 아무것도 안 바꾼다** — 바꾸면 멀쩡한 판정이 조용히 사라진다.
+    """
+    끔 = flag_adjustment_quality(_frame(경남에너지))
+    켬 = flag_adjustment_quality(
+        _frame(경남에너지, first_listing=[True, False, False]))   # 첫 행이 신규상장
+    pd.testing.assert_frame_equal(끔, 켬)
+
+
+def test_is_first_listing_이_없으면_무엇을_해야_하는지_알려_준다():
+    """가드를 막다른 길로 만들지 않는다 — 어디서 그 칸을 얻는지까지 말한다."""
+    frame = _frame(경남에너지).drop(columns=["is_first_listing"])
+    with pytest.raises(ValueError, match="is_first_listing") as e:
+        flag_adjustment_quality(frame)
+    말 = str(e.value)
+    assert "daily_price_dev.parquet" in 말                    # 어디서 받나
+    assert "attach_corporate_action_flags" in 말              # DB 경로라면 무엇을 부르나

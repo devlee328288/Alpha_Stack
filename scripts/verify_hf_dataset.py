@@ -60,7 +60,11 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from common.corporate_actions import flag_series, is_traded  # noqa: E402
+from common.corporate_actions import (  # noqa: E402
+    flag_series,
+    is_traded,
+    listing_days_by_code,
+)
 from supply.adj_quality import flag_adjustment_quality  # noqa: E402
 from supply.sector import attach_industry  # noqa: E402
 from supply.training import CORPORATE_ACTION_COLUMNS  # noqa: E402
@@ -359,6 +363,8 @@ def _corporate_action_table(conn) -> pd.DataFrame:
     index = {d: i for i, d in enumerate(calendar)}
     listed = {r[0] for r in conn.execute(
         "SELECT code FROM daily_price WHERE bas_dd = ?", (calendar[-1],))}
+    # 코드 재사용으로 시계열이 끊긴 자리를 판정하려면 상장일이 필요하다 (이슈 #195).
+    listing = listing_days_by_code(conn)
 
     df = pd.read_sql_query(
         "SELECT bas_dd, code, open, high, low, volume, listed_shares "
@@ -369,7 +375,8 @@ def _corporate_action_table(conn) -> pd.DataFrame:
         flags = flag_series(rows, calendar_index=index,
                             market_last_index=len(calendar) - 1,
                             still_listed=code in listed,
-                            collect_start=calendar[0])
+                            collect_start=calendar[0],
+                            listing_days=listing.get(str(code), ()))
         for r, f in zip(rows, flags, strict=True):
             keys.append((str(r["bas_dd"]), str(code)))
             vals.append((f.liquidation, not is_traded(r), f.first_listing))
@@ -379,7 +386,7 @@ def _corporate_action_table(conn) -> pd.DataFrame:
     return out
 
 
-def _quality_table(conn, dev_end: str) -> pd.DataFrame:
+def _quality_table(conn, dev_end: str, ca: pd.DataFrame) -> pd.DataFrame:
     """수정주가 품질 판정 네 칸을 **반출과 같은 입력 위에서 한 번** 만든다.
 
     반출(`export_team_dataset.py`)은 `bas_dd <= dev_end` 전체를 읽어 놓고
@@ -393,11 +400,24 @@ def _quality_table(conn, dev_end: str) -> pd.DataFrame:
        를 켰고 판정기는 NaN 이었다. 개발구간 전체에서 1년 넘는 공백은 이 한 건뿐이지만,
        "패드를 얼마나 둘 것인가" 는 답이 없는 질문이다 — **반출과 같은 입력을 주면 된다.**
 
-    필요한 다섯 칸만 읽으므로 7.9M 행이어도 메모리는 수백 MB 다.
+    🔴 `ca` 를 받는 이유 — **"전일" 은 `shift(1)` 이 아니다.** 상장폐지된 코드를 몇 년 뒤
+       다른 회사가 받으면 `shift(1)` 이 다른 회사의 종가를 가리킨다. `flag_adjustment_quality`
+       는 그 자리를 `is_first_listing` 으로 알아야 하므로(`REQUIRED_COLUMNS`), 기업행위 표를
+       먼저 만들어 붙인 뒤 부른다. 반출도 같은 순서다 — 기업행위 3칸 → 품질 4칸.
+
+    필요한 다섯 칸 + 판정 한 칸만 읽으므로 7.9M 행이어도 메모리는 수백 MB 다.
     """
     src = pd.read_sql_query(
         "SELECT bas_dd, code, close, adj_close, change_rate "
         "FROM daily_price WHERE bas_dd <= ?", conn, params=(dev_end,))
+    src["bas_dd"] = src["bas_dd"].astype(str)
+    src["code"] = src["code"].astype(str)
+    n = len(src)
+    src = src.merge(ca[["bas_dd", "code", "is_first_listing"]],
+                    on=["bas_dd", "code"], how="left", validate="one_to_one")
+    if len(src) != n or src["is_first_listing"].isna().any():
+        raise RuntimeError(
+            "기업행위 판정 표에 없는 행이 있다 — 품질 판정과 같은 입력이 아니다")
     flags = flag_adjustment_quality(src)
     out = pd.concat([src[["bas_dd", "code"]], flags], axis=1)
     out["bas_dd"] = out["bas_dd"].astype(str)
@@ -482,7 +502,7 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
     t0 = time.time()
     print("  품질 판정 준비 중… (전 구간 1회 · 반출과 같은 입력)")
     with ro_connect() as conn0:
-        quality = _quality_table(conn0, dev_end)
+        quality = _quality_table(conn0, dev_end, ca_table)
     print(f"  품질 판정 {len(quality):,}행 · 의심 {int(quality['is_adj_suspect'].sum()):,} "
           f"· 극단 {int(quality['is_extreme_return'].sum()):,} · {time.time() - t0:.0f}초")
     총 = 0
