@@ -240,3 +240,66 @@ def test_서버를_못_물어보면_막지_않고_알리기만_한다(tmp_path, 
     snap = _snap(tmp_path, "2026-09-07T04:58:00Z")
     V.assert_snapshot_is_current("repo", snap)      # 멈추지 않는다
     assert "확인하지 못했다" in capsys.readouterr().out
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 판정은 반출과 같은 입력 위에서 — 연도로 끊으면 경계에서 답이 달라진다
+#
+# 2026-09-09 실제: 036220 은 2016-05-04 인포피아(상장폐지)의 마지막 행 뒤에
+# 2024-03-13 오상헬스케어(신규상장)가 같은 코드로 다시 왔다. "전년도 12월부터" 패드로는
+# 그 전일이 안 보여 판정기만 NaN 이 됐고, 반출은 +738.57% 로 `is_adj_suspect` 를 켰다.
+# ══════════════════════════════════════════════════════════════════════════
+def _daily_price_db(tmp_path: Path, rows):
+    import sqlite3
+    db = tmp_path / "q.db"
+    with sqlite3.connect(db) as c:
+        c.execute("CREATE TABLE daily_price (bas_dd TEXT, code TEXT, close REAL, "
+                  "adj_close REAL, change_rate REAL)")
+        c.executemany("INSERT INTO daily_price VALUES (?, ?, ?, ?, ?)", rows)
+    return db
+
+
+코드_재사용 = [
+    ("20160503", "036220", 1500.0, 1500.0, -1.90),
+    ("20160504", "036220", 1400.0, 1400.0, -6.67),      # 인포피아 마지막 행
+    ("20240313", "036220", 11740.0, 11740.0, 46.75),    # 오상헬스케어 첫 행 — 같은 코드
+    ("20240314", "036220", 12000.0, 12000.0, 2.21),
+]
+
+
+def test_품질_판정은_전_구간에서_한_번_만든다(tmp_path, monkeypatch):
+    """8년 공백 뒤 행도 반출과 같은 값(전 구간 직전 행 대비)이 나와야 한다."""
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn:
+        q = V._quality_table(conn, "20240831")
+    행 = q.set_index(["bas_dd", "code"]).loc[("20240313", "036220")]
+    assert 행["adj_return_1d"] == pytest.approx((11740.0 / 1400.0 - 1.0) * 100.0)
+    assert bool(행["is_adj_suspect"]), "8년 전 값 대비 +738% 는 KRX 등락률과 어긋난다"
+    assert not bool(행["is_extreme_return"]), "의심이면 극단으로 치지 않는다"
+    assert len(q) == len(코드_재사용), "입력 행이 하나도 빠지거나 늘지 않는다"
+
+
+def test_전년도_12월_패드로는_코드_재사용의_전일이_안_보인다(tmp_path, monkeypatch):
+    """옛 방식이 왜 틀렸는지를 남긴다 — 같은 함수에 잘린 입력을 주면 NaN 이 된다."""
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn:
+        잘린 = pd.read_sql_query(
+            "SELECT bas_dd, code, close, adj_close, change_rate FROM daily_price "
+            "WHERE bas_dd BETWEEN ? AND ?", conn, params=("20231201", "20241231"))
+    flags = V.flag_adjustment_quality(잘린)
+    첫행 = flags.loc[잘린["bas_dd"].eq("20240313")].iloc[0]
+    assert np.isnan(첫행["adj_return_1d"])
+    assert not bool(첫행["is_adj_suspect"])
+
+
+def test_판정_표에_없는_행이_있으면_붙이지_않고_멈춘다(tmp_path, monkeypatch):
+    """조용히 False 로 채우면 반출과 다른 표본을 같다고 판정하게 된다."""
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn:
+        q = V._quality_table(conn, "20240831")
+    db = pd.DataFrame({"bas_dd": ["20240313", "20240399"], "code": ["036220", "036220"],
+                       "adj_close": [11740.0, 1.0]})
+    monkeypatch.setattr(V, "attach_industry", lambda frame, *, as_of: frame)
+    ca = pd.DataFrame(columns=["bas_dd", "code", *V.CORPORATE_ACTION_COLUMNS])
+    with pytest.raises(RuntimeError, match="반출과 같은 입력"):
+        V._attach_export_derived(db, None, ca, q)
