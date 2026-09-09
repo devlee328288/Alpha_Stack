@@ -311,3 +311,205 @@ def test_전_표본_단조_변환은_트리에_무의미하지만_횡단면_변�
 
     ranked = P.rank_cross_section(df, ["x"], method="uniform")["x"]
     assert (예측(ranked) == df["y"]).all()                          # 그날 안 상대 위치로 갈린다
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑤ 시계열 표준화 — 종목 안에서 시점을 비교한다 (이슈 #214 후보 B)
+# ══════════════════════════════════════════════════════════════════════════
+#: 종목 둘 × 여섯 날. a 는 1..6 으로 오르고, b 는 그 열 배다.
+#: 창 3 · 준비 2 로 잡으면 손계산이 짧게 떨어진다.
+#:
+#:   a 의 2행째(x=2): 창 [1,2]   · mean 1.5 · std = sqrt(0.5)  → z = 0.5/sqrt(0.5) = sqrt(0.5)
+#:   a 의 3행째(x=3): 창 [1,2,3] · mean 2   · std 1                    → z = +1
+#:   a 의 4행째(x=4): 창 [2,3,4] · mean 3   · std 1                    → z = +1
+#:   a 의 1행째:      창 [1] · 준비 2 미만                              → NaN
+_TS_기대_a = [math.nan, math.sqrt(0.5), 1.0, 1.0, 1.0, 1.0]
+
+
+def _시계열_패널() -> pd.DataFrame:
+    """종목이 섞여 들어오고 행 순서도 뒤죽박죽인 표. 함수가 스스로 정렬해야 한다."""
+    행 = []
+    for i, d in enumerate(["d1", "d2", "d3", "d4", "d5", "d6"], start=1):
+        행.append({"bas_dd": d, "code": "a", "x": float(i), "industry": "A"})
+        행.append({"bas_dd": d, "code": "b", "x": float(i) * 10.0, "industry": "B"})
+    return pd.DataFrame(행).sample(frac=1.0, random_state=3).reset_index(drop=True)
+
+
+def _날짜순(out: pd.DataFrame, df: pd.DataFrame, code: str) -> np.ndarray:
+    """한 종목의 결과를 날짜 오름차순으로 편다."""
+    골라 = df["code"] == code
+    값 = out.loc[골라, "x"].to_numpy()
+    return 값[np.argsort(df.loc[골라, "bas_dd"].to_numpy())]
+
+
+def test_시계열_z_는_그_종목의_최근_창_평균과_ddof1_표준편차다():
+    df = _시계열_패널()
+    out = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    a = _날짜순(out, df, "a")
+    assert math.isnan(a[0])
+    assert a[1:].tolist() == pytest.approx(_TS_기대_a[1:])
+
+
+def test_시계열_z_는_종목마다_따로_센다():
+    """b 는 a 의 열 배지만 z 는 같다 — 종목 고정효과(수준·배율)가 지워진다."""
+    df = _시계열_패널()
+    out = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    np.testing.assert_allclose(_날짜순(out, df, "a")[1:], _날짜순(out, df, "b")[1:])
+
+
+def test_준비구간은_NaN_이고_min_periods_가_그_길이를_정한다():
+    df = _시계열_패널()
+    긴준비 = P.standardize_time_series(df, ["x"], window=6, min_periods=4)
+    a = _날짜순(긴준비, df, "a")
+    assert np.isnan(a[:3]).all() and np.isfinite(a[3:]).all()
+
+
+# ── 🔴 인과성 — 이 세 시험이 후보 B 의 존재 근거다 ──────────────────────────
+def test_뒤_행을_잘라도_앞_행의_z_는_같다():
+    """t+1 이후를 한 줄도 안 본다. 전 구간 통계를 쓰는 구현이면 여기서 깨진다."""
+    df = _시계열_패널().sort_values(["code", "bas_dd"], kind="mergesort").reset_index(drop=True)
+    전체 = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    앞부분 = df[df["bas_dd"] <= "d4"]
+    잘라서 = P.standardize_time_series(앞부분, ["x"], window=3, min_periods=2)
+    pd.testing.assert_frame_equal(전체.loc[잘라서.index], 잘라서)
+
+
+def test_미래_날짜를_덧붙여도_과거_z_는_같다():
+    df = _시계열_패널()
+    before = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    미래 = pd.DataFrame([
+        {"bas_dd": "d7", "code": "a", "x": 1e6, "industry": "A"},
+        {"bas_dd": "d7", "code": "b", "x": -1e6, "industry": "B"},
+    ])
+    after = P.standardize_time_series(
+        pd.concat([df, 미래], ignore_index=True), ["x"], window=3, min_periods=2
+    )
+    pd.testing.assert_frame_equal(before, after.iloc[: len(df)])
+
+
+def test_전_구간_표준화를_넣으면_인과성_시험이_잡는다():
+    """일부러 틀린 구현 — 시험이 실제로 무엇을 막는지 확인한다."""
+
+    def 전_구간_z(f: pd.DataFrame) -> pd.DataFrame:
+        g = f.groupby("code")["x"]
+        return ((f["x"] - g.transform("mean")) / g.transform("std")).to_frame("x")
+
+    df = _시계열_패널().sort_values(["code", "bas_dd"], kind="mergesort").reset_index(drop=True)
+    전체 = 전_구간_z(df)
+    앞부분 = df[df["bas_dd"] <= "d4"]
+    with pytest.raises(AssertionError):
+        pd.testing.assert_frame_equal(전체.loc[앞부분.index], 전_구간_z(앞부분))
+
+
+def test_행_순서를_섞어도_시계열_z_는_같다():
+    df = _시계열_패널()
+    before = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    섞 = df.sample(frac=1.0, random_state=11)
+    after = P.standardize_time_series(섞, ["x"], window=3, min_periods=2)
+    pd.testing.assert_frame_equal(before.loc[섞.index], after)
+
+
+def test_같은_종목_같은_날이_두_번이면_거부한다():
+    df = pd.concat([_시계열_패널(), _시계열_패널().iloc[:1]], ignore_index=True)
+    with pytest.raises(ValueError, match="두 번 이상"):
+        P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+
+
+def test_시계열_표준화도_보호_칸을_거부한다():
+    df = _시계열_패널()
+    df["label_numeric"] = 0
+    with pytest.raises(ValueError, match="전처리 대상이 아닌"):
+        P.standardize_time_series(df, ["label_numeric"])
+
+
+def test_산포가_0_인_구간은_NaN_이다():
+    df = pd.DataFrame({
+        "bas_dd": ["d1", "d2", "d3", "d4"],
+        "code": ["a"] * 4,
+        "x": [5.0, 5.0, 5.0, 9.0],
+    })
+    out = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    assert math.isnan(out["x"].iloc[1]) and math.isnan(out["x"].iloc[2])
+    assert np.isfinite(out["x"].iloc[3])
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑥ 날짜 수준 복원 (이슈 #214 후보 C)
+# ══════════════════════════════════════════════════════════════════════════
+def test_복원한_평균과_표준편차는_그날_전체에_같은_값이다():
+    out = P.restore_date_level(_panel(), ["x"])
+    assert list(out.columns) == ["cs_mean_x", "cs_std_x"]
+    assert out["cs_mean_x"].iloc[:5].nunique() == 1
+    assert out["cs_mean_x"].iloc[0] == pytest.approx(22.0)          # d1 평균 손계산
+    assert out["cs_std_x"].iloc[0] == pytest.approx(STD_D1)
+    assert out["cs_mean_x"].iloc[5] == pytest.approx(30.0)          # d2 평균
+
+
+def test_복원_칸_이름을_미리_알_수_있다():
+    assert P.date_level_columns(["hv_20", "atr_ratio"]) == [
+        "cs_mean_hv_20", "cs_std_hv_20", "cs_mean_atr_ratio", "cs_std_atr_ratio",
+    ]
+    assert P.date_level_columns(["x"], ("median",)) == ["cs_median_x"]
+
+
+def test_복원은_원래_칸을_돌려주지_않는다():
+    """①~④ 와 규약이 다르다 — 새 칸만 준다. 부르는 쪽이 붙인다."""
+    out = P.restore_date_level(_panel(), ["x"])
+    assert "x" not in out.columns
+
+
+def test_날짜_수준_복원도_다른_날짜의_값에_흔들리지_않는다():
+    before = P.restore_date_level(_panel(), ["x"])
+    df = _panel()
+    df.loc[df["bas_dd"] == "d2", "x"] = [1e6, -1e6, 0.0, 3.0, 7.0]
+    after = P.restore_date_level(df, ["x"])
+    pd.testing.assert_frame_equal(before.iloc[:5], after.iloc[:5])
+
+
+def test_종목이_min_count_보다_적은_날은_복원값이_NaN_이다():
+    df = pd.DataFrame({"bas_dd": ["d1", "d1", "d2"], "code": list("abc"),
+                       "x": [1.0, 2.0, 3.0]})
+    out = P.restore_date_level(df, ["x"], min_count=3)
+    assert out["cs_mean_x"].isna().all()
+
+
+def test_모르는_통계는_거부한다():
+    with pytest.raises(ValueError, match="모르는 날짜 수준 통계"):
+        P.restore_date_level(_panel(), ["x"], stats=("mode",))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 축 가르기 · keep_raw (이슈 #214 후보 D)
+# ══════════════════════════════════════════════════════════════════════════
+def test_축을_가르면_입력_순서를_지킨다():
+    처리, 원값 = P.split_by_axis(["rsi_14", "hv_20", "sma_gap_5_20", "atr_ratio"])
+    assert 처리 == ["rsi_14", "sma_gap_5_20"]
+    assert 원값 == ["hv_20", "atr_ratio"]
+
+
+def test_없는_칸을_보존_목록에_넣어도_멈추지_않는다():
+    """조합마다 칸이 다르므로, 없는 이름은 조용히 무시한다."""
+    처리, 원값 = P.split_by_axis(["rsi_14"], keep_raw=("hv_20", "bb_bandwidth"))
+    assert 처리 == ["rsi_14"] and 원값 == []
+
+
+def test_keep_raw_칸은_한_자리도_안_바뀐다():
+    df = _panel()
+    out = P.preprocess_cross_section(df, ["x", "c"], keep_raw=("x",))
+    pd.testing.assert_series_equal(out["x"], df["x"])
+    assert not np.allclose(out["c"], df["c"])                        # 나머지는 처리된다
+    assert list(out.columns) == ["x", "c"]                           # 칸 순서는 요청 그대로
+
+
+def test_보존_목록의_기본값은_변동성_축이다():
+    assert P.VOLATILITY_AXIS == ("hv_20", "atr_ratio", "hv_regime", "bb_bandwidth")
+
+
+def test_전처리_한번에가_시계열_경로도_같은_값을_낸다():
+    df = _시계열_패널()
+    직접 = P.standardize_time_series(df, ["x"], window=3, min_periods=2)
+    한번에 = P.preprocess_cross_section(
+        df, ["x"], winsorize=None, zscore=False,
+        time_series=dict(window=3, min_periods=2),
+    )
+    pd.testing.assert_frame_equal(직접, 한번에)

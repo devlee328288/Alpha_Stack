@@ -77,16 +77,40 @@ PROTECTED_NAMES: frozenset[str] = frozenset(
 #: 그날 종목이 이보다 적으면 통계를 만들지 않는다 — 셋 미만이면 MAD 도 표준편차도 뜻이 없다.
 DEFAULT_MIN_COUNT = 3
 
+#: 시계열 표준화(⑤)의 기본 창과 준비구간. 250거래일은 약 1년이고, 60 은 석 달이다.
+#: 60 을 고른 이유는 **표본이 줄지 않기 때문**이다 — 이 패널에서 가장 늦게 값이 나오는
+#: 피처(`hv_regime`)가 269행을 먹으므로, 60행짜리 준비구간은 그 안에 통째로 들어간다.
+DEFAULT_TS_WINDOW = 250
+DEFAULT_TS_MIN_PERIODS = 60
+
+#: 날짜 수준을 되돌릴 때 새 칸에 붙이는 머리말. `cs_mean_hv_20` 처럼 읽힌다.
+DATE_LEVEL_PREFIX = "cs_"
+
+#: 라벨이 **절대 밴드**(±2%)라서 수준을 지우면 안 되는 축. 2026-09-09 실측 —
+#: `hv_20` 십분위와 "라벨 ≠ 중립" 확률의 Spearman ρ 가 1.0000 이었다(47.6% → 75.2%).
+#: 변동성이 큰 종목·날일수록 ±2% 를 벗어나므로, 이 넷의 **수준 자체가 라벨의 절반**이다.
+#: 값이 아니라 이름 목록이므로, 조합에 그 칸이 없으면 그냥 걸리지 않는다.
+VOLATILITY_AXIS: tuple[str, ...] = ("hv_20", "atr_ratio", "hv_regime", "bb_bandwidth")
+
 WinsorMethod = Literal["mad", "quantile", "sigma"]
 RankMethod = Literal["uniform", "gaussian", "signed"]
+DateLevelStat = Literal["mean", "std", "median"]
 
 __all__ = [
+    "DATE_LEVEL_PREFIX",
+    "DEFAULT_TS_MIN_PERIODS",
+    "DEFAULT_TS_WINDOW",
     "MAD_TO_SIGMA",
     "PROTECTED_NAMES",
     "PROTECTED_PREFIXES",
+    "VOLATILITY_AXIS",
+    "date_level_columns",
     "neutralize_cross_section",
     "preprocess_cross_section",
     "rank_cross_section",
+    "restore_date_level",
+    "split_by_axis",
+    "standardize_time_series",
     "transformed_columns",
     "winsorize_cross_section",
     "zscore_cross_section",
@@ -349,7 +373,182 @@ def rank_cross_section(
 
 
 # ══════════════════════════════════════════════════════════════════════════
-# 한 번에 — 순서는 ① → ② → ③ → ④
+# ⑤ 시계열 표준화 — 종목이 자기 최근 이력 대비 얼마나 다른가
+# ══════════════════════════════════════════════════════════════════════════
+def standardize_time_series(
+    frame: pd.DataFrame,
+    columns: Sequence[str],
+    *,
+    date_col: str = "bas_dd",
+    by: str = "code",
+    window: int = DEFAULT_TS_WINDOW,
+    min_periods: int = DEFAULT_TS_MIN_PERIODS,
+    robust: bool = False,
+) -> pd.DataFrame:
+    """각 종목의 **자기 최근 `window` 행** 평균·표준편차로 표준화한다.
+
+        z_t = (x_t − mean(x_{t−w+1 … t})) / std(x_{t−w+1 … t})
+
+    ①~④ 가 **날짜 안**에서 종목을 비교한다면, 이것은 **종목 안**에서 시점을 비교한다.
+    방향이 직각이라 지우는 것도 다르다.
+
+    ## 왜 이 함수가 필요한가 — 날짜별 z 는 라벨이 쓰는 것을 지운다
+
+    우리 라벨은 **절대 ±2% 밴드**다. 변동성이 높은 날은 종목을 가리지 않고 밴드를 더
+    벗어난다(2026-09-09 실측 · 날짜별 평균 `hv_20` ↔ 그날 비중립 비율 ρ = 0.3244 ·
+    3,343일). 그런데 날짜별 z-score 는 **정의상 그날 평균을 0 으로 만들어** 그 정보를
+    통째로 지운다. 실제로 조합 K 12폴드에서 기준선 대비 정확도가 +2.43%p → +0.84%p 로
+    떨어졌다(이슈 #210·#214).
+
+    시계열 표준화는 그 수준을 남긴다 — 시장 전체가 시끄러우면 **모든 종목의 z 가 함께**
+    오르므로 날짜별 평균이 0 이 되지 않는다. 대신 종목마다 다른 기준 수준(삼성전자와
+    소형주의 `hv_20` 평균이 애초에 다르다)은 지운다. 그건 라벨과 무관한 종목 고정효과다.
+
+    ## 🔴 인과성 — 이 함수의 존재 이유
+
+    `rolling(window)` 은 **t 를 포함하되 t+1 이후는 절대 보지 않는다.** 그래서 `shift` 가
+    따로 필요 없다. 뒤 행을 잘라내도 앞 행의 z 는 한 자리도 바뀌지 않으며, 그것을
+    `test_뒤_행을_잘라도_앞_행의_z_는_같다` 가 못박는다. 전 구간 `StandardScaler` 와
+    다른 점이 정확히 이것이다.
+
+    ## ⚠️ 창은 달력이 아니라 **행**을 센다
+
+    `window=250` 은 "250거래일" 이 아니라 **"이 표에 그 종목이 나타난 250행"** 이다.
+    후보군 패널처럼 종목이 들락날락하는 표에서는 250행이 250거래일보다 긴 기간을 덮는다.
+    전 종목 일별 패널에 걸면 둘이 같아진다. 어느 쪽이든 미래를 보지 않는 것은 같다.
+
+    준비구간(`min_periods` 미만)은 NaN 이다. 기본 60 을 고른 이유는 상수
+    `DEFAULT_TS_MIN_PERIODS` 주석 참조 — 표본이 줄지 않는다.
+
+    `robust=True` 면 중앙값과 MAD 를 쓴다. 산포가 0 인 구간(값이 내내 같은 종목)은 NaN 이다.
+    """
+    cols = _check(frame, columns, date_col)
+    if by not in frame.columns:
+        raise ValueError(f"종목 칸이 없습니다: {by!r}")
+    if window < 2:
+        raise ValueError(f"window 는 2 이상이어야 합니다: {window}")
+    if not (1 <= min_periods <= window):
+        raise ValueError(f"min_periods 는 1 이상 window 이하여야 합니다: {min_periods}")
+    if frame[by].isna().any():
+        raise ValueError(f"종목 칸에 결측이 있습니다: {by!r}")
+    if frame.duplicated([by, date_col]).any():
+        # 같은 종목·같은 날이 두 행이면 창 안의 순서가 정해지지 않는다. 그 표는
+        # 어느 행이 먼저인지에 따라 결과가 달라지므로 계산하지 않고 멈춘다.
+        raise ValueError(f"같은 ({by}, {date_col}) 행이 두 번 이상 있습니다.")
+
+    # 🔴 정렬은 계산용 사본에서만 한다. 입력이 날짜순이 아니어도 결과는 같아야 하고,
+    #    돌려주는 표는 입력과 같은 인덱스·같은 순서다.
+    order = frame.sort_values([by, date_col], kind="mergesort").index
+    x = _values(frame.loc[order], cols)
+    groups = frame.loc[order, by]
+    g = x.groupby(groups, sort=False)
+    if robust:
+        center = g.rolling(window, min_periods=min_periods).median().droplevel(0)
+        deviation = (x - center).abs()
+        scale = (
+            deviation.groupby(groups, sort=False)
+            .rolling(window, min_periods=min_periods)
+            .median()
+            .droplevel(0)
+            * MAD_TO_SIGMA
+        )
+    else:
+        center = g.rolling(window, min_periods=min_periods).mean().droplevel(0)
+        scale = g.rolling(window, min_periods=min_periods).std().droplevel(0)
+    out = (x - center) / scale
+    out = out.where(scale.gt(0))
+    return out.reindex(frame.index)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ⑥ 날짜 수준 복원 — z 가 지운 것을 피처로 돌려준다
+# ══════════════════════════════════════════════════════════════════════════
+def date_level_columns(
+    columns: Iterable[str],
+    stats: Sequence[DateLevelStat] = ("mean", "std"),
+    *,
+    prefix: str = DATE_LEVEL_PREFIX,
+) -> list[str]:
+    """`restore_date_level` 이 만들 칸 이름. 부르는 쪽이 피처 목록을 미리 세울 때 쓴다."""
+    return [f"{prefix}{stat}_{col}" for col in dict.fromkeys(columns) for stat in stats]
+
+
+def restore_date_level(
+    frame: pd.DataFrame,
+    columns: Sequence[str],
+    *,
+    date_col: str = "bas_dd",
+    stats: Sequence[DateLevelStat] = ("mean", "std"),
+    prefix: str = DATE_LEVEL_PREFIX,
+    min_count: int = DEFAULT_MIN_COUNT,
+) -> pd.DataFrame:
+    """날짜별 z-score 가 지운 **그날의 수준**을 새 칸으로 되돌린다.
+
+    `zscore_cross_section` 은 그날 평균을 0 · 표준편차를 1 로 만든다. 즉 지워지는 것은
+    정확히 **그날의 평균과 산포** 둘이다. 그것을 명시적 피처로 되돌리면, 모델이 상대
+    위치(z)와 절대 수준(그날 평균)을 **함께** 볼 수 있다.
+
+    이게 맞는 설명인지 재는 것이 이 함수의 목적이다 — 지운 것을 돌려줘서 회복하면
+    "z 가 해친 것은 날짜 수준" 이 맞고, 회복하지 않으면 다른 원인이 있다(이슈 #214 후보 C).
+
+    ## 미래를 보지 않는다
+
+    통계는 **그날 행만으로** 만든다. 다른 날짜의 값이 오늘 결과를 바꾸지 않는 것은
+    ①~④ 와 같은 규약이고, 같은 누수 시험이 이 함수에도 걸린다.
+
+    ## 돌려주는 것은 **새 칸만** 이다
+
+    ①~④ 는 "요청한 칸을 같은 이름으로" 돌려주지만, 이 함수는 `cs_mean_hv_20` 처럼
+    **새 이름의 칸만** 돌려준다. 원래 칸을 덮어쓰지 않으므로 부르는 쪽이 그대로 옆에
+    붙이면 된다(`pd.concat`). 피처 목록도 함께 늘려야 한다 —
+    `date_level_columns()` 가 그 이름을 미리 준다.
+
+    한 날짜의 종목이 `min_count` 보다 적으면 그날은 NaN 이다.
+    """
+    cols = _check(frame, columns, date_col)
+    unknown = [s for s in stats if s not in ("mean", "std", "median")]
+    if unknown:
+        raise ValueError(f"모르는 날짜 수준 통계입니다: {unknown}")
+    if not stats:
+        raise ValueError("되돌릴 통계가 비어 있습니다.")
+    x = _values(frame, cols)
+    g = x.groupby(frame[date_col], sort=False)
+    n = g.transform("count")
+    parts: dict[str, pd.Series] = {}
+    for stat in stats:
+        got = g.transform(stat)
+        for col in cols:
+            parts[f"{prefix}{stat}_{col}"] = got[col].where(n[col].ge(min_count))
+    out = pd.DataFrame(parts, index=frame.index)
+    return out.loc[:, date_level_columns(cols, stats, prefix=prefix)]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 축 가르기 — 수준을 보존할 칸과 상대 위치로 바꿀 칸
+# ══════════════════════════════════════════════════════════════════════════
+def split_by_axis(
+    columns: Iterable[str],
+    keep_raw: Iterable[str] = VOLATILITY_AXIS,
+) -> tuple[list[str], list[str]]:
+    """`(처리할 칸, 원값으로 둘 칸)` 으로 가른다. 입력 순서를 지킨다.
+
+    같은 표 안에 성질이 다른 두 종류가 섞여 있다는 것이 전제다.
+
+    - **수준이 뜻인 칸** — `hv_20`·`atr_ratio` 처럼 값의 크기 자체가 라벨과 이어진다.
+      횡단면 z 를 걸면 그 크기가 사라진다.
+    - **이미 상대값인 칸** — `rsi_14`·`sma_gap_5_20` 은 종목 안에서 이미 정규화돼 있어
+      횡단면 처리로 잃을 수준이 적다.
+
+    `keep_raw` 에 있지만 `columns` 에 없는 이름은 **조용히 무시**한다 — 조합마다 칸이
+    다르므로, 없는 칸을 넣었다고 멈추면 조합을 바꿀 때마다 목록을 고쳐야 한다.
+    """
+    보존 = set(keep_raw)
+    cols = list(dict.fromkeys(columns))
+    return [c for c in cols if c not in 보존], [c for c in cols if c in 보존]
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# 한 번에 — 순서는 ① → ② → ⑤ → ③ → ④
 # ══════════════════════════════════════════════════════════════════════════
 def preprocess_cross_section(
     frame: pd.DataFrame,
@@ -361,15 +560,32 @@ def preprocess_cross_section(
     neutralize: Mapping[str, object] | None = None,
     rank: RankMethod | None = None,
     winsorize_kwargs: Mapping[str, object] | None = None,
+    time_series: Mapping[str, object] | None = None,
+    keep_raw: Iterable[str] | None = None,
 ) -> pd.DataFrame:
-    """네 단계를 표준 순서로 건다. 끄고 싶은 단계는 `None`/`False`.
+    """단계들을 표준 순서로 건다. 끄고 싶은 단계는 `None`/`False`.
+
+        ① winsorize → ② 횡단면 z → ⑤ 시계열 z → ③ 중립화 → ④ 순위
 
     `neutralize` 는 `neutralize_cross_section` 의 키워드 인자 dict
     (예: ``{"groups": "industry", "controls": ("log_cap",)}``). 순위(④)를 켜면 그 앞
     단계의 결과 순서가 그대로 순위가 되므로, ①·② 는 ④ 앞에서는 아무것도 바꾸지 않는다 —
     ④ 를 켤 때 의미가 있는 것은 ③ 뿐이다.
+
+    `time_series` 는 `standardize_time_series` 의 키워드 인자 dict
+    (예: ``{"window": 250, "min_periods": 60}``). 종목 축이라 날짜 축(②)과 방향이 직각이고,
+    **둘을 함께 켜면 두 번 표준화된다** — 뜻이 없지는 않지만 해석이 어려워지므로 보통은
+    한쪽만 켠다.
+
+    `keep_raw` 에 든 칸은 **모든 단계를 건너뛰고 원값 그대로** 나온다. 라벨이 절대
+    밴드라 수준이 곧 정보인 축(`VOLATILITY_AXIS`)을 지키려고 있다. 돌려주는 표의 칸
+    순서·이름은 `keep_raw` 와 무관하게 요청한 그대로다.
+
+    이 함수는 예나 지금이나 **요청한 칸만** 돌려준다. 날짜 수준을 피처로 되돌리는
+    `restore_date_level` 이 새 칸을 만드는 것과 다르다 — 그쪽은 부르는 쪽이 직접 붙인다.
     """
     cols = _check(frame, columns, date_col)
+    처리, 원값 = split_by_axis(cols, keep_raw or ())
     work = frame.loc[:, [date_col, *cols]].copy()
     extra = []
     if neutralize:
@@ -378,20 +594,34 @@ def preprocess_cross_section(
             if isinstance(v, str):
                 extra.append(v)
         extra.extend(neutralize.get("controls", ()) or ())
+    if time_series is not None:
+        extra.append(str(time_series.get("by", "code")))
     for c in extra:
         if c not in work.columns:
             work[c] = frame[c]
 
-    if winsorize is not None:
-        work[cols] = winsorize_cross_section(
-            work, cols, date_col=date_col, method=winsorize, **(winsorize_kwargs or {})
-        )
-    if zscore:
-        work[cols] = zscore_cross_section(work, cols, date_col=date_col)
-    if neutralize:
-        work[cols] = neutralize_cross_section(work, cols, date_col=date_col, **neutralize)
-    if rank is not None:
-        work[cols] = rank_cross_section(work, cols, date_col=date_col, method=rank)
+    if 처리:
+        if winsorize is not None:
+            work[처리] = winsorize_cross_section(
+                work, 처리, date_col=date_col, method=winsorize,
+                **(winsorize_kwargs or {}),
+            )
+        if zscore:
+            work[처리] = zscore_cross_section(work, 처리, date_col=date_col)
+        if time_series is not None:
+            work[처리] = standardize_time_series(
+                work, 처리, date_col=date_col, **time_series
+            )
+        if neutralize:
+            work[처리] = neutralize_cross_section(
+                work, 처리, date_col=date_col, **neutralize
+            )
+        if rank is not None:
+            work[처리] = rank_cross_section(work, 처리, date_col=date_col, method=rank)
+    if 원값:
+        # 원값 칸은 사본에서도 한 번도 안 건드렸으므로 그대로 두면 된다. 다만 "그대로"
+        # 라는 사실을 코드로 남겨 둔다 — 나중에 위 블록을 고칠 때 여기가 눈에 걸리게.
+        work[원값] = frame.loc[:, 원값]
     out = work.loc[:, cols]
     out.index = frame.index
     return out
