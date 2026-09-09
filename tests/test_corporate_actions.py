@@ -587,3 +587,41 @@ def test_달력에_없는_날짜는_판정하지_않는다():
                                 listing_days=(CAL[0], "20991231")) is False
     assert ca.is_series_restart(밖, _행(CAL[5]), calendar_index=INDEX,
                                 listing_days=(CAL[0], CAL[5])) is False
+
+
+def test_코드_재사용_자리에서는_조정_배율이_1_이다():
+    """다른 회사 사이에는 이어 붙일 것이 없다 — 배율을 만들면 과거 전체가 밀린다.
+
+    실측 (2026-09-09 · 이슈 #195): `101970` 은 2015-03-16 종가 830 과 2025-03-28
+    기준가 18,640 으로 배율 1864/83 = 22.457831 이 나왔고, FDR 이 2012~2015 를
+    모르는 구간이라 `adj_price.scale_series` ③ 이 그 배율을 과거로 퍼뜨려 **648행의
+    수준이 22.4578배 부풀었다.** 그런데 같은 배율로 밀린 이웃 두 날의 비율은 보존되므로
+    `is_adj_suspect` 는 False 였다 — 검사와 대상이 같은 잘못을 공유하면 초록이 나온다.
+    """
+    앞, 뒤 = _행(CAL[0], close=830, change=-100), _행(CAL[30], close=20600, change=1960)
+    rows = [앞, 뒤]
+
+    없이 = ca.factor_series(rows)
+    assert 없이[1] != Fraction(1), "달력을 안 주면 예전 그대로 배율을 만든다"
+
+    켬 = ca.factor_series(rows, calendar_index=INDEX,
+                          listing_days=(CAL[0], CAL[30]))
+    assert 켬[1] == Fraction(1), "재시작 자리에서는 조정이 없다"
+    assert 켬[0] == Fraction(1), "첫 행은 앞이 없으므로 1"
+
+
+def test_시장이전_자리에서는_배율을_그대로_만든다():
+    """공백이 없으면 같은 회사다 — 여기서 1 로 만들면 진짜 자본변동을 놓친다."""
+    rows = [_행(CAL[0], close=2_650_000, shares=100),
+            _분할행(CAL[1], close=51_900, change=-1_100, shares=5_000)]
+    켬 = ca.factor_series(rows, calendar_index=INDEX,
+                          listing_days=(CAL[0], CAL[1]))     # 상장일은 바뀌지만 공백 없음
+    assert 켬[1] == Fraction(1, 50), "액면분할 50:1 은 그대로 잡혀야 한다"
+
+
+def test_상장일을_모르면_배율_계산이_예전_그대로다():
+    """`listing_days` 가 비면 아무것도 안 바꾼다 — 모르는 것을 단절로 치지 않는다."""
+    rows = [_행(CAL[0], close=830), _행(CAL[30], close=20600, change=1960)]
+    기본 = ca.factor_series(rows)
+    빈것 = ca.factor_series(rows, calendar_index=INDEX, listing_days=())
+    assert 기본 == 빈것

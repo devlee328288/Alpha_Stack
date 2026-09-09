@@ -253,7 +253,9 @@ def _fix_unadjusted_actions(rows: Sequence[Mapping],
 
 def scale_series(rows: Sequence[Mapping],
                  fdr_close: Mapping[str, Optional[float]],
-                 *, fixed: Optional[set] = None) -> List[Optional[Fraction]]:
+                 *, fixed: Optional[set] = None,
+                 calendar_index: Optional[Mapping[str, int]] = None,
+                 listing_days: Sequence[str] = ()) -> List[Optional[Fraction]]:
     """행마다 `수정가격 / 원가격` 배율. FDR 이 아는 날에서 시작해 양쪽으로 퍼뜨린다.
 
     `fdr_close` 는 `{YYYYMMDD: 수정종가}`. 값이 `None` 이거나 그 날이 없으면 모르는 날이다.
@@ -270,7 +272,11 @@ def scale_series(rows: Sequence[Mapping],
     if n == 0:
         return []
 
-    factors = factor_series(rows)
+    # 🔴 달력·상장일을 주면 **코드 재사용 자리에서 배율이 1** 이 된다. 안 주면 그
+    #    자리에서 다른 회사의 기준가로 만든 배율이 ③ 을 타고 과거로 퍼진다 — 101970 이
+    #    그렇게 648행(20120726~20150316)의 수준이 22.4578배 부풀었다 (이슈 #195).
+    factors = factor_series(rows, calendar_index=calendar_index,
+                           listing_days=listing_days)
     scales: List[Optional[Fraction]] = [None] * n
 
     # ① FDR 이 아는 날을 그대로 심는다.
@@ -309,8 +315,9 @@ def scale_series(rows: Sequence[Mapping],
 
 
 def build_rows(rows: Sequence[Mapping],
-               adjusted: Mapping[str, Mapping[str, Optional[float]]]
-               ) -> List[Tuple]:
+               adjusted: Mapping[str, Mapping[str, Optional[float]]],
+               *, calendar_index: Optional[Mapping[str, int]] = None,
+               listing_days: Sequence[str] = ()) -> List[Tuple]:
     """DB 에 쓸 `(adj_open, adj_high, adj_low, adj_close, adj_source, bas_dd)` 목록.
 
     **네 칸 전부 `원가격 × 배율` 로 만든다.** FDR 이 준 날도 마찬가지다 — 다만 그 날의
@@ -340,7 +347,8 @@ def build_rows(rows: Sequence[Mapping],
     """
     fdr_close = {day: value.get("adj_close") for day, value in adjusted.items()}
     fixed: set = set()
-    scales = scale_series(rows, fdr_close, fixed=fixed)
+    scales = scale_series(rows, fdr_close, fixed=fixed,
+                         calendar_index=calendar_index, listing_days=listing_days)
 
     out: List[Tuple] = []
     for i, row in enumerate(rows):
@@ -386,12 +394,19 @@ def save(conn: sqlite3.Connection, code: str, rows: Sequence[Tuple]) -> int:
 
 
 def build_and_save(conn: sqlite3.Connection, code: str,
-                   adjusted: Mapping[str, Mapping[str, Optional[float]]]) -> int:
-    """한 종목을 계산해 저장한다. 채운 행 수를 돌려준다."""
+                   adjusted: Mapping[str, Mapping[str, Optional[float]]],
+                   *, calendar_index: Optional[Mapping[str, int]] = None,
+                   listing_days: Sequence[str] = ()) -> int:
+    """한 종목을 계산해 저장한다. 채운 행 수를 돌려준다.
+
+    `calendar_index`·`listing_days` 는 코드 재사용 자리를 끊는 데 쓴다 — 부르는 쪽이
+    **한 번 만들어** 종목마다 넘긴다(종목마다 달력을 다시 만들면 한 시간이 넘는다).
+    """
     rows = load_rows(conn, code)
     if not rows:
         return 0
-    return save(conn, code, build_rows(rows, adjusted))
+    return save(conn, code, build_rows(rows, adjusted, calendar_index=calendar_index,
+                                       listing_days=listing_days))
 
 
 # ==================================================
