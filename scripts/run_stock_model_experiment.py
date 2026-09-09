@@ -119,7 +119,10 @@ def _read_cached_panel(signature: dict[str, object]) -> StockModelDataset | None
     if not PANEL_CACHE_PATH.exists() or not PANEL_CACHE_META_PATH.exists():
         return None
     metadata = json.loads(PANEL_CACHE_META_PATH.read_text(encoding="utf-8"))
-    if metadata != signature:
+    if metadata.get("signature") != signature:
+        return None
+    adjustment_quality = metadata.get("adjustment_quality")
+    if not isinstance(adjustment_quality, dict) or not adjustment_quality:
         return None
     frame = pd.read_parquet(PANEL_CACHE_PATH)
     required = {"bas_dd", "label_numeric", *ALL_STOCK_FEATURE_COLUMNS}
@@ -127,6 +130,7 @@ def _read_cached_panel(signature: dict[str, object]) -> StockModelDataset | None
         return None
     if frame.empty or (frame["bas_dd"].astype("string") >= HOLDOUT_START).any():
         return None
+    frame.attrs["adjustment_quality"] = adjustment_quality
     return StockModelDataset(frame=frame, feature_columns=ALL_STOCK_FEATURE_COLUMNS)
 
 
@@ -135,10 +139,39 @@ def _write_panel_cache(dataset: StockModelDataset, signature: dict[str, object])
 
     PANEL_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
     dataset.frame.to_parquet(PANEL_CACHE_PATH, index=False)
+    adjustment_quality = dataset.frame.attrs.get("adjustment_quality")
+    if not isinstance(adjustment_quality, dict) or not adjustment_quality:
+        raise RuntimeError("종목 패널 캐시에 저장할 수정주가 품질 요약이 없습니다.")
     PANEL_CACHE_META_PATH.write_text(
-        json.dumps(signature, ensure_ascii=False, indent=2) + "\n",
+        json.dumps(
+            {
+                "signature": signature,
+                "adjustment_quality": adjustment_quality,
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
+
+
+def _requested_combinations(requested: tuple[str, ...] | None) -> tuple[str, ...]:
+    """전체 조합 순서를 유지하면서 선택 실행 이름을 검증한다."""
+
+    available = tuple(STOCK_COMBINATION_FEATURES)
+    if requested is None:
+        return available
+    normalized = tuple(str(name).strip().upper() for name in requested)
+    if not normalized or any(not name for name in normalized):
+        raise ValueError("실행할 조합 이름은 비어 있을 수 없습니다.")
+    if len(set(normalized)) != len(normalized):
+        raise ValueError("실행할 조합 이름이 중복되었습니다.")
+    unknown = set(normalized) - set(available)
+    if unknown:
+        raise ValueError(f"정의되지 않은 개별종목 조합입니다: {sorted(unknown)}")
+    selected = set(normalized)
+    return tuple(name for name in available if name in selected)
 
 
 def _model_summary(outer_results: pd.DataFrame) -> list[dict[str, object]]:
@@ -275,10 +308,10 @@ def _fold_baseline_rows(dataset: StockModelDataset) -> list[dict[str, object]]:
 
 
 def refresh_saved_report_baselines() -> None:
-    """재학습 없이 기존 A~H OOS의 기준선·진단지표·선정 순위를 갱신한다."""
+    """재학습 없이 기존 A~J OOS의 기준선·진단지표·선정 순위를 갱신한다."""
 
     if not SWEEP_REPORT_PATH.exists():
-        raise FileNotFoundError(f"기존 A~H 보고서가 없습니다: {SWEEP_REPORT_PATH}")
+        raise FileNotFoundError(f"기존 A~J 보고서가 없습니다: {SWEEP_REPORT_PATH}")
     report = json.loads(SWEEP_REPORT_PATH.read_text(encoding="utf-8"))
     datasets = {
         name: load_stock_model_dataset(features)
@@ -345,7 +378,7 @@ def refresh_saved_report_baselines() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"A~H 기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
+    print(f"A~J 기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
 
 
 def load_stock_model_dataset(
@@ -469,8 +502,14 @@ def _append_trials(
             stream.write(json.dumps(record, ensure_ascii=False, default=_json_default) + "\n")
 
 
-def main() -> None:
-    """HF 공통 패널에서 A~H를 같은 날짜·종목 조건으로 비교한다."""
+def main(requested: tuple[str, ...] | None = None) -> None:
+    """HF 공통 패널에서 선택한 조합을 같은 날짜·종목 조건으로 비교한다."""
+
+    selected_combinations = _requested_combinations(requested)
+    all_combinations = tuple(STOCK_COMBINATION_FEATURES)
+    selection_label = "A~J" if selected_combinations == all_combinations else "·".join(
+        selected_combinations
+    )
 
     source = {
         "repo": "qurious-quant/alphastack-krx-dev",
@@ -480,7 +519,7 @@ def main() -> None:
         "index_sha256": _sha256(INDEX_PATH),
         "holdout_start": HOLDOUT_START,
     }
-    print("[1/4] HF 공통 종목 패널과 A~H 피처 준비", flush=True)
+    print(f"[1/4] HF 공통 종목 패널과 A~J 피처 준비 · 실행 {selection_label}", flush=True)
     datasets = {
         name: load_stock_model_dataset(features)
         for name, features in STOCK_COMBINATION_FEATURES.items()
@@ -490,7 +529,7 @@ def main() -> None:
     common_dates = set(first_dataset.frame["bas_dd"].unique())
     common_rows = len(first_dataset.frame)
     if len(common_dates) < 750 + 5 + 60:
-        raise ValueError("A~H 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
+        raise ValueError("A~J 공통 날짜·종목 표본으로 12폴드 평가를 만들 수 없습니다.")
     quality_summary = dict(
         next(iter(datasets.values())).frame.attrs.get("adjustment_quality", {})
     )
@@ -505,8 +544,53 @@ def main() -> None:
     generated_at = datetime.now(timezone.utc).isoformat()
     run_id = "stock-feature-combinations-" + generated_at.replace(":", "").replace("-", "")
     combination_reports: dict[str, object] = {}
-    print("[2/4] 조합 A~H × 4모델 · 날짜 그룹 expanding 12폴드", flush=True)
-    for combination, dataset in datasets.items():
+    combination_run_ids: dict[str, str] = {}
+    if selected_combinations != all_combinations:
+        if not SWEEP_REPORT_PATH.exists():
+            raise FileNotFoundError(
+                "일부 조합만 실행하려면 기존 조합 보고서가 먼저 있어야 합니다: "
+                f"{SWEEP_REPORT_PATH}"
+            )
+        existing_report = json.loads(SWEEP_REPORT_PATH.read_text(encoding="utf-8"))
+        existing_source = existing_report.get("source", {})
+        for key in ("daily_sha256", "index_sha256", "holdout_start"):
+            if existing_source.get(key) != source[key]:
+                raise RuntimeError(f"기존 보고서와 현재 HF 원천의 {key}가 다릅니다.")
+        validation = existing_report.get("validation", {})
+        if (
+            int(validation.get("common_rows_across_combinations", -1)) != common_rows
+            or int(validation.get("common_dates_across_combinations", -1))
+            != len(common_dates)
+        ):
+            raise RuntimeError("기존 보고서와 현재 A~J 공통 표본 크기가 다릅니다.")
+        existing_combinations = existing_report.get("combinations", {})
+        existing_run_ids = existing_report.get("combination_run_ids", {})
+        previous_run_id = str(existing_report.get("run_id", "unknown"))
+        for combination in all_combinations:
+            if combination in selected_combinations:
+                continue
+            if combination not in existing_combinations:
+                raise RuntimeError(f"선택 실행에서 보존할 기존 조합{combination} 결과가 없습니다.")
+            existing = existing_combinations[combination]
+            dataset = datasets[combination]
+            panel = existing.get("panel", {})
+            if (
+                tuple(existing.get("features", ())) != dataset.feature_columns
+                or int(panel.get("model_rows", -1)) != len(dataset.frame)
+                or int(panel.get("dates", -1)) != dataset.frame["bas_dd"].nunique()
+            ):
+                raise RuntimeError(f"기존 조합{combination} 결과가 현재 공통 표본과 다릅니다.")
+            combination_reports[combination] = existing
+            combination_run_ids[combination] = str(
+                existing_run_ids.get(combination, previous_run_id)
+            )
+
+    print(
+        f"[2/4] 조합 {selection_label} × 4모델 · 날짜 그룹 expanding 12폴드",
+        flush=True,
+    )
+    for combination in selected_combinations:
+        dataset = datasets[combination]
         model_results = []
         for model_name, builder in MODEL_BUILDERS.items():
             print(f"      조합{combination} {model_name} 시작", flush=True)
@@ -544,6 +628,7 @@ def main() -> None:
         actual = oos.drop_duplicates(["bas_dd", "code"])["label_numeric"]
         fold_baselines = _fold_baseline_rows(dataset)
         combination_reports[combination] = {
+            "run_id": run_id,
             "features": list(dataset.feature_columns),
             "panel": {
                 "model_rows": int(len(dataset.frame)),
@@ -594,6 +679,16 @@ def main() -> None:
             "outer_fit_count": int(len(outer)),
             "local_oos_path": str(oos_path.relative_to(ROOT)).replace("\\", "/"),
         }
+        combination_run_ids[combination] = run_id
+
+    combination_reports = {
+        combination: combination_reports[combination]
+        for combination in all_combinations
+    }
+    combination_run_ids = {
+        combination: combination_run_ids[combination]
+        for combination in all_combinations
+    }
 
     winners = [
         {
@@ -606,6 +701,7 @@ def main() -> None:
     report = {
         "generated_at_utc": generated_at,
         "run_id": run_id,
+        "combination_run_ids": combination_run_ids,
         "source": source,
         "candidate_rule": {
             "sector_count": 10,
@@ -653,7 +749,7 @@ def main() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
-    print(f"[3/4] A~H 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
+    print(f"[3/4] A~J 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
     print("[4/4] 조합별 1위", flush=True)
     for row in winners:
         print(
@@ -668,10 +764,18 @@ if __name__ == "__main__":
     parser.add_argument(
         "--refresh-baselines-only",
         action="store_true",
-        help="기존 모델을 다시 학습하지 않고 A~H 보고서의 폴드별 기준선만 갱신합니다.",
+        help="기존 모델을 다시 학습하지 않고 A~J 보고서의 폴드별 기준선만 갱신합니다.",
+    )
+    parser.add_argument(
+        "--combinations",
+        nargs="+",
+        metavar="NAME",
+        help="기존 보고서의 나머지 조합을 보존하고 지정한 조합만 다시 학습합니다.",
     )
     arguments = parser.parse_args()
     if arguments.refresh_baselines_only:
+        if arguments.combinations:
+            parser.error("--refresh-baselines-only와 --combinations는 함께 쓸 수 없습니다.")
         refresh_saved_report_baselines()
     else:
-        main()
+        main(tuple(arguments.combinations) if arguments.combinations else None)

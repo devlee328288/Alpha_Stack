@@ -106,6 +106,19 @@ STOCK_COMBINATION_FEATURES = {
         "hv_regime",
         "turnover_20",
     ),
+    "I": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+    ),
+    "J": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
+    ),
 }
 
 # 기존 호출은 조합 A를 뜻한다. 전체 조합의 합집합은 공통 패널 캐시 검증에 사용한다.
@@ -548,7 +561,7 @@ def build_sector_stock_model_dataset(
         set(feature_columns) & {"sector_relative_rank"}
     )
     if needs_index and index_prices is None:
-        raise ValueError("조합 E·F의 업종 상대강도 피처에는 index_prices가 필요합니다.")
+        raise ValueError("업종·시장 상대강도 피처에는 index_prices가 필요합니다.")
 
     missing_prices = PANEL_PRICE_COLUMNS - set(daily_prices.columns)
     missing_candidates = {"bas_dd", "code"} - set(candidates.columns)

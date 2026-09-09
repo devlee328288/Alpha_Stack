@@ -1,7 +1,7 @@
 # 개별종목 실험
 
 KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4개, 모델 비교 노트북,
-`피처선정.md`를 둡니다. A~H는 공통 `(bas_dd, code)` 표본에서 피처만 바꿉니다.
+`피처선정.md`를 둡니다. A~J는 공통 `(bas_dd, code)` 표본에서 피처만 바꿉니다.
 
 ## 조합
 
@@ -15,6 +15,8 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 | F | `조합F_cross_sectional_ranks` | 당일 후보군 횡단면 순위 9개 |
 | G | `조합G_direction_magnitude_interaction` | 단기 반전 방향축·변동성 크기축 6개 |
 | H | `조합H_volatility_regime_interaction` | 조합 G의 `hv_20`을 `hv_regime`으로 교체한 6개 |
+| I | `조합I_kospi200_e_same_features` | KOSPI200 조합 E와 동일한 피처 4개 |
+| J | `조합J_kospi200_e_market_relative_strength` | 조합 I에 KOSPI200 대비 5일 상대강도 추가, 5개 |
 
 ## 공통 조건
 
@@ -30,8 +32,9 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 - MCC·Balanced Accuracy·클래스별 및 Macro PR-AUC·혼동행렬 함께 기록
 - 폴드별 학습 최빈 Accuracy 기준선과 모델 Accuracy의 차이를 함께 기록
 - 검증 최빈 비율은 정답을 본 `oracle` 참고값으로만 표시
-- A~H 공통 159,936개 `(bas_dd, code)` 행·3,343거래일에서 비교
-- `hv_regime`은 269거래일 준비구간이 필요하므로 H를 포함한 공통 표본은 A~G만 비교할 때보다 짧음
+- A~J 공통 159,936개 `(bas_dd, code)` 행·3,343거래일에서 비교
+- `hv_regime`은 269거래일 준비구간이 필요하므로 H·I·J를 포함한 공통 표본은 이를 쓰지 않는
+  조합만 비교할 때보다 짧음
 - `|수정종가 수익률| > 100%` 자동 제거는 사용하지 않음
 - KRX 등락률과 수정주가 수익률이 1%p 넘게 어긋난 `is_adj_suspect`만 제외
 - 최신 후보 176,705행의 의심 행은 0행, 보존한 실제 극단 사건은 5행
@@ -40,18 +43,21 @@ KOSPI200 실험과 같은 방식으로 피처 조합별 폴더 안에 모델 4�
 
 | 전체 순위 | 조합 | 모델 | 기준선 대비 Accuracy | 기준선 승리 |
 |---:|---|---|---:|---:|
-| 1 | A | LogisticRegression | **+0.0172** | 8/12 |
-| 2 | D | XGBoost | **+0.0148** | 9/12 |
-| 3 | G | LogisticRegression | **+0.0138** | 7/12 |
-| 4 | H | LogisticRegression | **+0.0102** | 6/12 |
-| 5 | B | LogisticRegression | **+0.0092** | 6/12 |
-| 6 | E | XGBoost | **+0.0033** | 5/12 |
-| 7 | F | LogisticRegression | **-0.0024** | 4/12 |
-| 8 | C | XGBoost | **-0.0052** | 4/12 |
+| 1 | J | LogisticRegression | **+0.0227** | 10/12 |
+| 2 | I | LogisticRegression | **+0.0209** | 9/12 |
+| 3 | A | LogisticRegression | **+0.0172** | 8/12 |
+| 4 | D | XGBoost | **+0.0148** | 9/12 |
+| 5 | G | LogisticRegression | **+0.0138** | 7/12 |
+| 6 | H | LogisticRegression | **+0.0102** | 6/12 |
+| 7 | B | LogisticRegression | **+0.0092** | 6/12 |
+| 8 | E | XGBoost | **+0.0033** | 5/12 |
+| 9 | F | LogisticRegression | **-0.0024** | 4/12 |
+| 10 | C | XGBoost | **-0.0052** | 4/12 |
 
-조합별 4모델 최선 결과는 `조합별 best result/`에 정리합니다.
+조합별 4모델 최선 결과는 `조합별 best result/`에 정리하며, A~J 전체 1위 조합 폴더에는
+`⭐`를 붙입니다.
 
 `기본모델/`은 `models/`의 네 생성 함수를 확인하는 얇은 실행 노트북입니다. 각 조합
 노트북은 같은 생성 함수를 명시적으로 import하고 피처 목록만 지정하므로, Pylance가
-동적 `%run` 변수 때문에 내던 미정의 경고 없이 단독 실행할 수 있습니다. 실제 1,152회
+동적 `%run` 변수 때문에 내던 미정의 경고 없이 단독 실행할 수 있습니다. 실제 1,440회
 fit은 공통 실행기에서 한 번 수행하고, 노트북은 보존된 실측 리포트를 읽습니다.
