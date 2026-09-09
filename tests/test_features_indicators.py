@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from features import indicators
@@ -227,6 +228,36 @@ def test_percent_b_shift_검사():
     before = indicators.percent_b(PRICES, window=3, num_std=2.0)
     after = indicators.percent_b(changed, window=3, num_std=2.0)
     _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_percent_b_정지_구간이면_nan():
+    """window 전체가 거래정지 등으로 같은 종가면 밴드 폭이 0이다 — "밴드를 세게
+    뚫었다"(도입부에 적힌, 0~1을 벗어나도 정보인 경우)와는 다른 뜻이라 NaN이어야
+    한다(#194 · NHN 2013-08-28 실사례).
+    """
+    flat = [100.0] * 10
+    result = indicators.percent_b(flat, window=3, num_std=2.0)
+    assert all(math.isnan(v) for v in result[2:]), "무변동 구간은 NaN이어야 한다"
+
+
+def test_percent_b_width_eps_경계():
+    """`_PERCENT_B_WIDTH_EPS`(#194) 경계에서 판정이 어떻게 갈리는지 직접 확인한다.
+    `bollinger_bands`가 부동소수 잡음으로 진짜 0인 폭을 미세한 양수로 낼 수 있는데
+    (NHN 사례), eps 미만은 여전히 "폭이 없다"로 취급해 NaN을 내고 eps를 넘는 값은
+    정상적으로 나눠진다는 것을 `percent_b` 본문과 같은 판정식으로 잰다.
+    """
+    eps = indicators._PERCENT_B_WIDTH_EPS
+    assert eps == pytest.approx(1e-9)
+
+    mid = np.array([100_000.0, 100_000.0])
+    width = np.array([eps * mid[0] * 0.1, eps * mid[1] * 10])  # 경계 아래 · 경계 위
+    close_minus_lower = np.array([5.0, 5.0])
+    with np.errstate(divide="ignore", invalid="ignore"):
+        has_width = width > eps * np.abs(mid)
+        result = np.where(has_width, close_minus_lower / width, np.nan)
+
+    assert math.isnan(result[0]), "eps 미만 폭은 취소오차로 보고 NaN이어야 한다"
+    assert result[1] == pytest.approx(close_minus_lower[1] / width[1])
 
 
 # ── sma_gap (이동평균 격차) ─────────────────────────────────────────────
