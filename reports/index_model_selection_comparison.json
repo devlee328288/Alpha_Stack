@@ -1,0 +1,145 @@
+{
+  "status": "comparison_only_pending_issue_203",
+  "holdout_used": false,
+  "candidate_count": 100,
+  "production_policy": "core_harmonic_mean",
+  "policies": [
+    {
+      "policy": "core_harmonic_mean",
+      "description": "Accuracy·Macro F1·하락 Recall 조화평균",
+      "production_default": true,
+      "winner": {
+        "combination": "E",
+        "return_features": [
+          "five_day_return"
+        ],
+        "model": "RandomForest",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "five_day_return"
+        ],
+        "selection_metric": "core_harmonic_mean",
+        "selection_value": 0.3862558851498147,
+        "accuracy": 0.3763888888888889,
+        "macro_f1": 0.374295031548409,
+        "accuracy_macro_f1_harmonic": 0.3753390400558194,
+        "down_recall": 0.4101123595505618,
+        "core_harmonic_mean": 0.3862558851498147,
+        "balanced_accuracy": 0.3810624827070544,
+        "mcc": 0.068615736091267,
+        "up_recall": 0.3775933609958506,
+        "pr_auc_up": 0.40838180406680796,
+        "predicted_down": 254,
+        "predicted_neutral": 236,
+        "predicted_up": 230,
+        "majority_accuracy": 0.41805555555555557,
+        "accuracy_minus_reported_majority": -0.041666666666666685
+      }
+    },
+    {
+      "policy": "accuracy_then_macro_f1",
+      "description": "Accuracy 우선, Macro F1 차순",
+      "production_default": false,
+      "winner": {
+        "combination": "E",
+        "return_features": [],
+        "model": "LogisticRegression",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "selection_metric": "accuracy_then_macro_f1",
+        "selection_value": 0.4486111111111111,
+        "accuracy": 0.4486111111111111,
+        "macro_f1": 0.3424877493576506,
+        "accuracy_macro_f1_harmonic": 0.3884313768072893,
+        "down_recall": 0.05056179775280899,
+        "core_harmonic_mean": 0.12035291127074203,
+        "balanced_accuracy": 0.38443456514608526,
+        "mcc": 0.10974979338691263,
+        "up_recall": 0.2987551867219917,
+        "pr_auc_up": 0.4576471317947202,
+        "predicted_down": 32,
+        "predicted_neutral": 521,
+        "predicted_up": 167,
+        "majority_accuracy": 0.41805555555555557,
+        "accuracy_minus_reported_majority": 0.030555555555555558
+      }
+    },
+    {
+      "policy": "accuracy_macro_f1_harmonic",
+      "description": "Accuracy·Macro F1 동일 가중 조화평균",
+      "production_default": false,
+      "winner": {
+        "combination": "D",
+        "return_features": [],
+        "model": "LogisticRegression",
+        "feature_columns": [
+          "sma_gap_20_60",
+          "rsi_14",
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime",
+          "obv_slope_20"
+        ],
+        "selection_metric": "accuracy_macro_f1_harmonic",
+        "selection_value": 0.4130354693317656,
+        "accuracy": 0.4388888888888889,
+        "macro_f1": 0.3900584795321637,
+        "accuracy_macro_f1_harmonic": 0.4130354693317656,
+        "down_recall": 0.17415730337078653,
+        "core_harmonic_mean": 0.28344310638137393,
+        "balanced_accuracy": 0.3984806061115793,
+        "mcc": 0.11499423146759842,
+        "up_recall": 0.37344398340248963,
+        "pr_auc_up": 0.39485228931944844,
+        "predicted_down": 92,
+        "predicted_neutral": 383,
+        "predicted_up": 245,
+        "majority_accuracy": 0.41805555555555557,
+        "accuracy_minus_reported_majority": 0.020833333333333315
+      }
+    },
+    {
+      "policy": "accuracy_minus_reported_majority_then_macro_f1",
+      "description": "Accuracy-보고서 majority_accuracy 우선, Macro F1 차순",
+      "production_default": false,
+      "winner": {
+        "combination": "E",
+        "return_features": [],
+        "model": "LogisticRegression",
+        "feature_columns": [
+          "atr_ratio",
+          "bb_bandwidth",
+          "hv_regime"
+        ],
+        "selection_metric": "accuracy_minus_reported_majority_accuracy",
+        "selection_value": 0.030555555555555558,
+        "accuracy": 0.4486111111111111,
+        "macro_f1": 0.3424877493576506,
+        "accuracy_macro_f1_harmonic": 0.3884313768072893,
+        "down_recall": 0.05056179775280899,
+        "core_harmonic_mean": 0.12035291127074203,
+        "balanced_accuracy": 0.38443456514608526,
+        "mcc": 0.10974979338691263,
+        "up_recall": 0.2987551867219917,
+        "pr_auc_up": 0.4576471317947202,
+        "predicted_down": 32,
+        "predicted_neutral": 521,
+        "predicted_up": 167,
+        "majority_accuracy": 0.41805555555555557,
+        "accuracy_minus_reported_majority": 0.030555555555555558
+      }
+    }
+  ],
+  "generated_at_utc": "2026-09-09T06:07:02.568908+00:00",
+  "source_report": "reports/model_sweep.json",
+  "source": {
+    "repo_sha": "714a883647ff506f8f3f7ab27909be626e0fd33d",
+    "index_sha256": "376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a",
+    "dev_end": "20240831"
+  }
+}
