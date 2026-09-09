@@ -1,18 +1,34 @@
-import os
 import warnings
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
-from sklearn.metrics import balanced_accuracy_score, f1_score
-from step1_core_features import compute_atr, compute_base, compute_log_rv, load_data
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    balanced_accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    matthews_corrcoef,
+)
 from tqdm import tqdm
+
+from step1_core_features import compute_atr, compute_base, compute_log_rv
+from focal_classifier import (
+    FocalConfig,
+    build_features,
+    make_labels,
+    predict_focal,
+    train_focal_model,
+)
 
 warnings.filterwarnings("ignore")
 
+LABELS = [0, 1, 2]
+GAP_DAYS = 5
 
-# ============================================================
-# 0. 기준선 계산 (변경 없음)
-# ============================================================
+
 def compute_bands_flexible(
     df: pd.DataFrame,
     vol_period: int = 14,
@@ -23,412 +39,305 @@ def compute_bands_flexible(
     beta_up: float = 0.0,
     beta_down: float = 0.0,
 ) -> pd.DataFrame:
-    """🚀 step5와 완전히 동일한 선형 구조 (exp 제거, β≥0 적용)"""
     base = compute_base(df, base_type)
     atr = compute_atr(df, period=vol_period)
     log_rv = compute_log_rv(df, period=volume_period)
-
     raw_up = alpha_up + beta_up * log_rv
     raw_down = alpha_down + beta_down * log_rv
-
     upper_width = atr * np.maximum(0.05, raw_up)
     lower_width = atr * np.maximum(0.05, raw_down)
-
     result = df.copy()
     result["base"] = base
     result["upper"] = base + upper_width
     result["lower"] = base - lower_width
+    result["alpha_up"] = alpha_up
+    result["alpha_down"] = alpha_down
+    result["beta_up"] = beta_up
+    result["beta_down"] = beta_down
+    result["vol_period"] = vol_period
+    result["volume_period"] = volume_period
     return result
 
 
-# ============================================================
-# 1. 단일 파라미터 세트로 신호 생성 - 단일 돌파
-# ============================================================
-def generate_signals_single(
-    df: pd.DataFrame,
-    params: dict,
-) -> pd.DataFrame:
-    """
-    하나의 고정 파라미터 세트로 전체 데이터에 대해 신호를 생성합니다.
-    params: alpha_up, alpha_down, beta_up, beta_down, vol_period, volume_period
-    """
-    bands = compute_bands_flexible(
-        df,
-        vol_period=params["vol_period"],
-        volume_period=params["volume_period"],
-        alpha_up=params["alpha_up"],
-        alpha_down=params["alpha_down"],
-        beta_up=params["beta_up"],
-        beta_down=params["beta_down"],
-    )
-
-    close = df["close"].values
-    upper = bands["upper"].values
-    lower = bands["lower"].values
-
-    # 단일 일봉 돌파
-    signal = np.where(close > upper, 2, np.where(close < lower, 0, 1))
-
-    # 포지션 (상승=+1, 중립=0, 하락=-1)
-    position = np.where(signal == 2, 1, np.where(signal == 0, -1, 0))
-
-    result = bands.copy()
-    result["signal"] = signal
-    result["position"] = position
-
-    # 명시적 Shift (순환 버그 제거)
-    market_ret = df["close"].pct_change().values
-    pos_shifted = np.concatenate([[0], position[:-1]])  # 첫날 포지션 0
-    result["strategy_return"] = pos_shifted * market_ret
-
-    return result
+def _params(row: pd.Series) -> dict:
+    return {
+        "alpha_up": float(row["alpha_up"]),
+        "alpha_down": float(row["alpha_down"]),
+        "beta_up": float(row["beta_up"]),
+        "beta_down": float(row["beta_down"]),
+        "vol_period": int(round(row["vol_period"])),
+        "volume_period": int(round(row["volume_period"])),
+    }
 
 
-# ============================================================
-# 2. Rolling 파라미터 적용 - 단일 돌파 (Expanding 평가용)
-# ============================================================
+def _attach_bands_features(df: pd.DataFrame, params: dict) -> pd.DataFrame:
+    bands = compute_bands_flexible(df, **params)
+    features = build_features(df, bands)
+    return features, bands
+
+
+def _signal_from_probability(proba: np.ndarray) -> np.ndarray:
+    pred = np.full(len(proba), np.nan)
+    valid = np.isfinite(proba).all(axis=1)
+    if valid.any():
+        pred[valid] = np.argmax(proba[valid], axis=1)
+    return pred
+
+
+def _strategy_returns(df: pd.DataFrame, signal: np.ndarray) -> np.ndarray:
+    position = np.where(signal == 2, 1.0, np.where(signal == 0, -1.0, 0.0))
+    market_ret = df["close"].pct_change().to_numpy(dtype=float)
+    pos_shifted = np.concatenate([[0.0], position[:-1]])
+    return pos_shifted * market_ret, position
+
+
 def generate_signals_rolling(
     df: pd.DataFrame,
     fold_details: pd.DataFrame,
+    focal_config: Optional[FocalConfig] = None,
 ) -> pd.DataFrame:
-    """
-    Walk-Forward 폴드 정보를 기반으로 각 날짜에 해당하는 OOS 파라미터를 적용합니다.
-    🔥 Expanding 방식으로 생성된 fold_details를 그대로 사용합니다.
-    """
-    LOOKBACK_DAYS = 35
+    """Train a fresh Focal classifier inside each expanding fold and predict only OOS.
 
+    The inner validation split is chronological and occurs entirely before OOS.
+    This replaces the previous hard rule/proxy-probability classifier.
+    """
+    cfg = focal_config or FocalConfig()
+    y = make_labels(df)
     result = pd.DataFrame(index=df.index)
-    result["close"] = df["close"]
-    result["signal"] = np.nan
-    result["position"] = np.nan
-    result["strategy_return"] = np.nan
-    result["base"] = np.nan
-    result["upper"] = np.nan
-    result["lower"] = np.nan
-    result["alpha_up"] = np.nan
-    result["alpha_down"] = np.nan
-    result["beta_up"] = np.nan
-    result["beta_down"] = np.nan
-    result["vol_period"] = np.nan
-    result["volume_period"] = np.nan
+    for c in [
+        "close",
+        "signal",
+        "position",
+        "strategy_return",
+        "p_down",
+        "p_neutral",
+        "p_up",
+        "base",
+        "upper",
+        "lower",
+    ]:
+        result[c] = np.nan
+    for c in [
+        "alpha_up",
+        "alpha_down",
+        "beta_up",
+        "beta_down",
+        "vol_period",
+        "volume_period",
+    ]:
+        result[c] = np.nan
 
-    print(f"🔍 Rolling 파라미터 적용: 총 {len(fold_details)}개 폴드")
-    print(f"📦 Lookback 기간: {LOOKBACK_DAYS}일 (OOS 이전 데이터 포함)")
+    date_to_idx = {d: i for i, d in enumerate(df.index)}
+    prev_position = 0.0
+    device = "cuda" if __import__("torch").cuda.is_available() else "cpu"
 
-    date_to_idx = {date: i for i, date in enumerate(df.index)}
-    prev_last_position = 0
+    print(
+        f"🧠 Focal classifier: γ={cfg.gamma:.2f}, α=[{cfg.alpha_down:.2f}, {cfg.alpha_neutral:.2f}, {cfg.alpha_up:.2f}]"
+    )
+    print(f"🧠 Device: {device}")
 
-    for _idx, row in tqdm(
-        fold_details.iterrows(), total=len(fold_details), desc="OOS 구간 적용"
+    for fold_no, row in tqdm(
+        fold_details.iterrows(), total=len(fold_details), desc="Focal OOS 폴드"
     ):
-        val_start = row["val_start"]
-        val_end = row["val_end"]
-
+        val_start = pd.Timestamp(row["val_start"])
+        val_end = pd.Timestamp(row["val_end"])
         start_idx = date_to_idx.get(val_start)
         end_idx = date_to_idx.get(val_end)
-
         if start_idx is None or end_idx is None:
             continue
 
-        calc_start_idx = max(0, start_idx - LOOKBACK_DAYS)
-        calc_end_idx = end_idx + 1
+        # Outer training boundary is GAP days before OOS.
+        train_end = start_idx - GAP_DAYS
+        if train_end <= 150:
+            continue
 
-        df_calc = df.iloc[calc_start_idx:calc_end_idx].copy()
+        params = _params(row)
+        # IMPORTANT: the classifier needs the entire historical training window.
+        # Using only a 35-day lookback here made train_local_end ~= 35, so the
+        # training-data guard rejected every fold. Bands/features are causal,
+        # therefore calculating them on all data up to OOS end is safe.
+        calc_start = 0
+        calc_end = end_idx + 1
+        df_calc = df.iloc[calc_start:calc_end].copy()
+        bands_calc = compute_bands_flexible(df_calc, **params)
+        features_calc = build_features(df_calc, bands_calc)
 
-        params = {
-            "alpha_up": row["alpha_up"],
-            "alpha_down": row["alpha_down"],
-            "beta_up": row["beta_up"],
-            "beta_down": row["beta_down"],
-            "vol_period": int(row["vol_period"]),
-            "volume_period": int(row["volume_period"]),
-        }
+        # Train only on rows before the gap. Labels near train_end need future data,
+        # which is available in the historical dataset and does not touch OOS features.
+        train_local_end = train_end
+        try:
+            model, scaler, feature_cols, stats = train_focal_model(
+                features_calc,
+                make_labels(df_calc),
+                train_end=train_local_end,
+                config=cfg,
+                device=device,
+            )
+        except Exception as exc:
+            print(f"⚠️ Focal fold {fold_no + 1} 실패: {exc}")
+            continue
 
-        bands = compute_bands_flexible(
-            df_calc,
-            vol_period=params["vol_period"],
-            volume_period=params["volume_period"],
-            alpha_up=params["alpha_up"],
-            alpha_down=params["alpha_down"],
-            beta_up=params["beta_up"],
-            beta_down=params["beta_down"],
-        )
+        oos_features = features_calc.iloc[
+            start_idx - calc_start : end_idx - calc_start + 1
+        ]
+        proba = predict_focal(model, scaler, feature_cols, oos_features, device=device)
+        signal = _signal_from_probability(proba)
 
-        close = df_calc["close"].values
-        upper = bands["upper"].values
-        lower = bands["lower"].values
-
-        signal_full = np.where(close > upper, 2, np.where(close < lower, 0, 1))
-        position_full = np.where(signal_full == 2, 1, np.where(signal_full == 0, -1, 0))
-
-        oos_offset = start_idx - calc_start_idx
-        signal = signal_full[oos_offset:]
-        position = position_full[oos_offset:]
-
-        df_oos = df.iloc[start_idx : end_idx + 1].copy()
-        market_ret = df_oos["close"].pct_change().values
-
-        pos_shifted = np.concatenate([[prev_last_position], position[:-1]])
-        if len(pos_shifted) > 0:
-            pos_shifted[0] = prev_last_position
-
-        if len(position) > 0:
-            prev_last_position = position[-1]
-
+        df_oos = df.iloc[start_idx : end_idx + 1]
+        strategy_ret, position = _strategy_returns(df_oos, signal)
+        pos_shifted = np.concatenate([[prev_position], position[:-1]])
+        market_ret = df_oos["close"].pct_change().to_numpy(dtype=float)
         strategy_ret = pos_shifted * market_ret
+        if len(position):
+            prev_position = position[-1]
 
         mask = (df.index >= val_start) & (df.index <= val_end)
+        result.loc[mask, "close"] = df.loc[mask, "close"]
         result.loc[mask, "signal"] = signal
         result.loc[mask, "position"] = position
         result.loc[mask, "strategy_return"] = strategy_ret
+        result.loc[mask, "p_down"] = proba[:, 0]
+        result.loc[mask, "p_neutral"] = proba[:, 1]
+        result.loc[mask, "p_up"] = proba[:, 2]
+        result.loc[mask, "base"] = bands_calc.iloc[
+            start_idx - calc_start : end_idx - calc_start + 1
+        ]["base"].to_numpy()
+        result.loc[mask, "upper"] = bands_calc.iloc[
+            start_idx - calc_start : end_idx - calc_start + 1
+        ]["upper"].to_numpy()
+        result.loc[mask, "lower"] = bands_calc.iloc[
+            start_idx - calc_start : end_idx - calc_start + 1
+        ]["lower"].to_numpy()
+        for c in [
+            "alpha_up",
+            "alpha_down",
+            "beta_up",
+            "beta_down",
+            "vol_period",
+            "volume_period",
+        ]:
+            result.loc[mask, c] = params[c]
 
-        bands_oos = bands.iloc[oos_offset:]
-        result.loc[mask, "base"] = bands_oos["base"].values
-        result.loc[mask, "upper"] = bands_oos["upper"].values
-        result.loc[mask, "lower"] = bands_oos["lower"].values
-
-        result.loc[mask, "alpha_up"] = params["alpha_up"]
-        result.loc[mask, "alpha_down"] = params["alpha_down"]
-        result.loc[mask, "beta_up"] = params["beta_up"]
-        result.loc[mask, "beta_down"] = params["beta_down"]
-        result.loc[mask, "vol_period"] = params["vol_period"]
-        result.loc[mask, "volume_period"] = params["volume_period"]
+        print(
+            f"   Fold {fold_no + 1}: inner Macro-F1={stats['inner_macro_f1']:.4f}, "
+            f"epoch={int(stats['best_epoch'])}, features={int(stats['n_features'])}"
+        )
 
     return result
 
 
-# ============================================================
-# 3. 성과 평가 (연결된 OOS 기준)
-# ============================================================
+def generate_signals_single(
+    df: pd.DataFrame, params: dict, focal_config: Optional[FocalConfig] = None
+) -> pd.DataFrame:
+    """Median-parameter benchmark using a chronological train/holdout split."""
+    cfg = focal_config or FocalConfig()
+    bands = compute_bands_flexible(df, **params)
+    features = build_features(df, bands)
+    y = make_labels(df)
+    train_end = max(150, len(df) - 63)
+    model, scaler, cols, _ = train_focal_model(
+        features, y, train_end=train_end, config=cfg
+    )
+    proba = predict_focal(
+        model,
+        scaler,
+        cols,
+        features,
+        device="cuda" if __import__("torch").cuda.is_available() else "cpu",
+    )
+    signal = _signal_from_probability(proba)
+    strategy_ret, position = _strategy_returns(df, signal)
+    out = bands.copy()
+    out["signal"] = signal
+    out["position"] = position
+    out["strategy_return"] = strategy_ret
+    out["p_down"] = proba[:, 0]
+    out["p_neutral"] = proba[:, 1]
+    out["p_up"] = proba[:, 2]
+    return out
+
+
 def calculate_metrics(returns: np.ndarray) -> dict:
-    if len(returns) == 0 or np.all(np.isnan(returns)):
+    clean = returns[np.isfinite(returns)]
+    if len(clean) == 0:
         return {
-            "sharpe": np.nan,
-            "cagr": np.nan,
-            "mdd": np.nan,
-            "calmar": np.nan,
-            "win_rate": np.nan,
-            "profit_factor": np.nan,
+            k: np.nan
+            for k in ["sharpe", "cagr", "mdd", "calmar", "win_rate", "profit_factor"]
         }
-    clean_ret = returns[~np.isnan(returns)]
-    if len(clean_ret) == 0:
-        return {
-            "sharpe": np.nan,
-            "cagr": np.nan,
-            "mdd": np.nan,
-            "calmar": np.nan,
-            "win_rate": np.nan,
-            "profit_factor": np.nan,
-        }
-
-    ann_factor = np.sqrt(252)
-    mean_ret = np.nanmean(clean_ret)
-    std_ret = np.nanstd(clean_ret)
-    sharpe = (mean_ret / std_ret) * ann_factor if std_ret != 0 else 0.0
-
-    cum_ret = np.nanprod(1 + clean_ret)
-    n_years = len(clean_ret) / 252
-    cagr = (cum_ret ** (1 / n_years)) - 1 if n_years > 0 else 0.0
-
-    cum_wealth = np.nancumprod(1 + clean_ret)
-    peak = np.maximum.accumulate(cum_wealth)
-    drawdown = (peak - cum_wealth) / peak
-    mdd = np.nanmax(drawdown) if len(drawdown) > 0 else 0.0
-
-    calmar = cagr / mdd if mdd > 0 else 0.0
-    win_rate = np.mean(clean_ret > 0) if len(clean_ret) > 0 else 0.0
-
-    gains = clean_ret[clean_ret > 0].sum()
-    losses = abs(clean_ret[clean_ret < 0].sum())
-    profit_factor = gains / losses if losses > 0 else np.inf
-
+    std = np.std(clean)
+    sharpe = np.mean(clean) / std * np.sqrt(252) if std > 0 else 0.0
+    wealth = np.cumprod(1 + clean)
+    cagr = wealth[-1] ** (252 / len(clean)) - 1 if wealth[-1] > 0 else -1.0
+    peak = np.maximum.accumulate(wealth)
+    mdd = np.max((peak - wealth) / peak) if len(wealth) else 0.0
+    gains = clean[clean > 0].sum()
+    losses = abs(clean[clean < 0].sum())
     return {
         "sharpe": sharpe,
         "cagr": cagr,
         "mdd": mdd,
-        "calmar": calmar,
-        "win_rate": win_rate,
-        "profit_factor": profit_factor,
+        "calmar": cagr / mdd if mdd > 0 else 0.0,
+        "win_rate": np.mean(clean > 0),
+        "profit_factor": gains / losses if losses > 0 else np.inf,
     }
 
 
-def evaluate_signals(
-    df_signals: pd.DataFrame,
-    y_true: np.ndarray = None,
-) -> dict:
-    """신호 결과를 평가합니다."""
-    # 수익률 지표
-    ret = df_signals["strategy_return"].values
-    perf = calculate_metrics(ret)
-
-    # 분류 지표
-    cls = {}
-    if y_true is not None:
-        valid_mask = ~(np.isnan(df_signals["signal"].values) | np.isnan(y_true))
-        if valid_mask.sum() > 0:
-            y_pred = df_signals["signal"].values[valid_mask].astype(int)
-            y_true_clean = y_true[valid_mask].astype(int)
-            cls["f1_macro"] = f1_score(y_true_clean, y_pred, average="macro")
-            cls["balanced_acc"] = balanced_accuracy_score(y_true_clean, y_pred)
-            unique, counts = np.unique(y_pred, return_counts=True)
-            ratio_dict = dict(zip(unique, counts / len(y_pred), strict=False))
-            cls["ratio_up"] = ratio_dict.get(2, 0.0)
-            cls["ratio_neutral"] = ratio_dict.get(1, 0.0)
-            cls["ratio_down"] = ratio_dict.get(0, 0.0)
-        else:
-            cls = {
-                "f1_macro": np.nan,
-                "balanced_acc": np.nan,
-                "ratio_up": np.nan,
-                "ratio_neutral": np.nan,
-                "ratio_down": np.nan,
-            }
-
-    return {**perf, **cls}
-
-
-# ============================================================
-# 4. 메인 실행
-# ============================================================
-if __name__ == "__main__":
-    print("=" * 60)
-    print("🚀 6단계: 최종 기준선 산출 및 신호 생성 (실전 적용)")
-    print("=" * 60)
-
-    # 1) 데이터 로드
-    df = load_data()
-    print(f"📊 데이터 로드 완료: {df.shape[0]}일")
-
-    # 2) 5일 후 수익률 ±1% 기준으로 라벨 생성 (MD v4.1)
-    ret_5d = (df["close"].shift(-5) / df["close"] - 1).values
-    y_true = np.where(ret_5d > 0.01, 2, np.where(ret_5d < -0.01, 0, 1))
-
-    # ============================================================
-    # 3-1) Rolling 파라미터 적용 (CSV 자동 로드)
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📌 [모드 A] Rolling 파라미터 적용 (각 OOS 구간별 최적 파라미터)")
-    print("=" * 60)
-
-    csv_path = "wf_fold_details_6params.csv"
-
-    if os.path.exists(csv_path):
-        fold_details = pd.read_csv(csv_path, index_col=0)
-        fold_details["val_start"] = pd.to_datetime(fold_details["val_start"])
-        fold_details["val_end"] = pd.to_datetime(fold_details["val_end"])
-        print(f"✅ step5 결과 CSV 로드 완료: {len(fold_details)}개 폴드")
-        print(f"   (파일: {csv_path})")
-    else:
-        print(f"⚠️  '{csv_path}' 파일이 없습니다. 데모 모드로 실행합니다.")
-        dates = df.index
-        n_folds = min(20, (len(dates) - 504) // 21)
-        demo_folds = []
-        for i in range(n_folds):
-            start_idx = i * 21
-            train_end_idx = start_idx + 504
-            val_end_idx = train_end_idx + 63
-            if val_end_idx >= len(dates):
-                break
-            demo_folds.append(
-                {
-                    "val_start": dates[train_end_idx],
-                    "val_end": dates[val_end_idx - 1],
-                    "alpha_up": 0.8 + np.random.rand() * 0.6,
-                    "alpha_down": 0.8 + np.random.rand() * 0.6,
-                    "beta_up": -0.3 + np.random.rand() * 0.6,
-                    "beta_down": -0.3 + np.random.rand() * 0.6,
-                    "vol_period": np.random.randint(12, 18),
-                    "volume_period": np.random.randint(15, 25),
-                }
-            )
-        fold_details = pd.DataFrame(demo_folds)
-        print(f"✅ 데모 폴드 생성 완료: {len(fold_details)}개")
-
-    # Rolling 신호 생성
-    df_signal_rolling = generate_signals_rolling(df, fold_details)
-    perf_rolling = evaluate_signals(df_signal_rolling, y_true)
-
-    print("\n📈 Rolling 파라미터 최종 성과:")
-    print(f"   Sharpe Ratio       : {perf_rolling['sharpe']:.4f}")
-    print(f"   CAGR               : {perf_rolling['cagr']:.4%}")
-    print(f"   MDD                : {perf_rolling['mdd']:.4%}")
-    print(f"   Calmar Ratio       : {perf_rolling['calmar']:.4f}")
-    print(f"   승률 (Win Rate)    : {perf_rolling['win_rate']:.4%}")
-    print(f"   Profit Factor      : {perf_rolling['profit_factor']:.4f}")
-    print(f"   Macro-F1           : {perf_rolling.get('f1_macro', np.nan):.4f}")
-    print(f"   예측 중립 비율     : {perf_rolling.get('ratio_neutral', np.nan):.4%}")
-
-    # ============================================================
-    # 3-2) Median 파라미터 적용
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📌 [모드 B] Median 파라미터 적용 (전체 폴드 중앙값, 안정성 검증용)")
-    print("=" * 60)
-
-    median_params = {
-        "alpha_up": fold_details["alpha_up"].median(),
-        "alpha_down": fold_details["alpha_down"].median(),
-        "beta_up": fold_details["beta_up"].median(),
-        "beta_down": fold_details["beta_down"].median(),
-        "vol_period": int(round(fold_details["vol_period"].median())),
-        "volume_period": int(round(fold_details["volume_period"].median())),
-    }
-    print("Median 파라미터:")
-    for k, v in median_params.items():
-        if k in ["vol_period", "volume_period"]:
-            print(f"   {k} = {v}일")
-        else:
-            print(f"   {k} = {v:.4f}")
-
-    df_signal_median = generate_signals_single(df, median_params)
-    perf_median = evaluate_signals(df_signal_median, y_true)
-
-    print("\n📈 Median 파라미터 최종 성과:")
-    print(f"   Sharpe Ratio       : {perf_median['sharpe']:.4f}")
-    print(f"   CAGR               : {perf_median['cagr']:.4%}")
-    print(f"   MDD                : {perf_median['mdd']:.4%}")
-    print(f"   Calmar Ratio       : {perf_median['calmar']:.4f}")
-    print(f"   승률 (Win Rate)    : {perf_median['win_rate']:.4%}")
-    print(f"   Profit Factor      : {perf_median['profit_factor']:.4f}")
-    print(f"   Macro-F1           : {perf_median.get('f1_macro', np.nan):.4f}")
-    print(f"   예측 중립 비율     : {perf_median.get('ratio_neutral', np.nan):.4%}")
-
-    # ============================================================
-    # 3-3) 최종 비교
-    # ============================================================
-    print("\n" + "=" * 60)
-    print("📊 Rolling vs Median 성능 비교")
-    print("=" * 60)
-    print(f"{'지표':<20} {'Rolling':<15} {'Median':<15} {'차이':<15}")
-    print("-" * 65)
-
-    metrics_to_compare = [
-        "sharpe",
-        "cagr",
-        "mdd",
-        "calmar",
-        "win_rate",
-        "profit_factor",
-        "f1_macro",
-    ]
-    for m in metrics_to_compare:
-        v1 = perf_rolling.get(m, np.nan)
-        v2 = perf_median.get(m, np.nan)
-        diff = v1 - v2 if not np.isnan(v1) and not np.isnan(v2) else np.nan
-        fmt = "{:.4f}" if m not in ["cagr", "win_rate"] else "{:.4%}"
-        print(
-            f"{m:<20} {fmt.format(v1) if not np.isnan(v1) else 'NaN':<15} "
-            f"{fmt.format(v2) if not np.isnan(v2) else 'NaN':<15} "
-            f"{fmt.format(diff) if not np.isnan(diff) else 'NaN':<15}"
-        )
-
-    print("\n" + "=" * 60)
-    print("✅ 6단계 실전 적용 완료!")
-    print("\n📌 실전 운용 가이드:")
-    print("   1. Rolling 파라미터를 기본 실전 모델로 사용하세요.")
-    print("   2. Median 파라미터는 안정성 검증용 벤치마크로 활용하세요.")
-    print(
-        "   3. 매월 또는 분기별로 Walk-Forward를 재실행하여 파라미터를 업데이트하세요."
+def evaluate_signals(df_signals: pd.DataFrame, y_true: np.ndarray) -> dict:
+    mask = np.isfinite(df_signals["signal"].to_numpy()) & np.isfinite(y_true)
+    if mask.sum() == 0:
+        return {
+            **calculate_metrics(np.array([])),
+            "accuracy": np.nan,
+            "f1_macro": np.nan,
+            "balanced_acc": np.nan,
+            "mcc": np.nan,
+            "ratio_down": np.nan,
+            "ratio_neutral": np.nan,
+            "ratio_up": np.nan,
+            "confusion_matrix": None,
+            "report": "",
+            "macro_pr_auc": np.nan,
+            "pr_auc_down": np.nan,
+            "pr_auc_neutral": np.nan,
+            "pr_auc_up": np.nan,
+        }
+    yt = y_true[mask].astype(int)
+    yp = df_signals.loc[mask, "signal"].to_numpy().astype(int)
+    result = calculate_metrics(
+        df_signals.loc[mask, "strategy_return"].to_numpy(dtype=float)
     )
-    print("   4. 신호는 당일 종가 기준 생성 후, 익일 시가 또는 종가에 매매하세요.")
-    print("=" * 60)
+    result.update(
+        {
+            "accuracy": accuracy_score(yt, yp),
+            "f1_macro": f1_score(yt, yp, average="macro", zero_division=0),
+            "balanced_acc": balanced_accuracy_score(yt, yp),
+            "mcc": matthews_corrcoef(yt, yp),
+            "ratio_down": np.mean(yp == 0),
+            "ratio_neutral": np.mean(yp == 1),
+            "ratio_up": np.mean(yp == 2),
+            "confusion_matrix": confusion_matrix(yt, yp, labels=LABELS),
+            "report": classification_report(
+                yt,
+                yp,
+                labels=LABELS,
+                target_names=["하락", "중립", "상승"],
+                digits=4,
+                zero_division=0,
+            ),
+        }
+    )
+    if all(c in df_signals.columns for c in ["p_down", "p_neutral", "p_up"]):
+        proba = df_signals.loc[mask, ["p_down", "p_neutral", "p_up"]].to_numpy(
+            dtype=float
+        )
+        if np.isfinite(proba).all():
+            y_onehot = np.eye(3)[yt]
+            result["macro_pr_auc"] = average_precision_score(
+                y_onehot, proba, average="macro"
+            )
+            result["pr_auc_down"] = average_precision_score(y_onehot[:, 0], proba[:, 0])
+            result["pr_auc_neutral"] = average_precision_score(
+                y_onehot[:, 1], proba[:, 1]
+            )
+            result["pr_auc_up"] = average_precision_score(y_onehot[:, 2], proba[:, 2])
+    return result
