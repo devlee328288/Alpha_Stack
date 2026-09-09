@@ -21,6 +21,7 @@ from scripts.build_model_notebooks import (  # noqa: E402
     VARIANTS,
     experiment_directory,
 )
+from scripts.update_final_model_docs import update_final_model_docs  # noqa: E402
 
 CACHE_DIR = ROOT / "data" / "raw" / "model_results"
 BEST_ROOT = ROOT / "notebooks" / "04-모델" / "KOSPI200" / "실험" / "조합별 best result"
@@ -324,7 +325,9 @@ def main() -> int:
         ),
         encoding="utf-8",
     )
+    update_final_model_docs(ROOT)
     print(f"전체 결과 저장: {SWEEP_REPORT}")
+    print("최종모델 README와 선정 기준 비교 보고서를 함께 갱신했습니다.")
     return 0
 
 

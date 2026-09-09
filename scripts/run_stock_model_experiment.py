@@ -43,6 +43,7 @@ from models.stock_experiment import (  # noqa: E402
     fold_classification_baselines,
 )
 from models.stock_ranking import add_probability_ranks  # noqa: E402
+from scripts.update_final_model_docs import update_final_model_docs  # noqa: E402
 from supply.adj_quality import attach_adjustment_quality  # noqa: E402
 from supply.stock_training_universe import build_sector_candidate_frame  # noqa: E402
 
@@ -423,7 +424,9 @@ def refresh_saved_report_baselines() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
+    update_final_model_docs(ROOT)
     print(f"기존 결과에 폴드별 기준선을 보강했습니다: {SWEEP_REPORT_PATH.relative_to(ROOT)}")
+    print("최종모델 README와 선정 기준 비교 보고서를 함께 갱신했습니다.")
 
 
 def load_stock_model_dataset(
@@ -802,6 +805,7 @@ def main(requested: tuple[str, ...] | None = None) -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
+    update_final_model_docs(ROOT)
     print(f"[3/4] 조합 리포트 저장: {SWEEP_REPORT_PATH.relative_to(ROOT)}", flush=True)
     print("[4/4] 조합별 1위", flush=True)
     for row in winners:

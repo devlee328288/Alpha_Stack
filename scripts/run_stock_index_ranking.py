@@ -38,6 +38,7 @@ from models.stock_ranking import (  # noqa: E402
     summarize_random_ranking_baseline,
 )
 from scripts.run_stock_model_experiment import load_stock_model_dataset  # noqa: E402
+from scripts.update_final_model_docs import update_final_model_docs  # noqa: E402
 
 HF_INDEX_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "index_price_dev.parquet"
 HF_DAILY_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "daily_price_dev.parquet"
@@ -711,8 +712,10 @@ def main() -> None:
         json.dumps(report, ensure_ascii=False, indent=2, default=_json_default) + "\n",
         encoding="utf-8",
     )
+    update_final_model_docs(ROOT)
 
     print(f"[4/4] 결과 저장: {REPORT_PATH.relative_to(ROOT)}", flush=True)
+    print("      최종모델 README 자동 갱신", flush=True)
     print(f"      전체 후보 방향 적중률: {baseline_hit_rate:.4f}", flush=True)
     print(
         f"      전체 후보 종목 적중률 {full_output_summary['stock_hit_rate']:.4f}",
