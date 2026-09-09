@@ -94,6 +94,7 @@ from common.corporate_actions import (  # noqa: E402
     is_basis_adjusted,
     is_halted,
     is_outlier,
+    listing_days_by_code,
     market_calendar,
     price_limit_pct,
 )
@@ -254,6 +255,8 @@ def check_stock(con: sqlite3.Connection) -> List[Check]:
     collect_start = calendar[0]
     상장중 = {r[0] for r in con.execute(
         "SELECT code FROM daily_price WHERE bas_dd = ?", (calendar[-1],))}
+    # 코드 재사용으로 시계열이 끊긴 자리를 신규상장으로 세려면 상장일이 필요하다 (#195).
+    listing = listing_days_by_code(con)
 
     tally = dict.fromkeys(
         ("malformed", "zero_ohlc", "halted_but_traded", "inversion", "rate_mismatch",
@@ -270,7 +273,8 @@ def check_stock(con: sqlite3.Connection) -> List[Check]:
         codes_total += 1
         rows_total += len(rows)
         flags = flag_series(rows, calendar_index=index, market_last_index=last_index,
-                            still_listed=code in 상장중, collect_start=collect_start)
+                            still_listed=code in 상장중, collect_start=collect_start,
+                            listing_days=listing.get(str(code), ()))
         for i, (row, flag) in enumerate(zip(rows, flags, strict=True)):
             _tally_stock_row(code, row, rows[i - 1] if i else None, flag, tally, keep)
 

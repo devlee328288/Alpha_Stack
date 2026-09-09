@@ -555,6 +555,10 @@ EXPORT_DAILY_COLUMNS = (
     "open", "high", "low", "close",
     "volume", "value", "market_cap", "listed_shares",
     "change_rate", "adj_open", "adj_high", "adj_low", "adj_close", "adj_source",
+    # 이상치 축이 부르는 `flag_adjustment_quality` 가 요구하는 칸이다 (이슈 #195).
+    # 없으면 "전일" 이 코드를 재사용한 다른 회사의 종가가 되어 값이 조용히 틀린다 —
+    # 그래서 그 함수가 `REQUIRED_COLUMNS` 로 못 박고 여기서 읽어 넘긴다.
+    "is_first_listing",
 )
 
 

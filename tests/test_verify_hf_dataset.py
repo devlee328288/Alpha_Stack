@@ -264,39 +264,93 @@ def _daily_price_db(tmp_path: Path, rows):
     ("20160504", "036220", 1400.0, 1400.0, -6.67),      # 인포피아 마지막 행
     ("20240313", "036220", 11740.0, 11740.0, 46.75),    # 오상헬스케어 첫 행 — 같은 코드
     ("20240314", "036220", 12000.0, 12000.0, 2.21),
+    # 코드 재사용이 아닌 평범한 종목. **입력을 어디서 자르느냐**는 이 종목으로 본다 —
+    # 재사용 행은 이제 옳게 NaN 이라 자른 입력과 값이 구별되지 않는다.
+    ("20231130", "000010", 1000.0, 1000.0, 0.0),
+    ("20240102", "000010", 1100.0, 1100.0, 10.0),
 ]
 
 
+def _ca표(rows, 신규상장=()):
+    """기업행위 판정 표를 흉내 낸다. `신규상장` 에 `(bas_dd, code)` 를 넣으면 켜진다."""
+    켬 = set(신규상장)
+    return pd.DataFrame([
+        {"bas_dd": r[0], "code": r[1],
+         "is_liquidation": False, "is_halted": False,
+         "is_first_listing": (r[0], r[1]) in 켬}
+        for r in rows
+    ])
+
+
 def test_품질_판정은_전_구간에서_한_번_만든다(tmp_path, monkeypatch):
-    """8년 공백 뒤 행도 반출과 같은 값(전 구간 직전 행 대비)이 나와야 한다."""
+    """입력을 연도로 자르면 경계 행의 전일이 사라진다 — 반출과 같은 답이 안 나온다.
+
+    `000010` 은 2023-11-30 과 2024-01-02 두 행뿐이다. 전 구간을 주면 +10% 가 나오고,
+    2023-12-01 부터 자른 입력을 주면 전일이 없어 NaN 이 된다. 그 차이를 못 보면
+    판정기는 멀쩡한 행을 "반출과 다르다" 고 하거나 그 반대를 한다.
+    """
     monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
     with V.ro_connect() as conn:
-        q = V._quality_table(conn, "20240831")
-    행 = q.set_index(["bas_dd", "code"]).loc[("20240313", "036220")]
-    assert 행["adj_return_1d"] == pytest.approx((11740.0 / 1400.0 - 1.0) * 100.0)
-    assert bool(행["is_adj_suspect"]), "8년 전 값 대비 +738% 는 KRX 등락률과 어긋난다"
-    assert not bool(행["is_extreme_return"]), "의심이면 극단으로 치지 않는다"
+        q = V._quality_table(conn, "20240831", _ca표(코드_재사용))
+    행 = q.set_index(["bas_dd", "code"]).loc[("20240102", "000010")]
+    assert 행["adj_return_1d"] == pytest.approx(10.0)
+    assert not bool(행["is_adj_suspect"])
     assert len(q) == len(코드_재사용), "입력 행이 하나도 빠지거나 늘지 않는다"
 
-
-def test_전년도_12월_패드로는_코드_재사용의_전일이_안_보인다(tmp_path, monkeypatch):
-    """옛 방식이 왜 틀렸는지를 남긴다 — 같은 함수에 잘린 입력을 주면 NaN 이 된다."""
-    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    # 같은 함수에 자른 입력을 주면 그 행이 NaN 이 된다
     with V.ro_connect() as conn:
         잘린 = pd.read_sql_query(
             "SELECT bas_dd, code, close, adj_close, change_rate FROM daily_price "
             "WHERE bas_dd BETWEEN ? AND ?", conn, params=("20231201", "20241231"))
+    잘린 = 잘린.merge(_ca표(코드_재사용)[["bas_dd", "code", "is_first_listing"]],
+                    on=["bas_dd", "code"], how="left")
     flags = V.flag_adjustment_quality(잘린)
-    첫행 = flags.loc[잘린["bas_dd"].eq("20240313")].iloc[0]
-    assert np.isnan(첫행["adj_return_1d"])
-    assert not bool(첫행["is_adj_suspect"])
+    첫행 = flags.loc[잘린["bas_dd"].eq("20240102")].iloc[0]
+    assert np.isnan(첫행["adj_return_1d"]), "자른 입력에서는 전일이 안 보인다"
+
+
+def test_코드_재사용_행은_전일이_없어_NaN_이다(tmp_path, monkeypatch):
+    """8년 전 다른 회사의 종가로 수익률을 만들지 않는다 (이슈 #195).
+
+    고치기 전에는 `11740/1400 - 1 = +738.57%` 가 나오고 `is_adj_suspect` 가 켜져서
+    판정기 종합이 이 한 행 때문에 붉었다. 이제 `is_first_listing` 이 켜져 있으므로
+    비교 자체를 하지 않는다 — 그 행은 오상헬스케어의 **첫 거래일**이다.
+    """
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn:
+        q = V._quality_table(conn, "20240831",
+                             _ca표(코드_재사용, 신규상장=[("20240313", "036220")]))
+    행 = q.set_index(["bas_dd", "code"]).loc[("20240313", "036220")]
+    assert np.isnan(행["adj_return_1d"])
+    assert not bool(행["is_adj_suspect"]), "새 시계열의 첫 행은 오류가 아니다"
+    assert not bool(행["is_extreme_return"])
+    # 그 다음 날부터는 새 회사 안에서 정상적으로 이어진다
+    다음 = q.set_index(["bas_dd", "code"]).loc[("20240314", "036220")]
+    assert 다음["adj_return_1d"] == pytest.approx(2.2147, abs=0.001)
+
+
+def test_판정을_안_붙이고_품질을_재면_무엇을_할지_알려_준다(tmp_path, monkeypatch):
+    """`is_first_listing` 없이 부르면 값이 조용히 틀리는 대신 멈춘다."""
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn:
+        빠진 = pd.read_sql_query(
+            "SELECT bas_dd, code, close, adj_close, change_rate FROM daily_price", conn)
+    with pytest.raises(ValueError, match="attach_corporate_action_flags"):
+        V.flag_adjustment_quality(빠진)
+
+
+def test_기업행위_판정에_없는_행이_있으면_품질을_재지_않는다(tmp_path, monkeypatch):
+    """조용히 False 로 채우면 반출과 다른 판정을 같다고 하게 된다."""
+    monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
+    with V.ro_connect() as conn, pytest.raises(RuntimeError, match="같은 입력"):
+        V._quality_table(conn, "20240831", _ca표(코드_재사용[:2]))   # 두 행만 준다
 
 
 def test_판정_표에_없는_행이_있으면_붙이지_않고_멈춘다(tmp_path, monkeypatch):
     """조용히 False 로 채우면 반출과 다른 표본을 같다고 판정하게 된다."""
     monkeypatch.setenv("KRX_DB_PATH", str(_daily_price_db(tmp_path, 코드_재사용)))
     with V.ro_connect() as conn:
-        q = V._quality_table(conn, "20240831")
+        q = V._quality_table(conn, "20240831", _ca표(코드_재사용))
     db = pd.DataFrame({"bas_dd": ["20240313", "20240399"], "code": ["036220", "036220"],
                        "adj_close": [11740.0, 1.0]})
     monkeypatch.setattr(V, "attach_industry", lambda frame, *, as_of: frame)

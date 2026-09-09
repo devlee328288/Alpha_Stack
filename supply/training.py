@@ -56,7 +56,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, FrozenSet, Iterable, Iterator, Mapping, Optional, Tuple
 
 import pandas as pd
@@ -66,6 +66,7 @@ from common.corporate_actions import (
     SUSPENSION_GAP_DAYS,
     flag_series,
     is_traded,
+    listing_days_by_code,
     market_calendar_index,
 )
 from ingest.store import krx_store
@@ -91,6 +92,10 @@ class MarketContext:
     market_last_index: int
     collect_start: str
     listed_codes: FrozenSet[str]
+    #: `종목코드 → 그 코드에 붙었던 상장일들`. 코드 재사용으로 시계열이 끊긴 자리를
+    #: `flag_series` 가 신규상장으로 판정하는 데 쓴다. 기본값이 빈 표인 이유는
+    #: 시험이 옛 서명으로 이 객체를 만들 수 있어서다 — 비어 있으면 판정을 안 한다.
+    listing_days: Mapping[str, Tuple[str, ...]] = field(default_factory=dict)
 
 
 def market_context() -> MarketContext:
@@ -104,7 +109,9 @@ def market_context() -> MarketContext:
         )
         collect_start = conn.execute(
             "SELECT MIN(bas_dd) FROM daily_price").fetchone()[0]
-    return MarketContext(index, last_index, collect_start, listed)
+        # 코드 재사용 판정용. `DISTINCT` 로 920만 행이 수천 행이 된다.
+        listing = listing_days_by_code(conn)
+    return MarketContext(index, last_index, collect_start, listed, listing)
 
 
 def training_frame(code: str, *,
@@ -156,6 +163,7 @@ def training_frame(code: str, *,
                         market_last_index=ctx.market_last_index,
                         still_listed=code in ctx.listed_codes,
                         collect_start=ctx.collect_start,
+                        listing_days=ctx.listing_days.get(str(code), ()),
                         liquidation_days=liquidation_days, gap_days=gap_days)
 
     dropped: Dict[str, int] = {}
@@ -231,8 +239,15 @@ def attach_corporate_action_flags(frame: pd.DataFrame, *,
 
         is_liquidation      17,973  (0.228%)   정리매매 — 체결이 끊기기 직전 10체결일
         is_halted          231,808  (2.938%)   거래정지 — 체결이 없던 행
-        is_first_listing     1,501  (0.019%)   신규상장 첫 거래일
-        ── 셋 중 하나라도  251,282  (3.185%)   겹침 0
+        is_first_listing     1,502  (0.019%)   신규상장 첫 거래일
+        ── 셋 중 하나라도  251,283  (3.185%)   겹침 0
+
+    `is_first_listing` 이 1,501 에서 1,502 로 늘어난 것은 **코드 재사용** 한 행이다 —
+    `036220` 2024-03-13 오상헬스케어. 상장폐지된 인포피아(~2016-05-04)의 코드를 8년 뒤
+    다시 받았고, 그 회사의 첫 거래일이므로 신규상장이다. 판정은
+    `common.corporate_actions.is_series_restart` 가 하고, 그 근거로 `MarketContext` 가
+    상장일 표를 함께 나른다. 전 구간으로 보면 2행이지만 나머지 하나(`101970`
+    2025-03-28)는 홀드아웃 구간이라 반출본에 없다. (이슈 #195)
 
     ## 🔴 피처로 쓰면 안 된다
 
@@ -271,7 +286,8 @@ def attach_corporate_action_flags(frame: pd.DataFrame, *,
         flags = flag_series(rows, calendar_index=ctx.calendar_index,
                             market_last_index=ctx.market_last_index,
                             still_listed=code in ctx.listed_codes,
-                            collect_start=ctx.collect_start)
+                            collect_start=ctx.collect_start,
+                            listing_days=ctx.listing_days.get(str(code), ()))
         for r, f in zip(rows, flags, strict=True):
             키.append((str(r["bas_dd"]), str(code)))
             # 🔴 `is_halted` 는 `flag.halt_resume`(직전이 정지행) 이 아니라 **이 행에

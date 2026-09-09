@@ -45,6 +45,11 @@ CREATE TABLE fetch_log (bas_dd TEXT PRIMARY KEY, rows INTEGER, fetched_at TEXT);
 CREATE TABLE index_fetch_log (
   bas_dd TEXT NOT NULL, market TEXT NOT NULL, rows INTEGER, fetched_at TEXT,
   PRIMARY KEY (bas_dd, market));
+-- 코드 재사용 판정에 상장일이 필요하다 (이슈 #195). 비어 있으면 판정하지 않는다 —
+-- 실제로 종목기본정보를 아직 안 받은 DB 에서도 check_data 는 돌아야 한다.
+CREATE TABLE stock_base_info (
+  bas_dd TEXT NOT NULL, code TEXT NOT NULL, list_dd TEXT,
+  PRIMARY KEY (bas_dd, code));
 """
 
 CODES = ("000001", "000002")

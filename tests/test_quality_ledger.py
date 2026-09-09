@@ -60,10 +60,12 @@ def _daily(*, 정지행: int = 1, adj0: bool = False) -> pd.DataFrame:
     행 = [
         {"bas_dd": "20240102", "code": "000010", "close": 100.0, "adj_close": 100.0,
          "change_rate": 0.0, "volume": 1000, "adj_open": 99.0, "adj_high": 101.0,
-         "adj_low": 98.0, "adj_source": "fdr", "market": "KOSPI"},
+         "adj_low": 98.0, "adj_source": "fdr", "market": "KOSPI",
+         "is_first_listing": False},
         {"bas_dd": "20240103", "code": "000010", "close": 110.0, "adj_close": 110.0,
          "change_rate": 10.0, "volume": 1200, "adj_open": 109.0, "adj_high": 111.0,
-         "adj_low": 108.0, "adj_source": "fdr", "market": "KOSPI"},
+         "adj_low": 108.0, "adj_source": "fdr", "market": "KOSPI",
+         "is_first_listing": False},
     ]
     if 정지행:
         행.append(
@@ -71,7 +73,7 @@ def _daily(*, 정지행: int = 1, adj0: bool = False) -> pd.DataFrame:
              "adj_close": 0.0 if adj0 else 110.0, "change_rate": 0.0,
              "volume": 0,                                              # ← 정지일 표시
              "adj_open": 0.0 if adj0 else None, "adj_high": None, "adj_low": None,
-             "adj_source": "fdr", "market": "KOSPI"}
+             "adj_source": "fdr", "market": "KOSPI", "is_first_listing": False}
         )
     return pd.DataFrame(행)
 
@@ -248,7 +250,8 @@ def _가격행(**덮어쓰기):
           "open": 100.0, "high": 110.0, "low": 95.0, "close": 105.0,
           "volume": 1000, "value": 105_000.0,
           "market_cap": 1000.0, "listed_shares": 10.0,
-          "adj_close": 105.0, "change_rate": 0.0, "adj_source": "fdr"}
+          "adj_close": 105.0, "change_rate": 0.0, "adj_source": "fdr",
+          "is_first_listing": False}
     행.update(덮어쓰기)
     return 행
 

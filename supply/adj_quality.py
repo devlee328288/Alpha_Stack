@@ -24,8 +24,26 @@
     is_extreme_return     |adj_return_1d| > EXTREME_RETURN_PCT 이고 의심이 아님
                           → 진짜 극단 사건. 남긴다
 
-비교할 수 없는 행(종목의 첫 행 · 전일 adj 가 없거나 0 · 종가 0 · 등락률 없음)은
-수익률·갭이 NaN 이고 두 플래그는 False 다 — **모르는 것을 오류로 치지 않는다.**
+비교할 수 없는 행(종목의 첫 행 · **새 시계열의 첫 행** · 전일 adj 가 없거나 0 · 종가 0 ·
+등락률 없음)은 수익률·갭이 NaN 이고 두 플래그는 False 다 — **모르는 것을 오류로 치지
+않는다.**
+
+## 🔴 "전일" 은 `shift(1)` 이 아니다 — 종목코드는 재사용된다 (2026-09-09 · 이슈 #195)
+
+이 함수는 종목별 `shift(1)` 로 전일을 찾는다. 그런데 상장폐지된 코드를 몇 년 뒤 다른
+회사가 받으면 그 `shift(1)` 은 **다른 회사의 마지막 종가**를 가리킨다.
+
+    036220  인포피아 ~2016-05-04(3,500원)  →  오상헬스케어 2024-03-13(29,350원)
+            `shift(1)` 로 계산한 adj_return_1d = **+738.57%** · is_adj_suspect 켜짐
+            KRX 등락률은 +46.75% — 그 종목의 진짜 첫 거래일이라 기준가가 다르다
+
+전 구간 9,231,938행에서 이런 자리는 **2건**이고(`036220` · `101970`) 개발구간 반출본에
+드는 것은 **1행**(`036220` 2024-03-13)이다. 다른 하나는 2025-03-28 이라 홀드아웃이다.
+
+가르는 규칙은 `common.corporate_actions.is_series_restart` 에 있다 — *거래일 공백이
+있고 그 뒤에 새 상장일이 생겼으면* 새 시계열이다. 문턱이 없고 거래소가 주는 사실만
+쓴다. 그 판정이 `is_first_listing` 칸으로 들어오므로 **이 함수는 그 칸을 요구한다**
+(`REQUIRED_COLUMNS`). 없으면 값이 조용히 틀리는 대신 `ValueError` 가 난다.
 
 ## 시점 규칙 — T−1 과 T 만 쓴다
 
@@ -63,8 +81,12 @@
     train = cand[~cand["is_adj_suspect"]]                 # 의심 행만 뺀다. 진짜 사건은 남는다
     print(cand.attrs["adjustment_quality"])               # 몇 행을 왜 뺐는지 기록
 
-`daily` 는 HF 반출본 `daily_price_dev.parquet` 그대로면 된다 — `adj_close` 와
-`change_rate` 가 이미 들어 있어 재배포가 필요 없다.
+`daily` 는 HF 반출본 `daily_price_dev.parquet` 그대로면 된다 — `adj_close` ·
+`change_rate` · `is_first_listing` 이 이미 들어 있다(34칸).
+
+⚠️ DB 에서 다섯 칸만 골라 읽어 넘기면 `is_first_listing` 이 없어 `ValueError` 가 난다.
+   그 경로에서는 `supply.training.attach_corporate_action_flags` 로 기업행위 3칸을 먼저
+   붙인다. 반출·판정기가 그렇게 한다.
 """
 
 from __future__ import annotations
@@ -82,7 +104,19 @@ SUSPECT_GAP_TOLERANCE = 1.0
 EXTREME_RETURN_PCT = 30.0
 
 #: 입력에 있어야 하는 열. HF 반출본 `daily_price_dev.parquet` 에 전부 있다.
-REQUIRED_COLUMNS = ("bas_dd", "code", "close", "adj_close", "change_rate")
+#:
+#: 🔴 `is_first_listing` 이 왜 필요한가 — **종목코드는 재사용된다.** 이 함수는 종목별
+#:    `shift(1)` 로 "전일" 을 찾는데, 상장폐지된 코드를 몇 년 뒤 다른 회사가 받으면 그
+#:    `shift(1)` 이 **8년 전 다른 회사의 종가**를 가리킨다. 실제로 `036220` 2024-03-13
+#:    오상헬스케어의 전일이 2016-05-04 인포피아가 되어 `adj_return_1d` 가 +738.57% 로
+#:    나오고 `is_adj_suspect` 가 켜졌다(2026-09-09 · 이슈 #195).
+#:
+#:    그 자리를 판정하는 것은 `common.corporate_actions.is_series_restart` 이고, 결과가
+#:    `is_first_listing` 칸으로 들어온다. **선택 인자로 두지 않고 필수로 둔 이유**는
+#:    빠뜨려도 예외가 안 나고 값만 조용히 틀리기 때문이다 — 파생 칸을 늘릴 때마다 따라와야
+#:    하는 자리를 09-09 에 한 곳 빠뜨려 오준영 님 로더가 멈춘 일이 있었다.
+REQUIRED_COLUMNS = ("bas_dd", "code", "close", "adj_close", "change_rate",
+                    "is_first_listing")
 
 #: 돌려주는 열. 순서가 곧 계약이다.
 FLAG_COLUMNS = ("adj_return_1d", "adj_change_rate_gap",
@@ -127,7 +161,13 @@ def flag_adjustment_quality(
         raise ValueError("extreme_pct 는 0 보다 커야 합니다.")
     missing = set(REQUIRED_COLUMNS) - set(daily_prices.columns)
     if missing:
-        raise ValueError(f"수정주가 품질 입력 열이 없습니다: {sorted(missing)}")
+        raise ValueError(
+            f"수정주가 품질 입력 열이 없습니다: {sorted(missing)}. "
+            "HF 반출본 `full/daily_price_dev.parquet`(34칸) 을 그대로 넘기면 전부 있습니다. "
+            "DB 에서 직접 읽는 경로라면 `supply.training.attach_corporate_action_flags` 로 "
+            "기업행위 3칸을 먼저 붙이십시오 — `is_first_listing` 이 없으면 코드를 재사용한 "
+            "종목의 '전일' 이 다른 회사의 종가가 되어 값이 조용히 틀립니다."
+        )
 
     work = pd.DataFrame(
         {
@@ -136,6 +176,7 @@ def flag_adjustment_quality(
             "close": pd.to_numeric(daily_prices["close"], errors="coerce"),
             "adj_close": pd.to_numeric(daily_prices["adj_close"], errors="coerce"),
             "change_rate": pd.to_numeric(daily_prices["change_rate"], errors="coerce"),
+            "is_first_listing": daily_prices["is_first_listing"].fillna(False).astype(bool),
         },
         index=daily_prices.index,
     )
@@ -153,6 +194,10 @@ def flag_adjustment_quality(
         & prev_adj.notna()
         & prev_adj.gt(0)
         & work["change_rate"].notna()
+        # 🔴 새 시계열의 첫 행은 **전일이 없다.** 종목의 진짜 첫 행이면 `prev_adj` 가
+        #    이미 NaN 이라 이 조건이 아무것도 안 바꾸지만, 코드를 재사용한 자리에서는
+        #    `shift(1)` 이 다른 회사의 종가를 가리키므로 여기서 끊어야 한다.
+        & ~work["is_first_listing"]
     )
     adj_return = pd.Series(np.nan, index=work.index, dtype="float64")
     adj_return[comparable] = (
