@@ -71,6 +71,10 @@ DAILY_COLUMNS = (
     "close",
     "change_rate",
     "volume",
+    # 보통주 판정은 2026-09-09(PR #189) 부터 이름 규칙이 아니라 이 칸이 한다. 공급 층
+    # `build_sector_candidate_frame` 이 요구하는 칸(`DAILY_REQUIRED`)이 늘면 여기도 따라와야
+    # 한다 — `tests/test_stock_experiment_loader_contract.py` 가 그 둘을 맞댄다.
+    "kind_stkcert_tp_nm",
 )
 INDEX_COLUMNS = ("bas_dd", "index_name", "index_class", "market_cap", "close")
 

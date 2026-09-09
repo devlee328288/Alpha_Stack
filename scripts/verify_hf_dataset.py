@@ -49,6 +49,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
@@ -97,9 +98,15 @@ def ro_connect() -> sqlite3.Connection:
 
     프로젝트의 `krx_store.connect()` 를 쓰지 않는 이유가 여기 있다. 그쪽은 쓰기 모드로
     열고 `journal_mode=WAL` 을 실행하며, 부르는 자리에 따라 마이그레이션까지 탄다.
+
+    `cache_size` 는 연결마다 정하는 값이라 읽기 전용에서도 바꿀 수 있다. SQLite 기본은
+    `-2000`(2MB)인데 `daily_price` 한 해가 60만 행이라 페이지 캐시가 계속 밀린다. 반출
+    스크립트가 쓰는 값(1GB · `export_team_dataset.py`)과 같게 맞춘다.
     """
-    return sqlite3.connect(f"file:{Path(db_path()).as_posix()}?mode=ro",
+    conn = sqlite3.connect(f"file:{Path(db_path()).as_posix()}?mode=ro",
                            uri=True, timeout=60)
+    conn.execute("PRAGMA cache_size = -1000000")
+    return conn
 
 
 def sha256_of(path: Path) -> str:
@@ -372,7 +379,34 @@ def _corporate_action_table(conn) -> pd.DataFrame:
     return out
 
 
-def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame) -> pd.DataFrame:
+def _quality_table(conn, dev_end: str) -> pd.DataFrame:
+    """수정주가 품질 판정 네 칸을 **반출과 같은 입력 위에서 한 번** 만든다.
+
+    반출(`export_team_dataset.py`)은 `bas_dd <= dev_end` 전체를 읽어 놓고
+    `flag_adjustment_quality` 를 **한 번** 부른다. 판정은 종목별 **직전 행**을 보므로,
+    입력을 어디서 자르느냐가 답을 바꾼다.
+
+    🔴 2026-09-09 에 실제로 겪었다. 연도별 루프 안에서 "전년도 12월부터" 읽어 판정했더니
+       2024-03-13 오상헬스케어(036220) 한 행이 붉었다. 그 종목의 직전 행은 **2016-05-04
+       인포피아** — 상장폐지된 종목의 코드를 8년 뒤 신규상장이 다시 쓴 것이라, 한 달
+       패드로는 전일이 안 보인다. 반출은 전 구간에서 +738.57% 로 계산해 `is_adj_suspect`
+       를 켰고 판정기는 NaN 이었다. 개발구간 전체에서 1년 넘는 공백은 이 한 건뿐이지만,
+       "패드를 얼마나 둘 것인가" 는 답이 없는 질문이다 — **반출과 같은 입력을 주면 된다.**
+
+    필요한 다섯 칸만 읽으므로 7.9M 행이어도 메모리는 수백 MB 다.
+    """
+    src = pd.read_sql_query(
+        "SELECT bas_dd, code, close, adj_close, change_rate "
+        "FROM daily_price WHERE bas_dd <= ?", conn, params=(dev_end,))
+    flags = flag_adjustment_quality(src)
+    out = pd.concat([src[["bas_dd", "code"]], flags], axis=1)
+    out["bas_dd"] = out["bas_dd"].astype(str)
+    out["code"] = out["code"].astype(str)
+    return out
+
+
+def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
+                           quality: pd.DataFrame) -> pd.DataFrame:
     """반출이 붙이는 **파생 칸을 판정기도 똑같이 붙인다.**
 
     🔴 이 함수가 없으면 반출이 칸을 늘릴 때마다 "칸 구성이 다르다" 로 영원히 붉다.
@@ -384,14 +418,22 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame) -> pd.DataF
     반출본(`scripts/export_team_dataset.py`)이 `daily_price` 위에 얹는 것 —
 
         업종 4칸      attach_industry            supply/sector.py
-        품질 4칸      flag_adjustment_quality    supply/adj_quality.py
+        품질 4칸      flag_adjustment_quality    supply/adj_quality.py   ← `quality` 로 받는다
         주권종류 3칸  stock_base_info 조인       supply/universe.py
-        기업행위 3칸  flag_series                common/corporate_actions.py
+        기업행위 3칸  flag_series                common/corporate_actions.py ← `ca` 로 받는다
+
+    🔴 종목의 **다른 행을 보는 판정**(품질 4칸 · 기업행위 3칸)은 여기서 계산하지 않고
+       전 구간에서 한 번 만든 표를 받아 붙인다. 연도로 잘라 계산하면 경계에서 답이
+       달라진다 — 기업행위는 09-08 에, 품질은 09-09 에 각각 겪었다(`_quality_table`).
     """
     out = attach_industry(db, as_of=오늘_as_of())
 
-    flags = flag_adjustment_quality(out)
-    out = pd.concat([out, flags], axis=1)
+    n = len(out)
+    out = out.merge(quality, on=["bas_dd", "code"], how="left", validate="one_to_one")
+    if len(out) != n or out["is_adj_suspect"].isna().any():
+        raise RuntimeError("품질 판정 표에 없는 행이 있다 — 반출과 같은 입력이 아니다")
+    for c in ("is_adj_suspect", "is_extreme_return"):
+        out[c] = out[c].astype(bool)
 
     lo, hi = str(out["bas_dd"].min()), str(out["bas_dd"].max())
     base = pd.read_sql_query(
@@ -428,40 +470,43 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
                            "index_all_dev.csv", only_common=True)["같다"]
     del hf, db
 
-    # daily_price 는 599만 행이라 연도로 끊는다
+    # daily_price 는 599만 행이라 연도로 끊는다 — 단, **종목의 다른 행을 보는 판정은
+    # 연도로 끊으면 안 된다.** 기업행위(이력의 끝·첫 행)와 품질(직전 행) 두 표를
+    # 루프 밖에서 전 구간 1회로 만들고, 루프 안에서는 붙이기만 한다.
     print("\n  daily_price_dev.parquet — 연도별")
-    # 🔴 기업행위 판정은 종목의 전 구간이 있어야 맞다. 루프 밖에서 한 번 만든다.
-    print("  기업행위 판정 준비 중… (전 구간 1회 · 약 2분)")
+    t0 = time.time()
+    print("  기업행위 판정 준비 중… (전 구간 1회)")
     with ro_connect() as conn0:
         ca_table = _corporate_action_table(conn0)
-    print(f"  기업행위 판정 {len(ca_table):,}행 준비 완료")
+    print(f"  기업행위 판정 {len(ca_table):,}행 · {time.time() - t0:.0f}초")
+    t0 = time.time()
+    print("  품질 판정 준비 중… (전 구간 1회 · 반출과 같은 입력)")
+    with ro_connect() as conn0:
+        quality = _quality_table(conn0, dev_end)
+    print(f"  품질 판정 {len(quality):,}행 · 의심 {int(quality['is_adj_suspect'].sum()):,} "
+          f"· 극단 {int(quality['is_extreme_return'].sum()):,} · {time.time() - t0:.0f}초")
     총 = 0
     for year in YEARS:
         lo, hi = f"{year}0101", min(f"{year}1231", dev_end)
         if lo > dev_end:
             break
+        t0 = time.time()
         hf = pq.read_table(snap / "full/daily_price_dev.parquet",
                            filters=[("bas_dd", ">=", lo), ("bas_dd", "<=", hi)]
                            ).to_pandas()
         if hf.empty:
             continue
-        # 🔴 **전년도 12월부터 읽는다.** `flag_adjustment_quality` 는
-        #    `groupby("code")["adj_close"].shift(1)` 로 전일을 보는데, 연도로 잘라
-        #    계산하면 각 해 첫 행의 전일이 없어 `adj_return_1d` 가 NaN 이 된다.
-        #    반출본은 전 구간을 한 번에 계산했으므로 값이 있다 — 그 차이가 2,658행
-        #    "결측 엇갈림" 으로 붉게 나왔다. 여유를 두고 계산한 뒤 그 해만 남긴다.
-        pad_lo = f"{year - 1}1201"
         with ro_connect() as conn:
             db = pd.read_sql_query(
                 "SELECT * FROM daily_price WHERE bas_dd BETWEEN ? AND ?",
-                conn, params=(pad_lo, hi))
+                conn, params=(lo, hi))
         # 🔴 반출이 `daily_price` 위에 얹는 파생 칸을 판정기도 똑같이 얹는다.
         #    안 그러면 "칸 구성이 다르다" 로 영원히 붉다 — 09-05·09-08·09-09 세 번 겪었다.
         with ro_connect() as conn2:
-            db = _attach_export_derived(db, conn2, ca_table)
-        db = db[db["bas_dd"] >= lo].reset_index(drop=True)
+            db = _attach_export_derived(db, conn2, ca_table, quality)
         총 += len(hf)
         모두 &= compare_frames(hf, db, ["bas_dd", "code"], f"{year}년")["같다"]
+        print(f"  ({time.time() - t0:.0f}초)")
         del hf, db
     print(f"\n  daily_price 합계 {총:,}행")
     return 모두
