@@ -68,10 +68,20 @@ INDEX_COLUMNS: Sequence[str] = (
 )
 
 #: 종목 표의 칸. 위와 같은 이유로 둔다.
+#:
+#: 🔴 **수익률·라벨은 `close` 가 아니라 `adj_close` 로 계산한다** (마이그레이션 v9).
+#:    `close` 는 KRX 원문 그대로라 액면분할이 조정돼 있지 않다 — 삼성전자 2018-05-04 이
+#:    -98.04% 로 읽힌다(실제 -2.08%). 1,139건의 분할·병합이 806종에 걸쳐 있다.
+#:    `close` 를 남겨 두는 이유는 `market_cap = close × listed_shares` 가 **원가격**이라야
+#:    맞고, 원본을 덮으면 어제 결과를 재현할 수 없기 때문이다.
+#:
+#: `adj_source` 는 그 행의 수정값이 어디서 왔는지다 — `fdr`(외부 실측 81.6%) ·
+#: `chain`(우리가 조정계수로 이어 붙임 18.4%).
 PRICE_COLUMNS: Sequence[str] = (
     "bas_dd", "date", "code", "name", "market", "sector", "open", "high", "low",
     "close", "change", "change_rate", "volume", "value", "market_cap",
     "listed_shares",
+    "adj_open", "adj_high", "adj_low", "adj_close", "adj_source",
 )
 
 

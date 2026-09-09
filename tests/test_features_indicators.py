@@ -117,6 +117,26 @@ def test_rsi_shift_검사():
     _assert_allclose(after[:-1], list(before[:-1]))
 
 
+def test_rsi_결측_델타는_변화없음으로_삼켜지지_않는다():
+    """window=3, 가격 [10,11,12,NaN,14,15,16,17,18,19].
+
+    NaN이 낀 두 델타(12→NaN, NaN→14)가 예전엔 `delta > 0.0`이 NaN에 대해 항상
+    False라 **gain=0·loss=0(변화 없음)으로 조용히 둔갑**했다 — 이슈 #18에서
+    "폭락 구간이 통째로 지워진다"고 우려한 부분. 지금은 gain/loss를 nan으로 남겨서
+    `_ewm_mean`이 그 두 자리를 건너뛰고 직전 평활값을 그대로 들고 간다.
+
+    손으로 추적: gain 계열 [1,1,nan,nan,1,1,1,1,1] → alpha=1/3 평활 시
+    t=2,3에서 count가 3에 안 차 nan, t=4에서야 count=3 도달(gain=1 그대로 유지).
+    loss 계열은 전부 0이라 avg_loss=0 → RSI는 t=4부터 전부 100(분모 0).
+
+    (예전 버그였다면 t=2에서 gain=0이 섞여 평활값이 2/3로 내려가면서 RSI가
+    100이 아니라 다른 값으로 조용히 틀렸을 것이다.)
+    """
+    prices = [10, 11, 12, math.nan, 14, 15, 16, 17, 18, 19]
+    expected = [None, None, None, None, None, 100.0, 100.0, 100.0, 100.0, 100.0]
+    _assert_allclose(indicators.rsi(prices, 3), expected)
+
+
 # ── MACD ─────────────────────────────────────────────────────────────────
 # 실제 서비스 기본값(12/26/9)은 10행으로 전부 nan 이라, 여기서는 손으로
 # 따라갈 수 있는 fast=2·slow=3·signal=2 로 정의(재귀식)를 직접 검증한다.
@@ -258,6 +278,47 @@ def test_macd_hist_ratio_shift_검사():
     _assert_allclose(after[:-1], list(before[:-1]))
 
 
+# ── macd_hist_atr (MACD 히스토그램을 ATR로 정규화) ─────────────────────
+
+def test_macd_hist_atr_10행_손계산():
+    """fast=2, slow=3, signal=2 — `test_macd_10행_손계산` 의 `hist` 를
+    `test_atr_10행_손계산`(volatility, window=3) 의 ATR로 나눈다. 두 계열의 유효
+    구간이 겹치는 t=3 부터 값이 나온다(hist 는 t=3부터, atr 은 t=2부터 유효)."""
+    hist = [None, None, None, -0.08179012345679013, -0.10313786008230452,
+            -0.08397633744855967, 0.05443387059899406, 0.09509911789361378,
+            0.08209078741807652, 0.0565304146238717]
+    atr_w3 = [
+        None, None,
+        19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458,
+        31147 / 21870, 48643 / 32805, 136652 / 98415,
+    ]
+    expected = [
+        None if h is None else h / a
+        for h, a in zip(hist, atr_w3, strict=True)
+    ]
+    _assert_allclose(
+        indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2), expected
+    )
+
+
+def test_macd_hist_atr_shift_검사():
+    changed = PRICES[:-1] + [PRICES[-1] + 10_000.0]
+    atr_w3 = [
+        None, None,
+        19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458,
+        31147 / 21870, 48643 / 32805, 136652 / 98415,
+    ]
+    before = indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2)
+    after = indicators.macd_hist_atr(changed, atr_w3, fast=2, slow=3, signal=2)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_macd_hist_atr_길이가_다르면_에러():
+    atr_w3 = [None, None, 19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458]
+    with pytest.raises(ValueError):
+        indicators.macd_hist_atr(PRICES, atr_w3, fast=2, slow=3, signal=2)
+
+
 # ── 길이 계약 ────────────────────────────────────────────────────────────
 
 def test_모든_지표는_입력과_같은_길이를_돌려준다():
@@ -273,3 +334,4 @@ def test_모든_지표는_입력과_같은_길이를_돌려준다():
     assert len(indicators.percent_b(PRICES, window=3, num_std=2.0)) == n
     assert len(indicators.sma_gap(PRICES, short=2, long=3)) == n
     assert len(indicators.macd_hist_ratio(PRICES, fast=2, slow=3, signal=2)) == n
+    assert len(indicators.macd_hist_atr(PRICES, [0.0] * n, fast=2, slow=3, signal=2)) == n

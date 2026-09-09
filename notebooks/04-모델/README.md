@@ -1,68 +1,35 @@
 # 04-모델
 
-학습·예측·해석
+KOSPI200의 미래 5거래일 방향을 학습·예측하고 모델별 결과를 비교합니다.
 
 주로 쓰는 사람: **오준영**
 
-파일 이름은 `NN.주제.ipynb` 입니다.
-규칙은 [상위 README](../README.md) 를 보세요.
+파일 이름은 `NN.주제.ipynb`입니다. 규칙은 [상위 README](../README.md)를 보세요.
 
 ## 현재 상태
 
-`실험/조합A_rsi14_bb_bandwidth_hv20_vol_ratio20/`에서 같은 피처와 같은 12폴드
-워크포워드 조건으로 모델 네 종을 비교합니다.
+### KOSPI200
 
-| 모델 | 클래스 가중치 | 전체 OOS Accuracy | 전체 OOS Macro F1 | 하락 Recall |
-|---|---|---:|---:|---:|
-| Logistic Regression | balanced | 0.4028 | 0.3570 | 0.1176 |
-| RandomForest | None | 0.3736 | 0.3585 | 0.2353 |
-| XGBoost | balanced | 0.4111 | 0.3958 | 0.2500 |
-| LightGBM | balanced | 0.3653 | 0.3569 | 0.2745 |
+- A~F 여섯 피처 조합을 Logistic Regression·RandomForest·XGBoost·LightGBM으로 비교
+- 조합마다 기본·Daily Return·5Day Return·두 수익률 동시 추가를 실행
+- 모델 노트북 96개와 `05.모델비교.ipynb` 24개 실행 완료
+- 조합별 네 모델의 최우수 결과를 `KOSPI200/실험/조합별 best result/`에 정리
+- HF 전 종목 시장 내부 피처는 추가 실험 결과 성능 개선이 없어 A~F에는 미반영
 
-숫자는 KOSPI200 개발구간 720개 OOS 표본의 실측값입니다. RandomForest는 balanced에서
-주요 지표가 악화되어 기본 가중치를 유지했고, 나머지 세 모델은 balanced를
-적용했습니다. Accuracy와 Macro F1은 XGBoost가 가장 높고, 하락 Recall은
-LightGBM이 가장 높습니다. 네 모델 모두 최빈 클래스 기준선 Accuracy 0.4250을
-넘지 못했습니다.
+A~F 피처 설명, 공통 검증 조건과 최신 결과는
+[KOSPI200 실험 README](KOSPI200/실험/README.md)에 정리했습니다.
 
-표·클래스별 Recall·혼동행렬을 한눈에 보는 해석은
-[`05.모델비교.ipynb`](실험/조합A_rsi14_bb_bandwidth_hv20_vol_ratio20/05.모델비교.ipynb)에
-정리했습니다.
+### 개별종목
 
-### 조합 B
+- 업종 시가총액 상위 10개 × 업종별 보통주 시가총액 상위 5개로 최대 50종목 선정
+- A~G 일곱 피처 조합과 모델 4종, 총 28모델을 공통 171,557개 날짜·종목 행에서 비교
+- 날짜 그룹 expanding 12폴드·최초 학습 750일·검증 60일·gap 5 적용
+- 각 외부 폴드 안에서 `class_weight=None`과 `balanced` 재튜닝
+- 전체 최선 결과는 **조합 F LightGBM**, 핵심지표 조화평균 **0.3636**
+- 중립대 `±2.0%`를 유지하고 폴드별 학습 최빈 기준선과의 Accuracy 차이를 기록
+- KOSPI200 공통 OOS 720거래일의 Top-1·3·5를 방향별 무작위 기준선과 비교
+- KRX 등락률과 수정주가 수익률이 1%p 넘게 어긋난 `is_adj_suspect`만 제외
+- 조합별 결과를 `개별종목/실험/조합별 best result/`에 별표와 함께 정리
 
-`실험/조합B_sma_gap_5_20_macd_hist_ratio_rsi14_hv20/`에서 네 모델을 모두
-`class_weight="balanced"`로 비교합니다. XGBoost는 같은 의미의 표본 가중치로
-변환해 학습합니다.
-
-| 모델 | 전체 OOS Accuracy | 전체 OOS Macro F1 | 하락 Recall |
-|---|---:|---:|---:|
-| Logistic Regression | **0.3792** | 0.3258 | 0.0784 |
-| RandomForest | 0.3514 | 0.3392 | 0.2598 |
-| XGBoost | 0.3708 | 0.3556 | 0.2500 |
-| LightGBM | 0.3681 | **0.3570** | **0.3039** |
-
-Accuracy는 Logistic Regression이 가장 높고, Macro F1과 하락 Recall은 LightGBM이
-가장 높습니다. 하지만 네 모델 모두 최빈 클래스 기준선 Accuracy 0.4250을
-넘지 못했습니다. 표·클래스별 Recall·혼동행렬은
-[조합 B `05.모델비교.ipynb`](실험/조합B_sma_gap_5_20_macd_hist_ratio_rsi14_hv20/05.모델비교.ipynb)에
-정리했습니다.
-
-### 조합 C
-
-`실험/조합C_sma_gap_macd_rsi_bb_hv_volume/`에서 조합 B의 네 피처에
-`bb_position`과 `vol_ratio_20`을 추가한 여섯 피처로 네 모델을 비교합니다.
-네 모델 모두 `class_weight="balanced"`를 사용합니다.
-
-| 모델 | 전체 OOS Accuracy | 전체 OOS Macro F1 | 하락 Recall |
-|---|---:|---:|---:|
-| Logistic Regression | **0.3722** | 0.3421 | 0.1471 |
-| RandomForest | 0.3597 | 0.3464 | 0.2696 |
-| XGBoost | **0.3722** | 0.3582 | 0.2647 |
-| LightGBM | 0.3708 | **0.3599** | **0.2990** |
-
-Accuracy는 Logistic Regression과 XGBoost가 공동 1위고, Macro F1과 하락 Recall은
-LightGBM이 가장 높습니다. 네 모델 모두 최빈 클래스 기준선 Accuracy 0.4250을
-넘지 못했습니다. 표·클래스별 Recall·혼동행렬은
-[조합 C `05.모델비교.ipynb`](실험/조합C_sma_gap_macd_rsi_bb_hv_volume/05.모델비교.ipynb)에
-정리했습니다.
+피처·후보·3분류 확률·랭킹 구조와 상세 결과는
+[개별종목 README](개별종목/README.md)에 정리했습니다.

@@ -11,9 +11,9 @@
 
 | 무엇 | Postgres 가 주는 것 | 되돌리는 값 | 안 되돌리면 |
 |---|---|---|---|
-| `change_rate` | `Decimal('26.8100')` | `float` | `tmp_cache.write()` 의 `json.dumps` 가 `TypeError` 를 내는데 그 함수가 **예외를 삼킨다**(tmp_cache.py:102). 캐시가 영원히 안 써지고 로그도 안 남는다 |
-| `trade_date` | `datetime.date` | `date` 키는 `YYYY-MM-DD`, `bas_dd` 는 `YYYYMMDD` | `to_iso()` 가 문자열 슬라이싱이라 `TypeError`. pydantic `str` 필드는 `date` 를 coerce 하지 않아 **500** |
-| `listed_shares` | 두 표에 다 있다 | **`ohlcv` 쪽** | `securities` 쪽은 최신값이라 액면분할 종목의 과거 회전율이 10배 틀린다 (ADR-DS-0010) |
+| `change_rate` | `Decimal` | `float` | JSON 변환 실패를 캐시가 삼킨다 |
+| `trade_date` | `date` | 두 날짜 문자열 서식 | 문자열 처리에서 실패한다 |
+| `listed_shares` | 두 표에 존재 | `ohlcv` 값 | 최신값이면 과거 회전율이 틀린다 |
 
 ⚠️ **`date` 와 `bas_dd` 는 서식이 다르다.** `snapshot()`·`series()` 는 `date`(`YYYY-MM-DD`),
 `window()`·`latest_date()`·`available_dates()`·`stats()` 는 `YYYYMMDD` 다. `krx_store` 가

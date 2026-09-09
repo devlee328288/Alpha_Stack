@@ -206,3 +206,98 @@ def training_frames(codes: Iterable[str], *, holdout_start: Optional[str],
     for code in codes:
         yield code, training_frame(code, holdout_start=holdout_start,
                                    context=ctx, **kwargs)
+
+
+#: 반출본에 싣는 기업행위 판정 세 칸. 이 순서로 카드 표에 나간다.
+CORPORATE_ACTION_COLUMNS = ("is_liquidation", "is_halted", "is_first_listing")
+
+
+def attach_corporate_action_flags(frame: pd.DataFrame, *,
+                                  context: Optional[MarketContext] = None,
+                                  ) -> pd.DataFrame:
+    """시세 표에 **가격이 시장 수익률이 아닌 이유** 세 칸을 붙인다.
+
+    `training_frame` 은 이 판정으로 행을 *덜어내고*, 이 함수는 *표시만* 한다. 둘이
+    같은 함수(`flag_series`)를 쓰므로 판정이 갈리지 않는다.
+
+    ## 왜 이 함수가 필요한가
+
+    지금까지 작은 벌(`stocks_sample30_train_dev.csv`)은 이 셋을 덜어낸 표본이고
+    큰 벌(`full/daily_price_dev.parquet`)은 안 덜어낸 표본인데, **칸 구성만 보고는
+    그것을 알 수 없었다.** 큰 벌로 학습하면 작은 벌과 결과가 갈리는데 아무 경고도
+    없다. 판정을 파일에 실어 그 차이를 눈에 보이게 한다.
+
+    실측 2026-09-09 · 개발구간 7,888,945행:
+
+        is_liquidation      17,973  (0.228%)   정리매매 — 체결이 끊기기 직전 10체결일
+        is_halted          231,808  (2.938%)   거래정지 — 체결이 없던 행
+        is_first_listing     1,501  (0.019%)   신규상장 첫 거래일
+        ── 셋 중 하나라도  251,282  (3.185%)   겹침 0
+
+    ## 🔴 피처로 쓰면 안 된다
+
+    `is_liquidation` 은 *"이 뒤로 체결이 끊긴다"* 를 보고 매긴다. 그 시점에는 알 수
+    없는 사실이라 예측 시점의 피처로 넣으면 곧 미래참조다. **표본을 고르는 용도**로만
+    쓴다. 그래서 이 함수는 `as_of` 를 받지 않는다 — `supply` 의 시점 규칙 안에서
+    계산되면 안 되는 값이고, 반출 스크립트가 명시적으로 부른다.
+
+    ## 왜 DB 를 다시 읽나
+
+    `flag_series` 는 **그 종목의 전 구간**을 요구한다. 정리매매는 "체결이 끊기기 직전"
+    이라 이력의 끝을 봐야 하고, 신규상장은 첫 행을 봐야 한다. 개발구간만 잘라 넘기면
+    개발구간 끝에서 잘린 종목이 전부 정리매매로 오판된다. 그래서 전 구간을 읽어
+    판정한 뒤 입력 행에만 붙인다.
+    """
+    for col in ("bas_dd", "code"):
+        if col not in frame.columns:
+            raise ValueError(f"기업행위 판정을 붙이려면 '{col}' 칸이 있어야 한다.")
+
+    out = frame.copy()
+    if out.empty:
+        for col in CORPORATE_ACTION_COLUMNS:
+            out[col] = pd.Series([], dtype="bool")
+        return out
+
+    ctx = context or market_context()
+    with krx_store.connect() as conn:
+        conn.execute("PRAGMA cache_size = -1000000")
+        전구간 = pd.read_sql_query(
+            "SELECT bas_dd, code, open, high, low, volume, listed_shares "
+            "FROM daily_price ORDER BY code, bas_dd", conn)
+
+    키, 판정 = [], []
+    for code, g in 전구간.groupby("code", sort=False):
+        rows = g.to_dict("records")
+        flags = flag_series(rows, calendar_index=ctx.calendar_index,
+                            market_last_index=ctx.market_last_index,
+                            still_listed=code in ctx.listed_codes,
+                            collect_start=ctx.collect_start)
+        for r, f in zip(rows, flags, strict=True):
+            키.append((str(r["bas_dd"]), str(code)))
+            # 🔴 `is_halted` 는 `flag.halt_resume`(직전이 정지행) 이 아니라 **이 행에
+            #    체결이 있었나** 다. `training_frame` 이 덜어내는 기준과 같아야 큰 벌과
+            #    작은 벌이 같은 표본이 된다.
+            판정.append((f.liquidation, not is_traded(r), f.first_listing))
+
+    표 = pd.DataFrame(판정, columns=list(CORPORATE_ACTION_COLUMNS))
+    표["bas_dd"] = [k[0] for k in 키]
+    표["code"] = [k[1] for k in 키]
+
+    left = out[["bas_dd", "code"]].copy()
+    left["bas_dd"] = left["bas_dd"].astype(str)
+    left["code"] = left["code"].astype(str)
+    left["_order"] = range(len(left))
+    merged = left.merge(표, on=["bas_dd", "code"], how="left")
+    if len(merged) != len(left):
+        raise ValueError(
+            f"기업행위 판정 조인이 행을 늘렸다: {len(left):,} → {len(merged):,}."
+        )
+    빈것 = int(merged["is_liquidation"].isna().sum())
+    if 빈것:
+        raise ValueError(
+            f"판정을 못 붙인 행이 {빈것:,} 있다 — 입력 표에 `daily_price` 밖의 행이 있다."
+        )
+    merged = merged.sort_values("_order")
+    for col in CORPORATE_ACTION_COLUMNS:
+        out[col] = merged[col].to_numpy().astype(bool)
+    return out

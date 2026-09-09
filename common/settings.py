@@ -9,9 +9,9 @@
 
 | | `secrets.py` | `settings.py` (이 파일) |
 |---|---|---|
-| 무엇을 읽나 | 외부 API 인증키 (KRX·DART·FRED…) | 이 프로세스가 **어디서 도는가**와 그로부터 갈리는 값 |
+| 무엇을 읽나 | 외부 API 인증키 | 프로세스 실행 환경과 그로부터 갈리는 값 |
 | 어디서 찾나 | 환경변수 → `.env` → `.key` | **환경변수만** |
-| 왜 그 순서인가 | 강의 실습이 키를 파일에 두고 쓴다 | 실행 환경은 파일로 알 수 없다 — 같은 파일이 로컬과 배포본에 함께 실린다 |
+| 왜 그 순서인가 | 실습은 키를 파일에 둔다 | 실행 환경은 같은 파일로 구별할 수 없다 |
 | 없으면 | 그 API 만 503, 서버는 뜬다 | 기본값으로 떨어지거나 **즉시** 실패한다 |
 | 값의 성격 | 전부 비밀 (`mask()` 로 가림) | 대부분 비밀이 아니다 — `DATABASE_URL` 만 예외 |
 
@@ -459,7 +459,8 @@ def database_settings() -> DatabaseSettings:
             app_env=current,
             url=database_url(),
             expected_port=VERCEL_DB_PORT,
-            use_null_pool=True,           # 서버리스는 호출 사이에 얼었다 녹는다. 풀을 들고 있을 수 없다
+            # 서버리스는 호출 사이에 얼었다 녹으므로 풀을 유지할 수 없다.
+            use_null_pool=True,
             connect_args=VERCEL_CONNECT_ARGS,
             unique_statement_names=UNIQUE_STATEMENT_NAMES_ON_VERCEL,
         )

@@ -111,7 +111,10 @@ def _call(path: str, params: Dict[str, str]) -> Dict:
     """
     key, _ = load_fss_key()
     if not key:
-        raise RuntimeError("금융감독원 인증키가 없다 — .key 에 FINANCE_SUPERVISORY_API_KEY 를 넣는다")
+        raise RuntimeError(
+            "금융감독원 인증키가 없다 — "
+            ".key 에 FINANCE_SUPERVISORY_API_KEY 를 넣는다"
+        )
 
     query = urlencode({"auth": key, **params})
     request = Request(f"{FSS_BASE_URL}/{path}.json?{query}",

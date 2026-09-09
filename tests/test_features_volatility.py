@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 
 from features import volatility
@@ -154,6 +155,92 @@ def test_parkinson_volatility_shift_검사():
     _assert_allclose(after[:-1], list(before[:-1]))
 
 
+# ── atr_ratio (ATR 정규화) ──────────────────────────────────────────────
+
+def test_atr_ratio_10행_손계산():
+    """window=3 — `test_atr_10행_손계산` 의 ATR 을 CLOSE 로 나눈다."""
+    atr_w3 = [
+        None, None,
+        19 / 18, 65 / 54, 1109 / 810, 1676 / 1215, 2167 / 1458,
+        31147 / 21870, 48643 / 32805, 136652 / 98415,
+    ]
+    expected = [
+        None if a is None else a / c
+        for a, c in zip(atr_w3, CLOSE, strict=True)
+    ]
+    _assert_allclose(volatility.atr_ratio(HIGH, LOW, CLOSE, window=3), expected)
+
+
+def test_atr_ratio_shift_검사():
+    changed_high = HIGH[:-1] + [HIGH[-1] + 10_000.0]
+    changed_low = LOW[:-1] + [LOW[-1] + 10_000.0]
+    before = volatility.atr_ratio(HIGH, LOW, CLOSE, window=3)
+    after = volatility.atr_ratio(changed_high, changed_low, CLOSE, window=3)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+# ── hv_regime (변동성 레짐) ─────────────────────────────────────────────
+
+def test_hv_regime_10행_손계산():
+    """window=3, regime_window=3(10행 안에서 유효값이 나오게 작게 둔다) — `hv_20`
+    은 `test_historical_volatility_10행_손계산` 과 같다. 그 위에 3일 평균을 씌워
+    나눈다. `hv_20` 앞 3행이 nan이라, 3일 창이 전부 찬 t=5 부터 값이 나온다.
+
+        t=5: mean(hv[3], hv[4], hv[5]) 로 hv[5] 를 나눈다
+    """
+    hv20 = [
+        None, None, None,
+        0.10295139557290642, 0.10295139557290639, 0.009188491613517327,
+        0.11886483241253758, 0.11886483241253758, 0.009188491613517416,
+        0.0076433869614922715,
+    ]
+    expected = [None] * 5 + [
+        hv20[5] / (sum(hv20[3:6]) / 3),
+        hv20[6] / (sum(hv20[4:7]) / 3),
+        hv20[7] / (sum(hv20[5:8]) / 3),
+        hv20[8] / (sum(hv20[6:9]) / 3),
+        hv20[9] / (sum(hv20[7:10]) / 3),
+    ]
+    _assert_allclose(
+        volatility.hv_regime(CLOSE, window=3, regime_window=3, ddof=1), expected
+    )
+
+
+def test_hv_regime_shift_검사():
+    changed = CLOSE[:-1] + [CLOSE[-1] + 10_000.0]
+    before = volatility.hv_regime(CLOSE, window=3, regime_window=3, ddof=1)
+    after = volatility.hv_regime(changed, window=3, regime_window=3, ddof=1)
+    _assert_allclose(after[:-1], list(before[:-1]))
+
+
+def test_hv_regime_baseline_eps_경계():
+    """`_HV_REGIME_BASELINE_EPS`(#155) 경계에서 baseline 판정이 어떻게 갈리는지
+    직접 확인한다. `_rolling_mean`이 큰 창(기본 250일)에서 `nancumsum` 누적합
+    차분을 쓰다 보니 진짜 0인 baseline이 취소오차로 미세한 값(1e-11 안팎)이 되어
+    나올 수 있다 — eps 미만은 여전히 "baseline이 없다"로 취급해 NaN을 내고, eps를
+    넘는 값은 정상적으로 나눠진다는 것을 `hv_regime` 본문과 같은 판정식으로 잰다.
+    """
+    eps = volatility._HV_REGIME_BASELINE_EPS
+    assert eps == pytest.approx(1e-9)
+
+    daily_vol = np.array([0.02, 0.02])
+    baseline = np.array([eps * 0.1, eps * 10])  # 경계 아래 · 경계 위
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(baseline > eps, daily_vol / baseline, np.nan)
+
+    assert math.isnan(result[0]), "eps 미만 baseline은 취소오차로 보고 NaN이어야 한다"
+    assert result[1] == pytest.approx(daily_vol[1] / baseline[1])
+
+
+def test_hv_regime_baseline_완전히_0이면_nan():
+    """가격이 아예 안 움직이는 구간(`daily_vol`이 통째로 0)은 eps 도입 전과 똑같이
+    NaN이어야 한다 — eps가 "진짜 0"인 경우까지 값으로 바꿔치기하면 안 된다.
+    """
+    flat_close = [100.0] * 10
+    result = volatility.hv_regime(flat_close, window=3, regime_window=3, ddof=1)
+    assert all(math.isnan(v) for v in result[5:]), "무변동 구간은 여전히 NaN이어야 한다"
+
+
 # ── 길이 계약 ────────────────────────────────────────────────────────────
 
 def test_모든_지표는_입력과_같은_길이를_돌려준다():
@@ -162,3 +249,5 @@ def test_모든_지표는_입력과_같은_길이를_돌려준다():
     assert len(volatility.atr(HIGH, LOW, CLOSE, window=3)) == n
     assert len(volatility.historical_volatility(CLOSE, window=3)) == n
     assert len(volatility.parkinson_volatility(HIGH, LOW, window=3)) == n
+    assert len(volatility.atr_ratio(HIGH, LOW, CLOSE, window=3)) == n
+    assert len(volatility.hv_regime(CLOSE, window=3, regime_window=3)) == n

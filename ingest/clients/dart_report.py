@@ -79,7 +79,11 @@ def _number(text: str) -> Optional[float]:
     if not text:
         return None
     raw = text.strip()
-    negative = raw.startswith("△") or raw.startswith("▲") or (raw.startswith("(") and raw.endswith(")"))
+    negative = (
+        raw.startswith("△")
+        or raw.startswith("▲")
+        or (raw.startswith("(") and raw.endswith(")"))
+    )
     match = re.search(r"\d[\d,]*(?:\.\d+)?", raw)
     if not match:
         return None
@@ -227,8 +231,8 @@ def _share_labelled(rows: List[List[str]]) -> bool:
 
     | 거르는 것 | 왜 | 실측 |
     |---|---|---|
-    | **긴 칸 안에 섞인 '점유율'** | 문장이지 머리표가 아니다 | HLB펩 — `시장상황` 산문 칸에 "시장점유율 1위" 가 있어서 **시장규모 표**(세계 25,015억)가 점유율로 잡혔다 |
-    | **'매출액 점유율'** | 회사가 그렇게 쓰지만 뜻은 **매출 비중**이다 | 시그네틱스(해외 72%/국내 28%) · 상아프론테크(부문별 50.6%) |
+    | 긴 칸 안의 '점유율' | 문장이지 머리표가 아니다 | HLB펩 시장상황 산문 |
+    | '매출액 점유율' | 뜻은 매출 비중이다 | 시그네틱스 · 상아프론테크 |
 
     매출 비중을 slot 7(경쟁구조·시장 위치)에 싣는 것은 시장에서의 위치를 잘못 말하는 것이다.
     """

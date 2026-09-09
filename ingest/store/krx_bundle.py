@@ -23,7 +23,7 @@
 |---|---|---|
 | 기간 | 282거래일 | **150거래일** — 그보다 앞은 없다 |
 | 종목 메타 | 행마다 반복 | `stock` 표에 한 번 (JOIN 해서 붙인다) |
-| `market_cap` | 날짜별 실값 | 기준일만 실값. **과거 날짜는 `종가 × 최근 상장주식수` 근사** |
+| `market_cap` | 날짜별 실값 | 기준일 실값, 과거는 `종가 × 최근 상장주식수` 근사 |
 | 나머지 시세 | | 그대로 — 값을 역산하지 않는다 |
 
 시가총액을 왜 근사로 두는가 — 날짜별로 담으면 13자리 정수가 41만 개라 파일이 훌쩍 커진다.
@@ -31,7 +31,8 @@
 과거는 종가에 곱한다. 근사인 사실은 `stats()` 의 `notes` 에 적어 화면·리포트가 그대로 밝힌다.
 
 (`change`(전일대비)는 `close`·`change_rate` 로 역산해 뺐다가 되돌렸다. 등락률이 소수 2자리라
-삼성전자에서 55,500원이 55,497원으로 나왔다. 컬럼 하나가 1.2MB 인데 그 값을 어긋나게 둘 이유가 없다.)
+삼성전자에서 55,500원이 55,497원으로 나왔다. 컬럼 하나가 1.2MB 인데 그 값을
+어긋나게 둘 이유가 없다.)
 """
 
 from __future__ import annotations
@@ -185,9 +186,12 @@ def stats() -> Dict:
         "generated_at": info.get("generated_at") or "",
         "size_mb": size_mb,
         "notes": [
-            f"최근 {info.get('days') or 0}거래일만 담긴 축약본입니다. 그 이전 구간은 없습니다.",
-            "과거 날짜의 시가총액은 `종가 × 최근 상장주식수` 근사입니다 (기준일만 실값).",
-            "수동 갱신입니다 — `python3 scripts/build_krx_bundle.py` 후 다시 배포해야 최신이 됩니다.",
+            f"최근 {info.get('days') or 0}거래일만 담긴 축약본입니다. "
+            "그 이전 구간은 없습니다.",
+            "과거 날짜의 시가총액은 `종가 × 최근 상장주식수` 근사입니다 "
+            "(기준일만 실값).",
+            "수동 갱신입니다 — `python3 scripts/build_krx_bundle.py` 후 "
+            "다시 배포해야 최신이 됩니다.",
         ],
     }
 
@@ -269,7 +273,10 @@ def breadth_series(days: int = 120) -> List[Dict]:
     if take <= 0:
         return []
 
-    sliced = {key: (breadth.get(key) or [])[-take:] for key in ("up", "down", "flat", "value", "total")}
+    sliced = {
+        key: (breadth.get(key) or [])[-take:]
+        for key in ("up", "down", "flat", "value", "total")
+    }
     return [
         {
             "date": date,

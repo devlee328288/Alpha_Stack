@@ -145,15 +145,15 @@ def test_기본은_개발구간이고_홀드아웃은_명시해야_열린다():
 
     부르는 쪽이 아무것도 안 정하면 **안전한 쪽**이 나와야 한다.
     """
-    rows = [_행("20210831"), _행("20210901"), _행("20260825")]
+    rows = [_행("20240831"), _행("20240901"), _행("20260825")]
 
-    assert [r["bas_dd"] for r in horizon.split_dev(rows)] == ["20210831"]
-    assert [r["bas_dd"] for r in horizon.split_holdout(rows)] == ["20210901", "20260825"]
+    assert [r["bas_dd"] for r in horizon.split_dev(rows)] == ["20240831"]
+    assert [r["bas_dd"] for r in horizon.split_holdout(rows)] == ["20240901", "20260825"]
 
 
 def test_두_구간은_겹치지_않고_합치면_전체다():
     """경계 하루가 양쪽에 들어가거나 빠지면 표본 수가 조용히 어긋난다."""
-    rows = [_행(f"2021083{i}") for i in range(1, 2)] + [_행("20210901"), _행("20211001")]
+    rows = [_행(f"2024083{i}") for i in range(1, 2)] + [_행("20240901"), _행("20241001")]
 
     개발 = horizon.split_dev(rows)
     홀드 = horizon.split_holdout(rows)

@@ -1,0 +1,53 @@
+{
+  "kind": "sector",
+  "source": "C:\\Users\\kik32\\workspace\\EST-Camp-AI-Quant\\team_project\\Alpha_Stack\\data\\manual\\normalized\\sector\\업종분류현황_KOSPI_20190102.csv",
+  "schema_version": "1.0",
+  "rows_total": 901,
+  "encoding_candidates": [
+    "utf-8-sig",
+    "utf-8",
+    "cp949",
+    "euc-kr"
+  ],
+  "columns": {
+    "mapped": {
+      "기준일자": "bas_dd",
+      "종목코드": "code",
+      "종목명": "name",
+      "시장구분": "market",
+      "업종명": "sector_nm",
+      "종가": "close",
+      "대비": "change",
+      "등락률": "change_rate",
+      "시가총액": "market_cap"
+    },
+    "extras": [],
+    "unmapped_count": 0
+  },
+  "questions": [],
+  "file_meta": [],
+  "cleaners": [],
+  "cleaner_totals": {
+    "changed": 0,
+    "failed": 0
+  },
+  "derive": [],
+  "row_rules": [
+    {
+      "rule": "not_future",
+      "severity": "error",
+      "violations": 0
+    },
+    {
+      "rule": "is_business_day",
+      "severity": "warn",
+      "violations": 0
+    }
+  ],
+  "rows_accepted": 901,
+  "rows_quarantined": 0,
+  "quarantine_reasons": [],
+  "batch_id": "20260903T171456-6e18e29199dd",
+  "contributor": "이동원 · KRX Data Marketplace 화면 다운로드 (data/manual)",
+  "rejected": null
+}

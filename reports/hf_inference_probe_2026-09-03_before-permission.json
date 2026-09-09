@@ -1,0 +1,625 @@
+{
+  "measured_at_kst": "2026-09-03T11:27:25+09:00",
+  "router": "https://router.huggingface.co/hf-inference/models/{id}",
+  "legacy": "https://api-inference.huggingface.co/models/{id}",
+  "rows": [
+    {
+      "model": "ProsusAI/finbert",
+      "claimed_license": "MIT",
+      "usage": "영문 금융 감성",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": null,
+        "license_card": null,
+        "pipeline_tag": "text-classification",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 4949081,
+        "likes": 1234,
+        "params": null,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "text-classification"
+          }
+        },
+        "architectures": "BertForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 290,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ 라이선스 미표기 (제약 3)"
+    },
+    {
+      "model": "yiyanghkust/finbert-tone",
+      "claimed_license": "MIT",
+      "usage": "어조(Hawkish/Dovish) 수치화",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": null,
+        "license_card": null,
+        "pipeline_tag": "text-classification",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 804042,
+        "likes": 223,
+        "params": null,
+        "inference": null,
+        "providers": {
+          "hf-inference": {
+            "status": "error",
+            "task": "text-classification"
+          }
+        },
+        "architectures": "BertForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 246,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ 라이선스 미표기 (제약 3)"
+    },
+    {
+      "model": "BAAI/bge-m3",
+      "claimed_license": "MIT",
+      "usage": "다국어 임베딩 · 중복 제거",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "sentence-similarity",
+        "library": "sentence-transformers",
+        "gated": false,
+        "downloads_30d": 37079940,
+        "likes": 3463,
+        "params": null,
+        "inference": null,
+        "providers": {
+          "hf-inference": {
+            "status": "error",
+            "task": "sentence-similarity"
+          }
+        },
+        "architectures": "XLMRobertaModel"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 266,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ mit · 원격 제공 안 함 (403 · 제공자 없음)"
+    },
+    {
+      "model": "HuggingFaceFW/fineweb-edu-classifier",
+      "claimed_license": "Apache-2.0",
+      "usage": "저정보·광고 필터",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "text-classification",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 12061,
+        "likes": 226,
+        "params": 109483009,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "text-classification"
+          }
+        },
+        "architectures": "BertForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 234,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 apache-2.0 · 제공자 ['hf-inference'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "jhgan/ko-sroberta-multitask",
+      "claimed_license": "Apache-2.0",
+      "usage": "한국어 임베딩 · 군집",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": null,
+        "license_card": null,
+        "pipeline_tag": "sentence-similarity",
+        "library": "sentence-transformers",
+        "gated": false,
+        "downloads_30d": 908465,
+        "likes": 150,
+        "params": 110618626,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "sentence-similarity"
+          }
+        },
+        "architectures": "RobertaModel"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 230,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ 라이선스 미표기 (제약 3)"
+    },
+    {
+      "model": "snunlp/KR-FinBert-SC",
+      "claimed_license": "CC-BY-NC-SA-4.0",
+      "usage": "한국어 금융 감성",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": null,
+        "license_card": null,
+        "pipeline_tag": "text-classification",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 77332,
+        "likes": 40,
+        "params": null,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "text-classification"
+          }
+        },
+        "architectures": "BertForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 257,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ 라이선스 미표기 (제약 3)"
+    },
+    {
+      "model": "gliner-community/gliner_medium-v2.5",
+      "claimed_license": "Apache-2.0",
+      "usage": "제로샷 NER",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "token-classification",
+        "library": "gliner",
+        "gated": false,
+        "downloads_30d": 1038,
+        "likes": 11,
+        "params": null,
+        "inference": null,
+        "providers": {},
+        "architectures": null
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 251,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ apache-2.0 · 원격 제공 안 함 (403 · 제공자 없음)"
+    },
+    {
+      "model": "knowledgator/gliner-relex-large",
+      "claimed_license": "Apache-2.0",
+      "usage": "관계 추출",
+      "encoder": true,
+      "card": {
+        "card_status": 404
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 225,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ 카드 없음 (404)"
+    },
+    {
+      "model": "microsoft/table-transformer-structure-recognition",
+      "claimed_license": "MIT",
+      "usage": "표 구조 인식 (이미지)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "object-detection",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 1136428,
+        "likes": 227,
+        "params": 28847819,
+        "inference": null,
+        "providers": {},
+        "architectures": "TableTransformerForObjectDetection"
+      },
+      "inference": {
+        "skipped": "시험 입력 없음 (비전 모델이거나 베이스 인코더)"
+      },
+      "verdict": "🟡 mit · 호출 안 함 · 제공자 없음"
+    },
+    {
+      "model": "nlpai-lab/KURE-v1",
+      "claimed_license": "MIT",
+      "usage": "한국어 임베딩 (조사 §5)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "feature-extraction",
+        "library": "sentence-transformers",
+        "gated": false,
+        "downloads_30d": 371255,
+        "likes": 93,
+        "params": 567754752,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "feature-extraction"
+          }
+        },
+        "architectures": "XLMRobertaModel"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 229,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 mit · 제공자 ['hf-inference'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "kakaobank/kf-deberta-base",
+      "claimed_license": "MIT",
+      "usage": "금융 도메인 인코더 (조사 §5)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "fill-mask",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 24574,
+        "likes": 55,
+        "params": null,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "fill-mask"
+          }
+        },
+        "architectures": "DebertaV2ForMaskedLM"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 226,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 mit · 제공자 ['hf-inference'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "FISA-conclave/klue-roberta-news-sentiment",
+      "claimed_license": "Apache-2.0",
+      "usage": "뉴스 3분류 감성 (조사 §5)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "text-classification",
+        "library": null,
+        "gated": false,
+        "downloads_30d": 18129,
+        "likes": 0,
+        "params": 110620419,
+        "inference": null,
+        "providers": {},
+        "architectures": "RobertaForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 243,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "❌ apache-2.0 · 원격 제공 안 함 (403 · 제공자 없음)"
+    },
+    {
+      "model": "monologg/koelectra-base-v3-discriminator",
+      "claimed_license": "Apache-2.0",
+      "usage": "한국어 인코더 베이스 (조사 §5)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": null,
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 11529,
+        "likes": 40,
+        "params": null,
+        "inference": null,
+        "providers": {},
+        "architectures": "ElectraForPreTraining"
+      },
+      "inference": {
+        "skipped": "시험 입력 없음 (비전 모델이거나 베이스 인코더)"
+      },
+      "verdict": "🟡 apache-2.0 · 호출 안 함 · 제공자 없음"
+    },
+    {
+      "model": "joeddav/xlm-roberta-large-xnli",
+      "claimed_license": "(미확인)",
+      "usage": "다국어 제로샷 분류 (hf_data.py 기본값)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "zero-shot-classification",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 104817,
+        "likes": 293,
+        "params": 560943621,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "zero-shot-classification"
+          }
+        },
+        "architectures": "XLMRobertaForSequenceClassification"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 258,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 mit · 제공자 ['hf-inference'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "intfloat/multilingual-e5-large",
+      "claimed_license": "(미확인)",
+      "usage": "다국어 임베딩 (제공자 둘)",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "feature-extraction",
+        "library": "sentence-transformers",
+        "gated": false,
+        "downloads_30d": 7079143,
+        "likes": 1245,
+        "params": 559890946,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "feature-extraction"
+          },
+          "deepinfra": {
+            "status": "live",
+            "task": "feature-extraction"
+          }
+        },
+        "architectures": "XLMRobertaModel"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 223,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 mit · 제공자 ['hf-inference', 'deepinfra'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "claimed_license": "(미확인)",
+      "usage": "경량 다국어 임베딩",
+      "encoder": true,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "sentence-similarity",
+        "library": "sentence-transformers",
+        "gated": false,
+        "downloads_30d": 45878934,
+        "likes": 1361,
+        "params": 117654272,
+        "inference": "warm",
+        "providers": {
+          "hf-inference": {
+            "status": "live",
+            "task": "sentence-similarity"
+          }
+        },
+        "architectures": "BertModel"
+      },
+      "inference": {
+        "router": {
+          "status": 403,
+          "ms": 223,
+          "body": "{\"error\": \"This authentication method does not have sufficient permissions to call Inference Providers on behalf of user data-student\"}"
+        }
+      },
+      "verdict": "🟡 apache-2.0 · 제공자 ['hf-inference'] 인데 토큰 권한 없음(403)"
+    },
+    {
+      "model": "rbehzadan/ReaderLM-v2",
+      "claimed_license": "MIT",
+      "usage": "HTML→Markdown (생성형)",
+      "encoder": false,
+      "card": {
+        "card_status": 404
+      },
+      "inference": {
+        "skipped": "생성형 — 호출하지 않음"
+      },
+      "verdict": "❌ 생성형 (제약 2)"
+    },
+    {
+      "model": "numind/NuExtract-large",
+      "claimed_license": "MIT",
+      "usage": "텍스트→JSON (생성형)",
+      "encoder": false,
+      "card": {
+        "card_status": 200,
+        "license_tag": "mit",
+        "license_card": "mit",
+        "pipeline_tag": "text-generation",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 21,
+        "likes": 122,
+        "params": 7392274432,
+        "inference": null,
+        "providers": {},
+        "architectures": "Phi3SmallForCausalLM"
+      },
+      "inference": {
+        "skipped": "생성형 — 호출하지 않음"
+      },
+      "verdict": "❌ 생성형 (제약 2)"
+    },
+    {
+      "model": "facebook/nougat-base",
+      "claimed_license": "MIT",
+      "usage": "PDF OCR (생성형)",
+      "encoder": false,
+      "card": {
+        "card_status": 200,
+        "license_tag": "cc-by-nc-4.0",
+        "license_card": "cc-by-nc-4.0",
+        "pipeline_tag": "image-to-text",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 89690,
+        "likes": 189,
+        "params": 348736012,
+        "inference": null,
+        "providers": {},
+        "architectures": "VisionEncoderDecoderModel"
+      },
+      "inference": {
+        "skipped": "생성형 — 호출하지 않음"
+      },
+      "verdict": "❌ 생성형 (제약 2)"
+    },
+    {
+      "model": "openai/whisper-large-v3",
+      "claimed_license": "MIT",
+      "usage": "음성→텍스트 (생성형)",
+      "encoder": false,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "automatic-speech-recognition",
+        "library": "transformers",
+        "gated": false,
+        "downloads_30d": 4972119,
+        "likes": 6219,
+        "params": 1543490560,
+        "inference": "warm",
+        "providers": {
+          "fal-ai": {
+            "status": "live",
+            "task": "automatic-speech-recognition"
+          },
+          "together": {
+            "status": "live",
+            "task": "automatic-speech-recognition"
+          },
+          "replicate": {
+            "status": "live",
+            "task": "automatic-speech-recognition"
+          },
+          "hf-inference": {
+            "status": "live",
+            "task": "automatic-speech-recognition"
+          },
+          "deepinfra": {
+            "status": "live",
+            "task": "automatic-speech-recognition"
+          }
+        },
+        "architectures": "WhisperForConditionalGeneration"
+      },
+      "inference": {
+        "skipped": "생성형 — 호출하지 않음"
+      },
+      "verdict": "❌ 생성형 (제약 2)"
+    },
+    {
+      "model": "stepfun-ai/GOT-OCR2_0",
+      "claimed_license": "Apache-2.0",
+      "usage": "차트 OCR (생성형)",
+      "encoder": false,
+      "card": {
+        "card_status": 200,
+        "license_tag": "apache-2.0",
+        "license_card": "apache-2.0",
+        "pipeline_tag": "image-text-to-text",
+        "library": null,
+        "gated": false,
+        "downloads_30d": 686815,
+        "likes": 1558,
+        "params": 716033280,
+        "inference": null,
+        "providers": {},
+        "architectures": "GOTQwenForCausalLM"
+      },
+      "inference": {
+        "skipped": "생성형 — 호출하지 않음"
+      },
+      "verdict": "❌ 생성형 (제약 2)"
+    }
+  ]
+}

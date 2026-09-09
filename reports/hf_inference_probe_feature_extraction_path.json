@@ -1,0 +1,20 @@
+{
+ "path": "/pipeline/feature-extraction",
+ "rows": {
+  "BAAI/bge-m3": {
+   "status": 504,
+   "ms": 120320,
+   "body": "<html>\r\n<head><title>504 Gateway Time-out</title></head>\r\n<body>\r\n<center><h1>504 Gateway Time-out</h1></center>\r\n</body>\r\n</html>\r\n"
+  },
+  "jhgan/ko-sroberta-multitask": {
+   "status": 200,
+   "ms": 5822,
+   "body": "vector[1x768]"
+  },
+  "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": {
+   "status": 200,
+   "ms": 302,
+   "body": "vector[1x384]"
+  }
+ }
+}

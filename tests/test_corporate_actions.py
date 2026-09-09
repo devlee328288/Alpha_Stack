@@ -19,6 +19,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 from fractions import Fraction
 
+import pytest
+
 from common import corporate_actions as ca
 
 
@@ -304,14 +306,97 @@ def test_재개일에_주식수가_그대로면_조정하지_않는다():
 
 
 def test_재개일_주식수_변동이_미미하면_조정하지_않는다():
-    """1.5배 문턱 아래는 자본변동으로 치지 않는다. 실측에서 잡음은 1.1배 아래였다."""
+    """1.1배 문턱 아래는 주식수가 그대로인 것과 같다. 실측에서 잡음은 1.1배 아래였다."""
     rows = [
         _행(CAL[0], close=1000, shares=1000),
         _행(CAL[1], close=1000, shares=1000, halted=True),
-        _분할행(CAL[2], close=5000, change=0, shares=1200),      # 1.2배 — 문턱 아래
+        _분할행(CAL[2], close=5000, change=0, shares=1050),      # 1.05배 — 문턱 아래
     ]
 
     assert ca.factor_series(rows)[2] == 1
+
+
+# ── 재개일에 주식수 배율이 기준가를 설명하지 못하는 날 (2026-09-07 · DART 39건 대조) ──
+
+def test_재개일_인적분할은_주식수배율이_아니라_기준가로_잡는다():
+    """신세계 2011-06-10 의 실제 모양 — 이마트를 떼어 내며 주식수 ×1/3.83, 기준가 1.31배.
+
+    배율 3.83 을 쓰면 분할 전 가격이 3.83배 부풀어 그날 −60.6% 가짜 폭락이 된다.
+    KRX 등락률은 +14.95% 였고, 기준가(354,500)로 이어야 그 값이 나온다.
+    """
+    rows = [
+        _행(CAL[0], close=270_000, shares=37_721_000),
+        _행(CAL[1], close=270_000, shares=37_721_000, halted=True),
+        _분할행(CAL[2], close=407_500, change=53_000, shares=9_845_181),
+    ]
+
+    factors = ca.factor_series(rows)
+
+    assert factors[2] == Fraction(354_500, 270_000)
+    # 그 계수로 이으면 재개일 수익률이 KRX 등락률(+14.95%)과 같다
+    재개일수익률 = float(Fraction(407_500, 270_000) / factors[2] - 1) * 100
+    assert 재개일수익률 == pytest.approx(14.95, abs=0.01)
+
+
+def test_재개일_회생_감자는_배율이_아니라_거래소_기준가를_따른다():
+    """남광토건 2013-02-15 — 회생계획 감자 2.67:1 인데 기준가는 전일종가의 40배.
+
+    출자전환으로 회사가 새로 값이 매겨졌다. 배율 2.67 만 쓰면 나머지 15배가
+    +1,172% 가짜 수익률로 남는다. 기준가로 이으면 정지 구간을 가로지르는 수익률이
+    사라진다 — CRSP 가 회생 재상장을 새 시리즈로 끊는 것과 같은 효과다.
+    """
+    rows = [
+        _행(CAL[0], close=145, shares=2_670),
+        _행(CAL[1], close=145, shares=2_670, halted=True),
+        _분할행(CAL[2], close=4_930, change=-870, shares=1_000),   # 기준가 5,800 = ×40
+    ]
+
+    factors = ca.factor_series(rows)
+
+    assert factors[2] == Fraction(5_800, 145)
+
+
+def test_재개일_주식수_소폭변동_인적분할도_기준가로_잡는다():
+    """NAVER 2013-08-29 — NHN엔터를 떼어 내며 주식수 ×0.685, 기준가 1.567배.
+
+    1.5배 문턱 아래라 옛 규칙은 아무것도 안 했고, 그날 +63.5% 가짜 수익률이 남았다.
+    감자는 실측에서 전부 2배 이상이므로 1.1~1.5배 변동은 분할·합병으로 본다.
+    """
+    rows = [
+        _행(CAL[0], close=293_500, shares=48_127_704),
+        _행(CAL[1], close=293_500, shares=48_127_704, halted=True),
+        _분할행(CAL[2], close=480_000, change=20_000, shares=32_962_679),
+    ]
+
+    factors = ca.factor_series(rows)
+
+    assert factors[2] == Fraction(460_000, 293_500)
+
+
+def test_재개일_출자전환은_가격이_연속이라_조정하지_않는다():
+    """태영건설 2024-07-22 — 주식수 ×24.9 인데 KRX 등락률 0.00%. 기준가 = 전일종가.
+
+    옛 규칙은 여기서 1/24.9 를 만들었다. 기준가가 배율을 안 따르면 기준가가 답이고,
+    기준가비가 1 이면 계수도 1 이다.
+    """
+    rows = [
+        _행(CAL[0], close=2_000, shares=1_000),
+        _행(CAL[1], close=2_000, shares=1_000, halted=True),
+        _분할행(CAL[2], close=2_000, change=0, shares=24_900),
+    ]
+
+    assert ca.factor_series(rows)[2] == 1
+
+
+def test_재개일_감자_시초가가_호가범위_안이면_정확한_배율을_쓴다():
+    """감자 5:1 뒤 시초가가 평가가격의 80% 에 잡혔다 — 그 −20% 는 수익률이지 조정이 아니다."""
+    rows = [
+        _행(CAL[0], close=1_000, shares=5_000),
+        _행(CAL[1], close=1_000, shares=5_000, halted=True),
+        _분할행(CAL[2], close=4_100, change=100, shares=1_000),    # 기준가 4,000 = 5,000 × 0.8
+    ]
+
+    assert ca.factor_series(rows)[2] == 5
 
 
 def test_재개일_액면병합도_주식수배율로_잡는다():

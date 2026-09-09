@@ -47,6 +47,13 @@ from supply.market import (
     to_frame,
 )
 from supply.training import MarketContext, market_context, training_frame, training_frames
+from supply.universe import (
+    UNIVERSE_COLUMNS,
+    common_stocks,
+    coverage,
+    excluded,
+    top_by_market_cap,
+)
 
 __all__ = [
     # 시각·경계
@@ -64,6 +71,12 @@ __all__ = [
     "index_series",
     "price_series",
     "to_frame",
+    # 유니버스 — 그날 무엇을 후보로 삼을 수 있었나 (보통주 판별은 KRX 정본으로)
+    "UNIVERSE_COLUMNS",
+    "common_stocks",
+    "coverage",
+    "excluded",
+    "top_by_market_cap",
     # 학습 경로 — 여기서만 미래를 본다 (supply/training.py 를 읽고 쓴다)
     "MarketContext",
     "market_context",

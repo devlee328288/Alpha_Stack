@@ -5,7 +5,7 @@
 
 KOSIS OpenAPI 의 특징 (실제 호출로 확인, 2026-07)
 ------------------------------------------------
-1. **에러도 HTTP 200 으로 온다.** 본문이 `{"err":"11","errMsg":"유효하지않은 인증KEY입니다."}`
+1. **에러도 HTTP 200 으로 온다.** 본문이 `{"err":"11", ...}`
    같은 객체면 실패, 정상이면 배열(`[...]`)이다. 상태 코드만 봐서는 성공을 판단할 수 없다.
 2. **연속 호출하면 연결을 끊는다.** 짧은 간격으로 3번 부르면 `Connection reset by peer` 가
    난다. 그래서 재시도 간격을 두고 다시 시도한다.
@@ -17,7 +17,7 @@ KOSIS OpenAPI 의 특징 (실제 호출로 확인, 2026-07)
 | 함수 | KOSIS 경로 | 쓰임 |
 |---|---|---|
 | `search_tables` | `statisticsSearch.do` | 통계표 검색 (1단계 — 무엇을 볼지 고른다) |
-| `fetch_meta` | `statisticsData.do?method=getMeta` | 항목(ITM)·기간(PRD) 목록 (2단계 — 파라미터 조립) |
+| `fetch_meta` | `statisticsData.do?method=getMeta` | 항목·기간 목록과 파라미터 조립 |
 | `fetch_data` | `Param/statisticsParameterData.do` | 실제 통계 수치 (3단계 — 그린다) |
 """
 
@@ -309,7 +309,16 @@ def build_chart(rows: List[Dict], max_series: int = 12) -> Dict:
 
     # 가로축 — 기간을 코드 순으로 정렬한다 (문자열이지만 자릿수가 같아 사전순 = 시간순).
     periods = sorted({r["period"] for r in rows if r["period"]})
-    labels = {p: period_label(p, next((r["period_type"] for r in rows if r["period"] == p), "")) for p in periods}
+    labels = {
+        period: period_label(
+            period,
+            next(
+                (r["period_type"] for r in rows if r["period"] == period),
+                "",
+            ),
+        )
+        for period in periods
+    }
 
     # 시리즈 이름 — 분류와 항목 중 **여러 값이 있는 쪽만** 이름에 넣어 짧게 유지한다.
     many_groups = len({r["group_label"] for r in rows}) > 1

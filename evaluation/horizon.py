@@ -31,7 +31,7 @@ import math
 from typing import Dict, List, Sequence, Tuple
 
 #: 봉인 홀드아웃 시작일. 이 앞이 개발구간이다.
-HOLDOUT_START = "20210901"
+HOLDOUT_START = "20240901"
 
 #: 3분류 중립 밴드. 예측 대상 ADR 이 못 박은 값이다.
 NEUTRAL_BAND = 0.01

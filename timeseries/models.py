@@ -147,9 +147,11 @@ def ljung_box(resid: Sequence, lags: int = LJUNG_BOX_LAGS,
         "df": df,
         # p ≥ 0.05 면 "백색잡음이 아니라고 말할 근거가 없다" — 채택이 아니라 미기각이다
         "white_noise": bool(p_value >= 0.05),
-        "note": ("잔차에서 자기상관을 찾지 못했습니다 (p ≥ 0.05) — 모형이 구조를 걷어냈습니다."
-                 if p_value >= 0.05 else
-                 f"잔차에 자기상관이 남아 있습니다 (p={p_value:.4f} < 0.05) — 차수를 다시 볼 필요가 있습니다."),
+        "note": (
+            "잔차에서 자기상관을 찾지 못했습니다 (p ≥ 0.05)."
+            if p_value >= 0.05
+            else f"잔차에 자기상관이 남았습니다 (p={p_value:.4f} < 0.05)."
+        ),
         "limitation": "p값은 Wilson–Hilferty 근사입니다 (자유도가 작을수록 오차가 큽니다).",
     }
 
@@ -428,7 +430,10 @@ def select_order(values: Sequence, max_p: int = DEFAULT_MAX_P, max_q: int = DEFA
         # 설명력이 낮더라도 안전한 쪽이 낫다.
         return {
             "available": False, "p": 1, "d": d_final, "q": 0,
-            "reason": "안정적인 후보를 찾지 못했습니다 (AR 근이 단위원 안). ARIMA(1,d,0) 으로 물러납니다.",
+            "reason": (
+                "안정적인 후보를 찾지 못했습니다 (AR 근이 단위원 안). "
+                "ARIMA(1,d,0) 으로 물러납니다."
+            ),
             "d_reason": d_info.get("reason"),
             "candidates": sorted(candidates, key=lambda c: c["aic"])[:10],
         }
@@ -444,10 +449,15 @@ def select_order(values: Sequence, max_p: int = DEFAULT_MAX_P, max_q: int = DEFA
         if alternative:
             residual_note = (
                 f" AIC 최적 ARIMA({best['p']},{d_final},{best['q']}) 는 잔차에 자기상관이 남아 "
-                f"ARIMA({alternative['p']},{d_final},{alternative['q']}) 로 바꿉니다 (백색잡음 통과).")
+                f"ARIMA({alternative['p']},{d_final},{alternative['q']}) 로 "
+                "바꿉니다 (백색잡음 통과)."
+            )
             best = alternative
         else:
-            residual_note = " 모든 후보의 잔차에 자기상관이 남아 있습니다 — 예측을 넓게 읽어야 합니다."
+            residual_note = (
+                " 모든 후보의 잔차에 자기상관이 남아 있습니다 — "
+                "예측을 넓게 읽어야 합니다."
+            )
 
     return {
         "available": True,

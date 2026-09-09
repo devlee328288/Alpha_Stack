@@ -198,3 +198,92 @@ def parkinson_volatility(
 
     out[window - 1:] = vol
     return out
+
+
+def _rolling_mean(x: np.ndarray, window: int) -> np.ndarray:
+    """`indicators.sma` 와 같은 누적합 트릭의 범용판 — 원계열이 아니라 이미 계산된
+    배열(예: `historical_volatility` 의 출력)에 그대로 적용하려고 로컬로 둔다
+    (`hv_regime` 전용, `_to_array` 변환은 호출하는 쪽에서 이미 끝난 배열을 받는다).
+    """
+    window = max(1, int(window))
+    n = x.size
+    out = np.full(n, np.nan)
+    if n < window:
+        return out
+
+    cumulative = np.concatenate(([0.0], np.nancumsum(x)))
+    sums = cumulative[window:] - cumulative[:-window]
+
+    # 창 안에 결측(워밍업으로 인한 nan 포함)이 하나라도 있으면 그 창은 통째로 nan
+    # (#18) — `sma`·`volume_sma` 와 같은 규약.
+    nan_cumulative = np.concatenate(([0], np.cumsum(np.isnan(x))))
+    nan_counts = nan_cumulative[window:] - nan_cumulative[:-window]
+
+    out[window - 1:] = np.where(nan_counts > 0, np.nan, sums / window)
+    return out
+
+
+def atr_ratio(high: Sequence, low: Sequence, close: Sequence, window: int = 14) -> np.ndarray:
+    """ATR을 종가로 정규화한 변동성 비율 — `atr_ratio_t = atr_t / close_t`.
+
+    시점 규칙: `atr_t`가 t 시점까지의 True Range만 Wilder 평활한 값이고 `close_t`도
+    t 시점 자기 자신의 종가이므로, t 시점까지의 자료만 쓴다(look-ahead 없음).
+
+    `atr()`는 가격 단위(원)라 종목마다·시기마다 스케일이 다르다 —
+    `indicators.macd_hist_ratio`가 MACD 히스토그램을 종가로 나눠 스케일을 지운 것과
+    같은 이유로, ATR도 종가로 나누면 종목·시점 간에 비교 가능한 비율이 된다.
+
+    ⚠️ `historical_volatility`(hv_20)와 실측 상관계수 0.926(#37, KOSPI200 개발구간
+    직접 검증) — 둘 다 "최근 며칠간 얼마나 출렁였나"를 재는 같은 변동성 축이다.
+    X조합에 함께 넣지 말고 하나만 남기는 걸 권장한다(#37 검토 의견).
+    """
+    c = _to_array(close)
+    atr_values = atr(high, low, close, window=window)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(c != 0, atr_values / c, np.nan)
+    return result
+
+
+# `hv_regime`의 baseline 판정에만 쓰는 임계값(#155) — 다른 0-나눗셈 가드(`atr_ratio`의
+# `close != 0`, `historical_volatility`의 `px > 0` 등)는 전부 경계를 그대로 `0`으로
+# 두고, 여기만 예외로 eps를 둔다. `_rolling_mean`이 `nancumsum` 누적합 차분으로
+# `regime_window`(기본 250)일 이동평균을 내는데, 다른 호출부(14·20일)보다 창이
+# 훨씬 커 큰 수끼리 빼는 취소오차가 쌓인다 — KOSPI 개발구간 전수 대조(1,224종목·
+# 2,984,824행)에서 최대 절대오차 9.481e-11, `baseline > 0` 판정이 pandas
+# `rolling().mean()` 기준과 갈리는 행이 73개 나왔다(전부 저유동성 종목의 거의
+# 무변동 구간 — 조합 H 실제 학습 패널(업종 시총 상위 164종목·175,914행)로는 실측
+# 불일치 0건, #155). eps는 그 오차보다 한 자리 위(1e-9)로 잡아, 뜬 오차로 인한
+# 판정 흔들림만 걸러내고 실제 유의미한 baseline은 그대로 통과시킨다.
+_HV_REGIME_BASELINE_EPS = 1e-9
+
+
+def hv_regime(
+    prices: Sequence,
+    window: int = 20,
+    regime_window: int = 250,
+    ddof: int = 1,
+) -> np.ndarray:
+    """지금 변동성이 최근 `regime_window`일 평균 대비 몇 배인가.
+
+        hv_regime_t = hv_20_t / mean(hv_20_(t-regime_window+1 .. t))
+
+    시점 규칙: `hv_20_t`(`historical_volatility`)는 t 시점까지의 로그수익률만 쓰고,
+    그 위에 씌우는 `regime_window`일 평균도 t 시점까지의 `hv_20` 과거값만 본다 —
+    두 단계 다 미래를 보지 않는다. `hv_20`의 워밍업 구간(앞쪽 `window`행, `nan`)이
+    `regime_window` 창에 섞이면 그 창도 `nan`이 된다(`_rolling_mean` 규약) — 실제로는
+    `window + regime_window - 1`행 이후부터 값이 나온다.
+
+    1을 기준으로 위(>1)면 평소보다 시끄러운 레짐, 아래(<1)면 평소보다 잠잠한 레짐 —
+    `hv_20`의 절대 수준이 종목·시기마다 다른 문제를 자기 자신의 최근 이력으로
+    정규화해 비교 가능하게 만든다(#37 검토 의견 — 기존 원자 함수엔 없던 "레짐" 개념).
+
+    baseline 판정은 `> 0`이 아니라 `> _HV_REGIME_BASELINE_EPS`를 쓴다 — 이유는 그
+    상수 정의 주석 참고(#155).
+    """
+    daily_vol = historical_volatility(prices, window=window, ddof=ddof, annualize=False)
+    baseline = _rolling_mean(daily_vol, regime_window)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        result = np.where(
+            baseline > _HV_REGIME_BASELINE_EPS, daily_vol / baseline, np.nan
+        )
+    return result

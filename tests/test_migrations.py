@@ -242,3 +242,209 @@ def test_표_이름에_이상한_것이_오면_거부한다(tmp_path):
             mig.column_names(conn, "t; DROP TABLE daily_price")
     finally:
         conn.close()
+
+
+# ── 배정표 정합 — 세 곳이 조용히 어긋나지 않게 ─────────────────────────────
+
+def test_다음_번호_상수가_실제_최신과_맞는다():
+    """`sqlite_db.NEXT_MIGRATION_VERSION` 은 사람이 손으로 적는 값이라 잊기 쉽다.
+
+    이 상수는 *"다음 갈래가 어느 번호를 선점할지"* 를 알리는 유일한 자리인데, 코드
+    어디서도 쓰이지 않아 **어긋나도 아무 일이 안 일어난다.** 그러다 두 갈래가 같은
+    번호를 잡으면, 그 번호를 이미 적용한 DB 는 나중에 그 자리에 들어온 항목을
+    **영원히 건너뛴다** — 예외도 경고도 없다. 그래서 여기서 잠근다.
+    """
+    from ingest.store.sqlite_db import NEXT_MIGRATION_VERSION
+
+    assert NEXT_MIGRATION_VERSION == mig.LATEST_VERSION + 1, (
+        f"배정표가 어긋났다 — 코드의 최신은 v{mig.LATEST_VERSION} 인데 "
+        f"'다음 빈 번호' 는 v{NEXT_MIGRATION_VERSION} 로 적혀 있다.\n"
+        "  할 일: 마이그레이션을 더했으면 배정표 세 곳을 함께 고친다.\n"
+        "    ① ingest/store/migrations.py 의 MIGRATIONS 위 주석표\n"
+        "    ② ingest/store/sqlite_db.py 의 docstring 표\n"
+        "    ③ ingest/store/sqlite_db.py 의 NEXT_MIGRATION_VERSION"
+    )
+
+
+def test_마이그레이션_이름이_자기_번호를_말한다():
+    """`MIGRATIONS[i]` 의 이름은 `v{i+1}:` 로 시작해야 한다.
+
+    번호는 인덱스라 이름과 어긋나도 동작한다 — 그래서 로그·오류 문구만 거짓말을 하고
+    사람이 잘못된 번호를 믿게 된다.
+    """
+    for 인덱스, 항목 in enumerate(mig.MIGRATIONS):
+        이름 = 항목[0]
+        assert 이름.startswith(f"v{인덱스 + 1}:"), (
+            f"{인덱스}번째 항목의 이름이 '{이름}' 인데 v{인덱스 + 1} 자리다"
+        )
+
+
+# ── v13: 지수 기본키에 시장을 넣는다 ─────────────────────────────────────────
+#
+# 🔴 2026-09-07 에 실제로 자료를 잃었다. `index_price` 의 기본키가 (bas_dd, index_name)
+#    이라 KOSDAQ 을 받자 같은 이름의 KOSPI 업종지수 17종 40,324행이 덮였다. 행 수는
+#    오히려 늘어(196,272 → 244,108) 개수로는 못 잡는다. 막는 자리는 "쓰기 전" — 기본키다.
+#
+#    SQLite 는 기본키를 ALTER 로 못 바꾼다. 새 표를 만들어 옮기고 이름을 바꾸는 수밖에
+#    없고, 그 넷이 **한 트랜잭션**에 있어야 중간에 죽어도 반쪽이 안 남는다.
+
+옛_지수표 = (
+    "CREATE TABLE index_price (bas_dd TEXT NOT NULL, index_name TEXT NOT NULL, "
+    "index_class TEXT, open REAL, high REAL, low REAL, close REAL, change REAL, "
+    "change_rate REAL, volume INTEGER, value INTEGER, market_cap INTEGER, "
+    "PRIMARY KEY (bas_dd, index_name))"
+)
+
+
+def 기본키(conn: sqlite3.Connection, table: str) -> list:
+    """표의 기본키 칸 이름을 기본키 순서대로."""
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    return [r[1] for r in sorted((r for r in rows if r[5] > 0), key=lambda r: r[5])]
+
+
+def _v12_옛_지수표(conn: sqlite3.Connection) -> None:
+    """v13 직전 DB 흉내 — 옛 기본키의 index_price 에 행 둘, 버전은 12."""
+    conn.execute(옛_지수표)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_index_name_date "
+                 "ON index_price(index_name, bas_dd)")
+    conn.execute("INSERT INTO index_price (bas_dd, index_name, index_class, close) "
+                 "VALUES ('20260904', '건설', 'KOSPI', 100.5)")
+    conn.execute("INSERT INTO index_price (bas_dd, index_name, index_class, close) "
+                 "VALUES ('20260904', '코스피 200', 'KOSPI', 1096.25)")
+    conn.execute("PRAGMA user_version=12")
+
+
+def test_v13_은_옛_기본키의_index_price_를_시장까지_넣어_다시_만든다(tmp_path):
+    conn = 연결(tmp_path)
+    try:
+        _v12_옛_지수표(conn)
+        assert 기본키(conn, "index_price") == ["bas_dd", "index_name"]
+
+        적용수 = mig.migrate(conn)
+
+        assert 적용수 == mig.LATEST_VERSION - 12
+        assert 기본키(conn, "index_price") == ["bas_dd", "index_name", "index_class"]
+        # 행이 값까지 그대로 옮겨 왔는가
+        rows = conn.execute("SELECT bas_dd, index_name, index_class, close FROM index_price "
+                            "ORDER BY index_name").fetchall()
+        assert rows == [("20260904", "건설", "KOSPI", 100.5),
+                        ("20260904", "코스피 200", "KOSPI", 1096.25)]
+        # 임시 표는 남지 않고 인덱스는 다시 생겼는가
+        assert "index_price_v13" not in 표목록(conn)
+        인덱스 = {r[1] for r in conn.execute("PRAGMA index_list(index_price)")}
+        assert "idx_index_name_date" in 인덱스
+    finally:
+        conn.close()
+
+
+def test_v13_뒤에는_KOSDAQ_건설이_KOSPI_건설을_덮지_않는다(tmp_path):
+    """이번 사고의 직접 회귀 시험 — 같은 날 같은 이름의 두 시장 지수가 나란히 산다."""
+    conn = 연결(tmp_path)
+    try:
+        _v12_옛_지수표(conn)
+        mig.migrate(conn)
+
+        conn.execute("INSERT OR REPLACE INTO index_price (bas_dd, index_name, index_class, close) "
+                     "VALUES ('20260904', '건설', 'KOSDAQ', 55.5)")
+
+        rows = conn.execute("SELECT index_class, close FROM index_price "
+                            "WHERE index_name='건설' ORDER BY index_class").fetchall()
+        assert rows == [("KOSDAQ", 55.5), ("KOSPI", 100.5)]
+    finally:
+        conn.close()
+
+
+def test_v13_은_index_price_가_없으면_새_기본키로_만든다(tmp_path):
+    """빈 DB 에서 마이그레이션이 `init_db` 보다 먼저 돌아도 옛 모양이 생기지 않는다.
+
+    여기서 건너뛰기만 하면 그 DB 는 v13 으로 표시된 채 나중에 옛 SCHEMA 로 표를 만들고,
+    마이그레이션은 다시 돌지 않으므로 기본키가 영영 안 고쳐진다.
+    """
+    conn = 연결(tmp_path)
+    try:
+        mig.migrate(conn)
+
+        assert 기본키(conn, "index_price") == ["bas_dd", "index_name", "index_class"]
+    finally:
+        conn.close()
+
+
+def test_v13_은_이미_새_기본키면_아무것도_하지_않는다(tmp_path):
+    """`init_db` 가 새 SCHEMA 로 먼저 만든 DB. 행을 건드리면 안 된다."""
+    conn = 연결(tmp_path)
+    try:
+        conn.execute("CREATE TABLE index_price (bas_dd TEXT NOT NULL, index_name TEXT NOT NULL, "
+                     "index_class TEXT NOT NULL, close REAL, "
+                     "PRIMARY KEY (bas_dd, index_name, index_class))")
+        conn.execute("INSERT INTO index_price VALUES ('20260904', '건설', 'KOSPI', 100.5)")
+        conn.execute("PRAGMA user_version=12")
+
+        mig.migrate(conn)
+
+        assert conn.execute("SELECT COUNT(*) FROM index_price").fetchone()[0] == 1
+        assert 기본키(conn, "index_price") == ["bas_dd", "index_name", "index_class"]
+    finally:
+        conn.close()
+
+
+def test_v13_은_index_class_가_비어_있으면_멈추고_할_일을_알려준다(tmp_path):
+    """시장이 빈 행은 새 기본키에 못 들어간다. 지어내지 않고 세우되, 반쪽을 남기지 않는다."""
+    conn = 연결(tmp_path)
+    try:
+        _v12_옛_지수표(conn)
+        conn.execute("INSERT INTO index_price (bas_dd, index_name, index_class, close) "
+                     "VALUES ('20260904', '금속', NULL, 1.0)")
+
+        with pytest.raises(mig.MigrationError) as 오류:
+            mig.migrate(conn)
+
+        assert "index_class" in str(오류.value) and "할 일" in str(오류.value)
+        assert mig.user_version(conn) == 12, "실패했는데 버전이 올라갔다"
+        assert 기본키(conn, "index_price") == ["bas_dd", "index_name"], "반쪽 상태가 남았다"
+        assert conn.execute("SELECT COUNT(*) FROM index_price").fetchone()[0] == 3
+    finally:
+        conn.close()
+
+
+# ── 실행기: 지연 문장이 문장 **목록**을 돌려줄 수 있다 ────────────────────────
+#
+# 표 재구성은 문장이 넷이고 조건(옛 기본키인가)은 하나다. 문장마다 조건을 다시 재면
+# 첫 문장이 표를 바꾼 뒤 조건이 뒤집혀 나머지가 건너뛰어진다. 그래서 한 번 판단해
+# 목록을 통째로 돌려주고, 실행기가 같은 트랜잭션에서 차례로 돌린다.
+
+def test_지연_문장이_목록을_돌려주면_전부_한_트랜잭션에서_돈다(tmp_path, monkeypatch):
+    monkeypatch.setattr(mig, "MIGRATIONS", (
+        ("v1: 목록", (
+            lambda conn: ["CREATE TABLE IF NOT EXISTS 하나 (a INT)",
+                          "CREATE TABLE IF NOT EXISTS 둘 (a INT)"],
+        )),
+    ))
+    monkeypatch.setattr(mig, "LATEST_VERSION", 1)
+
+    conn = 연결(tmp_path)
+    try:
+        mig.migrate(conn)
+
+        assert {"하나", "둘"} <= 표목록(conn)
+        assert mig.user_version(conn) == 1
+    finally:
+        conn.close()
+
+
+def test_목록_가운데서_실패하면_앞_문장도_되돌아간다(tmp_path, monkeypatch):
+    monkeypatch.setattr(mig, "MIGRATIONS", (
+        ("v1: 목록 실패", (
+            lambda conn: ["CREATE TABLE IF NOT EXISTS 먼저 (a INT)", "이건 SQL 이 아니다"],
+        )),
+    ))
+    monkeypatch.setattr(mig, "LATEST_VERSION", 1)
+
+    conn = 연결(tmp_path)
+    try:
+        with pytest.raises(mig.MigrationError):
+            mig.migrate(conn)
+
+        assert "먼저" not in 표목록(conn), "목록 앞 문장이 남았다 — 롤백이 안 됐다"
+        assert mig.user_version(conn) == 0
+    finally:
+        conn.close()

@@ -70,6 +70,25 @@ COLUMNS = ("bas_dd", "code", "name", "market", "sector",
            "open", "high", "low", "close", "change", "change_rate",
            "volume", "value", "market_cap", "listed_shares")
 
+# 🔴 같은 (날짜, 종목) 이 다시 들어올 때 **여기 적힌 칸만** 덮는다.
+#
+# 예전에는 `INSERT OR REPLACE` 였다. 그건 이름과 달리 갱신이 아니라 **행을 지우고 새로
+# 넣는다.** 그래서 목록에 없는 칸은 조용히 기본값(NULL)이 된다 — v9 가 얹은
+# `adj_open`·`adj_high`·`adj_low`·`adj_close`·`adj_source` 다섯 칸이 바로 그 처지였다.
+#
+# 무엇이 무서운가: 시세를 하루 다시 받으면 그 날 3천 종목의 수정주가가 통째로 사라지는데
+# **행 수는 그대로다.** 우리 검증은 행 수와 기간을 세므로 아무것도 잡히지 않는다.
+# (2026-09-02 재무에서 PK 에 칸 하나를 빠뜨려 6.4%가 조용히 사라진 것과 같은 종류다.)
+#
+# `ON CONFLICT ... DO UPDATE` 는 행을 지우지 않고 **적힌 칸만** 바꾸므로 수정주가가 산다.
+_UPDATE_COLUMNS = tuple(c for c in COLUMNS if c not in ("bas_dd", "code"))
+UPSERT_SQL = (
+    f"INSERT INTO daily_price ({','.join(COLUMNS)}) "
+    f"VALUES ({','.join('?' * len(COLUMNS))}) "
+    "ON CONFLICT(bas_dd, code) DO UPDATE SET "
+    + ", ".join(f"{c}=excluded.{c}" for c in _UPDATE_COLUMNS)
+)
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_price (
   bas_dd        TEXT    NOT NULL,   -- 기준일자 YYYYMMDD
@@ -87,6 +106,19 @@ CREATE TABLE IF NOT EXISTS daily_price (
   value         INTEGER,            -- 거래대금
   market_cap    INTEGER,            -- 시가총액
   listed_shares INTEGER,            -- 상장주식수
+  -- 수정주가 4칸 (마이그레이션 v9). 위 원가격은 **액면분할이 조정되지 않은 값**이라
+  -- 수익률로 쓰면 삼성전자 2018-05-04 가 -98% 로 읽힌다. 조정된 값을 옆에 둔다.
+  --
+  -- ⚠️ 여기와 `migrations.py` 의 v9 **양쪽에 있어야 한다.** 이 SCHEMA 는 새로 만드는
+  --    표를, v9 는 이미 있는 표를 맡는다. 한쪽만 고치면 어느 경로로 만들어졌느냐에
+  --    따라 칸이 있기도 없기도 한 DB 가 생기고, 그건 조회할 때까지 드러나지 않는다.
+  --
+  -- REAL 인 이유: 후방조정 값은 정수가 아니다 (삼성전자 2010-01-04 = 16,180.00).
+  adj_open      REAL,               -- 수정시가
+  adj_high      REAL,               -- 수정고가
+  adj_low       REAL,               -- 수정저가
+  adj_close     REAL,               -- 수정종가
+  adj_source    TEXT,               -- 'fdr'(외부 실측) / 'chain'(계수로 이어 붙임)
   PRIMARY KEY (bas_dd, code)        -- 같은 날 같은 종목이 두 번 들어가지 않도록
 );
 
@@ -201,7 +233,6 @@ def _save(bas_dd: str, items: List[Dict]) -> int:
         tuple([bas_dd] + [item.get(col) for col in COLUMNS[1:]])
         for item in items
     ]
-    placeholders = ",".join("?" * len(COLUMNS))
 
     # 시장별 건수를 센다. `MARKETS` 를 기준으로 도는 것이 요점이다 — `items` 에 있는
     # 시장만 세면 한쪽이 0행으로 온 날에 그 시장이 대장에서 통째로 빠진다.
@@ -213,11 +244,9 @@ def _save(bas_dd: str, items: List[Dict]) -> int:
 
     # 쓰기는 한 번에 하나씩 — 6개 스레드가 동시에 INSERT 하면 잠금 충돌이 난다
     with _write_lock, connect() as conn:
-        # INSERT OR REPLACE — 같은 날짜를 다시 받아도 중복 없이 덮어쓴다
-        conn.executemany(
-            f"INSERT OR REPLACE INTO daily_price ({','.join(COLUMNS)}) VALUES ({placeholders})",
-            rows,
-        )
+        # 같은 날짜를 다시 받아도 중복 없이 덮되, **수정주가 칸은 건드리지 않는다**
+        # (`UPSERT_SQL` 주석 참고 — OR REPLACE 였다면 조용히 지워졌다)
+        conn.executemany(UPSERT_SQL, rows)
         conn.execute(
             "INSERT OR REPLACE INTO fetch_log (bas_dd, rows, fetched_at) VALUES (?,?,?)",
             (bas_dd, len(rows), datetime.now().isoformat(timespec="seconds")),
@@ -264,12 +293,10 @@ def save_renormalized(bas_dd: str, market: str, items: List[Dict]) -> int:
     if not rows:
         return 0                       # 쓸 것이 없으면 아무것도 건드리지 않는다
 
-    placeholders = ",".join("?" * len(COLUMNS))
     with write_lock, connect() as conn:
-        conn.executemany(
-            f"INSERT OR REPLACE INTO daily_price ({','.join(COLUMNS)}) VALUES ({placeholders})",
-            rows,
-        )
+        # 재정규화도 원가격 칸만 고친다 — 수정주가는 별도 계산물이라 여기서 지우면
+        # 재정규화 한 번에 그 날 전 종목의 수정주가가 사라진다 (`UPSERT_SQL` 참고).
+        conn.executemany(UPSERT_SQL, rows)
     return len(rows)
 
 

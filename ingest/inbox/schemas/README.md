@@ -11,6 +11,7 @@
 | [`news.json`](news.json) | 기사 제목·요약·링크 | 아직 없음 |
 | [`financial.json`](financial.json) | DART 재무제표 계정 | 아직 없음 |
 | [`macro.json`](macro.json) | ECOS·FRED·KOSIS 거시 지표 | 아직 없음 |
+| [`sector.json`](sector.json) | KRX 업종분류 현황 스냅샷 (팀장이 화면에서 받음 · 연 1회) | `daily_price` (종가·시총으로 기준일 대조) |
 
 바탕은 [Frictionless Table Schema](https://specs.frictionlessdata.io/table-schema/) 이고,
 우리에게만 필요한 것은 `x-alphastack` 아래에 모았습니다. 표준 자리를 우리 뜻으로 덮어쓰면

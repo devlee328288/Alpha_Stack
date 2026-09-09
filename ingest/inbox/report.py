@@ -196,16 +196,22 @@ def render_markdown(result, *, batch_id: Optional[str] = None,
             lines.append(f"- `{item['rule']}` — {item['violations']:,}행")
         lines.append("")
 
-    # ── 못 잰 규칙 ───────────────────────────────
-    skipped = [t for t in (report.get("row_rules") or []) if t.get("skipped")]
-    if skipped:
-        lines.append("## 재지 못한 검사")
+    # ── 없는 칸을 결측으로 보고 잰 규칙 ──────────
+    # 예전에는 이 자리가 "재지 못한 검사" 였다. 이제는 건너뛰지 않고 **채워서 재므로**,
+    # 남길 것은 "못 쟀다" 가 아니라 "무엇을 채워서 쟀나" 다. 이걸 안 적으면 보고서를
+    # 읽는 사람이 이 검사가 실제 값으로 통과했다고 오해한다.
+    filled = [t for t in (report.get("row_rules") or []) if t.get("filled_columns")]
+    if filled:
+        lines.append("## 없는 칸을 결측으로 보고 잰 검사")
         lines.append("")
-        lines.append("파일에 그 칸이 없어 검사를 돌리지 못했습니다. **위반이 아닙니다** — "
-                     "다만 이 검사들은 통과했다고 말할 수 없습니다.")
+        lines.append("파일에 그 칸이 없어 **전부 비어 있는 것으로 보고** 검사했습니다. "
+                     "`X is null or …` 꼴은 그대로 통과하고, "
+                     "`X is not null or Y is not null` 꼴은 남은 칸으로 판정됩니다.")
         lines.append("")
-        for item in skipped:
-            lines.append(f"- `{item['rule']}` — {item.get('note', '')}")
+        for item in filled:
+            상태 = "통과" if not item["violations"] else f"위반 {item['violations']:,}행"
+            lines.append(f"- `{item['rule']}` — 채운 칸 "
+                         f"`{'`, `'.join(item['filled_columns'])}` · {상태}")
         lines.append("")
 
     # ── 사람에게 묻는 것 ─────────────────────────
@@ -272,9 +278,20 @@ def write_report(result, *, batch_id: Optional[str] = None,
                  contributor: Optional[str] = None,
                  when: Optional[datetime] = None,
                  root: Optional[Path] = None) -> dict:
-    """판정 하나를 JSON + 마크다운으로 남기고 두 경로를 돌려준다."""
+    """판정 하나를 JSON + 마크다운으로 남기고 두 경로를 돌려준다.
+
+    🔴 **파일명에 `batch_id` 를 넣는다.** 폴더는 날짜뿐이라 이름이 종류+파일명이면
+    - 팀원 둘이 같은 날 `시세.csv` 를 올릴 때 뒤엣것이 앞엣것 보고서를 덮고,
+    - `--force` 재검사가 DB 에는 새 `batch_id` 로 남는데 파일에서는 덮인다.
+
+    격리된 행을 다시 보려고 보고서를 찾았을 때 그 자리에 다른 파일의 판정이 있으면
+    조사가 거기서 끊긴다. `batch_id` 가 없을 때(예비 검사)는 붙이지 않는다 —
+    그때는 DB 에 남는 것도 없어 덮여도 잃을 것이 없다.
+    """
     folder = report_dir(when, root)
     name = f"{result.kind}_{_slug(result.source)}"
+    if batch_id:
+        name = f"{name}__{_slug(str(batch_id))}"
 
     payload = dict(result.report)
     payload["batch_id"] = batch_id

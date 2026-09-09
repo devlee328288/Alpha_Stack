@@ -312,9 +312,12 @@ def scenarios(model: Dict, horizon: int = 20,
 
     ma20 = tech["ma20"]
     ma_text = f"{ma20:,.0f}" if ma20 else "20일선"
-    value_text = (f"거래대금이 20일 평균({tech['value_avg20']:,.0f})의 {VOLUME_SURGE_MULTIPLE}배 이상"
-                  if tech["value_avg20"] else
-                  f"거래대금이 20일 평균의 {VOLUME_SURGE_MULTIPLE}배 이상")
+    value_text = (
+        f"거래대금이 20일 평균({tech['value_avg20']:,.0f})의 "
+        f"{VOLUME_SURGE_MULTIPLE}배 이상"
+        if tech["value_avg20"]
+        else f"거래대금이 20일 평균의 {VOLUME_SURGE_MULTIPLE}배 이상"
+    )
 
     items = [
         {

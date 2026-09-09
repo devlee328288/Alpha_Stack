@@ -296,14 +296,100 @@ def test_격리된_행은_원본을_함께_남긴다(tmp_path):
     assert row["payload"]["code"] == "005930", "정제 결과도 함께 남는다"
 
 
-def test_규칙이_쓰는_칸이_없으면_위반이_아니라_건너뜀이다(tmp_path):
-    """선택 칸을 안 담아 온 것을 위반으로 세면 파일이 통째로 격리된다."""
+def test_없는_칸은_전부_결측으로_보고_잰다(tmp_path):
+    """선택 칸을 안 담아 온 것을 위반으로 세면 파일이 통째로 격리된다.
+
+    가드 꼴(`X is null or …`)은 없는 칸을 결측으로 봐도 그대로 통과한다 —
+    예전의 "건너뛰기" 가 지키려던 보호는 그대로 남는다.
+    """
     text = "날짜,종목코드,종가\n2021-01-04,005930,83000\n"
     result = inspect_file(파일(tmp_path, "few.csv", text), kind="ohlcv_stock")
     assert len(result.accepted) == 1
-    skipped = [t for t in result.report["row_rules"] if t.get("skipped")]
-    assert skipped, "재지 못한 규칙은 그렇게 보고돼야 한다"
-    assert all(t["violations"] == 0 for t in skipped)
+
+    filled = [t for t in result.report["row_rules"] if t.get("filled_columns")]
+    assert filled, "무엇을 채워서 쟀는지 보고서에 남아야 한다"
+    assert all(t["violations"] == 0 for t in filled)
+    # 🔴 건너뛴 것이 아니라 **잰 것**이다. 둘을 섞으면 "통과했다" 를 말할 수 없다.
+    assert not any(t.get("skipped") for t in result.report["row_rules"])
+    이름들 = {t["rule"] for t in filled}
+    assert "high_ge_low" in 이름들
+
+
+def test_수정종가는_원주가_칸으로_들어오지_않는다(tmp_path):
+    """🔴 우리 `close` 는 KRX 원문 그대로의 **원주가**다 (#44).
+
+    수정주가는 소급해서 바뀐다 — 우리 자료에 실재하는 유일한 restatement 경로다.
+    그걸 `close` 로 받으면 액면분할이 있던 종목의 값이 완전히 다른데도 통과한다.
+    """
+    text = "날짜,종목코드,수정종가,거래량\n2021-01-04,005930,1660,100\n"
+    result = inspect_file(파일(tmp_path, "adj.csv", text), kind="ohlcv_stock")
+
+    assert "수정종가" not in result.report["columns"]["mapped"], "close 로 매핑되면 안 된다"
+    assert "수정종가" in result.report["columns"]["extras"], "칸은 버리지 않고 보존한다"
+    assert len(result.accepted) == 0, "원주가가 없으니 들이지 않는다"
+    사유 = {x["rule"] for x in result.report["quarantine_reasons"]}
+    assert "close.required" in 사유
+    물음 = {q["column"] for q in result.report["questions"]}
+    assert "수정종가" in 물음, "왜 안 받았는지 사람에게 남아야 한다"
+
+
+def test_종가와_수정종가가_함께_오면_원주가만_쓴다(tmp_path):
+    """정상 파일을 되돌리지 않는다 — KRX·야후 받기는 보통 둘 다 준다."""
+    text = ("날짜,종목코드,종가,수정종가,거래량\n"
+            "2021-01-04,005930,83000,1660,100\n")
+    result = inspect_file(파일(tmp_path, "both.csv", text), kind="ohlcv_stock")
+
+    assert len(result.accepted) == 1
+    assert result.report["columns"]["mapped"]["종가"] == "close"
+    assert result.accepted.iloc[0]["payload"]["close"] == 83000
+    assert "수정종가" in result.report["columns"]["extras"]
+
+
+def test_야후의_Adj_Close_도_같이_막는다(tmp_path):
+    """이름만 다르고 같은 것이다. 하나만 막으면 다른 이름으로 그대로 들어온다."""
+    text = "Date,code,Close,Adj Close,volume\n2021-01-04,005930,83000,1660,100\n"
+    result = inspect_file(파일(tmp_path, "yahoo.csv", text), kind="ohlcv_stock")
+
+    assert result.report["columns"]["mapped"]["Close"] == "close"
+    assert "Adj Close" in result.report["columns"]["extras"]
+    assert len(result.accepted) == 1
+
+
+def test_시점_닻이_없는_재무는_격리된다(tmp_path):
+    """🔴 `has_time_anchor` 는 이 저장소에서 가장 조용한 오류를 막는 규칙이다.
+
+    접수일도 접수번호도 없으면 그 숫자를 **언제부터 알 수 있었는지** 되찾을 방법이 없다.
+    그런 행을 학습에 넣으면 결산기에 값을 붙이게 되고, 석 달치 미래를 넣고도 예외는
+    나지 않고 성능만 좋아진다.
+
+    그런데 이 규칙은 `rcept_dt` 칸이 없다는 이유로 **한 번도 돈 적이 없었다** (#52).
+    OR 규칙은 칸이 하나 없을 때 나머지 항으로 판정해야 한다.
+    """
+    text = ("corp_code,bsns_year,reprt_code,fs_div,sj_div,account_nm,account_detail,"
+            "thstrm_amount,currency\n"
+            "00126380,2023,11011,CFS,BS,자산총계,-,1000,KRW\n")
+    result = inspect_file(파일(tmp_path, "no_anchor.csv", text), kind="financial")
+
+    anchor = next(t for t in result.report["row_rules"] if t["rule"] == "has_time_anchor")
+    assert anchor["violations"] == 1, "닻이 둘 다 없으면 위반이어야 한다"
+    assert set(anchor["filled_columns"]) == {"rcept_dt", "rcept_no"}
+    assert len(result.accepted) == 0, "시점을 되찾을 수 없는 행은 들이지 않는다"
+
+
+def test_OR_규칙은_남은_칸으로_판정한다(tmp_path):
+    """접수번호만 있어도 시점을 되찾을 수 있다 — 통과해야 한다.
+
+    "둘 중 하나만 있으면 된다" 가 "둘 다 있어야 잰다" 로 뒤집히지 않는지 본다.
+    """
+    text = ("corp_code,bsns_year,reprt_code,fs_div,sj_div,account_nm,account_detail,"
+            "thstrm_amount,currency,rcept_no\n"
+            "00126380,2023,11011,CFS,BS,자산총계,-,1000,KRW,20240312000736\n")
+    result = inspect_file(파일(tmp_path, "only_no.csv", text), kind="financial")
+
+    anchor = next(t for t in result.report["row_rules"] if t["rule"] == "has_time_anchor")
+    assert anchor["violations"] == 0, "접수번호가 있으면 통과해야 한다"
+    assert anchor["filled_columns"] == ["rcept_dt"], "무엇을 채웠는지 남는다"
+    assert len(result.accepted) == 1
 
 
 def test_warn_은_들이되_기록한다(tmp_path):

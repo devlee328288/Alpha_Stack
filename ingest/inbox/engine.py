@@ -406,6 +406,22 @@ def check_constraints(frame: pd.DataFrame, spec: dict) -> Dict[str, List[Verdict
 # ==================================================
 # 6. 행 규칙
 # ==================================================
+def _all_missing(index) -> pd.Series:
+    """파일에 없는 칸을 대신할 "전부 결측" 열.
+
+    `object` 형에 `NaN` 을 담는다. 형이 왜 중요한가 —
+    - `float64` 로 두면 `release_date >= period_end` 처럼 **문자열 칸과 비교**하는 규칙이
+      *Invalid comparison between dtype=str and ndarray* 로 죽는다.
+    - `None` 을 담으면 `high >= low` 같은 **수치 비교**가
+      *'>=' not supported between 'int' and 'NoneType'* 으로 죽는다.
+    - `pd.NA` 를 담으면 비교 결과가 masked 가 되어 *boolean value of NA is ambiguous* 로 죽는다.
+
+    `object` + `NaN` 은 규격 5개의 행 규칙 52개를 전부 통과했다(2026-09-03 실측).
+    정제기(`cleaners`)를 거친 실제 결측 칸도 같은 모양이다.
+    """
+    return pd.Series([float("nan")] * len(index), index=index, dtype="object")
+
+
 def check_row_rules(frame: pd.DataFrame, spec: dict) -> tuple:
     """규격의 `rowRules` 를 전부 적용한다.
 
@@ -419,30 +435,62 @@ def check_row_rules(frame: pd.DataFrame, spec: dict) -> tuple:
     for rule in rules:
         expression = rule["expr"]
 
-        # 🔴 규칙이 쓰는 칸이 파일에 없으면 **재지 않고 건너뛴다.** 위반이 아니다 —
-        #    팀원이 선택 칸을 안 담아 온 것뿐인데 그걸 위반으로 세면 파일이 통째로 격리된다.
-        #    예외로 걸러 내지 않고 미리 재는 이유: `RuleSyntaxError` 는 *규격이 틀렸을 때*도
-        #    나는 예외라, 함께 잡으면 규격의 오타가 조용히 "건너뜀" 으로 묻힌다.
+        # 🔴 규칙이 쓰는 칸이 파일에 없으면 **그 칸이 통째로 결측인 것으로 보고 잰다.**
+        #
+        #    예전에는 여기서 규칙 전체를 건너뛰었다. 의도는 "팀원이 선택 칸을 안 담아 온
+        #    것뿐인데 위반으로 세면 파일이 통째로 격리된다" 였고, `X and Y` 꼴에는 맞다.
+        #    그런데 **`X is not null or Y is not null` 꼴에는 정반대로 작동한다** —
+        #    "둘 중 하나만 있으면 된다" 가 "둘 다 있어야 잰다" 로 뒤집힌다.
+        #
+        #    그래서 재무 규격의 `has_time_anchor` 는 한 번도 돈 적이 없었다. 접수일도
+        #    접수번호도 없는 행을 학습에 넣으면 결산기에 값을 붙이게 되고, 석 달치 미래를
+        #    넣고도 예외는 나지 않고 성능만 좋아진다 — 이 프로젝트에서 가장 조용한 오류다.
+        #    그걸 막으라고 둔 규칙이 그 자신이 조용히 꺼져 있었다.
+        #
+        #    없는 칸 = 그 칸의 모든 값이 결측. 이렇게 보면 `X is null` 은 참이 되어
+        #    가드 꼴(`X is null or …`)은 그대로 통과하고, OR 꼴은 나머지 항으로 판정된다.
+        #    실측(2026-09-03): 이렇게 바꿔도 **error 로 새로 격리되는 규칙은 0건**이고,
+        #    새로 걸리는 4건은 전부 `warn` 이며 그 규칙들이 재려던 바로 그것이다
+        #    (`known_from_basis_present` · `ohl_missing_together`).
         needed = referenced_columns(expression) - SPECIAL_NAMES
         absent = sorted(needed - set(frame.columns))
+        measured = frame
         if absent:
-            tally.append({"rule": rule.get("id"), "severity": rule.get("severity"),
-                          "violations": 0, "skipped": True,
-                          "note": f"규칙이 쓰는 칸이 파일에 없어 재지 못했다: {', '.join(absent)}"})
-            continue
+            measured = frame.copy()
+            for name in absent:
+                measured[name] = _all_missing(frame.index)
 
         try:
-            passed = evaluate_rule(expression, frame)
+            passed = evaluate_rule(expression, measured)
         except RuleSyntaxError as error:
+            # 규격이 틀렸을 때 나는 예외다. 미리 걸러 내지 않고 여기서 잡는 이유는
+            # 규격의 오타가 조용히 "건너뜀" 으로 묻히지 않게 하기 위해서다.
             raise InboxError(
                 f"규격의 규칙 {rule.get('id')!r} 을 읽을 수 없다: {expression}\n  {error}\n"
                 "  할 일: 규격 파일의 식을 고친다 (자료가 아니라 규격의 문제다)."
             ) from error
+        except (TypeError, ValueError) as error:
+            # 식은 읽히는데 이 파일의 칸 **형**이 규칙이 전제한 것과 다르다.
+            # 그냥 두면 pandas 의 traceback 이 그대로 올라와 무엇이 문제인지 안 보인다.
+            채운말 = f" (파일에 없어 결측으로 채운 칸: {', '.join(absent)})" if absent else ""
+            raise InboxError(
+                f"규격의 규칙 {rule.get('id')!r} 을 이 파일에 적용할 수 없다: {expression}\n"
+                f"  {type(error).__name__}: {error}{채운말}\n"
+                "  칸의 형이 규칙이 전제한 것과 다르다.\n"
+                "  할 일: 규격의 `cleaners` 로 그 칸의 형을 맞추거나, 규칙의 식을 고친다."
+            ) from error
 
         failed = ~passed.fillna(False)
         count = int(failed.sum())
-        tally.append({"rule": rule.get("id"), "severity": rule.get("severity"),
-                      "violations": count, "skipped": False})
+        entry = {"rule": rule.get("id"), "severity": rule.get("severity"),
+                 "violations": count}
+        if absent:
+            # 무엇을 채워서 쟀는지 반드시 남긴다. 안 남기면 보고서를 읽는 사람이
+            # "이 검사는 실제 값으로 통과했다" 고 오해한다.
+            entry["filled_columns"] = absent
+            entry["note"] = ("파일에 없는 칸을 전부 결측으로 보고 쟀다: "
+                             f"{', '.join(absent)}")
+        tally.append(entry)
         if count:
             for index in frame.index[failed]:
                 violations.setdefault(index, []).append(

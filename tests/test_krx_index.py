@@ -300,3 +300,83 @@ def test_한도_소진은_실패로_세지_않는다(임시저장소, monkeypatc
     # 예산이 풀리면 다시 받아야 한다
     assert collect_log.should_collect("krx_index", "KOSPI/20260821",
                                       db_path=store.DB_PATH) is True
+
+
+# ── 시장 가드 ──────────────────────────────────────────────────────────────
+#
+# 🔴 2026-09-07 에 실제로 자료를 잃고 세운 문이다. `index_price` 의 기본키가
+#    (bas_dd, index_name) 이라 시장이 없는데, KOSPI 와 KOSDAQ 은 `건설`·`금속`·`화학`
+#    처럼 같은 이름의 업종지수를 각각 가진다. KOSDAQ 을 받자 `INSERT OR REPLACE` 가
+#    KOSPI 업종지수 17종 40,324행을 덮어썼다.
+#
+#    🔴 행 수로는 못 잡는다 — 오히려 늘었다(196,272 → 244,108). 그래서 개수 검사가
+#       아니라 **받기 전에 막는** 가드로 둔다.
+#
+#    문이 둘이다. ① 구조 — DB 의 실제 기본키에 `index_class` 가 있나 (v13 이 넣는다).
+#    ② 정책 — `SAFE_MARKETS` (하루 호출 한도). 구조가 풀려도 정책은 따로 연다.
+
+옛_기본키_지수표 = (
+    "CREATE TABLE index_price (bas_dd TEXT NOT NULL, index_name TEXT NOT NULL, "
+    "index_class TEXT, close REAL, PRIMARY KEY (bas_dd, index_name))"
+)
+
+
+def test_기본키에_시장이_없으면_KOSPI_말고_다른_시장은_받기_전에_막힌다(tmp_path):
+    """v13 이전 DB — 옛 기본키. 문구에 무엇을 고쳐야 하는지가 있어야 한다."""
+    from ingest.store import krx_index
+    conn = sqlite3.connect(tmp_path / "old.db")
+    conn.execute(옛_기본키_지수표)
+
+    with pytest.raises(RuntimeError) as e:
+        krx_index._시장가드(["KOSDAQ"], conn=conn)
+    말 = str(e.value)
+    assert "index_class" in 말, "무엇을 고쳐야 하는지가 문구에 있어야 한다"
+    assert "v13" in 말, "막다른 길로 두지 않는다 — 푸는 방법까지 적는다"
+
+
+def test_기본키에_시장이_있어도_SAFE_MARKETS_밖이면_정책으로_막힌다(임시저장소):
+    """v13 뒤에도 문은 닫혀 있다 — 이유는 자료 손실이 아니라 호출 한도다. 문구가 다르다."""
+    with pytest.raises(RuntimeError) as e:
+        임시저장소._시장가드(["KOSDAQ"])
+    말 = str(e.value)
+    assert "SAFE_MARKETS" in 말 and "한도" in 말
+    assert "덮어쓰" not in 말, "구조는 이미 풀렸는데 자료 손실 문구를 내면 거짓말이다"
+
+
+def test_KOSPI_는_그대로_통과한다(임시저장소):
+    임시저장소._시장가드(["KOSPI"])          # 예외가 없으면 통과다
+
+
+def test_섞여_있어도_막힌다(임시저장소):
+    """`--markets KOSPI,KOSDAQ` 처럼 안전한 것과 섞어도 통과시키지 않는다."""
+    with pytest.raises(RuntimeError):
+        임시저장소._시장가드(["KOSPI", "KOSDAQ"])
+
+
+def test_init_db_는_시장이_든_기본키로_표를_만든다(임시저장소):
+    """새 DB 도 v13 과 같은 모양으로 태어난다 — 두 경로가 갈라지면 조용히 틀린다."""
+    conn = sqlite3.connect(임시저장소.DB_PATH)
+    rows = conn.execute("PRAGMA table_info(index_price)").fetchall()
+    기본키 = [r[1] for r in sorted((r for r in rows if r[5] > 0), key=lambda r: r[5])]
+    assert 기본키 == ["bas_dd", "index_name", "index_class"]
+
+
+def test_init_db_와_마이그레이션이_같은_표를_만든다(tmp_path, 임시저장소):
+    """🔴 `index_price` 를 만드는 경로가 **둘**이다 — `init_db()` 와 마이그레이션 v13.
+
+    한쪽만 고치면 그 DB 는 옛 모양으로 태어난 뒤 마이그레이션이 다시 돌지 않아
+    **영영 안 고쳐진다.** 칸 이름·자료형·NOT NULL·기본키를 통째로 대조한다.
+    """
+    from ingest.store import migrations as mig
+
+    def 모양(conn) -> list:
+        return [(r[1], r[2].upper(), r[3], r[5])          # 이름 · 형 · notnull · pk순서
+                for r in conn.execute("PRAGMA table_info(index_price)")]
+
+    마이그 = mig.connect_for_migration(tmp_path / "mig.db")
+    try:
+        마이그.executescript(
+            mig.INDEX_PRICE_SCHEMA_V13.format(table="index_price"))
+        assert 모양(마이그) == 모양(sqlite3.connect(임시저장소.DB_PATH))
+    finally:
+        마이그.close()

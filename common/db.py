@@ -136,8 +136,8 @@ def engine_kwargs(
     | 어디에 두나 | 결과 |
     |---|---|
     | `connect_args={...: 0}` | ✅ 정답 |
-    | `create_async_engine(url, prepared_statement_cache_size=0)` | ❌ `TypeError` — 방언 인자가 아니라 **DBAPI 인자**다 |
-    | URL 쿼리 `?statement_cache_size=0` | ❌ 문자열 `"0"` 로 도착한다. asyncpg 가 `"0" < 0` 을 시도해 `TypeError` |
+    | 엔진에 `prepared_statement_cache_size=0` | ❌ `TypeError` — DBAPI 인자다 |
+    | URL 쿼리 `?statement_cache_size=0` | ❌ 문자열 `"0"` 이라 비교 중 `TypeError` |
 
     URL 쿼리는 `prepared_statement_cache_size` 만 int 로 강제된다
     (asyncpg 방언의 `create_connect_args` 가 그 키에만 `coerce_kw_type` 을 건다).

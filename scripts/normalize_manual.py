@@ -72,16 +72,19 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import re
+import sqlite3
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from common.paths import PROJECT_ROOT  # noqa: E402
+from common.paths import PROJECT_ROOT, krx_db_path  # noqa: E402
 from common.trading_calendar import now_kst_iso  # noqa: E402
 
 MANUAL_DIR = PROJECT_ROOT / "data" / "manual"
@@ -116,6 +119,24 @@ RAW_NAME = re.compile(r"^data_\d+_\d+$")
 
 # 사본을 견줄 때, 값이 다른 칸을 몇 개까지 보여 줄지
 DIFF_PREVIEW = 6
+
+# ── 업종분류 현황 — 🔴 기준일이 파일에 없다 ──
+#
+# KRX 화면 [주식 > 세부안내 > 업종분류 현황] 의 CSV 는 종목코드·업종명·종가는 주지만
+# **어느 날 것인지는 적지 않는다.** 파일명 `data_2708_20260903.csv` 의 날짜는 조회일이
+# 아니라 **내려받은 날**이다 — 2015-01-02 를 조회해 오늘 받으면 20260903 이 붙는다.
+# 사람에게 이름을 고쳐 적게 하면 틀린다. 그래서 **종가로 되짚는다** — 종목 30개의 종가가
+# 동시에 같은 거래일은 `daily_price` 에 하나뿐이다. 그 날이 기준일이다.
+#
+# 머리글에 `업종명` 이 있으면 이 종류로 본다. 폴더 이름은 보지 않는다.
+SECTOR_LABEL = "업종분류현황"
+SECTOR_HEAD = "업종명"
+#: 맞춰 볼 종목 수. 거래정지로 종가가 며칠째 같은 종목이 섞여도 30종이 동시에 같은 날은 하나다.
+SECTOR_PROBE = 30
+#: 되짚은 값을 이 이름으로 변환본 **앞**에 붙인다. 규격 `sector.json` 의 별칭에 있다.
+SECTOR_DATE_COL = "기준일자"
+SECTOR_MARKET_COL = "시장구분"
+_CODE_RE = re.compile(r"^[0-9]{4}[0-9A-Z]{2}$")
 
 
 # ==================================================
@@ -163,6 +184,110 @@ def num(value: str) -> Optional[float]:
 
 def rows_of(text: str) -> List[List[str]]:
     return [r for r in csv.reader(text.splitlines()) if r]
+
+
+# ==================================================
+# 1.5 업종분류 현황 — 종가로 기준일을 되짚는다
+# ==================================================
+
+@dataclass
+class SectorGuess:
+    """되짚기 결과. `bas_dd` 가 None 이면 정하지 못한 것이고 `note` 에 까닭이 있다."""
+    bas_dd: Optional[str]
+    market: Optional[str]
+    tried: int                                   # 맞춰 본 종목 수
+    matched: int                                 # 가장 많이 맞은 날의 일치 수
+    candidates: List[Tuple[str, int]] = field(default_factory=list)   # (날짜, 일치 수) 상위
+    note: str = ""
+
+    @property
+    def ok(self) -> bool:
+        return self.bas_dd is not None
+
+
+def _head_index(head: Sequence[str], *names: str) -> Optional[int]:
+    for i, h in enumerate(head):
+        if h.strip().lstrip("﻿") in names:
+            return i
+    return None
+
+
+def is_sector_file(head: Sequence[str]) -> bool:
+    return _head_index(head, SECTOR_HEAD) is not None
+
+
+def infer_sector_date(rows: Sequence[Sequence[str]], *, db_path: Optional[Path] = None,
+                      probe: int = SECTOR_PROBE) -> SectorGuess:
+    """종가 `probe` 종을 `daily_price` 와 맞춰 기준일과 시장을 알아낸다.
+
+    **전부 맞는 날이 정확히 하나**여야 통과다. 하나도 없으면 우리 시세에 없는 날(휴장일
+    을 조회했거나 아직 안 받은 구간)이고, 둘 이상이면 표본이 모자란 것이다. 어느 쪽이든
+    추측하지 않고 `note` 에 남긴다 — 틀린 날짜가 붙는 것이 빈 것보다 비싸다.
+    """
+    head, body = rows[0], rows[1:]
+    ic = _head_index(head, "종목코드", "단축코드", "ISU_SRT_CD")
+    ip = _head_index(head, "종가", "TDD_CLSPRC")
+    if ic is None or ip is None:
+        return SectorGuess(None, None, 0, 0, note="종목코드·종가 칸을 못 찾았다")
+
+    probes: List[Tuple[str, int]] = []
+    for r in body:
+        if len(r) <= max(ic, ip):
+            continue
+        code = r[ic].strip()
+        if code.isdigit():
+            code = code.zfill(6)          # 엑셀이 지운 앞자리 0 — 맞춰 보는 데만 쓴다
+        close = num(r[ip])
+        if not _CODE_RE.match(code) or close is None or close <= 0:
+            continue
+        probes.append((code, int(close)))
+        if len(probes) >= probe:
+            break
+    if not probes:
+        return SectorGuess(None, None, 0, 0, note="맞춰 볼 종가가 없다")
+
+    hits: List[Tuple[str, str]] = []             # (날짜, 시장) 맞은 행마다 하나
+    경로 = Path(db_path) if db_path else krx_db_path()
+    conn = sqlite3.connect(f"file:{경로.as_posix()}?mode=ro", uri=True)
+    try:
+        for code, close in probes:
+            hits.extend(conn.execute(
+                "SELECT bas_dd, market FROM daily_price WHERE code = ? AND close = ?",
+                (code, close)).fetchall())
+    finally:
+        conn.close()
+
+    by_day = Counter(d for d, _ in hits)
+    top = by_day.most_common(3)
+    if not top:
+        return SectorGuess(None, None, len(probes), 0, note="daily_price 에 맞는 종가가 없다")
+
+    full = [d for d, n in by_day.items() if n == len(probes)]
+    if len(full) == 1:
+        day = full[0]
+        market = Counter(m for d, m in hits if d == day).most_common(1)[0][0]
+        return SectorGuess(day, market, len(probes), len(probes), top)
+    if full:
+        note = (f"{len(full)}일이 전부 맞는다 — 종가가 며칠째 같은 종목들이다. "
+                f"SECTOR_PROBE 를 늘려야 한다")
+    else:
+        note = f"전부 맞는 날이 없다 (최고 {top[0][1]}/{len(probes)} · {top[0][0]})"
+    return SectorGuess(None, None, len(probes), top[0][1], top, note)
+
+
+def sector_text(text: str, guess: SectorGuess) -> str:
+    """되짚은 기준일(그리고 없으면 시장)을 칸으로 **앞에** 붙인 변환본 본문."""
+    rows = rows_of(text)
+    head = rows[0]
+    has_market = _head_index(head, SECTOR_MARKET_COL, "시장") is not None
+    extra_head = [SECTOR_DATE_COL] + ([] if has_market else [SECTOR_MARKET_COL])
+    extra_row = [guess.bas_dd] + ([] if has_market else [guess.market])
+    out = io.StringIO()
+    w = csv.writer(out, lineterminator="\n")
+    w.writerow(extra_head + [h.lstrip("﻿") for h in head])
+    for r in rows[1:]:
+        w.writerow(extra_row + list(r))
+    return out.getvalue()
 
 
 # ==================================================
@@ -451,7 +576,7 @@ def main() -> int:
     기록 = manifest.get("files", {})
     이름표 = plan_investor_files()
 
-    변환 = 건너뜀 = 0
+    변환 = 건너뜀 = 보류 = 0
 
     print(f"── 손으로 받은 자료 정리 — 대상 {len(files)}개 ──")
     for src in files:
@@ -459,7 +584,29 @@ def main() -> int:
         digest = sha256(src)
         before = 기록.get(rel)
 
+        text, enc = decode(src)
+        rows = rows_of(text)
+        out_text = text
+        guess: Optional[SectorGuess] = None
         stem = 이름표.get(src, src.stem)
+
+        if rows and is_sector_file(rows[0]):
+            guess = infer_sector_date(rows)
+            if not guess.ok:
+                # 기준일을 모르는 스냅샷은 변환본을 만들지 않는다 — 날짜 없이 들어가면
+                # 규격의 required 가 격리하지만, 그 전에 여기서 까닭을 사람에게 보인다.
+                print(f"  🔴 {rel}")
+                print(f"      기준일을 정하지 못했다 — {guess.note}")
+                if guess.candidates:
+                    후보 = " · ".join(f"{d}({n}/{guess.tried})" for d, n in guess.candidates)
+                    print(f"      가까운 날: {후보}")
+                print("      할 일: 조회일자가 거래일인지, 그 구간 시세를 받았는지 확인한다.")
+                보류 += 1
+                continue
+            if RAW_NAME.match(src.stem):
+                stem = f"{SECTOR_LABEL}_{guess.market}_{guess.bas_dd}"
+            out_text = sector_text(text, guess)
+
         dst = OUT_DIR / src.relative_to(MANUAL_DIR).parent / f"{stem}{src.suffix}"
 
         if (not args.force and before and before.get("src_sha256") == digest
@@ -467,17 +614,18 @@ def main() -> int:
             건너뜀 += 1
             continue
 
-        text, enc = decode(src)
-
         표시 = "→" if not args.dry_run else "(예정)"
         바뀜 = "" if stem == src.stem else "  ★이름"
         print(f"  {표시} {rel}")
         print(f"      {enc} → utf-8 · {dst.relative_to(MANUAL_DIR).as_posix()}{바뀜}")
+        if guess:
+            print(f"      기준일 {guess.bas_dd} · {guess.market} ← 종가 "
+                  f"{guess.matched}/{guess.tried}종 일치 · {len(rows) - 1:,}행")
 
         if not args.dry_run:
             dst.parent.mkdir(parents=True, exist_ok=True)
             # newline="" 없이 쓰면 윈도우에서 줄바꿈이 두 번 들어간다
-            dst.write_text(text, encoding="utf-8", newline="")
+            dst.write_text(out_text, encoding="utf-8", newline="")
             기록[rel] = {
                 "src_sha256": digest,
                 "src_encoding": enc,
@@ -485,6 +633,15 @@ def main() -> int:
                 "renamed": stem != src.stem,
                 "converted_at": now_kst_iso(),
             }
+            if guess:
+                # 어떻게 알아냈는지를 남긴다 — 나중에 값이 어긋나면 여기서부터 되짚는다.
+                기록[rel]["inferred"] = {
+                    "bas_dd": guess.bas_dd, "market": guess.market,
+                    "how": f"종가 {guess.matched}/{guess.tried}종이 daily_price 와 일치",
+                    "columns_added": [SECTOR_DATE_COL]
+                    + ([] if _head_index(rows[0], SECTOR_MARKET_COL, "시장") is not None
+                       else [SECTOR_MARKET_COL]),
+                }
         변환 += 1
 
     if not args.dry_run and 변환:
@@ -495,6 +652,7 @@ def main() -> int:
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     print(f"\n완료 — 변환 {변환}개 · 건너뜀 {건너뜀}개"
+          f"{f' · 🔴 보류 {보류}개' if 보류 else ''}"
           f"{' (예정만 계산했습니다)' if args.dry_run else ''}")
 
     report_siblings(files)
