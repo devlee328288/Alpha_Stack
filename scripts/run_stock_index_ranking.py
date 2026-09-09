@@ -25,13 +25,16 @@ from models.experiment import (  # noqa: E402
     classification_probability_metrics,
     evaluate_nested_class_weights,
 )
+from models.final_models import load_winning_models  # noqa: E402
 from models.stock_experiment import evaluate_stock_models  # noqa: E402
 from models.stock_ranking import (  # noqa: E402
     aligned_index_splits,
     aligned_panel_splits,
     build_common_validation_schedule,
+    build_full_stock_prediction_output,
     select_for_index_direction,
     summarize_direction_ranking,
+    summarize_full_stock_prediction_output,
     summarize_random_ranking_baseline,
 )
 from scripts.run_stock_model_experiment import load_stock_model_dataset  # noqa: E402
@@ -39,15 +42,14 @@ from scripts.run_stock_model_experiment import load_stock_model_dataset  # noqa:
 HF_INDEX_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "index_price_dev.parquet"
 HF_DAILY_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "daily_price_dev.parquet"
 STOCK_REPORT_PATH = ROOT / "reports" / "stock_feature_combinations.json"
+INDEX_REPORT_PATH = ROOT / "reports" / "model_sweep.json"
+LOCAL_FULL_OUTPUT_PATH = ROOT / "data" / "raw" / "stock_prediction_output.parquet"
 LOCAL_RANKING_PATH = ROOT / "data" / "raw" / "stock_index_direction_ranking.parquet"
 LOCAL_BACKTEST_DAILY_PATH = ROOT / "data" / "raw" / "stock_ranking_backtest_daily.parquet"
 LOCAL_BACKTEST_TRADE_PATH = ROOT / "data" / "raw" / "stock_ranking_backtest_trades.parquet"
 REPORT_PATH = ROOT / "reports" / "stock_index_ranking.json"
 TRIALS_PATH = ROOT / "reports" / "trials.jsonl"
 
-INDEX_COMBINATION = "E"
-INDEX_RETURN_FEATURES = ("five_day_return",)
-INDEX_MODEL = "RandomForest"
 STOCK_BACKTEST_COSTS = (0.0, 0.0028, 0.0043)
 STOCK_BACKTEST_CUTOFFS = (1, 3, 5)
 
@@ -399,29 +401,38 @@ def _append_alignment_trials(
 
 
 def main() -> None:
-    """두 OOS 예측의 공통 날짜에서 방향별 Top 5 종목 랭킹을 만든다."""
+    """두 트랙의 1위 모델로 최대 50종목 기본 출력과 부가 확률 분위 결과를 만든다."""
 
-    for path in (HF_INDEX_PATH, STOCK_REPORT_PATH):
+    for path in (HF_INDEX_PATH, INDEX_REPORT_PATH, STOCK_REPORT_PATH):
         if not path.exists():
             raise FileNotFoundError(f"선행 산출물이 없습니다: {path}")
 
     stock_report = json.loads(STOCK_REPORT_PATH.read_text(encoding="utf-8"))
     if "final_selection" not in stock_report:
         raise RuntimeError("ADR 0007 최종 선정 결과가 없습니다. 평가 보고서를 먼저 갱신하세요.")
-    stock_winner = stock_report["final_selection"]["selected"]
-    stock_combination = str(stock_winner["combination"])
-    stock_model = str(stock_winner["model"])
-    stock_features = tuple(stock_report["combinations"][stock_combination]["features"])
+    index_winner, stock_winner = load_winning_models(
+        INDEX_REPORT_PATH,
+        STOCK_REPORT_PATH,
+    )
+    index_combination = index_winner.combination
+    index_model = index_winner.model
+    index_return_features = index_winner.return_features
+    stock_combination = stock_winner.combination
+    stock_model = stock_winner.model
+    stock_features = stock_winner.feature_columns
     index_sha = _sha256(HF_INDEX_PATH)
     if stock_report["source"]["index_sha256"] != index_sha:
         raise RuntimeError("개별종목 OOS와 현재 HF 지수 Parquet의 리비전이 다릅니다.")
 
-    print("[1/4] KOSPI200 조합E + 5Day Return RandomForest OOS 재현", flush=True)
+    print(
+        f"[1/4] KOSPI200 1위 조합{index_combination} {index_model} OOS 재현",
+        flush=True,
+    )
     index_prices = pd.read_parquet(HF_INDEX_PATH)
     index_dataset = build_model_dataset(
         index_prices,
-        INDEX_COMBINATION,
-        return_features=INDEX_RETURN_FEATURES,
+        index_combination,
+        return_features=index_return_features,
     )
     stock_dataset = load_stock_model_dataset(stock_features)
     schedule = build_common_validation_schedule(
@@ -434,7 +445,7 @@ def main() -> None:
     )
     index_result = evaluate_nested_class_weights(
         index_dataset,
-        model_names=(INDEX_MODEL,),
+        model_names=(index_model,),
         outer_splits=index_splits,
     )
     index_oos = index_result.oos_predictions.loc[
@@ -465,6 +476,14 @@ def main() -> None:
         outer_splits=stock_splits,
     )
     stock_oos = stock_result.oos_predictions
+
+    # 1차 기본 산출물은 업종 10×종목 5 후보 전량이다. 확률 Top 1·3·5는 아래에서
+    # 별도로 만드는 부가 실험이며 이 표를 대신하거나 행을 제거하지 않는다.
+    full_output = build_full_stock_prediction_output(stock_oos, index_oos)
+    full_output_summary = summarize_full_stock_prediction_output(full_output)
+    LOCAL_FULL_OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    full_output.to_parquet(LOCAL_FULL_OUTPUT_PATH, index=False)
+
     ranking = select_for_index_direction(stock_oos, index_oos, top_n=5)
     LOCAL_RANKING_PATH.parent.mkdir(parents=True, exist_ok=True)
     ranking.to_parquet(LOCAL_RANKING_PATH, index=False)
@@ -489,7 +508,7 @@ def main() -> None:
         cutoff_summary["direction_hit_rate"]
         - cutoff_summary["random_direction_hit_rate"]
     )
-    baseline = stock_oos.merge(
+    index_direction_comparison = stock_oos.merge(
         index_oos.loc[:, ["bas_dd", "predicted"]].rename(
             columns={"predicted": "index_predicted"}
         ),
@@ -497,9 +516,14 @@ def main() -> None:
         how="inner",
         validate="many_to_one",
     )
-    baseline_hit_rate = float(
-        baseline["label_numeric"].eq(baseline["index_predicted"]).mean()
+    index_direction_match_rate = float(
+        index_direction_comparison["label_numeric"]
+        .eq(index_direction_comparison["index_predicted"])
+        .mean()
     )
+    # 기존 콘솔의 "방향 적중률"은 종목 모델 정확도가 아니라 지수 방향 일치율이다.
+    # 이름을 유지해야 하는 과거 로그와의 비교용 별칭이며 기본 적중률로 사용하지 않는다.
+    baseline_hit_rate = index_direction_match_rate
 
     print("      T+1~T+6 수정 시가 · 5슬리브 · 비용 전/0.28%/0.43%", flush=True)
     stock_backtest = _run_stock_backtests(ranking)
@@ -533,8 +557,8 @@ def main() -> None:
         run_id=run_id,
         track="index",
         experiment={
-            "combination": INDEX_COMBINATION,
-            "return_features": list(INDEX_RETURN_FEATURES),
+            "combination": index_combination,
+            "return_features": list(index_return_features),
         },
         source=source,
         inner_results=index_result.inner_results,
@@ -564,9 +588,13 @@ def main() -> None:
         },
         "data_quality_policy": stock_report["data_quality_policy"],
         "index_model": {
-            "combination": INDEX_COMBINATION,
-            "return_features": list(INDEX_RETURN_FEATURES),
-            "model": INDEX_MODEL,
+            "combination": index_combination,
+            "return_features": list(index_return_features),
+            "model": index_model,
+            "selection": {
+                "metric": index_winner.selection_metric,
+                "value": index_winner.selection_value,
+            },
             "outer_fold_metrics": outer_metrics,
             "selected_class_weights": (
                 index_result.outer_results["selected_class_weight"]
@@ -612,13 +640,16 @@ def main() -> None:
             "selection": stock_report["final_selection"],
         },
         "common_oos": {
-            "dates": int(ranking["bas_dd"].nunique()),
-            "first_date": str(ranking["bas_dd"].min()),
-            "last_date": str(ranking["bas_dd"].max()),
-            "top5_rows": int(len(ranking)),
+            "dates": int(full_output["bas_dd"].nunique()),
+            "first_date": str(full_output["bas_dd"].min()),
+            "last_date": str(full_output["bas_dd"].max()),
+            "full_candidate_rows": int(len(full_output)),
+            "supplementary_top5_rows": int(len(ranking)),
         },
-        "all_candidate_direction_hit_rate": baseline_hit_rate,
-        "ranking_summary": cutoff_summary.to_dict(orient="records"),
+        "full_prediction_summary": full_output_summary,
+        "all_candidate_stock_hit_rate": full_output_summary["stock_hit_rate"],
+        "all_candidate_index_direction_match_rate": index_direction_match_rate,
+        "probability_quantile_summary": cutoff_summary.to_dict(orient="records"),
         "random_ranking_baseline": (
             random_summary.astype(object)
             .where(random_summary.notna(), None)
@@ -627,8 +658,27 @@ def main() -> None:
         "top5_by_index_direction": _direction_summary(ranking),
         "output_contract": {
             "keys": ["fold", "bas_dd", "code"],
-            "probabilities": ["p_down", "p_neutral", "p_up"],
-            "ranking": [
+            "index_prediction": [
+                "index_prediction",
+                "index_p_down",
+                "index_p_neutral",
+                "index_p_up",
+            ],
+            "stock_prediction": [
+                "stock_prediction",
+                "p_down",
+                "p_neutral",
+                "p_up",
+                "actual_label",
+                "stock_hit",
+            ],
+            "display_order": [
+                "sector_market_cap_rank",
+                "industry_stock_rank",
+                "code",
+            ],
+            "hit_rates": ["sector_hit_rate", "daily_hit_rate"],
+            "supplementary_probability_ranking": [
                 "industry_index_name",
                 "selected_probability",
                 "index_direction_rank",
@@ -639,15 +689,22 @@ def main() -> None:
                 "exit_bas_dd",
                 "exit_adj_open",
             ],
-            "position_policy": "KOSPI200 상승 예측일만 매수, 중립·하락은 현금",
+            "position_policy": (
+                "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, "
+                "그 외는 현금"
+            ),
         },
         "stock_backtest": stock_backtest,
+        "local_full_output_path": str(LOCAL_FULL_OUTPUT_PATH.relative_to(ROOT)).replace(
+            "\\", "/"
+        ),
         "local_ranking_path": str(LOCAL_RANKING_PATH.relative_to(ROOT)).replace(
             "\\", "/"
         ),
         "note": (
-            "지수 방향별 확률 랭킹은 세 방향 모두 남긴다. 실제 수익률은 현재 long-only "
-            "정책에 맞춰 지수 상승 예측일만 매수하고 중립·하락 예측일은 현금으로 평가했다."
+            "업종 10×종목 5의 최대 50종목은 모두 기본 출력에 남긴다. Top 1·3·5는 "
+            "확률 분위 부가 실험으로 분리한다. 실제 매수는 지수와 종목이 모두 상승으로 "
+            "예측된 경우에만 수행한다."
         ),
     }
     REPORT_PATH.write_text(
@@ -657,7 +714,16 @@ def main() -> None:
 
     print(f"[4/4] 결과 저장: {REPORT_PATH.relative_to(ROOT)}", flush=True)
     print(f"      전체 후보 방향 적중률: {baseline_hit_rate:.4f}", flush=True)
-    for row in report["ranking_summary"]:
+    print(
+        f"      전체 후보 종목 적중률 {full_output_summary['stock_hit_rate']:.4f}",
+        flush=True,
+    )
+    if full_output_summary["up_precision"] is not None:
+        print(
+            f"      상승 클래스 Precision {full_output_summary['up_precision']:.4f}",
+            flush=True,
+        )
+    for row in report["probability_quantile_summary"]:
         print(
             f"      Top {row['top_n']}: 적중률 {row['direction_hit_rate']:.4f} · "
             f"평균 선택확률 {row['mean_selected_probability']:.4f}",

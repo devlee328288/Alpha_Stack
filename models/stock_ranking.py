@@ -8,6 +8,7 @@ import pandas as pd
 from evaluation.walk_forward import expanding_splits
 
 PROBABILITY_COLUMNS = {-1: "p_down", 0: "p_neutral", 1: "p_up"}
+CLASS_NAMES = {-1: "하락", 0: "보합", 1: "상승"}
 
 
 def build_common_validation_schedule(
@@ -156,6 +157,156 @@ def add_probability_ranks(predictions: pd.DataFrame) -> pd.DataFrame:
                 .astype("int16")
             )
     return out
+
+
+def build_full_stock_prediction_output(
+    stock_predictions: pd.DataFrame,
+    index_predictions: pd.DataFrame,
+) -> pd.DataFrame:
+    """업종 10×종목 5 후보를 자르지 않고 예측·실제·적중 결과로 만든다.
+
+    이 표가 1차 프로젝트의 기본 산출물이다. 확률 Top 1·3·5는 이 표에서 파생하는
+    부가 실험이며, 기본 산출물을 대신하거나 행을 제거해서는 안 된다.
+    """
+
+    required_stock = {
+        "model",
+        "fold",
+        "bas_dd",
+        "code",
+        "industry_index_name",
+        "sector_market_cap_rank",
+        "industry_stock_rank",
+        "predicted",
+        "label_numeric",
+        *PROBABILITY_COLUMNS.values(),
+    }
+    missing_stock = required_stock - set(stock_predictions.columns)
+    if missing_stock:
+        raise ValueError(f"종목 기본 출력 입력 열이 없습니다: {sorted(missing_stock)}")
+    required_index = {
+        "fold",
+        "bas_dd",
+        "predicted",
+        *PROBABILITY_COLUMNS.values(),
+    }
+    missing_index = required_index - set(index_predictions.columns)
+    if missing_index:
+        raise ValueError(f"KOSPI200 기본 출력 입력 열이 없습니다: {sorted(missing_index)}")
+
+    stocks = stock_predictions.copy()
+    stocks["bas_dd"] = stocks["bas_dd"].astype("string")
+    stocks["code"] = stocks["code"].astype("string").str.strip()
+    if stocks["code"].isna().any() or stocks["code"].eq("").any():
+        raise ValueError("종목코드는 비어 있지 않은 문자열이어야 합니다.")
+    if stocks.duplicated(["model", "fold", "bas_dd", "code"]).any():
+        raise ValueError("같은 모델·폴드·날짜·종목의 OOS 예측이 중복되었습니다.")
+
+    indices = index_predictions.copy()
+    indices["bas_dd"] = indices["bas_dd"].astype("string")
+    if indices.duplicated(["fold", "bas_dd"]).any():
+        raise ValueError("같은 폴드·날짜의 KOSPI200 OOS 예측이 중복되었습니다.")
+    indices = indices.rename(
+        columns={
+            "predicted": "index_predicted",
+            "p_down": "index_p_down",
+            "p_neutral": "index_p_neutral",
+            "p_up": "index_p_up",
+        }
+    )
+
+    out = add_probability_ranks(stocks).rename(columns={"predicted": "stock_predicted"})
+    out = out.merge(
+        indices.loc[
+            :,
+            [
+                "fold",
+                "bas_dd",
+                "index_predicted",
+                "index_p_down",
+                "index_p_neutral",
+                "index_p_up",
+            ],
+        ],
+        on=["fold", "bas_dd"],
+        how="inner",
+        validate="many_to_one",
+    )
+    if out.empty:
+        raise ValueError("KOSPI200과 개별종목 OOS 예측의 공통 날짜가 없습니다.")
+
+    out["stock_prediction"] = out["stock_predicted"].map(CLASS_NAMES)
+    out["actual_label"] = out["label_numeric"].map(CLASS_NAMES)
+    out["index_prediction"] = out["index_predicted"].map(CLASS_NAMES)
+    if out[["stock_prediction", "actual_label", "index_prediction"]].isna().any().any():
+        raise ValueError("상승·보합·하락 외의 예측 또는 실제 라벨이 있습니다.")
+
+    out["stock_hit"] = out["stock_predicted"].eq(out["label_numeric"])
+    out["buy_signal"] = out["index_predicted"].eq(1) & out["stock_predicted"].eq(1)
+    day_groups = ["model", "fold", "bas_dd"]
+    sector_groups = [*day_groups, "industry_index_name"]
+    out["sector_hit_rate"] = out.groupby(sector_groups, sort=False)["stock_hit"].transform(
+        "mean"
+    )
+    out["daily_hit_rate"] = out.groupby(day_groups, sort=False)["stock_hit"].transform(
+        "mean"
+    )
+
+    return out.sort_values(
+        [
+            "model",
+            "fold",
+            "bas_dd",
+            "sector_market_cap_rank",
+            "industry_stock_rank",
+            "code",
+        ],
+        kind="stable",
+    ).reset_index(drop=True)
+
+
+def summarize_full_stock_prediction_output(output: pd.DataFrame) -> dict[str, object]:
+    """최대 50종목 기본 출력의 적중률과 상승 클래스 precision을 집계한다."""
+
+    required = {
+        "bas_dd",
+        "code",
+        "industry_index_name",
+        "stock_predicted",
+        "label_numeric",
+        "stock_hit",
+    }
+    missing = required - set(output.columns)
+    if missing:
+        raise ValueError(f"종목 기본 출력 요약 열이 없습니다: {sorted(missing)}")
+    if output.empty:
+        raise ValueError("종목 기본 출력이 비어 있습니다.")
+
+    predicted_up = output["stock_predicted"].eq(1)
+    predicted_up_rows = int(predicted_up.sum())
+    true_up_rows = int((predicted_up & output["label_numeric"].eq(1)).sum())
+    up_precision = true_up_rows / predicted_up_rows if predicted_up_rows else None
+    sector_rows = (
+        output.groupby("industry_index_name", sort=True, dropna=False)
+        .agg(
+            rows=("code", "size"),
+            dates=("bas_dd", "nunique"),
+            hit_rate=("stock_hit", "mean"),
+        )
+        .reset_index()
+        .to_dict(orient="records")
+    )
+    buy_signal = output.get("buy_signal", pd.Series(False, index=output.index))
+    return {
+        "rows": int(len(output)),
+        "dates": int(output["bas_dd"].nunique()),
+        "stock_hit_rate": float(output["stock_hit"].mean()),
+        "predicted_up_rows": predicted_up_rows,
+        "true_up_rows": true_up_rows,
+        "up_precision": up_precision,
+        "buy_signal_rows": int(buy_signal.sum()),
+        "by_sector": sector_rows,
+    }
 
 
 def select_for_index_direction(
@@ -318,8 +469,10 @@ __all__ = [
     "add_probability_ranks",
     "aligned_index_splits",
     "aligned_panel_splits",
+    "build_full_stock_prediction_output",
     "build_common_validation_schedule",
     "select_for_index_direction",
+    "summarize_full_stock_prediction_output",
     "summarize_direction_ranking",
     "summarize_random_ranking_baseline",
 ]
