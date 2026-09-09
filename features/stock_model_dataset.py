@@ -136,6 +136,24 @@ STOCK_COMBINATION_FEATURES = {
         "five_day_return",
         "relative_ret_5_market",
     ),
+    # 개발구간 1위 J와, J에 완전히 포함되는 2위 I 대신 3위 A를 합친 조합이다.
+    # 순서는 J를 먼저 유지하고 A에서 아직 없는 피처만 뒤에 붙인다.
+    "K": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "macd_hist_ratio",
+        "bb_position",
+        "hv_20",
+        "vol_ratio_20",
+        "obv_slope_20",
+        "daily_return",
+    ),
 }
 
 # 기존 호출은 조합 A를 뜻한다. 전체 조합의 합집합은 공통 패널 캐시 검증에 사용한다.

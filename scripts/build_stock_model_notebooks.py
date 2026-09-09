@@ -4,14 +4,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
+import sys
 from pathlib import Path
 
 import nbformat
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from features.stock_model_dataset import STOCK_COMBINATION_FEATURES  # noqa: E402
+
 EXPERIMENT_ROOT = ROOT / "notebooks" / "04-모델" / "개별종목" / "실험"
 BASE_OUTPUT = EXPERIMENT_ROOT / "기본모델"
 REPORT = ROOT / "reports" / "stock_feature_combinations.json"
+BEST_RESULT_ROOT = EXPERIMENT_ROOT / "조합별 best result"
+RANK_PREFIXES = ("⭐", "❤️", "♡")
 
 COMBINATION_DIRECTORIES = {
     "A": "조합A_trend_momentum_volatility_volume_returns",
@@ -24,6 +32,7 @@ COMBINATION_DIRECTORIES = {
     "H": "조합H_volatility_regime_interaction",
     "I": "조합I_kospi200_e_same_features",
     "J": "조합J_kospi200_e_market_relative_strength",
+    "K": "조합K_j_a_feature_union",
 }
 COMBINATION_TITLES = {
     "A": "추세·모멘텀·변동성·거래량·수익률",
@@ -36,6 +45,7 @@ COMBINATION_TITLES = {
     "H": "단기 반전 방향축·변동성 레짐축",
     "I": "KOSPI200 조합 E와 동일한 변동성·5일 수익률",
     "J": "KOSPI200 조합 E 피처·KOSPI200 대비 5일 상대강도",
+    "K": "개발구간 1위 J와 3위 A의 피처 합집합",
 }
 
 MODEL_FILES = {
@@ -247,44 +257,29 @@ FEATURE_COLUMNS = {feature_literal}
 
 report_path = project_root / "reports" / "stock_feature_combinations.json"
 report = json.loads(report_path.read_text(encoding="utf-8"))
-combination_report = report["combinations"][COMBINATION]
-panel = combination_report["panel"]
-print("학습 기간:", panel["first_date"], "~", panel["last_date"])
-print("학습 행·종목:", panel["model_rows"], panel["stocks"])
 print(f"조합{{COMBINATION}} 피처:", FEATURE_COLUMNS)
-
-folds = pd.DataFrame(combination_report["outer_fold_results"])
-model_folds = folds.loc[folds["model"].eq(MODEL_NAME)].reset_index(drop=True)
-fold_columns = [
-    "fold",
-    "selected_class_weight",
-    "train_dates",
-    "valid_start",
-    "valid_end",
-    "accuracy",
-    "training_majority_baseline_accuracy",
-    "accuracy_minus_training_majority_baseline",
-    "macro_f1",
-    "balanced_accuracy",
-    "mcc",
-    "pr_auc_macro_ovr",
-    "down_recall",
-    "core_harmonic_mean",
-]
-display(model_folds.loc[:, fold_columns].round(4))
-
-metric_columns = [
-    "accuracy",
-    "training_majority_baseline_accuracy",
-    "accuracy_minus_training_majority_baseline",
-    "macro_f1",
-    "balanced_accuracy",
-    "mcc",
-    "pr_auc_macro_ovr",
-    "down_recall",
-    "core_harmonic_mean",
-]
-display(model_folds.loc[:, metric_columns].mean().to_frame("OOS 폴드 평균").round(4))
+combination_report = report["combinations"].get(COMBINATION)
+if combination_report is None:
+    print("아직 실측 결과가 없습니다. 아래 공통 실행 명령으로 조합을 평가하세요.")
+else:
+    panel = combination_report["panel"]
+    print("학습 기간:", panel["first_date"], "~", panel["last_date"])
+    print("학습 행·종목:", panel["model_rows"], panel["stocks"])
+    folds = pd.DataFrame(combination_report["outer_fold_results"])
+    model_folds = folds.loc[folds["model"].eq(MODEL_NAME)].reset_index(drop=True)
+    fold_columns = [
+        "fold", "selected_class_weight", "train_dates", "valid_start", "valid_end",
+        "accuracy", "training_majority_baseline_accuracy",
+        "accuracy_minus_training_majority_baseline", "macro_f1", "balanced_accuracy",
+        "mcc", "pr_auc_macro_ovr", "down_recall", "core_harmonic_mean",
+    ]
+    display(model_folds.loc[:, fold_columns].round(4))
+    metric_columns = [
+        "accuracy", "training_majority_baseline_accuracy",
+        "accuracy_minus_training_majority_baseline", "macro_f1", "balanced_accuracy",
+        "mcc", "pr_auc_macro_ovr", "down_recall", "core_harmonic_mean",
+    ]
+    display(model_folds.loc[:, metric_columns].mean().to_frame("OOS 폴드 평균").round(4))
 
 # 조합별 노트북이 중복 학습하지 않도록 실제 fit은 공통 실행기에서 한 번 수행합니다.
 print("재실행 명령: python scripts/run_stock_model_experiment.py")
@@ -374,10 +369,32 @@ display(comparison)
     )
 
 
+def _pending_comparison_notebook(combination: str) -> nbformat.NotebookNode:
+    """아직 실측하지 않은 신규 조합의 비교 자리를 같은 폴더 형식으로 만든다."""
+
+    markdown = f"""# 개별종목 조합{combination} 4모델 비교
+
+조합 정의와 모델 4개 파일은 준비됐지만 개발구간 OOS 평가는 아직 실행하지 않았습니다.
+숫자를 추정해 적지 않고 공통 실행기가 만든 실측 리포트만 사용합니다.
+"""
+    code = f"""from pathlib import Path
+
+ROOT = Path.cwd()
+while ROOT.parent != ROOT and not (ROOT / "pyproject.toml").is_file():
+    ROOT = ROOT.parent
+print("실행 명령: python scripts/run_stock_model_experiment.py --combinations {combination}")
+"""
+    return nbformat.v4.new_notebook(
+        cells=[nbformat.v4.new_markdown_cell(markdown), nbformat.v4.new_code_cell(code)],
+        metadata=KERNEL_METADATA,
+    )
+
+
 def _feature_selection_markdown(
     combination: str,
     feature_columns: tuple[str, ...],
     winner: dict[str, object] | None = None,
+    marker: str = "⭐",
 ) -> str:
     """조합 폴더와 best-result 폴더에 둘 피처 설명을 만든다."""
 
@@ -418,7 +435,7 @@ def _feature_selection_markdown(
                     f"- 최종 1위: **{winner['model']}**, 기준선 대비 Accuracy "
                     f"**{winner['accuracy_minus_training_majority_baseline']:+.4f}**"
                 ),
-                "- 별표가 붙은 노트북이 이 조합의 4모델 중 최종 1위입니다.",
+                f"- `{marker}`가 붙은 노트북이 이 조합의 4모델 중 선정 모델입니다.",
             ]
         )
     return "\n".join(lines) + "\n"
@@ -428,7 +445,13 @@ def main(requested: tuple[str, ...] | None = None) -> None:
     """선택한 조합에 모델 4개·비교·피처 문서와 best-result를 만든다."""
 
     report = json.loads(REPORT.read_text(encoding="utf-8"))
-    overall_best_combination = report["final_selection"]["selected"]["combination"]
+    ranked_combinations = [
+        item["combination"] for item in report.get("combination_winners", [])
+    ]
+    rank_prefixes = {
+        combination: marker
+        for combination, marker in zip(ranked_combinations[:3], RANK_PREFIXES, strict=False)
+    }
     combinations = tuple(COMBINATION_DIRECTORIES)
     if requested is not None:
         normalized = tuple(str(name).strip().upper() for name in requested)
@@ -447,13 +470,27 @@ def main(requested: tuple[str, ...] | None = None) -> None:
 
     for combination in combinations:
         directory = COMBINATION_DIRECTORIES[combination]
-        combination_report = report["combinations"][combination]
+        combination_report = report["combinations"].get(combination)
+        feature_columns = tuple(STOCK_COMBINATION_FEATURES[combination])
+        output = EXPERIMENT_ROOT / directory
+        output.mkdir(parents=True, exist_ok=True)
+        if combination_report is None:
+            for model_name, filename in MODEL_FILES.items():
+                notebook = _combination_notebook(combination, model_name, feature_columns)
+                nbformat.write(notebook, output / filename)
+            nbformat.write(
+                _pending_comparison_notebook(combination),
+                output / "05.모델비교.ipynb",
+            )
+            (output / "피처선정.md").write_text(
+                _feature_selection_markdown(combination, feature_columns),
+                encoding="utf-8",
+            )
+            continue
         summaries = {
             item["model"]: item for item in combination_report["model_summary"]
         }
         feature_columns = tuple(combination_report["features"])
-        output = EXPERIMENT_ROOT / directory
-        output.mkdir(parents=True, exist_ok=True)
         for model_name, filename in MODEL_FILES.items():
             notebook = _combination_notebook(combination, model_name, feature_columns)
             nbformat.write(notebook, output / filename)
@@ -470,26 +507,52 @@ def main(requested: tuple[str, ...] | None = None) -> None:
             encoding="utf-8",
         )
 
-        best_prefix = "⭐" if combination == overall_best_combination else ""
-        best_output = (
-            EXPERIMENT_ROOT
-            / "조합별 best result"
-            / f"{best_prefix}조합{combination}"
+        best_prefix = rank_prefixes.get(combination, "")
+        best_output = _prepare_best_result_directory(
+            BEST_RESULT_ROOT,
+            combination,
+            best_prefix,
         )
-        best_output.mkdir(parents=True, exist_ok=True)
         winner = combination_report["model_summary"][0]
         # 1위 모델이 바뀌면 이전의 일반 파일과 별표 파일이 함께 남을 수 있다.
         # 이 폴더의 ipynb는 전부 이 생성기의 산출물이므로 4개를 새로 맞춘다.
         for old_notebook in best_output.glob("*.ipynb"):
             old_notebook.unlink()
         for model_name, filename in MODEL_FILES.items():
-            best_filename = f"⭐{filename}" if model_name == winner["model"] else filename
+            model_prefix = best_prefix or "⭐"
+            best_filename = (
+                f"{model_prefix}{filename}" if model_name == winner["model"] else filename
+            )
             notebook = _best_notebook(combination, model_name, summaries[model_name])
             nbformat.write(notebook, best_output / best_filename)
         (best_output / "피처선정.md").write_text(
-            _feature_selection_markdown(combination, feature_columns, winner),
+            _feature_selection_markdown(
+                combination,
+                feature_columns,
+                winner,
+                marker=best_prefix or "⭐",
+            ),
             encoding="utf-8",
         )
+
+
+def _prepare_best_result_directory(
+    root: Path,
+    combination: str,
+    rank_prefix: str,
+) -> Path:
+    """한 조합에는 현재 순위 접두가 붙은 best-result 폴더 하나만 남긴다."""
+
+    if rank_prefix not in (*RANK_PREFIXES, ""):
+        raise ValueError(f"지원하지 않는 순위 표시입니다: {rank_prefix}")
+    target = root / f"{rank_prefix}조합{combination}"
+    root.mkdir(parents=True, exist_ok=True)
+    for prefix in (*RANK_PREFIXES, ""):
+        alias = root / f"{prefix}조합{combination}"
+        if alias != target and alias.is_dir():
+            shutil.rmtree(alias)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
 
 
 if __name__ == "__main__":

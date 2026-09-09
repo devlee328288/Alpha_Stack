@@ -1,4 +1,4 @@
-"""96개 실행 결과에서 조합별 모델 best 요약과 피처 설명을 갱신한다."""
+"""KOSPI200 실행 결과에서 조합별 best 요약과 피처 설명을 갱신한다."""
 
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from features.model_dataset import COMBINATION_FEATURES  # noqa: E402
 from scripts.build_model_notebooks import (  # noqa: E402
     COMBINATION_DIRS,
+    COMBINATION_VARIANTS,
     MODELS,
     VARIANTS,
     experiment_directory,
@@ -44,18 +45,22 @@ FEATURE_DESCRIPTIONS = {
 
 
 def load_results() -> list[dict[str, Any]]:
-    """정확히 96개의 실행 캐시를 읽고 HF 출처가 하나인지 검사한다."""
+    """정의된 모든 실행 캐시를 읽고 HF 출처가 하나인지 검사한다."""
 
     paths = sorted(CACHE_DIR.glob("*.json"))
-    if len(paths) != 96:
-        raise RuntimeError(f"모델 실행 결과가 96개가 아닙니다: {len(paths)}")
+    expected = sum(
+        len(COMBINATION_VARIANTS[combination]) * len(MODELS)
+        for combination in COMBINATION_DIRS
+    )
+    if len(paths) != expected:
+        raise RuntimeError(f"모델 실행 결과가 {expected}개가 아닙니다: {len(paths)}")
     records = [json.loads(path.read_text(encoding="utf-8")) for path in paths]
     sources = {
         (record["source"]["repo_sha"], record["source"]["index_sha256"])
         for record in records
     }
     if len(sources) != 1:
-        raise RuntimeError(f"96개 결과의 HF 출처가 서로 다릅니다: {sources}")
+        raise RuntimeError(f"모델 결과의 HF 출처가 서로 다릅니다: {sources}")
     return records
 
 
@@ -65,7 +70,8 @@ def select_best_results(
     """같은 조합·모델의 네 피처 변형 중 조화평균 최대 결과를 고른다."""
 
     selected: dict[str, dict[str, Any]] = {}
-    variant_order = {name: index for index, name in enumerate(VARIANTS)}
+    configured_variants = COMBINATION_VARIANTS[combination]
+    variant_order = {name: index for index, name in enumerate(configured_variants)}
     for model_name in MODELS:
         candidates = [
             record
@@ -73,9 +79,10 @@ def select_best_results(
             if record["experiment"]["combination"] == combination
             and record["experiment"]["model"] == model_name
         ]
-        if len(candidates) != len(VARIANTS):
+        if len(candidates) != len(configured_variants):
             raise RuntimeError(
-                f"조합 {combination} {model_name} 결과가 4개가 아닙니다: {len(candidates)}"
+                f"조합 {combination} {model_name} 결과가 "
+                f"{len(configured_variants)}개가 아닙니다: {len(candidates)}"
             )
         selected[model_name] = max(
             candidates,
@@ -180,6 +187,7 @@ def _feature_markdown(
     combination: str,
     selected: dict[str, dict[str, Any]],
     overall_best: str,
+    marker: str,
 ) -> str:
     feature_lines = "\n".join(
         f"- `{feature}`: {FEATURE_DESCRIPTIONS[feature]}"
@@ -188,9 +196,9 @@ def _feature_markdown(
     result_lines = []
     for model_name, record in selected.items():
         summary = record["summary"]
-        marker = "⭐ " if model_name == overall_best else ""
+        model_marker = f"{marker} " if model_name == overall_best else ""
         result_lines.append(
-            f"| {marker}{model_name} | {_variant_label(_variant_name(record))} | "
+            f"| {model_marker}{model_name} | {_variant_label(_variant_name(record))} | "
             f"{summary['accuracy']:.4f} | {summary['macro_f1']:.4f} | "
             f"{summary['down_recall']:.4f} | **{summary['core_harmonic_mean']:.4f}** | "
             f"{summary['delta_sharpe_net_median']:.4f} |"
@@ -220,7 +228,7 @@ def _feature_markdown(
 |---|---|---:|---:|---:|---:|---:|
 {"\n".join(result_lines)}
 
-별표는 조합{combination}의 네 모델 중 핵심지표 조화평균이 가장 높은 모델이다. 모델별
+`{marker}`는 조합{combination}의 네 모델 중 핵심지표 조화평균이 가장 높은 모델이다. 모델별
 선정도 같은 기준을 사용하며, 어느 한 지표가 0이면 조화평균도 0으로 처리한다.
 클래스 가중치는 고정하지 않고 각 외부 폴드의 과거 내부 검증에서 다시 선택했다.
 
@@ -240,13 +248,20 @@ def main() -> int:
         combination: select_best_results(records, combination)
         for combination in COMBINATION_DIRS
     }
-    overall_best_combination = max(
+    ranked_combinations = sorted(
         selected_by_combination,
         key=lambda combination: max(
             float(record["summary"]["core_harmonic_mean"])
             for record in selected_by_combination[combination].values()
         ),
+        reverse=True,
     )
+    rank_prefixes = {
+        combination: marker
+        for combination, marker in zip(
+            ranked_combinations[:3], ("⭐", "❤️", "♡"), strict=False
+        )
+    }
     report_combinations = {}
     for combination in COMBINATION_DIRS:
         selected = selected_by_combination[combination]
@@ -254,7 +269,7 @@ def main() -> int:
             selected,
             key=lambda model_name: float(selected[model_name]["summary"]["core_harmonic_mean"]),
         )
-        best_prefix = "⭐" if combination == overall_best_combination else ""
+        best_prefix = rank_prefixes.get(combination, "")
         target = BEST_ROOT / f"{best_prefix}조합{combination}"
         target.mkdir(parents=True, exist_ok=True)
         for old_notebook in target.glob("*.ipynb"):
@@ -268,13 +283,18 @@ def main() -> int:
             ]
             filename = MODELS[model_name]
             if model_name == overall_best:
-                filename = f"⭐{filename}"
+                filename = f"{best_prefix or '⭐'}{filename}"
             nbformat.write(
                 _result_notebook(combination, model_name, record, candidates),
                 target / filename,
             )
         (target / "피처선정.md").write_text(
-            _feature_markdown(combination, selected, overall_best),
+            _feature_markdown(
+                combination,
+                selected,
+                overall_best,
+                marker=best_prefix or "⭐",
+            ),
             encoding="utf-8",
         )
         report_combinations[combination] = {

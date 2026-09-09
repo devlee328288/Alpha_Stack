@@ -32,6 +32,7 @@ EXPECTED_COUNTS = {
     "kospi200_combined_market_internals": 144,
     "stock_combination_a": 144,
 }
+HISTORICAL_SWEEP_COMBINATIONS = frozenset("ABCDEF")
 AUDIT = {
     "origin": "historical_backfill",
     "coverage": "verified_successful_fits_only",
@@ -229,10 +230,25 @@ def _notebook_outer_rows(path: Path) -> list[dict[str, Any]]:
     ]
     if len(cells) != 1 or len(cells[0].get("outputs", [])) < 1:
         raise RuntimeError(f"outer-fold 실행 결과를 찾을 수 없습니다: {path}")
-    html = "".join(cells[0]["outputs"][0]["data"]["text/html"])
-    frame = pd.read_html(StringIO(html))[0].drop(columns=["Unnamed: 0"], errors="ignore")
-    if len(frame) != 12:
-        raise RuntimeError(f"outer-fold 결과가 12개가 아닙니다: {path} ({len(frame)})")
+
+    # 커널 경고가 stream 출력으로 먼저 기록될 수 있으므로 첫 출력이라고 가정하지 않는다.
+    # 표를 가진 display_data 또는 execute_result만 골라야 실행 환경에 따라 복원이 깨지지 않는다.
+    html_outputs = [
+        output.get("data", {}).get("text/html")
+        for output in cells[0]["outputs"]
+        if output.get("data", {}).get("text/html")
+    ]
+    outer_frames = []
+    for html_output in html_outputs:
+        for candidate in pd.read_html(StringIO("".join(html_output))):
+            if len(candidate) == 12:
+                outer_frames.append(candidate)
+    if len(outer_frames) != 1:
+        raise RuntimeError(
+            f"12개 outer-fold HTML 표를 하나로 특정할 수 없습니다: "
+            f"{path} ({len(outer_frames)})"
+        )
+    frame = outer_frames[0].drop(columns=["Unnamed: 0"], errors="ignore")
     return frame.to_dict(orient="records")
 
 
@@ -260,6 +276,10 @@ def _combination_sweep_trials() -> list[dict[str, Any]]:
     for item in report["experiments"]:
         experiment = item["experiment"]
         combination = experiment["combination"]
+        # 이 스크립트는 trials.jsonl 도입 전에 수행한 A~F만 복원한다.
+        # 이후 추가된 조합은 실행 시점에 직접 기록되므로 다시 넣으면 중복 fit이 된다.
+        if combination not in HISTORICAL_SWEEP_COMBINATIONS:
+            continue
         model = experiment["model"]
         variant = _variant_for(experiment["return_features"])
         notebook_path = notebooks[(combination, variant, model)]
