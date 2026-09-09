@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-09-09T06:54:30.937559+00:00",
-  "run_id": "stock-preprocessing-ablation-20260909T065430.937559+0000",
+  "generated_at_utc": "2026-09-09T07:03:36.187326+00:00",
+  "run_id": "stock-preprocessing-ablation-20260909T070336.187326+0000",
   "issue": 197,
   "source": {
     "repo": "qurious-quant/alphastack-krx-dev",
