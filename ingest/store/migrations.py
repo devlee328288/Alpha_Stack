@@ -222,7 +222,8 @@ def _rebuild_index_price(conn: sqlite3.Connection) -> Optional[List[str]]:
 #      v11 종목기본정보 (stock_base_info · 우선주 판별)               ← 2026-09-03 적용
 #      v12 텍스트 신호 (text_signal — 공시 제목 감성 확률 3칸)  ← 2026-09-04 적용
 #      v13 지수 기본키에 시장 (index_price PK + index_class)     ← 2026-09-07 적용
-#      v14 다음 빈 번호
+#      v14 배당 (dividend — 현금·주식배당과 배당락일)            ← 2026-09-09 적용
+#      v15 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -1038,6 +1039,89 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             # 기본키인가")은 하나다. 문장마다 다시 재면 첫 문장이 표를 바꾼 뒤 조건이
             # 뒤집혀 나머지가 건너뛰어진다. 한 번 보고 목록을 통째로 준다.
             _rebuild_index_price,
+        ),
+    ),
+    (
+        "v14: 배당 — 기준일은 달력이고, 값이 움직이는 날은 배당락일이다",
+        (
+            # ── 배당 ────────────────────────────────────────────────────
+            # 공공데이터포털 금융위 **주식배당정보**(`GetStocDiviInfoService_V2`)를 담는다.
+            # 전량 71,681행 · 72콜(2026-09-09 실측). 우리 개발구간(2010~)에 드는 것은
+            # 현금·동시배당 26,008행이고 그중 우리 종목에 붙는 것이 21,846행이다.
+            #
+            # 🔴 **왜 필요한가 — 우리 수익률은 배당을 안 담고 있다.**
+            #
+            # FinanceDataReader·pykrx 의 수정주가는 액면분할·무상증자·주식배당까지만 펴고
+            # **현금배당은 안 편다**(`ingest/store/adj_price.py` 와 같은 범위). 학계 표준인
+            # CRSP 는 `RET`(배당 포함)와 `RETX`(배당 제외)를 **나눠서** 주는데, 우리가 가진
+            # 것은 `RETX` 뿐이다. 실측으로 그 크기를 쟀다 — 배당락일의 평균 일간수익률이
+            # 평소보다 **0.455%p 낮고 15년 중 11년이 음수**다. 개별종목 중립대가 ±2% 이므로
+            # 5거래일 창에 배당락일이 들어오면 그 라벨이 조용히 아래로 밀린다.
+            #
+            # 🔴 **기준일(`dvdn_bas_dt`)은 거의 거래일이 아니다.**
+            #
+            # 12월 결산법인의 기준일은 12월 31일인데 그날은 휴장이다. 실측하면 12월 기준일
+            # 중 거래일인 것은 **0.3%** 뿐이다. 값이 실제로 움직이는 날은 **배당락일**이고,
+            # 그것은 결제(T+2) 때문에 기준일에서 두 걸음 앞이다.
+            #
+            #     ex_date = (기준일 이하 마지막 거래일) 에서 1 거래일 앞
+            #
+            # 그래서 `ex_date` 를 **거래일 달력으로 계산해 함께 담는다**. 계산 규칙이 바뀌면
+            # 이 칸을 다시 채운다 — 거시(`macro_series.known_at`)와 같은 성질이다.
+            # 달력을 모르면 계산할 수 없으므로 채우는 것은 저장 계층(`dividend_store`)이고,
+            # 외부 연동 계층(`data_go_kr`)은 원문만 옮긴다.
+            #
+            # 🔴 **액면가는 그날의 값이 아니다.**
+            #
+            # 응답의 `stckParPrc` 는 **적재 시점의 액면가**다(삼성전자 1987년 배당 행에도
+            # 100원이 들어 있다 — 2018년 분할 뒤 값이다). 그래서 옛 행의 배당률(액면 대비 %)에
+            # 이 액면가를 곱하면 틀린다. 금액이 빈 행은 **금액이 없는 채로 둔다.**
+            # 2018년 이후로는 금액 채움이 98% 를 넘으므로 개발구간 대부분은 금액이 있다.
+            """
+            CREATE TABLE IF NOT EXISTS dividend (
+              isin_cd        TEXT NOT NULL,
+              dvdn_bas_dt    TEXT NOT NULL,
+              dvdn_rcd       TEXT NOT NULL,
+              code           TEXT,
+              crno           TEXT,
+              corp_nm        TEXT,
+              item_nm        TEXT,
+              scrs_itms_kcd_nm TEXT,
+              stac_md        TEXT,
+              dvdn_rcd_nm    TEXT,
+              cash_pay_dt    TEXT,
+              stck_hndv_dt   TEXT,
+              genr_dvdn_amt  REAL,
+              grdn_dvdn_amt  REAL,
+              genr_cash_dvdn_rt REAL,
+              genr_dvdn_rt   REAL,
+              cash_grdn_dvdn_rt REAL,
+              grdn_dvdn_rt   REAL,
+              par_price_at_load REAL,
+              ex_date        TEXT,
+              ex_date_rule   TEXT,
+              src_bas_dt     TEXT,
+              fetched_at     TEXT NOT NULL,
+              -- 한 종목(ISIN)·한 기준일에 배당구분마다 한 줄이다. 전량 71,681행에서
+              -- 이 세 칸의 조합이 유일함을 확인하고 정했다(중복 0).
+              -- ⚠️ 재무에서 `account_detail` 을 PK 에 빠뜨려 6.4%가 조용히 사라진 적이
+              --    있다. 그래서 "행 수가 맞다" 로 넘기지 않고 조합을 직접 세었다.
+              PRIMARY KEY (isin_cd, dvdn_bas_dt, dvdn_rcd),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              CHECK (length(dvdn_bas_dt) = 8),
+              -- 배당락일은 못 구할 수 있다(달력 밖의 옛 기준일). 다만 있으면 8자리다.
+              CHECK (ex_date IS NULL OR length(ex_date) = 8),
+              -- 배당락일이 있으면 그것을 어떤 규칙으로 세웠는지도 반드시 있다.
+              CHECK (ex_date IS NULL OR ex_date_rule IS NOT NULL)
+            )
+            """,
+            # 종목별 시계열을 훑을 때. 배당락일이 앞인 이유는 조인의 축이 그쪽이기
+            # 때문이다 — "이 종목의 이 거래일에 배당락이 있었나" 가 우리가 묻는 질문이다.
+            "CREATE INDEX IF NOT EXISTS idx_dividend_ex "
+            "ON dividend(code, ex_date)",
+            # 기준일 축으로 훑을 때(연도별 집계·커버리지 판정).
+            "CREATE INDEX IF NOT EXISTS idx_dividend_bas "
+            "ON dividend(dvdn_bas_dt, code)",
         ),
     ),
 )

@@ -368,8 +368,8 @@ def run_backtest(
     strategy: str = "A",
     initial_cash: float = 100.0,
     trade_cost: float = 0.001,
-    model_id: str = "baseline-v0",          # 🟢 추가
-    run_id: Optional[str] = None,           # 🟢 추가
+    model_id: str = "baseline-v0",  # 🟢 추가
+    run_id: Optional[str] = None,  # 🟢 추가
 ) -> Dict:
     """
     A / B / C 전략 백테스트를 실행합니다.
@@ -476,7 +476,9 @@ def run_backtest(
 
     # run_id 자동 생성 (영구적 추적을 위함)
     if run_id is None:
-        run_id = f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+        run_id = (
+            f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+        )
 
     # --------------------------------------------------------
     # 가격 데이터
@@ -712,14 +714,14 @@ def run_backtest(
             # ================================================
             # 🟢 실제 5일 수익률 계산 (realized_return_5d)
             # ================================================
+            # 체결이 다음날 시가(556행)이므로 성적도 같은 축에서 잰다.
+            # 진입 = 체결일 시가, 청산 = 그로부터 5거래일 뒤 시가.
             realized_return_5d = np.nan
-            if i + 5 < len(trading_days):
-                future_date = trading_days[i + 5]
-                # future_date는 반드시 close_prices에 존재함
-                future_close = close_prices.loc[future_date]
-                current_close = close_prices.loc[date]
-                if current_close != 0:
-                    realized_return_5d = (future_close - current_close) / current_close
+            if i + 6 < len(trading_days):
+                entry_open = open_prices.loc[trading_days[i + 1]]
+                exit_open = open_prices.loc[trading_days[i + 6]]
+                if entry_open != 0:
+                    realized_return_5d = (exit_open - entry_open) / entry_open
 
             # ------------------------------------------------
             # 시그널 로그 (🟢 모든 칼럼 추가 완료)
@@ -1076,7 +1078,7 @@ if __name__ == "__main__":
             strategy=strategy,
             initial_cash=100.0,
             trade_cost=0.001,
-            model_id="random-v0",   # 🟢 명시적으로 모델 ID 전달
+            model_id="random-v0",  # 🟢 명시적으로 모델 ID 전달
         )
 
         print(

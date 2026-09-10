@@ -368,6 +368,10 @@ def _quality_ledger_section(root: Path) -> str:
 
     원장이 없으면 **빈 문자열**이다 — 원장이 생기기 전에 만든 반출본도 그대로 올라가야
     하기 때문이다. 카드는 원장을 만들지 않고 **있는 것을 읽어 적기만** 한다.
+
+    🔴 표본 안내 절의 숫자는 `MANIFEST.json` 에서 읽어 넘긴다. 예전에는 그 절에 숫자가
+       **글자로 박혀** 있어서, 2026-09-09 에 `is_first_listing` 이 1,501 → 1,502 로
+       늘었는데도 카드가 옛 숫자를 계속 적었다 (이슈 #195).
     """
     path = root / LEDGER_NAME
     if not path.exists():
@@ -376,7 +380,19 @@ def _quality_ledger_section(root: Path) -> str:
         ledger = json.loads(path.read_text(encoding="utf-8"))
     except Exception:                                     # noqa: BLE001
         return ""
-    return render_card_section(ledger) + "\n"
+    flags, rows = None, None
+    try:
+        manifest = json.loads((root / "MANIFEST.json").read_text(encoding="utf-8"))
+        flags = manifest["stats"].get("corporate_action_flags")
+        for entry in manifest.get("files", []):
+            # MANIFEST 는 파일명만 적는다 (`full/` 접두사가 없다).
+            if str(entry.get("path", "")).endswith("daily_price_dev.parquet"):
+                rows = entry.get("rows")
+                break
+    except Exception:                                     # noqa: BLE001 — 없으면 비운다
+        pass
+    return render_card_section(ledger, corporate_action_flags=flags,
+                               total_rows=rows) + "\n"
 
 
 def _missing_highlights(profile: Dict) -> str:

@@ -177,7 +177,10 @@ def test_정리매매_칸은_미래참조_위험을_적는다():
 # 기준선과 표본이 갈리는데 아무 경고도 없다.
 # ══════════════════════════════════════════════════════════════════════════
 def test_큰벌과_작은벌이_다른_표본이라고_카드에_적힌다():
-    안내 = QL.SAMPLE_GUIDE
+    # 숫자는 `MANIFEST.json` 에서 채우므로(이슈 #195) 함수로 만든다. 여기서 보는 것은
+    # **문구와 칸이 카드에 나가는가**이고, 숫자 자체는 test_quality_ledger 가 본다.
+    안내 = QL.sample_guide({"is_liquidation": 1, "is_halted": 2,
+                           "is_first_listing": 3, "any": 6}, total_rows=100)
     assert "다른 표본" in 안내
     for 칸 in CORPORATE_ACTION_COLUMNS:
         assert 칸 in 안내, f"`{칸}` 이 표본 안내에 없다"

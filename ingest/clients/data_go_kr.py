@@ -351,6 +351,28 @@ def normalize_int(raw: Optional[str]) -> Optional[int]:
         return None
 
 
+def normalize_float(raw: Optional[str]) -> Optional[float]:
+    """`'361'` → `361.0`. 빈 값·숫자 아님은 `None`.
+
+    `normalize_int` 와 나눈 이유는 배당률이 소수로 오기 때문이다(`'2.5'`). 정수로 읽으면
+    조용히 잘린다.
+
+    ⚠️ `'0'` 은 `0.0` 으로 남긴다 — 다만 이 출처에서 배당 금액 0 은 **"무배당"** 과
+       **"금액을 안 적었다"** 를 구별하지 못한다(2026-09-09 실측 · 2010년 이후 현금·동시배당
+       26,008행 중 3,324행이 금액 0). 그래서 판정은 배당구분 칸으로 하고, 금액은 있는
+       행에서만 쓴다. 여기서 `None` 으로 바꾸면 진짜 0 까지 지워지므로 그대로 둔다.
+    """
+    if raw is None:
+        return None
+    글 = str(raw).strip().replace(",", "")
+    if not 글:
+        return None
+    try:
+        return float(글)
+    except ValueError:
+        return None
+
+
 def strip_code_prefix(srtn_cd: Optional[str]) -> Optional[str]:
     """`'A000020'` → `'000020'`.
 
@@ -660,6 +682,107 @@ def fetch_corp_profile(crno: str, *, key: Optional[str] = None) -> List[Dict]:
     for 항목 in iter_pages(EP_CORP_OUTLINE, 키, {"crno": crno}):
         행들.extend(r for r in (parse_profile_row(it) for it in 항목) if r)
     return 행들
+
+
+# ==================================================
+# 6. 주식배당정보 → dividend
+# ==================================================
+#: 응답 칸 → 우리 칸. 실측 22칸 중 뜻이 있는 것만 옮긴다 (2026-09-09 · 71,681행).
+_DIVIDEND_TEXT = {
+    "isinCd": "isin_cd",
+    "crno": "crno",
+    "stckIssuCmpyNm": "corp_nm",
+    "isinCdNm": "item_nm",
+    "scrsItmsKcdNm": "scrs_itms_kcd_nm",
+    "stckStacMd": "stac_md",
+    "stckDvdnRcd": "dvdn_rcd",
+    "stckDvdnRcdNm": "dvdn_rcd_nm",
+}
+_DIVIDEND_DATE = {
+    "dvdnBasDt": "dvdn_bas_dt",
+    "cashDvdnPayDt": "cash_pay_dt",
+    "stckHndvDt": "stck_hndv_dt",
+}
+#: 금액·비율. 🔴 **`0` 과 "모른다" 를 구별할 수 없다** — 무배당 행도 0 이고, 옛 행의
+#: 미기재도 0 으로 온다. 그래서 판정은 `dvdn_rcd_nm`(배당구분)으로 하고 금액은 참고로만 본다.
+_DIVIDEND_NUM = {
+    "stckGenrDvdnAmt": "genr_dvdn_amt",
+    "stckGrdnDvdnAmt": "grdn_dvdn_amt",
+    "stckGenrCashDvdnRt": "genr_cash_dvdn_rt",
+    "stckGenrDvdnRt": "genr_dvdn_rt",
+    "cashGrdnDvdnRt": "cash_grdn_dvdn_rt",
+    "stckGrdnDvdnRt": "grdn_dvdn_rt",
+    "stckParPrc": "par_price_at_load",
+}
+
+#: 현금이 실제로 나가는 배당구분. 배당락을 만드는 것은 이 둘뿐이다.
+#: `주식배당`(01)은 FinanceDataReader 가 이미 수정주가로 펴므로 여기서 또 빼면 두 번 뺀다.
+CASH_DIVIDEND_KINDS: frozenset = frozenset({"현금배당", "동시배당"})
+
+
+def parse_dividend_row(item: Dict) -> Optional[Dict]:
+    """응답 한 줄을 `dividend` 한 행으로. 기본키가 될 값이 없으면 `None`.
+
+    🔴 **`ex_date` 를 여기서 채우지 않는다.** 배당락일은 거래일 달력을 알아야 계산할 수
+    있는데, 이 모듈은 저장소를 모르는 외부 연동 계층이다(`parse_listed_row` 와 같은 이유).
+    채우는 것은 `ingest/store/dividend_store.py` 다.
+
+    🔴 **`par_price_at_load` 는 그날의 액면가가 아니다.** 이름에 `_at_load` 를 붙인 것이
+    그 뜻이다 — 응답의 `stckParPrc` 는 **적재 시점** 값이라, 삼성전자 1987년 배당 행에도
+    100원(2018년 분할 뒤 값)이 들어 있다. 옛 행의 배당률(액면 대비 %)에 이 값을 곱하면
+    틀린다. 그래서 금액이 빈 행은 **빈 채로 둔다** — 지어내지 않는다.
+    """
+    행: Dict = {}
+    for 원, 우리 in _DIVIDEND_TEXT.items():
+        값 = item.get(원)
+        행[우리] = str(값).strip() if 값 is not None and str(값).strip() else None
+    for 원, 우리 in _DIVIDEND_DATE.items():
+        행[우리] = normalize_date(item.get(원))
+    for 원, 우리 in _DIVIDEND_NUM.items():
+        행[우리] = normalize_float(item.get(원))
+    행["crno"] = normalize_crno(행.get("crno"))
+    # `basDt` 는 이벤트 날짜가 아니라 **적재일**이다. 이름을 갈라 담아 둔다 — 나중에
+    # "언제 받은 자료인가" 를 물을 때 쓰고, 기준일과 헷갈리지 않게 한다.
+    행["src_bas_dt"] = normalize_date(item.get("basDt"))
+    if not 행.get("isin_cd") or not 행.get("dvdn_bas_dt") or not 행.get("dvdn_rcd"):
+        return None
+    return 행
+
+
+def fetch_dividends(*, key: Optional[str] = None,
+                    isin_cd: Optional[str] = None,
+                    max_pages: int = 100) -> List[Dict]:
+    """배당 이력을 받는다. 인자가 없으면 **전량**이다.
+
+    🔴 **`basDt` 를 주지 않는다.** 그 칸은 이벤트 날짜가 아니라 적재일이라, 날짜별로
+       훑으면 같은 자료를 날마다 다시 받는다. 빼고 부르면 한 번에 전량이 온다 —
+       2026-09-09 실측 **71,681행 · 72콜**(쪽당 1,000행). 시세처럼 4,000일을 도는 것과
+       비교하면 두 자릿수 차이다.
+
+    `isin_cd` 를 주면 그 종목만 받는다(삼성전자 86행 · 1콜). 한 종목을 확인할 때 쓴다.
+    """
+    키 = key or load_key()[0]
+    if not 키:
+        raise DataGoKrError(
+            "DATA_GO_KR_API_KEY 가 없다.\n"
+            "  할 일: .env 에 넣는다. 발급 절차는\n"
+            "        docs/데이터파트/version3.2/API키_발급_가이드.md"
+        )
+    params: Dict = {}
+    if isin_cd:
+        params["isinCd"] = isin_cd
+    행들: List[Dict] = []
+    for 항목 in iter_pages(EP_DIVIDEND, 키, params, max_pages=max_pages):
+        행들.extend(r for r in (parse_dividend_row(it) for it in 항목) if r)
+    return 행들
+
+
+def dividend_page_count(*, key: Optional[str] = None) -> int:
+    """받기 전에 몇 쪽인지만 본다 (1콜). 전량이 72쪽 안팎이다."""
+    키 = key or load_key()[0]
+    if not 키:
+        raise DataGoKrError("DATA_GO_KR_API_KEY 가 없다.")
+    return page_count(EP_DIVIDEND, 키, {})
 
 
 def estimate_calls(bas_dds: Sequence[str], *, per_day_rows: int = 2_800) -> int:
