@@ -78,7 +78,7 @@ BASE_DOCX = Path("docs/계획서/version1.0/프로젝트계획서.docx")
 
 #: 산출물. 버전 폴더가 곧 개정 이력이라 파일명에는 버전을 적지 않는다.
 #: 다음 버전을 팔 때는 이 상수를 올리고 `변경사항.md` 를 함께 쓴다.
-OUT_DOCX = Path("docs/계획서/version5.1/프로젝트계획서.docx")
+OUT_DOCX = Path("docs/계획서/version5.2/프로젝트계획서.docx")
 #: HTML 산출물. docx 와 같은 폴더 · 같은 이름. 그림은 DIAGRAM_DIR 의 PNG 를 상대 경로로 가리킨다.
 OUT_HTML = OUT_DOCX.with_suffix(".html")
 KST = timezone(timedelta(hours=9))
@@ -546,7 +546,8 @@ QFRS_ROWS = [
      "출처·버전·기간 명시. 주식이면 상장폐지 종목 포함 여부와 처리 방법을\n"
      "밝혀 생존편향을 통제할 것",
      "충족",
-     "KRX OpenAPI · 2010-01-04~2026-08-25 · 920만 행\n중도 소멸 910종목 포함"],
+     "KRX OpenAPI · 2010-01-04~2026-09-04 · 923만 행\n"
+     "중도 소멸 910종목 포함 · 가격·총수익 두 축(배당 71,681행)"],
     ["QFRS-2\nLabeling\n(ground truth construction)",
      "레이블 정의와 임계값을 명시. 아주 작은 등락을 맞히는 이진분류는\n"
      "통계적으로만 맞고 경제적으로 무의미하다고 지적",
