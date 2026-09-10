@@ -102,6 +102,40 @@ def test_robust_z_는_중앙값과_MAD_다():
     assert _d1(out) == pytest.approx([(v - 3) / 1.4826 for v in D1])
 
 
+def test_중심화만_하면_그날_평균만_빼고_나누지_않는다():
+    """d1 평균 22 → [1−22, 2−22, 3−22, 4−22, 100−22]. `scale=False` 의 손계산이다."""
+    out = P.zscore_cross_section(_panel(), ["x"], scale=False)
+    assert _d1(out) == pytest.approx([-21, -20, -19, -18, 78])
+
+
+def test_중심화만_하면_산포가_0_인_날도_살아_남는다():
+    """나누지 않으므로 0 으로 나눌 일이 없다 — 그날은 전부 0 이 된다."""
+    df = _panel()
+    df.loc[df["bas_dd"] == "d1", "x"] = 7.0
+    out = P.zscore_cross_section(df, ["x"], scale=False)
+    assert _d1(out) == pytest.approx([0, 0, 0, 0, 0])
+    assert P.zscore_cross_section(df, ["x"])["x"].iloc[:5].isna().all()   # z 는 NaN
+
+
+def test_중심화만_한_결과의_날짜별_평균은_0_이다():
+    """중립화가 절편 때문에 함께 하는 일이 바로 이것이다 — 그래서 따로 잰다."""
+    df = _panel()
+    out = P.zscore_cross_section(df, ["x", "c"], scale=False)
+    assert out.groupby(df["bas_dd"]).mean().abs().to_numpy().max() < 1e-12
+
+
+def test_전처리_한번에서_zscore_center_는_중심화만_한다():
+    df = _panel()
+    직접 = P.zscore_cross_section(df, ["x"], scale=False)
+    한번에 = P.preprocess_cross_section(df, ["x"], winsorize=None, zscore="center")
+    pd.testing.assert_frame_equal(직접, 한번에)
+
+
+def test_모르는_zscore_값은_거부한다():
+    with pytest.raises(ValueError, match="True · False · 'center'"):
+        P.preprocess_cross_section(_panel(), ["x"], zscore="nope")
+
+
 def test_산포가_0_이면_z_는_NaN_이다():
     df = _panel()
     df.loc[df["bas_dd"] == "d1", "x"] = 7.0
@@ -138,6 +172,33 @@ def test_자유도가_없는_날은_NaN_이다():
     out = P.neutralize_cross_section(df, ["x"], groups="industry", controls=("c",))
     assert out["x"].iloc[:3].isna().all()            # 매개변수 2 (A 더미 + c) → 4 필요
     assert out["x"].iloc[3:].notna().all()
+
+
+@pytest.mark.parametrize(
+    ("groups", "controls"),
+    [("industry", ()), (None, ("c",)), ("industry", ("c",))],
+)
+def test_어느_축을_지우든_그날_평균이_함께_0_이_된다(groups, controls):
+    """설계행렬에 늘 절편(또는 더미 전부)이 있어서다 — 절편이 있는 회귀의 잔차는 평균이 0.
+
+    2026-09-10 에 이것을 모르고 "시총 중립화" 를 음성 대조군으로 설계했다가, 시총이
+    라벨과 무관(r=−0.0086)한데도 12폴드 정확도가 −1.94%p 나빠지는 것을 보고 알았다.
+    이름이 연산의 절반만 말하고 있었다.
+    """
+    df = _panel()
+    out = P.neutralize_cross_section(df, ["x"], groups=groups, controls=controls)
+    assert out.groupby(df["bas_dd"]).mean().abs().to_numpy().max() < 1e-12
+
+
+def test_중립화는_평균만_지우고_산포는_남긴다():
+    """횡단면 z·순위와 갈리는 자리다 — 그 둘은 날짜별 산포까지 1 로 만든다."""
+    df = _panel()
+    중립 = P.neutralize_cross_section(df, ["x"], groups="industry")
+    z = P.zscore_cross_section(df, ["x"])
+    날짜별 = 중립["x"].groupby(df["bas_dd"]).std()
+    assert 날짜별.max() / 날짜별.min() > 2                    # 날마다 산포가 다르다
+    z날짜별 = z["x"].groupby(df["bas_dd"]).std()
+    assert z날짜별.max() / z날짜별.min() == pytest.approx(1.0)
 
 
 def test_통제_변수를_자기_자신에_회귀하면_거부한다():
@@ -513,3 +574,129 @@ def test_전처리_한번에가_시계열_경로도_같은_값을_낸다():
         time_series=dict(window=3, min_periods=2),
     )
     pd.testing.assert_frame_equal(직접, 한번에)
+
+
+def test_전처리_한번에가_중립화_경로도_같은_값을_낸다():
+    df = _panel()
+    직접 = P.neutralize_cross_section(df, ["x"], groups="industry")
+    한번에 = P.preprocess_cross_section(
+        df, ["x"], winsorize=None, zscore=False,
+        neutralize=dict(groups="industry", controls=()),
+    )
+    pd.testing.assert_frame_equal(직접, 한번에)
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# log 시총 — ③ 중립화의 크기 통제 변수
+# ══════════════════════════════════════════════════════════════════════════
+def test_log_시총은_자연로그다():
+    df = pd.DataFrame({"market_cap": [1.0, math.e, math.e**2, math.e**10]})
+    assert P.log_size_column(df).tolist() == pytest.approx([0, 1, 2, 10])
+
+
+def test_log_시총은_0_이하와_결측을_채우지_않고_결측으로_둔다():
+    """`clip(lower=1)` 로 막으면 log 가 0 이 되어 **가장 작은 회사**로 보인다 — 오류를
+    그럴듯한 값으로 바꾸는 것이라 하지 않는다. 중립화가 그 행을 회귀에서 뺀다."""
+    df = pd.DataFrame({"market_cap": [1e12, 0.0, -3.0, None]})
+    out = P.log_size_column(df)
+    assert out.iloc[0] == pytest.approx(math.log(1e12))
+    assert out.iloc[1:].isna().all()
+
+
+def test_log_시총은_칸_이름을_SIZE_CONTROL_로_준다():
+    out = P.log_size_column(pd.DataFrame({"market_cap": [1e12]}))
+    assert out.name == P.SIZE_CONTROL == "log_cap"
+
+
+def test_시총_칸이_없으면_무엇을_해야_하는지_말하며_거부한다():
+    with pytest.raises(ValueError, match="붙이고 다시"):
+        P.log_size_column(pd.DataFrame({"code": ["005930"]}))
+
+
+def test_시총_자체는_보호_칸이라_피처로_못_쓴다():
+    """`market_cap` 을 그냥 통제 변수로 쓰지 않고 `log_cap` 을 따로 만드는 이유."""
+    assert "market_cap" in P.PROTECTED_NAMES
+    assert P.SIZE_CONTROL not in P.PROTECTED_NAMES
+
+
+def test_log_는_순서를_바꾸지_않는다():
+    """중립화 잔차를 읽을 때 "큰 회사가 큰 값" 이라는 방향이 유지된다는 뜻이다."""
+    df = pd.DataFrame({"market_cap": [1.8e11, 8.5e12, 5.4e14]})
+    out = P.log_size_column(df)
+    assert out.is_monotonic_increasing
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ④ 순위 — 세 방식 중 둘은 왜 별도 시행이 아닌가
+# ══════════════════════════════════════════════════════════════════════════
+def _한날(n: int) -> pd.DataFrame:
+    return pd.DataFrame({
+        "bas_dd": ["d1"] * n,
+        "x": [float(i) for i in range(n)],
+    })
+
+
+def _표준화(s: pd.Series) -> np.ndarray:
+    v = s.to_numpy(dtype=float)
+    return (v - v.mean()) / v.std(ddof=0)
+
+
+def test_uniform_과_signed_는_같은_날_안에서는_표준화하면_같아진다():
+    """모델(`build_logistic_baseline`)이 `StandardScaler` 를 앞에 둔다는 사실의 결과다.
+
+    n 이 같으면 `uniform=(r−0.5)/n` 과 `signed=2r/(n+1)−1` 은 서로 **선형변환**이고,
+    선형변환은 표준화가 지운다. 그래서 순위 세 방식 중 이 둘에 시행을 따로 쓸 이유가
+    없다 — 2026-09-10 판이 `gaussian` 하나만 돌린 근거다.
+    """
+    df = _한날(5)
+    u = P.rank_cross_section(df, ["x"], method="uniform")["x"]
+    s = P.rank_cross_section(df, ["x"], method="signed")["x"]
+    assert u.tolist() == pytest.approx([0.1, 0.3, 0.5, 0.7, 0.9])
+    assert s.tolist() == pytest.approx([-2 / 3, -1 / 3, 0, 1 / 3, 2 / 3])
+    assert _표준화(u) == pytest.approx(_표준화(s))
+
+
+def test_gaussian_은_비선형이라_표준화해도_두_방식과_다르다():
+    df = _한날(5)
+    u = P.rank_cross_section(df, ["x"], method="uniform")["x"]
+    g = P.rank_cross_section(df, ["x"], method="gaussian")["x"]
+    assert _표준화(g) != pytest.approx(_표준화(u))
+    assert g.tolist() == pytest.approx([norm.ppf(v) for v in (0.1, 0.3, 0.5, 0.7, 0.9)])
+
+
+def test_날짜마다_종목_수가_다르면_uniform_과_signed_도_어긋난다():
+    """"같아진다" 는 n 이 같을 때다. 우리 패널은 하루 43~50종으로 날마다 다르므로
+    두 방식이 정확히 같지는 않다 — "거의" 를 "정확히" 로 적지 않으려고 함께 못박는다."""
+    df = pd.DataFrame({
+        "bas_dd": ["d1"] * 5 + ["d2"] * 3,
+        "x": [0.0, 1.0, 2.0, 3.0, 4.0, 0.0, 1.0, 2.0],
+    })
+    u = P.rank_cross_section(df, ["x"], method="uniform")["x"]
+    s = P.rank_cross_section(df, ["x"], method="signed")["x"]
+    assert _표준화(u) != pytest.approx(_표준화(s))
+
+
+def test_순위_앞의_z_score_는_결과를_바꾸지_않는다():
+    """z 는 그날 안 순서를 보존하는 단조 변환이라 순위가 그대로다."""
+    df = _panel()
+    순위만 = P.preprocess_cross_section(
+        df, ["x"], winsorize=None, zscore=False, rank="gaussian")
+    z_뒤순위 = P.preprocess_cross_section(
+        df, ["x"], winsorize=None, zscore=True, rank="gaussian")
+    pd.testing.assert_frame_equal(순위만, z_뒤순위)
+
+
+def test_순위_앞의_winsorize_는_동률을_만들어_결과를_바꾼다():
+    """"순위를 켜면 앞 단계가 무의미하다" 는 z 에만 맞다. winsorize 는 극단 둘 이상을
+    같은 경계로 당겨 **동률**을 만들고, 동률은 평균 순위가 되어 값이 달라진다.
+    2026-09-10 판이 조건 사전에서 `winsorize=None` 을 명시적으로 적은 이유다."""
+    df = pd.DataFrame({
+        "bas_dd": ["d1"] * 5,
+        "x": [1.0, 2.0, 3.0, 100.0, 200.0],          # median 3 · MAD 1 → 상한 7.4478
+    })
+    순위만 = P.preprocess_cross_section(
+        df, ["x"], winsorize=None, zscore=False, rank="gaussian")["x"]
+    winsor_뒤 = P.preprocess_cross_section(
+        df, ["x"], winsorize="mad", zscore=False, rank="gaussian")["x"]
+    assert 순위만.iloc[3] != pytest.approx(순위만.iloc[4])
+    assert winsor_뒤.iloc[3] == pytest.approx(winsor_뒤.iloc[4])     # 동률 → 평균 순위

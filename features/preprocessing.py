@@ -92,6 +92,10 @@ DATE_LEVEL_PREFIX = "cs_"
 #: 값이 아니라 이름 목록이므로, 조합에 그 칸이 없으면 그냥 걸리지 않는다.
 VOLATILITY_AXIS: tuple[str, ...] = ("hv_20", "atr_ratio", "hv_regime", "bb_bandwidth")
 
+#: 중립화(③)의 크기 통제 변수 이름. 시총 자체는 보호 칸(`PROTECTED_NAMES`)이라 피처로도
+#: 통제 변수로도 그냥 쓰지 않고, `log_size_column` 이 만든 이 칸을 쓴다.
+SIZE_CONTROL = "log_cap"
+
 WinsorMethod = Literal["mad", "quantile", "sigma"]
 RankMethod = Literal["uniform", "gaussian", "signed"]
 DateLevelStat = Literal["mean", "std", "median"]
@@ -103,8 +107,10 @@ __all__ = [
     "MAD_TO_SIGMA",
     "PROTECTED_NAMES",
     "PROTECTED_PREFIXES",
+    "SIZE_CONTROL",
     "VOLATILITY_AXIS",
     "date_level_columns",
+    "log_size_column",
     "neutralize_cross_section",
     "preprocess_cross_section",
     "rank_cross_section",
@@ -221,6 +227,7 @@ def zscore_cross_section(
     *,
     date_col: str = "bas_dd",
     robust: bool = False,
+    scale: bool = True,
     min_count: int = DEFAULT_MIN_COUNT,
 ) -> pd.DataFrame:
     """그날 평균·표준편차(또는 중앙값·MAD)로 표준화한다.
@@ -228,6 +235,18 @@ def zscore_cross_section(
     표준편차는 `ddof=1` 이다 — qlib `CSZScoreNorm` · sklearn 과 다를 수 있는데 sklearn 은
     `ddof=0` 을 쓴다. 이 프로젝트는 pandas 기본(ddof=1)을 그대로 두고, 값이 어느 쪽인지
     여기 적어 둔다. 산포가 0 이거나 종목이 `min_count` 보다 적은 날은 NaN 이다.
+
+    ## `scale=False` — 중심화만 (그날 평균 빼기)
+
+    표준화는 **두 가지**를 한다. 그날 평균을 빼고(중심화), 그날 산포로 나눈다(척도화).
+    `scale=False` 는 앞의 하나만 한다. 산포로 나누지 않으므로 산포가 0 인 날도 값이
+    남는다(전부 0 이 된다).
+
+    이 갈래가 필요한 이유는 2026-09-10 실측이다 — **모든 중립화(③)가 설계행렬에 절편이나
+    그룹 더미를 넣으므로 그날 평균을 함께 지운다.** `groups=None, controls=("log_cap",)`
+    로 잰 "시총 중립화" 의 잔차가 그냥 그날 평균을 뺀 값과 상관 0.9566~0.9831 이었고,
+    시총이 **추가로** 설명한 몫은 4.46% 뿐이었다. 그러니 중립화의 손실을 "그 축을 지운
+    값" 으로 읽으려면 **중심화만 한 조건과 견줘야** 한다. 그게 이 인자다.
     """
     cols = _check(frame, columns, date_col)
     x = _values(frame, cols)
@@ -235,13 +254,16 @@ def zscore_cross_section(
     n = g.transform("count")
     if robust:
         center = g.transform("median")
-        scale = (x - center).abs().groupby(frame[date_col], sort=False).transform("median")
-        scale = scale * MAD_TO_SIGMA
+        분모 = (x - center).abs().groupby(frame[date_col], sort=False).transform("median")
+        분모 = 분모 * MAD_TO_SIGMA
     else:
         center = g.transform("mean")
-        scale = g.transform("std")
-    out = (x - center) / scale
-    out = out.where(scale.gt(0) & n.ge(min_count))
+        분모 = g.transform("std")
+    if not scale:
+        # 나누지 않으므로 산포가 0 인 날도 살린다 — 막는 것은 종목 수 조건 하나다.
+        return (x - center).where(n.ge(min_count)).set_axis(frame.index)
+    out = (x - center) / 분모
+    out = out.where(분모.gt(0) & n.ge(min_count))
     out.index = frame.index
     return out
 
@@ -249,6 +271,36 @@ def zscore_cross_section(
 # ══════════════════════════════════════════════════════════════════════════
 # ③ neutralize — 회귀 잔차
 # ══════════════════════════════════════════════════════════════════════════
+def log_size_column(
+    frame: pd.DataFrame, *, cap_col: str = "market_cap"
+) -> pd.Series:
+    """시총을 자연로그로 바꾼 한 칸을 만든다 — 중립화(③)의 크기 통제 변수.
+
+    ## 왜 로그인가
+
+    시총은 왜도가 극심하다. 2026-09-10 조합 K 패널 실측에서 최소 1,799억 · 중앙값 8.5조 ·
+    최대 543조로 **3,020배** 벌어져 있다. 원값으로 회귀하면 대형주 몇 종목이 기울기를
+    혼자 정하고 나머지 40여 종의 잔차는 거의 원값 그대로 남는다. 로그를 씌우면 그
+    3,020배가 8.0 차이가 되어 종목들이 같은 자에 놓인다. Fama–French 의 `SMB` 부터
+    중국 A주 다요인 관행까지 크기 축을 로그로 쓰는 이유가 이것이다.
+
+    ## 0 이하는 채우지 않고 결측으로 둔다
+
+    시총이 0 이하인 것은 자료 오류다. `clip(lower=1)` 로 막으면 log 가 0 이 되어 **가장
+    작은 회사**처럼 보이는데, 그것은 사실이 아니라 오류를 그럴듯한 값으로 바꾼 것이다.
+    결측으로 두면 `neutralize_cross_section` 이 그 행을 회귀에서 빼고 잔차도 결측으로
+    남긴다 — 어디가 비었는지 셀 수 있다.
+    """
+    if cap_col not in frame.columns:
+        raise ValueError(
+            f"시총 칸이 없습니다: {cap_col!r} — 패널에 그 칸을 붙이고 다시 부르십시오."
+        )
+    cap = pd.to_numeric(frame[cap_col], errors="coerce").astype("float64")
+    return pd.Series(
+        np.log(cap.where(cap > 0)), index=frame.index, name=SIZE_CONTROL
+    )
+
+
 def _design_matrix(
     sub: pd.DataFrame, groups: str | None, controls: Sequence[str]
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -288,7 +340,27 @@ def neutralize_cross_section(
 
     - `groups="industry"`, `controls=()`         → 업종 안 평균 빼기 (Kakushadze `indneutralize`)
     - `groups="industry"`, `controls=("log_cap",)` → 중국 A주 관행(업종 + log 시총 회귀 잔차)
-    - `groups=None`, `controls=("log_cap",)`       → 시총만
+    - `groups=None`, `controls=("log_cap",)`       → 그날 평균 + 시총 (아래 🔴)
+
+    ## 🔴 어느 축을 주든 **그날 평균이 함께 지워진다**
+
+    설계행렬에는 늘 절편이 들어간다 — `groups` 가 있으면 더미 전부(그것이 절편 노릇을
+    한다), 없으면 `1` 한 칸이다. 절편이 있는 최소제곱의 잔차는 **평균이 정확히 0** 이다.
+    그러니 이 함수는 어떤 축을 지우든 **날짜 수준을 먼저 지운다.**
+
+    이름이 그 절반만 말한다는 것을 2026-09-10 에 실측으로 확인했다. 조합 K 패널
+    159,900행에서 `groups=None, controls=("log_cap",)`("시총 중립화")의 잔차와, 그냥 그날
+    평균만 뺀 값(`zscore_cross_section(..., scale=False)`)의 상관이 **0.9566~0.9831** 이고
+    시총이 **추가로** 설명한 몫은 평균 **4.46%** 뿐이었다. 12폴드 정확도로도 원값 대비
+    −1.94%p 로 나빠졌는데, 시총은 라벨(절대 ±2% 밴드)과 점이연 상관 −0.0086 으로 거의
+    무관하다 — 나빠진 것은 시총이 아니라 **날짜 수준을 지웠기 때문**이다.
+
+    그래서 중립화의 손실을 "그 축을 지운 값" 으로 읽으면 안 된다. 축의 몫만 보려면
+    `zscore="center"` 조건과 견줘야 한다(전처리 v1.4 §2).
+
+    다만 **산포는 남는다** — 평균만 빼고 나누지 않으므로 날짜별 표준편차의 최대/최소가
+    원값 7.55배에서 7.73배로 그대로다(같은 실측). 횡단면 z 와 순위는 1.000 으로 산포까지
+    지운다. 세 연산이 지우는 것이 서로 다르다.
 
     설명변수에 결측이 있는 행은 잔차도 NaN 이다. 그날의 완전한 행 수가 매개변수 수보다
     `min_count`(기본: 매개변수 수 + 2) 만큼 넘지 않으면 그날 전체가 NaN 이다 — 자유도가
@@ -556,7 +628,7 @@ def preprocess_cross_section(
     *,
     date_col: str = "bas_dd",
     winsorize: WinsorMethod | None = "mad",
-    zscore: bool = True,
+    zscore: bool | Literal["center"] = True,
     neutralize: Mapping[str, object] | None = None,
     rank: RankMethod | None = None,
     winsorize_kwargs: Mapping[str, object] | None = None,
@@ -566,6 +638,10 @@ def preprocess_cross_section(
     """단계들을 표준 순서로 건다. 끄고 싶은 단계는 `None`/`False`.
 
         ① winsorize → ② 횡단면 z → ⑤ 시계열 z → ③ 중립화 → ④ 순위
+
+    `zscore` 는 `True`(평균 빼고 산포로 나눔) · `"center"`(그날 평균만 뺌) · `False`
+    셋이다. `"center"` 는 중립화가 절편 때문에 함께 지우는 것을 따로 재려고 있다
+    (`zscore_cross_section` 의 `scale` 설명 참조).
 
     `neutralize` 는 `neutralize_cross_section` 의 키워드 인자 dict
     (예: ``{"groups": "industry", "controls": ("log_cap",)}``). 순위(④)를 켜면 그 앞
@@ -584,6 +660,10 @@ def preprocess_cross_section(
     이 함수는 예나 지금이나 **요청한 칸만** 돌려준다. 날짜 수준을 피처로 되돌리는
     `restore_date_level` 이 새 칸을 만드는 것과 다르다 — 그쪽은 부르는 쪽이 직접 붙인다.
     """
+    if zscore not in (True, False, "center"):
+        raise ValueError(
+            f"zscore 는 True · False · 'center' 중 하나입니다: {zscore!r}"
+        )
     cols = _check(frame, columns, date_col)
     처리, 원값 = split_by_axis(cols, keep_raw or ())
     work = frame.loc[:, [date_col, *cols]].copy()
@@ -607,7 +687,9 @@ def preprocess_cross_section(
                 **(winsorize_kwargs or {}),
             )
         if zscore:
-            work[처리] = zscore_cross_section(work, 처리, date_col=date_col)
+            work[처리] = zscore_cross_section(
+                work, 처리, date_col=date_col, scale=zscore != "center",
+            )
         if time_series is not None:
             work[처리] = standardize_time_series(
                 work, 처리, date_col=date_col, **time_series
