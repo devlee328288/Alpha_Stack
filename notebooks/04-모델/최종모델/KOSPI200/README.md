@@ -1,57 +1,90 @@
 <!-- 이 파일은 scripts/update_final_model_docs.py가 생성합니다. 직접 수정하지 마세요. -->
-# KOSPI200 현재 잠정 모델
+# KOSPI200 long-only 기준 잠정 모델
 
 ## 상태
 
-현재 운영 중인 `Accuracy·Macro F1·하락 Recall` 조화평균 기준의 잠정 1위입니다.
-long-only `{0, +1}` 목적에 맞는 최종 선정 기준은 이슈 #203에서 확인 중이므로 아직 최종
-확정으로 표시하지 않습니다.
+KOSPI200이 상승으로 예측된 경우만 매수하는 운영 목적에 맞춰 기존 100개 후보를 전부
+같은 12폴드에서 다시 평가한 잠정 1위입니다. 최종 채택은 이슈 #203의 팀 확인 전이며,
+봉인 홀드아웃은 사용하지 않았습니다.
 
 | 항목 | 값 |
 |---|---|
-| 조합 | E + 5Day Return |
-| 모델 | RandomForest |
-| 피처 수 | 4 |
-| 선정 지표 | core_harmonic_mean |
-| 선정값 | 0.3863 |
+| 조합 | C + 기본 |
+| 모델 | LogisticRegression |
+| 피처 수 | 6 |
+| 선정 규칙 | 운영 기준선 게이트 → 상승 PR-AUC → 비용 차감 ΔSharpe → 상승 Precision |
+| 선정값(상승 PR-AUC) | 0.3965 |
 
 ## 사용 피처
 
-- `atr_ratio`
-- `bb_bandwidth`
-- `hv_regime`
-- `five_day_return`
+- `sma_gap_5_20`
+- `macd_hist_ratio`
+- `rsi_14`
+- `bb_position`
+- `hv_20`
+- `vol_ratio_20`
 
-## 개발구간 OOS 결과
+## 개발구간 공통 OOS 결과
 
 | 지표 | 값 |
 |---|---:|
-| Accuracy | 0.3764 |
-| Macro F1 | 0.3743 |
-| 하락 Recall | 0.4101 |
-| 3지표 조화평균 | 0.3863 |
-| Balanced Accuracy | 0.3811 |
-| MCC | 0.0686 |
-| 상승 Recall | 0.3776 |
-| 상승 PR-AUC | 0.4084 |
+| Accuracy | 0.4542 |
+| 학습구간 최빈 기준선 Accuracy | 0.3972 |
+| 기준선 대비 Accuracy | +0.0569 |
+| 기준선 승리 폴드 | 7/12 |
+| Macro F1 | 0.4167 |
+| 상승 PR-AUC | 0.3965 |
+| 상승 Precision | 0.4221 |
+| 상승 Recall | 0.5394 |
+| 매수 신호 | 308 / 720 |
+| 비용 차감 ΔSharpe 폴드 중앙값 | 0.2332 |
+| 내부 선택 상승 임계값 중앙값 | 0.3375 |
+| 내부 선택 상승 임계값 범위 | 0.2000~0.4500 |
 
-공통 조건은 expanding 12폴드, 최초 학습 750거래일, 검증 60거래일, gap 5입니다.
-OOS 예측은 720행이고 예측 분포는 하락 254·보합
-236·상승 230입니다.
+상승 임계값과 `None`/`balanced` 클래스 가중치는 각 외부 폴드의 학습구간 안에 둔 내부
+60거래일 검증에서만 골랐습니다. 외부 검증 60일의 정답이나 확률로 임계값을 고르지 않았습니다.
 
-## 선정 기준별 잠정 1위
+`7/12`는 통계적 유의성 문턱이 아니라 저성능 후보를 거르는 최소 운영 안정성 관문입니다.
+이 관문을 제거하고 상승 PR-AUC만 우선하면 조합 E LogisticRegression이 1위로 바뀔 수 있습니다.
+조합 C는 관문 통과, 더 많은 매수 기회와 더 높은 상승 Recall을 함께 고려한 개발구간
+선정 모델이며, 통계적 우위가 입증된 모델로 해석하지 않습니다.
 
-| 기준 | 조합·모델 | Accuracy | Macro F1 | 하락 Recall | 예측 분포 하/보/상 |
-|---|---|---:|---:|---:|---:|
-| Accuracy·Macro F1·하락 Recall 조화평균 | 조합 E 5Day Return·RandomForest | 0.3764 | 0.3743 | 0.4101 | 254/236/230 |
-| Accuracy 우선, Macro F1 차순 | 조합 E 기본·LogisticRegression | 0.4486 | 0.3425 | 0.0506 | 32/521/167 |
-| Accuracy·Macro F1 동일 가중 조화평균 | 조합 D 기본·LogisticRegression | 0.4389 | 0.3901 | 0.1742 | 92/383/245 |
-| Accuracy-보고서 majority_accuracy 우선, Macro F1 차순 | 조합 E 기본·LogisticRegression | 0.4486 | 0.3425 | 0.0506 | 32/521/167 |
+## 다중 시도와 통계적 한계
 
-Accuracy 우선 후보의 보합 예측 비중처럼 클래스 편향을 함께 확인한 뒤 기준을 확정해야 합니다.
-`majority_accuracy` 사용 행은 현재 KOSPI200 보고서에 저장된 값의 단순 비교이며, 개별종목
-ADR 0007의 폴드별 학습구간 최빈 기준선과 같은 값이라고 간주하지 않습니다.
+- 후보 수: 100개
+- Bonferroni 문턱: α = 0.0005
+- 조합 C의 폴드별 `Accuracy - 학습 최빈 기준선` 대응표본 단측 t검정:
+  `t = 1.0092`, `p = 0.1673`
+- Bonferroni 보정 p값: 1.0000 — 통과하지 못함
+- ΔSharpe의 다중 시도 기준: `SR*(N=100) = 0.8115`
 
-정책별 전체 실측값은
-[`reports/index_model_selection_comparison.json`](../../../../reports/index_model_selection_comparison.json)에
+따라서 조합 C는 개발구간 운영 기준에 따른 선택이지, 100개 후보 전체에 대해 통계적 우위가
+확정됐다는 뜻은 아닙니다. 관문과 순위를 확정한 뒤 봉인 홀드아웃을 한 번만 개봉하며, 그
+결과로 모델·피처·임계값을 다시 선택하지 않습니다.
+
+## 전처리 누수 확인
+
+LogisticRegression은 `StandardScaler → LogisticRegression`의 sklearn `Pipeline`입니다.
+각 내부·외부 폴드에서 해당 학습 행으로만 `fit`하고 검증 행에는 `transform`만 적용하므로,
+전체 기간을 먼저 표준화하는 누수는 없습니다. `hv_20`과 `vol_ratio_20`도 각 폴드
+학습구간의 평균·표준편차만 사용해 변환됩니다.
+
+## 조합별 잠정 1위
+
+| 순위 | 조합·모델 | 게이트 | Accuracy | 기준선 대비 | 승리 폴드 | 상승 PR-AUC | 상승 Precision | ΔSharpe 중앙값 |
+|---:|---|---|---:|---:|---:|---:|---:|---:|
+| 1 | 조합 C 기본·LogisticRegression | True | 0.4542 | +0.0569 | 7/12 | 0.3965 | 0.4221 | 0.2332 |
+| 2 | 조합 B 기본·LogisticRegression | True | 0.4597 | +0.0625 | 7/12 | 0.3938 | 0.4231 | 0.1144 |
+| 3 | 조합 E 기본·LogisticRegression | False | 0.4319 | +0.0347 | 6/12 | 0.4603 | 0.4158 | -0.6696 |
+| 4 | 조합 A 기본·LogisticRegression | False | 0.4208 | +0.0236 | 4/12 | 0.4277 | 0.3849 | -0.1002 |
+| 5 | 조합 D 기본·LightGBM | False | 0.3514 | -0.0458 | 3/12 | 0.4009 | 0.3569 | 0.0837 |
+| 6 | 조합 G 기본·LogisticRegression | False | 0.4194 | +0.0222 | 6/12 | 0.3941 | 0.3961 | 0.0171 |
+| 7 | 조합 F 기본·LogisticRegression | False | 0.4194 | +0.0222 | 5/12 | 0.3865 | 0.3808 | -0.1520 |
+
+공통 피처 계산 가능 거래일은 `20110127`부터
+`20240822`까지 3343행이고, 실제 공통 OOS 검증은
+`20140217`부터 `20240822`까지 후보당
+720행입니다. expanding 12폴드·최초 학습 750일·검증 60일·gap 5를
+모든 후보에 똑같이 적용했습니다. 전체 결과는
+[`reports/index_long_only_selection.json`](../../../../reports/index_long_only_selection.json)에
 기록합니다. 지수 파일 SHA-256은 `376c66434db688f42972d2011baee330641421f6b2ca32a8074a96db85ebc13a`입니다.

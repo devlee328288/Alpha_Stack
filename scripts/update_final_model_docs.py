@@ -19,9 +19,12 @@ if str(ROOT) not in sys.path:
 from models.final_models import (  # noqa: E402
     compare_index_model_selection_policies,
     load_winning_models,
+    select_best_long_only_index_model,
+    select_best_stock_model,
 )
 
 INDEX_REPORT_RELATIVE = Path("reports/model_sweep.json")
+LONG_ONLY_INDEX_REPORT_RELATIVE = Path("reports/index_long_only_selection.json")
 STOCK_REPORT_RELATIVE = Path("reports/stock_feature_combinations.json")
 RANKING_REPORT_RELATIVE = Path("reports/stock_index_ranking.json")
 COMPARISON_REPORT_RELATIVE = Path("reports/index_model_selection_comparison.json")
@@ -49,6 +52,21 @@ def _index_record(report: dict[str, Any], combination: str, model: str, returns:
     ]
     if len(matches) != 1:
         raise ValueError(f"KOSPI200 1위 실험이 정확히 한 건이 아닙니다: {len(matches)}")
+    return matches[0]
+
+
+def _long_only_index_record(
+    report: dict[str, Any], combination: str, model: str, returns: list[str]
+) -> dict[str, Any]:
+    matches = [
+        record
+        for record in report["candidates"]
+        if record["experiment"].get("combination") == combination
+        and record["experiment"].get("model") == model
+        and record["experiment"].get("return_features", []) == returns
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"KOSPI200 long-only 1위 실험이 정확히 한 건이 아닙니다: {len(matches)}")
     return matches[0]
 
 
@@ -164,6 +182,122 @@ ADR 0007의 폴드별 학습구간 최빈 기준선과 같은 값이라고 간�
 """
 
 
+def _render_index_long_only(
+    index_winner,
+    record: dict[str, Any],
+    report: dict[str, Any],
+) -> str:
+    summary = record["summary"]
+    threshold_range = (
+        f"{summary['selected_up_threshold_min']:.4f}~"
+        f"{summary['selected_up_threshold_max']:.4f}"
+    )
+    combination_header = (
+        "| 순위 | 조합·모델 | 게이트 | Accuracy | 기준선 대비 | 승리 폴드 | "
+        "상승 PR-AUC | 상승 Precision | ΔSharpe 중앙값 |"
+    )
+    rows = []
+    seen_combinations: set[str] = set()
+    for candidate in sorted(report["candidates"], key=lambda item: int(item["rank"])):
+        combination = str(candidate["experiment"]["combination"])
+        if combination in seen_combinations:
+            continue
+        seen_combinations.add(combination)
+        item = candidate["summary"]
+        rows.append(
+            f"| {len(rows) + 1} | 조합 {combination} "
+            f"{_variant_label(tuple(candidate['experiment'].get('return_features', [])))}·"
+            f"{candidate['experiment']['model']} | {item['passes_operational_gate']} | "
+            f"{item['accuracy']:.4f} | {item['accuracy_minus_training_majority_baseline']:+.4f} | "
+            f"{item['baseline_win_folds']}/{item['folds']} | {item['pr_auc_up']:.4f} | "
+            f"{item['up_precision']:.4f} | {item['delta_sharpe_net_median']:.4f} |"
+        )
+    contract = report["common_oos_contract"]
+    policy = report["selection_policy"]
+    multiple = policy["multiple_testing"]
+    paired_t = multiple["winner_accuracy_paired_t"]
+    return f"""{GENERATED_NOTICE}
+# KOSPI200 long-only 기준 잠정 모델
+
+## 상태
+
+KOSPI200이 상승으로 예측된 경우만 매수하는 운영 목적에 맞춰 기존 100개 후보를 전부
+같은 12폴드에서 다시 평가한 잠정 1위입니다. 최종 채택은 이슈 #203의 팀 확인 전이며,
+봉인 홀드아웃은 사용하지 않았습니다.
+
+| 항목 | 값 |
+|---|---|
+| 조합 | {index_winner.combination} + {_variant_label(index_winner.return_features)} |
+| 모델 | {index_winner.model} |
+| 피처 수 | {len(index_winner.feature_columns)} |
+| 선정 규칙 | 운영 기준선 게이트 → 상승 PR-AUC → 비용 차감 ΔSharpe → 상승 Precision |
+| 선정값(상승 PR-AUC) | {index_winner.selection_value:.4f} |
+
+## 사용 피처
+
+{_feature_lines(index_winner.feature_columns)}
+
+## 개발구간 공통 OOS 결과
+
+| 지표 | 값 |
+|---|---:|
+| Accuracy | {summary['accuracy']:.4f} |
+| 학습구간 최빈 기준선 Accuracy | {summary['training_majority_baseline_accuracy']:.4f} |
+| 기준선 대비 Accuracy | {summary['accuracy_minus_training_majority_baseline']:+.4f} |
+| 기준선 승리 폴드 | {summary['baseline_win_folds']}/{summary['folds']} |
+| Macro F1 | {summary['macro_f1']:.4f} |
+| 상승 PR-AUC | {summary['pr_auc_up']:.4f} |
+| 상승 Precision | {summary['up_precision']:.4f} |
+| 상승 Recall | {summary['up_recall']:.4f} |
+| 매수 신호 | {summary['buy_signals']} / 720 |
+| 비용 차감 ΔSharpe 폴드 중앙값 | {summary['delta_sharpe_net_median']:.4f} |
+| 내부 선택 상승 임계값 중앙값 | {summary['selected_up_threshold_median']:.4f} |
+| 내부 선택 상승 임계값 범위 | {threshold_range} |
+
+상승 임계값과 `None`/`balanced` 클래스 가중치는 각 외부 폴드의 학습구간 안에 둔 내부
+60거래일 검증에서만 골랐습니다. 외부 검증 60일의 정답이나 확률로 임계값을 고르지 않았습니다.
+
+`7/12`는 통계적 유의성 문턱이 아니라 저성능 후보를 거르는 최소 운영 안정성 관문입니다.
+이 관문을 제거하고 상승 PR-AUC만 우선하면 조합 E LogisticRegression이 1위로 바뀔 수 있습니다.
+조합 C는 관문 통과, 더 많은 매수 기회와 더 높은 상승 Recall을 함께 고려한 개발구간
+선정 모델이며, 통계적 우위가 입증된 모델로 해석하지 않습니다.
+
+## 다중 시도와 통계적 한계
+
+- 후보 수: {multiple['candidate_count']}개
+- Bonferroni 문턱: α = {multiple['bonferroni_alpha']:.4f}
+- 조합 C의 폴드별 `Accuracy - 학습 최빈 기준선` 대응표본 단측 t검정:
+  `t = {paired_t['t_statistic']:.4f}`, `p = {paired_t['p_value_one_sided']:.4f}`
+- Bonferroni 보정 p값: {paired_t['bonferroni_adjusted_p_value']:.4f} — 통과하지 못함
+- ΔSharpe의 다중 시도 기준: `SR*(N=100) = {multiple['deflated_sharpe_threshold_n_100']:.4f}`
+
+따라서 조합 C는 개발구간 운영 기준에 따른 선택이지, 100개 후보 전체에 대해 통계적 우위가
+확정됐다는 뜻은 아닙니다. 관문과 순위를 확정한 뒤 봉인 홀드아웃을 한 번만 개봉하며, 그
+결과로 모델·피처·임계값을 다시 선택하지 않습니다.
+
+## 전처리 누수 확인
+
+LogisticRegression은 `StandardScaler → LogisticRegression`의 sklearn `Pipeline`입니다.
+각 내부·외부 폴드에서 해당 학습 행으로만 `fit`하고 검증 행에는 `transform`만 적용하므로,
+전체 기간을 먼저 표준화하는 누수는 없습니다. `hv_20`과 `vol_ratio_20`도 각 폴드
+학습구간의 평균·표준편차만 사용해 변환됩니다.
+
+## 조합별 잠정 1위
+
+{combination_header}
+|---:|---|---|---:|---:|---:|---:|---:|---:|
+{chr(10).join(rows)}
+
+공통 피처 계산 가능 거래일은 `{contract['common_date_start']}`부터
+`{contract['common_date_end']}`까지 {contract['common_date_rows']}행이고, 실제 공통 OOS 검증은
+`{contract['oos_validation_start']}`부터 `{contract['oos_validation_end']}`까지 후보당
+{contract['oos_rows_per_candidate']}행입니다. expanding 12폴드·최초 학습 750일·검증 60일·gap 5를
+모든 후보에 똑같이 적용했습니다. 전체 결과는
+[`reports/index_long_only_selection.json`](../../../../reports/index_long_only_selection.json)에
+기록합니다. 지수 파일 SHA-256은 `{report['source']['index_sha256']}`입니다.
+"""
+
+
 def _ranking_summary(
     ranking_report: dict[str, Any] | None,
     index_winner,
@@ -249,22 +383,53 @@ def update_final_model_docs(root: Path = ROOT) -> dict[str, Path]:
     """현재 평가 보고서로 비교 JSON과 최종모델 README 세 개를 원자적으로 갱신한다."""
 
     index_path = root / INDEX_REPORT_RELATIVE
+    long_only_index_path = root / LONG_ONLY_INDEX_REPORT_RELATIVE
     stock_path = root / STOCK_REPORT_RELATIVE
     index_report = _read_json(index_path)
     stock_report = _read_json(stock_path)
-    index_winner, stock_winner = load_winning_models(index_path, stock_path)
-    index_record = _index_record(
-        index_report,
-        index_winner.combination,
-        index_winner.model,
-        list(index_winner.return_features),
+    long_only_report = (
+        _read_json(long_only_index_path) if long_only_index_path.exists() else None
     )
+    if long_only_report is None:
+        index_winner, stock_winner = load_winning_models(index_path, stock_path)
+        index_record = _index_record(
+            index_report,
+            index_winner.combination,
+            index_winner.model,
+            list(index_winner.return_features),
+        )
+    else:
+        index_sha = long_only_report.get("source", {}).get("index_sha256")
+        stock_index_sha = stock_report.get("source", {}).get("index_sha256")
+        if index_sha and stock_index_sha and index_sha != stock_index_sha:
+            raise ValueError("KOSPI200과 개별종목 평가 보고서의 지수 데이터 SHA-256이 다릅니다.")
+        index_winner = select_best_long_only_index_model(long_only_report)
+        stock_winner = select_best_stock_model(stock_report)
+        index_record = _long_only_index_record(
+            long_only_report,
+            index_winner.combination,
+            index_winner.model,
+            list(index_winner.return_features),
+        )
     selected = stock_report["final_selection"]["selected"]
 
     comparison = compare_index_model_selection_policies(index_report)
-    comparison["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
     comparison["source_report"] = INDEX_REPORT_RELATIVE.as_posix()
     comparison["source"] = index_report.get("source", {})
+    comparison_path = root / COMPARISON_REPORT_RELATIVE
+    existing_comparison = _read_json(comparison_path) if comparison_path.exists() else None
+    if existing_comparison is not None:
+        comparable_existing = {
+            key: value
+            for key, value in existing_comparison.items()
+            if key != "generated_at_utc"
+        }
+    else:
+        comparable_existing = None
+    if comparable_existing == comparison:
+        comparison = existing_comparison
+    else:
+        comparison["generated_at_utc"] = datetime.now(timezone.utc).isoformat()
 
     ranking_path = root / RANKING_REPORT_RELATIVE
     ranking_report = _read_json(ranking_path) if ranking_path.exists() else None
@@ -272,7 +437,6 @@ def update_final_model_docs(root: Path = ROOT) -> dict[str, Path]:
     index_readme = final_root / "KOSPI200" / "README.md"
     stock_readme = final_root / "개별종목" / "README.md"
     root_readme = final_root / "README.md"
-    comparison_path = root / COMPARISON_REPORT_RELATIVE
     for path in (index_readme, stock_readme, root_readme, comparison_path):
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -281,10 +445,12 @@ def update_final_model_docs(root: Path = ROOT) -> dict[str, Path]:
         encoding="utf-8",
     )
     root_readme.write_text(_render_root(index_winner, stock_winner), encoding="utf-8")
-    index_readme.write_text(
-        _render_index(index_winner, index_record, comparison),
-        encoding="utf-8",
+    index_markdown = (
+        _render_index(index_winner, index_record, comparison)
+        if long_only_report is None
+        else _render_index_long_only(index_winner, index_record, long_only_report)
     )
+    index_readme.write_text(index_markdown, encoding="utf-8")
     stock_readme.write_text(
         _render_stock(
             stock_winner,

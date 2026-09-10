@@ -9,6 +9,7 @@ from models.final_models import (
     compare_index_model_selection_policies,
     load_winning_models,
     select_best_index_model,
+    select_best_long_only_index_model,
     select_best_stock_model,
 )
 
@@ -50,6 +51,39 @@ def test_kospi200_보고서에서_조화평균_1위를_가져온다():
     assert winner.combination == "E"
     assert winner.model == "RandomForest"
     assert winner.return_features == ("five_day_return",)
+
+
+def test_완료된_long_only_보고서에서_기록된_1위를_가져온다():
+    report = {
+        "status": "complete",
+        "holdout_used": False,
+        "expected_candidate_count": 2,
+        "candidates": [
+            {
+                "rank": 2,
+                "experiment": {"combination": "B", "model": "LogisticRegression"},
+                "feature_columns": ["rsi_14"],
+                "summary": {"pr_auc_up": 0.40, "passes_operational_gate": True},
+            },
+            {
+                "rank": 1,
+                "experiment": {"combination": "C", "model": "LogisticRegression"},
+                "feature_columns": ["hv_20", "vol_ratio_20"],
+                "summary": {"pr_auc_up": 0.39, "passes_operational_gate": True},
+            },
+        ],
+    }
+
+    winner = select_best_long_only_index_model(report)
+
+    assert winner.combination == "C"
+    assert winner.feature_columns == ("hv_20", "vol_ratio_20")
+    assert winner.selection_metric == "operational_gate_then_pr_auc_up"
+
+
+def test_부분_long_only_보고서는_최종모델처럼_읽지_않는다():
+    with pytest.raises(ValueError, match="완료 상태"):
+        select_best_long_only_index_model({"status": "partial", "candidates": [{}]})
 
 
 def test_개별종목_보고서에서_adr_선정_1위를_가져온다():
