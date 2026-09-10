@@ -10,16 +10,33 @@ import streamlit as st
 
 st.set_page_config(page_title="Cost Sensitivity · AlphaStack", layout="wide")
 
-from components import kpi_row, sidebar_controls
+import theme
+from theme import (
+    metric_row,
+    panel,
+    section_header,
+    styled_df,
+    top_strip,
+)
+
+theme.inject()
+
+from components import sidebar_controls
 from services import backtest_service, data_service
 from state import ctx
 
 sidebar_controls()
 c = ctx()
-st.title("Cost Sensitivity")
+
+# ═══════════════════════════════════════════════════════════
+# HEADER
+# ═══════════════════════════════════════════════════════════
+st.markdown('<div class="as-title">Cost Sensitivity</div>', unsafe_allow_html=True)
 
 res = st.session_state.get("latest_model_result")
 if res is None:
+    top_strip([c["dataset"].upper(), "NO MODEL"],
+              status_text="IDLE", status_tone="neutral")
     st.info("Overview에서 먼저 Run Analysis를 실행하세요.")
     st.stop()
 
@@ -27,24 +44,41 @@ prices = data_service.load_market_data(c["dataset"], c["start"], c["end"])
 prices_test = prices.loc[res.test_index, "close"]
 sig = pd.Series(res.y_pred, index=res.test_index)
 
-# ── 컨트롤 ────────────────────────────────────────────────
-c1, c2 = st.columns(2)
-strategy = c1.selectbox("Strategy", ["A", "B", "C"], index=0)
-position_size = c2.slider("Position Size (%)", 10, 100, 100, 10) / 100.0
+top_strip(
+    [c["dataset"].upper(),
+     f"{c['start']} – {c['end']}",
+     f"TEST {len(res.test_index)}d"],
+    status_text="READY", status_tone="up",
+)
 
-grid_text = st.text_input(
-    "Costs (%, comma-separated)",
-    value="0.00, 0.05, 0.10, 0.20, 0.30, 0.50")
+# ═══════════════════════════════════════════════════════════
+# ① CONTROLS
+# ═══════════════════════════════════════════════════════════
+section_header("CONTROLS")
+with panel():
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        strategy = st.selectbox("Strategy", ["A", "B", "C"], index=0)
+    with c2:
+        position_size = st.slider(
+            "Position Size (%)", 10, 100, 100, 10) / 100.0
+
+    grid_text = st.text_input(
+        "Costs (%, comma-separated)",
+        value="0.00, 0.05, 0.10, 0.20, 0.30, 0.50")
 
 try:
-    grid = tuple(float(x.strip()) / 100.0 for x in grid_text.split(",") if x.strip())
+    grid = tuple(float(x.strip()) / 100.0
+                 for x in grid_text.split(",") if x.strip())
 except Exception:
     st.error("숫자를 콤마로 구분해서 입력하세요.")
     st.stop()
 if not grid:
     st.stop()
 
-# ── 실행 ──────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════
+# ② RUN
+# ═══════════════════════════════════════════════════════════
 sens = backtest_service.cost_sensitivity(
     prices_test, sig, grid, strategy, position_size)
 
@@ -67,47 +101,89 @@ def _breakeven(df: pd.DataFrame, col: str) -> float | None:
 be_sharpe = _breakeven(sens, "Sharpe")
 be_cagr = _breakeven(sens, "CAGR")
 
-kpi_row([
-    ("Break-even (Sharpe=0)",
-     f"{be_sharpe*100:.3f}%" if be_sharpe is not None else "N/A"),
-    ("Break-even (CAGR=0)",
-     f"{be_cagr*100:.3f}%" if be_cagr is not None else "N/A"),
-    ("Trades @ base cost", f"{sens['trades'].iloc[0] if 'trades' in sens else '-'}"),
-])
+# ═══════════════════════════════════════════════════════════
+# ③ KPI
+# ═══════════════════════════════════════════════════════════
+base_trades = sens["trades"].iloc[0] if "trades" in sens else "-"
 
-# ── 테이블 ────────────────────────────────────────────────
+metric_row([
+    dict(label="BREAK-EVEN · SHARPE=0",
+         value=f"{be_sharpe*100:.3f}%" if be_sharpe is not None else "N/A",
+         tone="warn" if be_sharpe is not None else "neutral",
+         accent=True),
+    dict(label="BREAK-EVEN · CAGR=0",
+         value=f"{be_cagr*100:.3f}%" if be_cagr is not None else "N/A",
+         tone="warn" if be_cagr is not None else "neutral"),
+    dict(label="TRADES @ BASE COST",
+         value=f"{base_trades}"),
+], cols=3)
+
+# ═══════════════════════════════════════════════════════════
+# ④ METRICS vs COST (chart)
+# ═══════════════════════════════════════════════════════════
+section_header("METRICS vs COST")
+with panel("SHARPE / CAGR / MDD", "GRID", "accent"):
+    cost_pct = [x * 100 for x in sens.index.tolist()]
+    fig = go.Figure()
+    for col, color in [("Sharpe", "#7fd1ff"),
+                       ("CAGR",   "#4ade80"),
+                       ("MDD",    "#ff5c5c")]:
+        if col in sens.columns:
+            fig.add_trace(go.Scatter(
+                x=cost_pct, y=sens[col], name=col,
+                mode="lines+markers",
+                line=dict(color=color, width=2),
+                marker=dict(size=6),
+            ))
+    fig.update_layout(
+        height=380,
+        showlegend=True,
+        xaxis=dict(title="Cost (%)"),
+        yaxis=dict(title=""),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+# ═══════════════════════════════════════════════════════════
+# ⑤ GRID TABLE
+# ═══════════════════════════════════════════════════════════
+section_header("GRID TABLE")
 show = sens.reset_index().copy()
-show["cost"] = (show["cost"] * 100).round(3).astype(str) + "%"
-st.dataframe(show, use_container_width=True, hide_index=True)
+if "cost" in show.columns:
+    show["cost"] = (show["cost"] * 100).round(3).astype(str) + "%"
 
-# ── 차트 ──────────────────────────────────────────────────
-cost_pct = [x * 100 for x in sens.index.tolist()]
-fig = go.Figure()
-for col, color in [("Sharpe", "#7fd1ff"), ("CAGR", "#4ade80"), ("MDD", "#ff6b6b")]:
-    if col in sens.columns:
-        fig.add_trace(go.Scatter(
-            x=cost_pct, y=sens[col], name=col, mode="lines+markers",
-            line=dict(color=color, width=2)))
-fig.update_layout(
-    title="Metrics vs Cost",
-    template="plotly_dark", height=380,
-    margin=dict(l=10, r=10, t=40, b=10),
-    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    xaxis=dict(title="Cost (%)", gridcolor="rgba(255,255,255,0.06)"),
-    yaxis=dict(gridcolor="rgba(255,255,255,0.06)"),
-)
-st.plotly_chart(fig, use_container_width=True)
+num_cols = [col for col in
+            ["CAGR", "Vol", "Sharpe", "Sortino", "MDD",
+             "Calmar", "Sterling"]
+            if col in show.columns]
 
-# ── 실 엔진 시도 ──────────────────────────────────────────
-st.divider()
+with panel(f"{len(show)} COST POINTS"):
+    st.dataframe(
+        styled_df(show, num_cols=num_cols, precision=3),
+        use_container_width=True,
+        hide_index=True,
+    )
+
+# ═══════════════════════════════════════════════════════════
+# ⑥ REAL ENGINE
+# ═══════════════════════════════════════════════════════════
+section_header("REAL ENGINE")
 try:
     from backtest.run_cost_sensitivity import find_breakeven_cost as _real_be
-    st.success("실 엔진 `backtest.run_cost_sensitivity.find_breakeven_cost` import 성공")
-    try:
-        real_be = _real_be(prices_test.values, sig.values)
-        st.metric("Real engine break-even cost",
-                  f"{float(real_be)*100:.3f}%" if real_be is not None else "N/A")
-    except Exception as e:
-        st.caption(f"호출 시그니처 확인 필요: {e}")
+
+    with panel("backtest.run_cost_sensitivity.find_breakeven_cost",
+               "IMPORT OK", "up"):
+        try:
+            real_be = _real_be(prices_test.values, sig.values)
+            metric_row([
+                dict(label="REAL ENGINE BREAK-EVEN",
+                     value=(f"{float(real_be)*100:.3f}%"
+                            if real_be is not None else "N/A"),
+                     tone="warn" if real_be is not None else "neutral",
+                     accent=True),
+            ], cols=1)
+        except Exception as e:
+            st.caption(f"호출 시그니처 확인 필요: {e}")
 except Exception as e:
-    st.caption(f"실 엔진 import 실패: {e}")
+    with panel("backtest.run_cost_sensitivity.find_breakeven_cost",
+               "IMPORT FAIL", "warn"):
+        st.caption(f"실 엔진 import 실패: {e}")

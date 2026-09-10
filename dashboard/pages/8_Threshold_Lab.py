@@ -20,14 +20,28 @@ import streamlit as st
 
 st.set_page_config(page_title="Threshold Lab · AlphaStack", layout="wide")
 
+import theme
+from theme import (
+    metric_row,
+    panel,
+    section_header,
+    top_strip,
+)
+
+theme.inject()
+
 import charts
-from components import kpi_row, sidebar_controls
+from components import sidebar_controls
 from services import data_service
 from state import ctx
 
 sidebar_controls()
 c = ctx()
-st.title("Threshold Lab")
+
+# ═══════════════════════════════════════════════════════════
+# HEADER
+# ═══════════════════════════════════════════════════════════
+st.markdown('<div class="as-title">Threshold Lab</div>', unsafe_allow_html=True)
 
 prices = data_service.load_market_data(c["dataset"], c["start"], c["end"])
 
@@ -49,26 +63,48 @@ except Exception as e:
     _ERR_TH = str(e)
 
 if not _HAS_TH:
+    top_strip([c["dataset"].upper(), "THRESHOLD ENGINE"],
+              status_text="IMPORT FAIL", status_tone="warn")
     st.warning(f"⚠ threshold_tuning import 실패: {_ERR_TH}")
     st.stop()
 
-# ── 파라미터 (실 엔진 시그니처 순서) ──────────────────────
-st.markdown("#### 6-Parameter Threshold")
-p1, p2, p3 = st.columns(3)
-p4, p5, p6 = st.columns(3)
+top_strip(
+    [c["dataset"].upper(),
+     f"{c['start']} – {c['end']}",
+     "6-PARAM THRESHOLD"],
+    status_text="READY", status_tone="up",
+)
 
-alpha_up      = p1.slider("alpha_up",       0.0, 2.0, 0.5, 0.05)
-alpha_down    = p2.slider("alpha_down",     0.0, 2.0, 0.5, 0.05)
-beta_up       = p3.slider("beta_up",        0.0, 2.0, 0.5, 0.05)
-beta_down     = p4.slider("beta_down",      0.0, 2.0, 0.5, 0.05)
-vol_period    = p5.slider("vol_period",     5, 60, 20, 1)
-volume_period = p6.slider("volume_period",  5, 60, 20, 1)
+# ═══════════════════════════════════════════════════════════
+# ① PARAMETERS
+# ═══════════════════════════════════════════════════════════
+section_header("6-PARAMETER THRESHOLD")
+with panel("PARAMETERS"):
+    p1, p2, p3 = st.columns(3, gap="small")
+    p4, p5, p6 = st.columns(3, gap="small")
 
-run = st.button("Run Threshold Analysis", type="primary")
+    with p1:
+        alpha_up = st.slider("alpha_up", 0.0, 2.0, 0.5, 0.05)
+    with p2:
+        alpha_down = st.slider("alpha_down", 0.0, 2.0, 0.5, 0.05)
+    with p3:
+        beta_up = st.slider("beta_up", 0.0, 2.0, 0.5, 0.05)
+    with p4:
+        beta_down = st.slider("beta_down", 0.0, 2.0, 0.5, 0.05)
+    with p5:
+        vol_period = st.slider("vol_period", 5, 60, 20, 1)
+    with p6:
+        volume_period = st.slider("volume_period", 5, 60, 20, 1)
 
+    st.write("")
+    run = st.button("▶  RUN THRESHOLD ANALYSIS",
+                    type="primary", use_container_width=False)
+
+# ═══════════════════════════════════════════════════════════
+# ② RUN
+# ═══════════════════════════════════════════════════════════
 if run:
     with st.spinner("Running 6-param threshold..."):
-        # ── positions ─────────────────────────────────────
         try:
             pos_result = _real_positions(
                 prices,
@@ -84,43 +120,64 @@ if run:
                 pos = pos_result
                 extras = ()
 
-            pos_series = (pos if isinstance(pos, pd.Series)
-                          else pd.Series(np.asarray(pos), index=prices.index))
-
-            st.markdown("**Position**")
-            st.line_chart(pos_series.rename("position"), height=320)
+            pos_series = (
+                pos if isinstance(pos, pd.Series)
+                else pd.Series(np.asarray(pos), index=prices.index)
+            )
 
             ret = prices["close"].pct_change().fillna(0)
             strat = pos_series.shift(1).fillna(0) * ret
             eq = (1 + strat).cumprod()
 
-            st.markdown("**Equity**")
-            st.plotly_chart(
-                charts.equity_curve({"Threshold": eq}, "Equity"),
-                use_container_width=True)
-
-            # ── metrics ───────────────────────────────────
+            # ── KPI (metrics 계산 가능하면) ────────────────
             try:
                 m = _real_metrics(strat.values)
                 if isinstance(m, dict):
                     items = []
                     for k, v in list(m.items())[:6]:
                         try:
-                            items.append((k, f"{float(v):.3f}"))
+                            fv = float(v)
+                            tone = ("up" if fv > 0 else
+                                    ("down" if fv < 0 else "neutral"))
+                            items.append(dict(
+                                label=str(k).upper().replace("_", " "),
+                                value=f"{fv:.3f}",
+                                tone=tone,
+                            ))
                         except Exception:
-                            items.append((k, str(v)))
-                    kpi_row(items)
+                            items.append(dict(
+                                label=str(k).upper().replace("_", " "),
+                                value=str(v),
+                            ))
+                    if items:
+                        section_header("PERFORMANCE METRICS")
+                        metric_row(items, cols=min(len(items), 6))
             except Exception as e:
                 st.caption(f"metrics skip: {e}")
 
-            # tuple 추가 반환값 (bands 등)
+            # ── Position ────────────────────────────────────
+            section_header("POSITION")
+            with panel("SIGNAL POSITION"):
+                st.line_chart(pos_series.rename("position"), height=300)
+
+            # ── Equity ──────────────────────────────────────
+            section_header("EQUITY")
+            with panel("THRESHOLD STRATEGY", "LIVE", "up"):
+                st.plotly_chart(
+                    charts.equity_curve({"Threshold": eq}, ""),
+                    use_container_width=True,
+                )
+
+            # ── Extra outputs (bands 등) ────────────────────
             for i, ex in enumerate(extras):
                 if isinstance(ex, pd.DataFrame):
-                    st.markdown(f"**Extra output #{i+1}**")
-                    st.dataframe(ex.tail(30), use_container_width=True)
+                    section_header(f"EXTRA OUTPUT #{i+1}")
+                    with panel():
+                        st.dataframe(ex.tail(30), use_container_width=True)
                 elif isinstance(ex, pd.Series):
-                    st.markdown(f"**Extra output #{i+1}**")
-                    st.line_chart(ex.rename(f"extra_{i+1}"), height=240)
+                    section_header(f"EXTRA OUTPUT #{i+1}")
+                    with panel():
+                        st.line_chart(ex.rename(f"extra_{i+1}"), height=240)
 
         except Exception as e:
             st.error(f"포지션 계산 실패: {e}")
@@ -129,19 +186,28 @@ if run:
                 "df, alpha_up, alpha_down, beta_up, beta_down, "
                 "vol_period, volume_period) -> tuple")
 
-# ── bands (별도 시도, 시그니처 다르면 스킵) ───────────────
-with st.expander("compute_bands_flexible 시그니처 확인"):
-    try:
-        import inspect
-        sig = inspect.signature(_real_bands)
-        st.code(f"compute_bands_flexible{sig}")
-    except Exception as e:
-        st.caption(f"inspect 실패: {e}")
+# ═══════════════════════════════════════════════════════════
+# ③ DEV / REFERENCE (접힌 상태)
+# ═══════════════════════════════════════════════════════════
+section_header("ENGINE REFERENCE")
+col_a, col_b = st.columns(2, gap="small")
 
-with st.expander("실 엔진 함수 정보"):
-    st.write("**get_positions_6params** — "
-             "`(df, alpha_up, alpha_down, beta_up, beta_down, "
-             "vol_period, volume_period) -> tuple`")
-    st.write("**calculate_metrics** — returns → 지표 dict")
-    st.write("**compute_bands_flexible** — 동적 임계값 밴드")
-    st.caption("원본: `evaluation/threshold_tuning/step5_optimize_6params.py`")
+with col_a:
+    with panel("compute_bands_flexible SIGNATURE"):
+        try:
+            import inspect
+            sig = inspect.signature(_real_bands)
+            st.code(f"compute_bands_flexible{sig}", language="python")
+        except Exception as e:
+            st.caption(f"inspect 실패: {e}")
+
+with col_b:
+    with panel("FUNCTIONS"):
+        st.markdown(
+            "**get_positions_6params** — "
+            "`(df, alpha_up, alpha_down, beta_up, beta_down, "
+            "vol_period, volume_period) -> tuple`\n\n"
+            "**calculate_metrics** — returns → 지표 dict\n\n"
+            "**compute_bands_flexible** — 동적 임계값 밴드"
+        )
+        st.caption("원본: `evaluation/threshold_tuning/step5_optimize_6params.py`")
