@@ -119,6 +119,19 @@ CREATE TABLE IF NOT EXISTS daily_price (
   adj_low       REAL,               -- 수정저가
   adj_close     REAL,               -- 수정종가
   adj_source    TEXT,               -- 'fdr'(외부 실측) / 'chain'(계수로 이어 붙임)
+  -- 총수익 3칸 (마이그레이션 v15). 위 수정주가는 분할·무상증자·주식배당까지만 편
+  -- 값이라 **현금배당이 빠져 있다** — CRSP 로 치면 `RETX` 쪽이다. 배당락일의 평균
+  -- 일간수익률이 평소보다 1.4665%p 낮아, 개별종목 중립대 ±2% 에서 5거래일 창에
+  -- 배당락일이 들어오면 라벨이 조용히 아래로 밀린다. 그래서 배당까지 담은 축을
+  -- 나란히 둔다. `adj_close` 는 그대로 두었다 — 답하는 질문이 다르기 때문이다.
+  --
+  -- ⚠️ 위 수정주가와 같은 이유로 **여기와 `migrations.py` 의 v15 양쪽에 있어야 한다.**
+  --
+  -- 🔴 성과 축이지 피처가 아니다. 배당 확정은 주주총회라 그 전에는 금액을 알 수
+  --    없으므로 입력 피처로 쓰면 미래참조가 된다.
+  adj_dividend  REAL,               -- 그날 배당금 × (adj_close/close) — 가격과 같은 배율
+  adj_close_tr  REAL,               -- 배당 재투자 누적 (total return)
+  is_dividend_suspect INTEGER,      -- 원본 배당금의 단위 오류. 지우지 않고 표시만 한다
   PRIMARY KEY (bas_dd, code)        -- 같은 날 같은 종목이 두 번 들어가지 않도록
 );
 
