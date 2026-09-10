@@ -9,6 +9,7 @@ import pandas as pd
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from sklearn.metrics import (
+    accuracy_score,
     balanced_accuracy_score,
     f1_score,
     recall_score,
@@ -19,6 +20,86 @@ from tqdm import tqdm
 from timeseries.models import fit_best
 
 warnings.filterwarnings("ignore")
+
+
+# ============================================================
+# ADR-AS-0002 공용 라벨 함수
+# ------------------------------------------------------------
+# - T일 종가까지의 정보로 신호 생성
+# - T+1일 시가 체결
+# - T+6일 시가 평가
+# - fwd_ret = open.shift(-6) / open.shift(-1) - 1
+# - |fwd_ret| <= threshold → 중립(1)
+# - fwd_ret >  +threshold → 상승(2)
+# - fwd_ret <  -threshold → 하락(0)
+# - 미래값이 없는 마지막 6행은 NaN 유지 (평가에서 제외)
+# ------------------------------------------------------------
+# NOTE: focal_classifier.py 의 make_labels() 도 동일 로직으로 맞춰야 함.
+# ============================================================
+def make_labels(df: pd.DataFrame, threshold: float = 0.02) -> np.ndarray:
+    """
+    ADR-AS-0002 기준 라벨 생성 (공용).
+
+    Returns
+    -------
+    np.ndarray (float), shape (len(df),)
+        값: {0.0, 1.0, 2.0} 또는 np.nan
+    """
+    open_ = df["open"]
+    fwd_ret = open_.shift(-6) / open_.shift(-1) - 1.0
+    labels = np.where(
+        fwd_ret > threshold,
+        2.0,
+        np.where(fwd_ret < -threshold, 0.0, 1.0),
+    )
+    # 미래값이 없는 행(마지막 6행)은 NaN 유지 → 중립으로 변환 금지
+    labels[fwd_ret.isna().values] = np.nan
+    return labels
+
+
+def _regression_test_make_labels() -> None:
+    """
+    make_labels() 회귀 테스트:
+      - 시간축: fwd_ret = open.shift(-6)/open.shift(-1) - 1
+      - 마지막 6행은 NaN (중립으로 변환되지 않음)
+      - 상승/하락/중립 라벨 부여
+    """
+    n = 30
+    prices = np.arange(1, n + 1, dtype=float)
+    df_test = pd.DataFrame({"open": prices})
+
+    labels = make_labels(df_test, threshold=0.02)
+
+    # 1) 마지막 6행 NaN
+    assert np.all(np.isnan(labels[-6:])), (
+        f"마지막 6행은 NaN이어야 함. 실제: {labels[-6:]}"
+    )
+
+    # 2) 시간축 정확성
+    for i in [0, 1, 5, 10, n - 7]:
+        fwd = prices[i + 6] / prices[i + 1] - 1.0
+        if fwd > 0.02:
+            expected = 2.0
+        elif fwd < -0.02:
+            expected = 0.0
+        else:
+            expected = 1.0
+        assert labels[i] == expected, (
+            f"labels[{i}]: expected {expected}, got {labels[i]} "
+            f"(fwd_ret={fwd:.6f})"
+        )
+
+    # 3) 하락 추세 → 하락 라벨
+    df_down = pd.DataFrame({"open": np.linspace(100.0, 50.0, n)})
+    labels_down = make_labels(df_down, threshold=0.02)
+    assert labels_down[0] == 0.0, f"하락 추세 라벨 오류: {labels_down[0]}"
+
+    # 4) 평탄 구간 → 중립
+    df_flat = pd.DataFrame({"open": np.full(n, 100.0)})
+    labels_flat = make_labels(df_flat, threshold=0.02)
+    assert labels_flat[0] == 1.0, f"중립 라벨 오류: {labels_flat[0]}"
+
+    print("✅ make_labels 회귀 테스트 통과 (시간축 / 끝행 NaN / 중립)")
 
 
 # ============================================================
@@ -56,7 +137,7 @@ def compute_bands_flexible(
 
 
 # ============================================================
-# 1. 포지션 생성 (6개 파라미터) - 🔥 반전 제거 (상단돌파=상승, 하단돌파=하락)
+# 1. 포지션 생성 (6개 파라미터)
 # ============================================================
 def get_positions_6params(
     df: pd.DataFrame,
@@ -80,7 +161,7 @@ def get_positions_6params(
     upper = bands["upper"].values
     lower = bands["lower"].values
 
-    # 🔥 [수정] 반전 제거: 상단 돌파 = 상승(2), 하단 돌파 = 하락(0)
+    # 상단 돌파 = 상승(2), 하단 돌파 = 하락(0)
     pred = np.where(close > upper, 2, np.where(close < lower, 0, 1))
     positions = np.where(pred == 2, 1, np.where(pred == 0, -1, 0))
     return positions, pred
@@ -142,7 +223,7 @@ def calculate_metrics(returns: np.ndarray) -> dict:
 
 
 # ============================================================
-# 3. 목적 함수 (🔥 반전 제거 + threshold 적용)
+# 3. 목적 함수 (ADR-AS-0002 라벨 + 학습/검증 threshold 통일)
 # ============================================================
 def objective_6params(
     params: list,
@@ -150,7 +231,10 @@ def objective_6params(
     threshold: float = 0.02,
 ) -> float:
     """
-    🔥 [수정] 반전 제거 + ADR-0002 open 기준 레이블 + threshold 적용
+    ADR-AS-0002 기준 라벨 사용:
+      - fwd_ret = open.shift(-6)/open.shift(-1) - 1
+      - 학습 threshold == 검증 threshold
+      - 미래값 없는 행(NaN)은 평가에서 제외
     """
     (
         alpha_up,
@@ -180,48 +264,46 @@ def objective_6params(
     close = df_train["close"].values
     upper = bands["upper"].values
     lower = bands["lower"].values
-    _base = bands["base"].values
 
-    # 2) 예측 클래스 (🔥 반전 제거: 상단돌파=상승(2), 하단돌파=하락(0))
-    preds = np.where(close > upper, 2, np.where(close < lower, 0, 1))
+    # 2) 예측 클래스 (상단 돌파=상승(2), 하단 돌파=하락(0))
+    preds = np.where(close > upper, 2, np.where(close < lower, 0, 1)).astype(float)
+    nan_mask = np.isnan(close) | np.isnan(upper) | np.isnan(lower)
+    preds[nan_mask] = np.nan
 
-    # 3) 실제 레이블 - ADR-0002 기준 (open shift(-5) / open)
-    if "label" in df_train.columns:
-        label_map = {"상승": 2, "중립": 1, "하락": 0}
-        y_true_series = df_train["label"].map(label_map)
-        y_true = y_true_series.fillna(1).astype(int).values
-    else:
-        ret_5d = (df_train["open"].shift(-5) / df_train["open"] - 1).values
-        y_true = np.where(ret_5d > threshold, 2, np.where(ret_5d < -threshold, 0, 1))
+    # 3) 실제 레이블 — ADR-AS-0002 공용 함수 (T+1 시가 체결 → T+6 시가 평가)
+    y_true = make_labels(df_train, threshold=threshold)
 
-    # 4) NaN 제거
+    # 4) NaN 제거 (미래값 없는 마지막 6행은 NaN으로 유지되어 자동 제외)
     valid_mask = ~(np.isnan(preds) | np.isnan(y_true))
     if valid_mask.sum() < 10:
         return 1.0
 
-    y_true_clean = y_true[valid_mask]
-    y_pred_clean = preds[valid_mask]
+    y_true_clean = y_true[valid_mask].astype(int)
+    y_pred_clean = preds[valid_mask].astype(int)
 
-    # 5) Macro-F1 계산
+    # 5) Macro-F1
     f1_macro = f1_score(y_true_clean, y_pred_clean, average="macro")
 
     # 6) 중립 Recall 패널티
-    neutral_recall = recall_score(y_true_clean, y_pred_clean, labels=[1], average=None)[
-        0
-    ]
+    neutral_recall = recall_score(
+        y_true_clean,
+        y_pred_clean,
+        labels=[1],
+        average=None,
+        zero_division=0,
+    )[0]
     recall_penalty = 0.0
     target_recall = 0.35
     if neutral_recall < target_recall:
         recall_penalty = 10.0 * (target_recall - neutral_recall)
 
-    # 7) 최종 Fitness (CMA-ES는 최소화)
+    # 7) CMA-ES는 최소화
     fitness = -f1_macro + recall_penalty
-
     return fitness
 
 
 # ============================================================
-# 4. Walk-Forward 실행 (🔥 반전 제거 + threshold + ARIMA 통일)
+# 4. Walk-Forward 실행
 # ============================================================
 def run_walkforward_6params(
     df: pd.DataFrame,
@@ -232,16 +314,16 @@ def run_walkforward_6params(
     threshold: float = 0.02,
 ) -> dict:
     """
-    🔥 Expanding Window (12폴드, Gap 5, 5일 ±threshold%)
-    - ADR-0002 open 기준 레이블
-    - 신호 반전 제거 (상단돌파=상승)
-    - ARIMA도 동일한 threshold로 통일
+    Expanding Window (12폴드)
+    - 라벨: ADR-AS-0002 (open 5일 수익률, T+1 시가 → T+6 시가)
+    - 학습/검증 동일 threshold
+    - 미래값 없는 행 NaN 유지 & 평가 제외
     """
     # ===== 기본 설정 =====
     INITIAL_TRAIN = train_years * 252  # 504일
-    VAL_DAYS = val_months * 21  # 63일 (3개월)
-    GAP = 5  # Gap 5일 (고정)
-    N_FOLDS = 12  # 12폴드 (고정)
+    VAL_DAYS = val_months * 21  # 63일
+    GAP = 6
+    N_FOLDS = 12
     LOOKBACK_DAYS = 35
 
     total_len = len(df)
@@ -256,7 +338,6 @@ def run_walkforward_6params(
             f"실제: {total_len}일"
         )
 
-    # Expanding: 학습 종료일을 균등하게 분할
     train_ends = (
         np.linspace(first_train_end, last_train_end, N_FOLDS).astype(int).tolist()
     )
@@ -269,9 +350,12 @@ def run_walkforward_6params(
     last_date = df.index[last_train_end - 1].strftime("%Y-%m-%d")
     print(f"   - 마지막 학습 종료일: {last_train_end}일 (약 {last_date})")
     print(f"🔹 Gap: {GAP}일, 검증(horizon): {VAL_DAYS}일")
-    print(f"🔹 라벨: ADR-0002 기준 (open 5일 수익률 ±{threshold*100:.0f}%)")
-    print("🔹 신호: 상단돌파=상승(2), 하단돌파=하락(0) [반전 제거]")
+    print(f"🔹 라벨: ADR-AS-0002 (T+1 시가 → T+6 시가, ±{threshold*100:.0f}%)")
+    print("🔹 신호: 상단돌파=상승(2), 하단돌파=하락(0)")
     print("🔍 최적화 파라미터: α_up, α_down, β_up, β_down, Vol_Period, Volume_Period")
+
+    # ADR-AS-0002 라벨을 전체 df에 대해 1회 사전 계산 (마지막 6행은 NaN)
+    labels_full = make_labels(df, threshold=threshold)
 
     all_oos_returns = []
     all_oos_y_true = []
@@ -286,13 +370,14 @@ def run_walkforward_6params(
         val_start = train_end + GAP
         val_end = val_start + VAL_DAYS
 
-        if val_end + 5 > total_len:
+        # ADR-AS-0002: 마지막 행에서 T+6까지 필요 → val_end + 6 <= total_len
+        if val_end + 6 > total_len:
             print(
-                f"   ⚠️ 폴드 {fold+1}: 데이터 부족으로 중단 (필요:{val_end+5}, 실제:{total_len})"
+                f"   ⚠️ 폴드 {fold+1}: 데이터 부족으로 중단 "
+                f"(필요:{val_end+6}, 실제:{total_len})"
             )
             break
 
-        # Expanding: 학습 데이터는 0부터 train_end까지
         df_train = df.iloc[0:train_end].copy()
         df_val = df.iloc[val_start:val_end].copy()
 
@@ -340,19 +425,25 @@ def run_walkforward_6params(
 
         # ---- OOS 적용 (Lookback 포함) ----
         positions_full, preds_full = get_positions_6params(
-            df_calc, alpha_up, alpha_down, beta_up, beta_down, vol_period, volume_period
+            df_calc,
+            alpha_up,
+            alpha_down,
+            beta_up,
+            beta_down,
+            vol_period,
+            volume_period,
         )
 
         oos_offset = val_start - calc_start
         positions = positions_full[oos_offset : oos_offset + VAL_DAYS]
         preds = preds_full[oos_offset : oos_offset + VAL_DAYS]
 
-        # ADR-0002 open 기준 레이블 + threshold 적용
-        ret_5d = (df_val["open"].shift(-5) / df_val["open"] - 1).values
-        y_true = np.where(ret_5d > threshold, 2, np.where(ret_5d < -threshold, 0, 1))
+        # ADR-AS-0002 라벨 (전체 df 기준으로 계산 후 슬라이스)
+        y_true = labels_full[val_start:val_end]
 
         # ============================================================
-        # [ARIMA 기준선 평가 - open 기준 + threshold 통일]
+        # [ARIMA 기준선 평가 - ADR-AS-0002 시간축 정렬]
+        #   T 종가 시점에서 6-step 예측 → step[1:] 누적이 T+1→T+6
         # ============================================================
         train_ret = df_train["open"].pct_change().dropna().values
 
@@ -373,45 +464,53 @@ def run_walkforward_6params(
                     arima_pred_5d_cum = []
 
                     for i in range(len(df_val)):
+                        # 현재 시점(i)까지의 실제 open 수익률을 history에 반영
+                        actual_ret = df_val["open"].pct_change().values[i]
+                        history.append(
+                            actual_ret if not np.isnan(actual_ret) else 0.0
+                        )
+
+                        # i+1 ~ i+6 6-step 예측
                         temp_hist = history.copy()
-                        cum_ret = 1.0
-                        for _step in range(5):
+                        step_returns = []
+                        for _step in range(6):
                             next_val = const
                             for j in range(len(phi)):
                                 if j < len(temp_hist):
                                     next_val += phi[j] * temp_hist[-(j + 1)]
-                            cum_ret = cum_ret * (1 + next_val)
+                            step_returns.append(next_val)
                             temp_hist.append(next_val)
 
+                        # T+1 → T+6 누적 = step[1:] (0-indexed 1..5)
+                        cum_ret = 1.0
+                        for r in step_returns[1:]:
+                            cum_ret *= (1 + r)
                         arima_pred_5d_cum.append(cum_ret - 1)
-
-                        if i < len(df_val):
-                            actual_ret = df_val["open"].pct_change().values[i]
-                            if not np.isnan(actual_ret):
-                                history.append(actual_ret)
-                            else:
-                                history.append(0.0)
 
                     arima_pred_5d_cum = np.array(arima_pred_5d_cum)
 
-                    # ARIMA 예측 라벨도 동일한 threshold로 통일
+                    # ARIMA 예측 라벨도 동일 threshold
                     arima_preds = np.where(
                         arima_pred_5d_cum > threshold,
                         2,
                         np.where(arima_pred_5d_cum < -threshold, 0, 1),
                     )
 
-                    if len(arima_preds) == len(y_true):
-                        fold_acc_arima = np.mean(arima_preds == y_true)
+                    valid_arima = ~np.isnan(y_true) & ~np.isnan(arima_pred_5d_cum)
+                    if valid_arima.sum() > 0 and len(arima_preds) == len(y_true):
+                        fold_acc_arima = np.mean(
+                            arima_preds[valid_arima] == y_true[valid_arima]
+                        )
                         all_arima_accs.append(fold_acc_arima)
                         if total_folds == 0:
                             print(
-                                f"   ✅ ARIMA 5일 누적 예측 성공! (정확도: {fold_acc_arima:.4f})"
+                                f"   ✅ ARIMA T+1→T+6 누적 예측 (정확도: {fold_acc_arima:.4f})"
                             )
                     else:
                         if total_folds == 0:
                             print(
-                                f"   ❌ 길이 불일치: {len(arima_preds)} vs {len(y_true)}"
+                                f"   ❌ ARIMA 평가 불가 (valid={valid_arima.sum()}, "
+                                f"len={len(arima_preds)} vs {len(y_true)})"
                             )
                 else:
                     if total_folds == 0:
@@ -424,19 +523,28 @@ def run_walkforward_6params(
                 print(f"   ❌ train_ret 길이 부족 (실제: {len(train_ret)})")
 
         # ============================================================
-        # 포지션 수익률 계산 (open 기준)
+        # 포지션 수익률 계산 (ADR-AS-0002: T+1 시가 체결 → T+2 시가 청산)
+        # signal[i] (close i 신호) → open i+1 체결 → open i+2 청산
+        # strategy_ret[j] = positions[j-2] * market_ret[j]
         # ============================================================
         market_ret = df_val["open"].pct_change().values
 
-        pos_shifted = np.concatenate([[prev_last_position], positions[:-1]])
-        if len(pos_shifted) > 0:
-            pos_shifted[0] = prev_last_position
+        pos_shifted = np.empty(len(positions), dtype=float)
+        if len(positions) >= 2:
+            pos_shifted[:2] = prev_last_position
+            pos_shifted[2:] = positions[:-2]
+        else:
+            pos_shifted[:] = prev_last_position
 
         if len(positions) > 0:
             prev_last_position = positions[-1]
 
         strategy_ret = pos_shifted * market_ret
-        valid_mask = ~(np.isnan(strategy_ret) | np.isnan(market_ret))
+
+        # 미래값 없는 행(NaN 라벨)도 평가에서 제외
+        valid_mask = ~(
+            np.isnan(strategy_ret) | np.isnan(market_ret) | np.isnan(y_true)
+        )
 
         if valid_mask.sum() > 0:
             all_oos_returns.extend(strategy_ret[valid_mask].tolist())
@@ -470,19 +578,21 @@ def run_walkforward_6params(
             end_date = df.index[val_end - 1].strftime("%Y-%m-%d")
             print(f"   → {total_folds}개 폴드 완료 (OOS: {start_date} ~ {end_date})")
 
-    # ===== [진단] 반전 제거 후 정확도 확인 =====
-    from sklearn.metrics import accuracy_score
-
+    # ===== [진단] 라벨 축 수정 후 정확도 확인 =====
     y_true_arr = np.array(all_oos_y_true)
     y_pred_arr = np.array(all_oos_y_pred)
+
+    nan_filter = ~(np.isnan(y_true_arr) | np.isnan(y_pred_arr))
+    y_true_arr = y_true_arr[nan_filter]
+    y_pred_arr = y_pred_arr[nan_filter]
+
     if len(y_true_arr) > 0:
         acc_current = accuracy_score(y_true_arr, y_pred_arr)
-        print(f"\n🔍 [진단] 반전 제거 후 현재 정확도: {acc_current:.4f}")
-        # 반전을 다시 적용해보면 어떤지 참고용
+        print(f"\n🔍 [진단] ADR-AS-0002 라벨 기준 정확도: {acc_current:.4f}")
         invert_back = {0: 2, 1: 1, 2: 0}
         y_pred_reversed = np.array([invert_back[p] for p in y_pred_arr])
         acc_reversed = accuracy_score(y_true_arr, y_pred_reversed)
-        print(f"   (참고) 만약 반전을 적용했다면: {acc_reversed:.4f}")
+        print(f"   (참고) 만약 신호를 반전했다면: {acc_reversed:.4f}")
 
     # ---- 연결된 OOS 최종 평가 ----
     oos_returns = np.array(all_oos_returns)
@@ -491,19 +601,21 @@ def run_walkforward_6params(
     if len(all_arima_accs) > 0:
         arima_mean_acc = np.mean(all_arima_accs)
         print(
-            f"\n📊 [ARIMA 기준선 - 5일 누적] 평균 방향 적중률 (전체 {len(all_arima_accs)}개 폴드)"
-            f": {arima_mean_acc:.4f} ({arima_mean_acc*100:.2f}%)"
+            f"\n📊 [ARIMA 기준선 - T+1→T+6 누적] 평균 방향 적중률 "
+            f"(전체 {len(all_arima_accs)}개 폴드): "
+            f"{arima_mean_acc:.4f} ({arima_mean_acc*100:.2f}%)"
         )
     else:
         print("⚠️ ARIMA 예측 실패 (데이터 부족)")
 
-    y_true_arr = np.array(all_oos_y_true)
-    y_pred_arr = np.array(all_oos_y_pred)
-
     cls_metrics = {}
     if len(y_true_arr) > 0:
-        cls_metrics["f1_macro"] = f1_score(y_true_arr, y_pred_arr, average="macro")
-        cls_metrics["balanced_acc"] = balanced_accuracy_score(y_true_arr, y_pred_arr)
+        cls_metrics["f1_macro"] = f1_score(
+            y_true_arr, y_pred_arr, average="macro"
+        )
+        cls_metrics["balanced_acc"] = balanced_accuracy_score(
+            y_true_arr, y_pred_arr
+        )
         unique, counts = np.unique(y_pred_arr, return_counts=True)
         ratio_dict = dict(zip(unique, counts / len(y_pred_arr), strict=False))
         cls_metrics["ratio_up"] = ratio_dict.get(2, 0.0)
@@ -546,8 +658,11 @@ def run_walkforward_6params(
 # ============================================================
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 5단계: Expanding + ADR-0002(open) + 1% vs 2% 비교 (반전 제거)")
+    print("🚀 5단계: Expanding + ADR-AS-0002(T+1→T+6) + 1% vs 2% 비교")
     print("=" * 60)
+
+    # 라벨 회귀 테스트 먼저 수행
+    _regression_test_make_labels()
 
     df = load_data()
     print(f"📊 데이터 로드 완료: {df.shape[0]}일")
@@ -573,7 +688,7 @@ if __name__ == "__main__":
     # 최종 비교 결과 출력
     # ============================================================
     print("\n\n" + "=" * 70)
-    print("📊 [최종 비교] 1% 기준 vs 2% 기준 Walk-Forward 성능 (반전 제거)")
+    print("📊 [최종 비교] 1% 기준 vs 2% 기준 Walk-Forward 성능 (ADR-AS-0002)")
     print("=" * 70)
 
     compare_df = pd.DataFrame(

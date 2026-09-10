@@ -16,7 +16,12 @@ warnings.filterwarnings("ignore")
 LABEL_DOWN = 0
 LABEL_NEUTRAL = 1
 LABEL_UP = 2
-FEATURE_VERSION = "FocalML-v1"
+
+# ADR-AS-0002 반영: 라벨 축이 T+1→T+6 로 바뀌었으므로 feature 버전 상향
+FEATURE_VERSION = "FocalML-v2-ADR-AS-0002"
+
+# ADR-AS-0002: T 종가 신호 → T+1 시가 체결 → T+6 시가 평가 (horizon = 6 거래일)
+HORIZON = 6
 
 
 @dataclass
@@ -35,6 +40,9 @@ class FocalConfig:
     patience: int = 20
     inner_val_ratio: float = 0.20
     seed: int = 42
+    # ADR-AS-0002: 학습/검증/OOS 라벨 임계값. Step 5 와 동일한 값을 써야 한다.
+    # 0.01 / 0.02 두 실험을 각각 FocalConfig(threshold=...) 로 실행.
+    threshold: float = 0.01
 
 
 class FocalLoss(nn.Module):
@@ -84,22 +92,108 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+# ============================================================
+# ADR-AS-0002 공용 라벨 함수
+# ------------------------------------------------------------
+# - T일 종가까지의 정보로 신호 생성
+# - T+1일 시가 체결
+# - T+6일 시가 평가
+# - fwd_ret = open.shift(-6) / open.shift(-1) - 1
+# - 마지막 6행은 NaN 유지 (중립으로 변환 금지)
+# - 학습/검증/OOS 모두 동일 threshold 사용
+#
+# Step 5, Step 7, Rolling Feature 검증 파이프라인 모두 이 함수만 사용해야
+# 한다. 어떤 경로도 직접 라벨을 계산하지 않는다.
+# ============================================================
 def make_labels(df: pd.DataFrame, threshold: float = 0.01) -> pd.Series:
-    """ADR-0002: next 5 trading-session open-to-open return.
+    """ADR-AS-0002 라벨: Open(T+1) → Open(T+6) 수익률 기반 3-class.
 
-    At t, prediction concerns Open[t] -> Open[t+5].
+    Parameters
+    ----------
+    df : DataFrame
+        'open' 컬럼 필요. 'code' 컬럼이 있으면 종목별로 계산.
+    threshold : float
+        상승/하락 판정 임계값. |fwd_ret| <= threshold 는 중립.
+
+    Returns
+    -------
+    pd.Series (float) : {0.0, 1.0, 2.0} 또는 NaN.
+        미래값이 없는 마지막 6행은 NaN 으로 유지된다(중립으로 변환 금지).
     """
     if "code" in df.columns:
         future_ret = df.groupby("code")["open"].transform(
-            lambda x: x.shift(-5) / x - 1.0
+            lambda x: x.shift(-HORIZON) / x.shift(-1) - 1.0
         )
     else:
-        future_ret = df["open"].shift(-5) / df["open"] - 1.0
+        future_ret = df["open"].shift(-HORIZON) / df["open"].shift(-1) - 1.0
+
     y = np.full(len(df), np.nan)
     y[future_ret > threshold] = LABEL_UP
     y[future_ret < -threshold] = LABEL_DOWN
     y[(future_ret >= -threshold) & (future_ret <= threshold)] = LABEL_NEUTRAL
+
+    # 미래값이 없는 마지막 HORIZON 행은 NaN 유지
+    y[future_ret.isna().to_numpy()] = np.nan
+
     return pd.Series(y, index=df.index, name="target")
+
+
+def make_labels_for_config(df: pd.DataFrame, cfg: FocalConfig) -> pd.Series:
+    """FocalConfig.threshold 를 사용하는 편의 래퍼."""
+    return make_labels(df, threshold=cfg.threshold)
+
+
+def _regression_test_make_labels() -> None:
+    """make_labels() 축·끝행·분포 회귀 테스트.
+
+    ADR-AS-0002 완료 조건:
+      - 시간축: fwd_ret = open.shift(-6)/open.shift(-1) - 1
+      - 마지막 6행 NaN 유지 (중립으로 변환 금지)
+      - code 그룹 경로도 동일 규칙
+    """
+    n = 30
+    prices = np.arange(1, n + 1, dtype=float)
+    df_t = pd.DataFrame({"open": prices})
+
+    y = make_labels(df_t, threshold=0.02)
+
+    # 1) 마지막 6행 NaN
+    assert y.iloc[-6:].isna().all(), (
+        f"마지막 6행은 NaN이어야 함. 실제: {y.iloc[-6:].tolist()}"
+    )
+
+    # 2) 시간축 정확성
+    for i in [0, 1, 5, 10, n - 7]:
+        fwd = prices[i + 6] / prices[i + 1] - 1.0
+        if fwd > 0.02:
+            expected = 2
+        elif fwd < -0.02:
+            expected = 0
+        else:
+            expected = 1
+        assert y.iloc[i] == expected, (
+            f"y[{i}]: expected {expected}, got {y.iloc[i]} (fwd={fwd:.6f})"
+        )
+
+    # 3) code 그룹 경로도 동일 규칙
+    df_g = pd.DataFrame(
+        {
+            "code": ["A"] * n + ["B"] * n,
+            "open": list(prices) + list(prices * 2.0),
+        }
+    )
+    y_g = make_labels(df_g, threshold=0.02)
+    assert y_g.iloc[-6:].isna().all(), "code 경로 끝행 NaN 규칙 위반"
+    assert y_g.iloc[0:n - 6].tolist() == y.iloc[0:n - 6].tolist(), (
+        "code 경로/단일 경로 라벨 불일치"
+    )
+
+    # 4) 중립 라벨
+    df_flat = pd.DataFrame({"open": np.full(n, 100.0)})
+    y_flat = make_labels(df_flat, threshold=0.02)
+    assert y_flat.iloc[0] == 1, f"평탄 구간 중립 라벨 오류: {y_flat.iloc[0]}"
+
+    print("✅ make_labels 회귀 테스트 통과 (T+1→T+6 / 끝행 NaN / code 경로)")
 
 
 def _safe_div(a: pd.Series, b: pd.Series) -> pd.Series:
@@ -239,13 +333,18 @@ def train_focal_model(
 ) -> Tuple[object, StandardScaler, List[str], Dict[str, float]]:
     """Train with an inner chronological validation split.
 
-    The outer OOS period is never used for model selection.
+    ADR-AS-0002:
+      - 라벨 y 는 make_labels(df, threshold=cfg.threshold) 로 생성되어야 한다.
+      - 학습 라벨이 OOS 첫날 open 을 참조하지 않도록 train_end 에서
+        HORIZON(=6) 만큼 잘라낸다.
+      - outer OOS 구간은 모델 선택에 사용되지 않는다.
     """
     cfg = config or FocalConfig()
     set_seed(cfg.seed)
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
 
-    label_safe_end = max(0, train_end - 5)
+    # ADR-AS-0002: 학습 라벨의 미래 참조 구간 = HORIZON 거래일
+    label_safe_end = max(0, train_end - HORIZON)
     train_idx = np.arange(0, label_safe_end)
     x_all, y_all, feature_cols = _clean_training_data(features, y, train_idx)
     if len(x_all) < 150 or len(np.unique(y_all)) < 3:
@@ -344,6 +443,8 @@ def train_focal_model(
         "train_rows": float(len(x_all)),
         "label_safe_end": float(label_safe_end),
         "n_features": float(len(feature_cols)),
+        "threshold": float(cfg.threshold),
+        "horizon": float(HORIZON),
     }
     return model_full, scaler_full, feature_cols, stats
 
@@ -362,3 +463,10 @@ def predict_focal(
     if valid.any():
         out[valid] = _predict_model(model, scaler, x.loc[valid], device)
     return out
+
+
+# ============================================================
+# 회귀 테스트 진입점
+# ============================================================
+if __name__ == "__main__":
+    _regression_test_make_labels()
