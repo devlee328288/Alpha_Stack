@@ -28,7 +28,10 @@ from common.paths import krx_db_path  # noqa: E402
 
 #: 날짜로 볼 만한 칸 이름. 표마다 이름이 달라 하나로 못 묶는다.
 #: 앞에 있는 것이 우선이다 — `bas_dd`(기준일)가 `collected_at`(받은 시각)보다 먼저다.
-DATE_COLUMNS = ("bas_dd", "base_dt", "trd_dd", "rcept_dt", "bsns_year",
+#: `ex_date`(배당락일·기업행위 적용일)를 넣는 까닭: `dividend` 와 `corporate_action`
+#: 은 기준일이 휴장일일 수 있어(12월 기준일 중 거래일은 0.3%) **값이 실제로 움직이는
+#: 날**을 따로 담는다. 그 축이 없으면 두 표만 기간이 빈 칸으로 보인다.
+DATE_COLUMNS = ("bas_dd", "base_dt", "trd_dd", "rcept_dt", "ex_date", "bsns_year",
                 "kst_date", "period", "dt", "date")
 
 
