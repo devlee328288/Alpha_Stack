@@ -3,7 +3,12 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from focal_classifier import build_features, make_labels
+from focal_classifier import (
+    FocalConfig,
+    _regression_test_make_labels,
+    build_features,
+    make_labels,
+)
 from step1_core_features import load_data
 from step5_optimize_6params import (
     compute_bands_flexible,
@@ -11,6 +16,23 @@ from step5_optimize_6params import (
 )
 
 warnings.filterwarnings("ignore")
+
+
+# ============================================================
+# ADR-AS-0002
+# ------------------------------------------------------------
+# - T일 종가까지의 정보로 신호 생성
+# - T+1일 시가 체결
+# - T+6일 시가 평가
+# - fwd_ret = open.shift(-6) / open.shift(-1) - 1
+# - 마지막 6행은 NaN 유지 (중립으로 변환 금지)
+# - 학습/검증/OOS 모두 동일 threshold 사용
+#
+# 이 파일은 라벨을 직접 계산하지 않고 focal_classifier.make_labels()
+# 공용 함수만 사용한다. 그리고 각 threshold 실험마다 FocalConfig 를
+# 별도로 생성해 step 7(Focal Walk-Forward)까지 동일 threshold 로
+# 연결될 수 있도록 한다.
+# ============================================================
 
 
 # ============================================================
@@ -23,15 +45,40 @@ TRAIN_YEARS = 2
 VAL_MONTHS = 3
 STEP_MONTHS = 1
 
+# 이 두 값을 동일한 파이프라인이 각각 독립적으로 실행한다.
 THRESHOLDS = [0.01, 0.02]
 
 MAX_EVALS = 30 if QUICK_MODE else 300
 
-GAP_DAYS = 5
+# ADR-AS-0002: horizon = 6 거래일 → 학습 라벨이 OOS 첫날 데이터를
+# 참조하지 않도록 gap 도 6 이상이어야 한다.
+GAP_DAYS = 6
+
+# Step 7(Focal Walk-Forward)까지 이 파일에서 실행할지 여부.
+# False 로 두면 이 파일은 Step 5 + Rolling Feature 검증만 수행한다.
+RUN_FOCAL_WALKFORWARD = False
 
 
 # ============================================================
-# 1. 기본 출력
+# 1. threshold별 FocalConfig 팩토리
+# ------------------------------------------------------------
+# step 7 에서 학습/검증/OOS 라벨이 모두 같은 threshold 를 쓰도록
+# FocalConfig 를 threshold 별로 만들어 넘긴다.
+# ============================================================
+def make_focal_config(threshold: float, **overrides) -> FocalConfig:
+    """threshold 별 FocalConfig 를 생성한다.
+
+    Step 7(Focal Walk-Forward)과 full pipeline 에서 이 팩토리를 사용해
+    학습/검증/OOS 라벨 threshold 가 자동으로 통일되도록 한다.
+    """
+    cfg = FocalConfig(threshold=float(threshold))
+    for k, v in overrides.items():
+        setattr(cfg, k, v)
+    return cfg
+
+
+# ============================================================
+# 2. 기본 출력
 # ============================================================
 
 
@@ -42,7 +89,7 @@ def print_header(title: str):
 
 
 # ============================================================
-# 2. Rolling Feature 검증
+# 3. Rolling Feature 검증
 # ============================================================
 
 
@@ -54,6 +101,10 @@ def validate_rolling_features(
     """
     각 Walk-Forward fold에서 실제 사용되는 파라미터를 이용하여
     Rolling Feature가 정상적으로 생성되는지 검증한다.
+
+    ADR-AS-0002 반영:
+      - 라벨은 공용 make_labels(df, threshold) 만 사용
+      - 라벨의 마지막 6행 NaN 은 검증에서 제외
 
     검증 대상
     ------------------------------------------------------------
@@ -67,7 +118,7 @@ def validate_rolling_features(
     """
 
     print_header(
-        f"① Rolling Feature 생성 검증 " f"| Threshold = {threshold * 100:.0f}%"
+        f"① Rolling Feature 생성 검증 | Threshold = {threshold * 100:.0f}%"
     )
 
     date_to_idx = {d: i for i, d in enumerate(df.index)}
@@ -85,24 +136,19 @@ def validate_rolling_features(
         val_end = pd.Timestamp(row["val_end"])
 
         if val_start not in date_to_idx:
-            print(
-                f"⚠️ Fold {fold_no + 1}: "
-                f"val_start={val_start}를 데이터에서 찾을 수 없음"
-            )
+            print(f"⚠️ Fold {fold_no + 1}: val_start={val_start} 없음")
             continue
 
         if val_end not in date_to_idx:
-            print(
-                f"⚠️ Fold {fold_no + 1}: "
-                f"val_end={val_end}를 데이터에서 찾을 수 없음"
-            )
+            print(f"⚠️ Fold {fold_no + 1}: val_end={val_end} 없음")
             continue
 
         start_idx = date_to_idx[val_start]
         end_idx = date_to_idx[val_end]
 
         # ----------------------------------------------------
-        # 외부 OOS 직전까지가 모델 학습 가능 영역
+        # ADR-AS-0002: 학습 라벨이 OOS 첫날 open 을 참조하지 않도록
+        # train_end 는 OOS 시작 이전 GAP_DAYS(=horizon)일 지점
         # ----------------------------------------------------
         train_end = start_idx - GAP_DAYS
 
@@ -123,16 +169,12 @@ def validate_rolling_features(
         }
 
         # ----------------------------------------------------
-        # 핵심:
-        # Feature 계산은 충분한 과거 데이터부터 OOS 끝까지 계산.
-        #
-        # 단, 기준선/Feature 자체는 rolling/causal 계산이므로
-        # 미래값을 참조하지 않는다.
+        # Feature 계산은 충분한 과거 데이터부터 OOS 끝까지.
+        # 기준선/Feature 자체는 rolling/causal 계산이라 미래 참조 없음.
         # ----------------------------------------------------
         df_calc = df.iloc[: end_idx + 1].copy()
 
         try:
-            # step5와 동일한 기준선 계산식을 그대로 사용
             bands = compute_bands_flexible(
                 df_calc,
                 vol_period=params["vol_period"],
@@ -142,29 +184,17 @@ def validate_rolling_features(
                 beta_up=params["beta_up"],
                 beta_down=params["beta_down"],
             )
-
-            # 동일한 Feature 생성 함수 사용
-            features = build_features(
-                df_calc,
-                bands,
-            )
-
+            features = build_features(df_calc, bands)
         except Exception as exc:
-            print(f"❌ Fold {fold_no + 1}: " f"Feature 생성 실패 → {exc}")
+            print(f"❌ Fold {fold_no + 1}: Feature 생성 실패 → {exc}")
             continue
 
         # ----------------------------------------------------
-        # OOS Feature만 추출
+        # OOS Feature 추출
         # ----------------------------------------------------
         oos_features = features.iloc[start_idx : end_idx + 1].copy()
 
-        # ----------------------------------------------------
-        # Feature 컬럼
-        # ----------------------------------------------------
         feature_cols = list(features.columns)
-
-        # 원본 가격/기준선 관련 컬럼을 제외한
-        # 실제 ML Feature 개수
         excluded_cols = {
             "open",
             "high",
@@ -174,32 +204,23 @@ def validate_rolling_features(
             "date",
             "label",
             "fwd_return_5d",
+            "fwd_return_6d",
+            "fwd_ret",
         }
-
         ml_feature_cols = [c for c in feature_cols if c not in excluded_cols]
 
-        # ----------------------------------------------------
-        # NaN / Inf 검사
-        # ----------------------------------------------------
         feature_data = oos_features[ml_feature_cols].copy()
 
         nan_count = int(feature_data.isna().sum().sum())
-
         inf_count = int(
             np.isinf(
                 feature_data.select_dtypes(include=[np.number]).to_numpy(dtype=float)
             ).sum()
         )
-
         total_values = feature_data.shape[0] * feature_data.shape[1]
-
         nan_ratio = nan_count / total_values if total_values > 0 else np.nan
 
-        # ----------------------------------------------------
-        # 상수 Feature 검사
-        # ----------------------------------------------------
         constant_features = []
-
         for col in ml_feature_cols:
             try:
                 if feature_data[col].nunique(dropna=True) <= 1:
@@ -207,14 +228,7 @@ def validate_rolling_features(
             except Exception:
                 pass
 
-        # ----------------------------------------------------
-        # Feature 범위 확인
-        # ----------------------------------------------------
-        finite_feature_data = feature_data.replace(
-            [np.inf, -np.inf],
-            np.nan,
-        )
-
+        finite_feature_data = feature_data.replace([np.inf, -np.inf], np.nan)
         valid_feature_ratio = (
             finite_feature_data.notna().mean().mean()
             if len(finite_feature_data) > 0
@@ -224,15 +238,11 @@ def validate_rolling_features(
         # ----------------------------------------------------
         # 기준선 유효성
         # ----------------------------------------------------
-        band_cols = ["base", "upper", "lower"]
-
         band_valid = True
-
-        for col in band_cols:
+        for col in ["base", "upper", "lower"]:
             if col not in bands.columns:
                 band_valid = False
                 break
-
             if not np.isfinite(
                 bands.loc[bands.index[start_idx : end_idx + 1], col].to_numpy(
                     dtype=float
@@ -242,29 +252,19 @@ def validate_rolling_features(
                 break
 
         # ----------------------------------------------------
-        # Label 확인
+        # Label 확인 — ADR-AS-0002 공용 함수 사용
+        #   make_labels(df, threshold) 는 T+1→T+6 라벨을 반환하며
+        #   미래값이 없는 마지막 6행은 NaN 이다.
         # ----------------------------------------------------
-        y = make_labels(df_calc)
-
-        oos_y = y.iloc[start_idx : end_idx + 1]
-
-        label_valid_count = int(np.isfinite(oos_y.to_numpy(dtype=float)).sum())
-
-        label_distribution = {}
+        y = make_labels(df_calc, threshold=threshold)
+        oos_y = y[start_idx : end_idx + 1]
+        label_valid_count = int(np.isfinite(oos_y).sum())
 
         if label_valid_count > 0:
-            y_clean = oos_y[np.isfinite(oos_y.to_numpy(dtype=float))].astype(int)
+            y_clean = oos_y[np.isfinite(oos_y)].astype(int)
+            for cls, _name in [(0, "하락"), (1, "중립"), (2, "상승")]:
+                _ = float(np.mean(y_clean == cls))  # 로그 확장 여지
 
-            for cls, name in [
-                (0, "하락"),
-                (1, "중립"),
-                (2, "상승"),
-            ]:
-                label_distribution[name] = float(np.mean(y_clean == cls))
-
-        # ----------------------------------------------------
-        # 결과 저장
-        # ----------------------------------------------------
         fold_result = {
             "fold": fold_no + 1,
             "val_start": val_start,
@@ -288,13 +288,8 @@ def validate_rolling_features(
         }
 
         fold_results.append(fold_result)
-
-        # Feature 구조 저장
         feature_signatures.append(tuple(ml_feature_cols))
 
-        # ----------------------------------------------------
-        # Fold 결과 출력
-        # ----------------------------------------------------
         print(
             f"Fold {fold_no + 1:2d} | "
             f"OOS {val_start.strftime('%Y-%m-%d')} ~ "
@@ -308,7 +303,6 @@ def validate_rolling_features(
     # ========================================================
     # 전체 검증 결과
     # ========================================================
-
     print_header("① Rolling Feature 검증 결과")
 
     if not fold_results:
@@ -321,51 +315,15 @@ def validate_rolling_features(
 
     result_df = pd.DataFrame(fold_results)
 
-    # --------------------------------------------------------
-    # Feature 컬럼 일관성
-    # --------------------------------------------------------
-
-    unique_signatures = set(feature_signatures)
-
-    feature_consistent = len(unique_signatures) == 1
-
-    # --------------------------------------------------------
-    # NaN 검사
-    # --------------------------------------------------------
-
+    feature_consistent = len(set(feature_signatures)) == 1
     max_nan_ratio = result_df["nan_ratio"].max()
-
     nan_ok = max_nan_ratio <= 0.05
-
-    # --------------------------------------------------------
-    # Inf 검사
-    # --------------------------------------------------------
-
     inf_ok = result_df["inf_count"].max() == 0
-
-    # --------------------------------------------------------
-    # 상수 Feature
-    # --------------------------------------------------------
-
     constant_ok = result_df["constant_feature_count"].max() == 0
-
-    # --------------------------------------------------------
-    # 기준선
-    # --------------------------------------------------------
-
     band_ok = bool(result_df["band_valid"].all())
 
-    # --------------------------------------------------------
-    # Feature 개수
-    # --------------------------------------------------------
-
     feature_counts = result_df["n_features"].unique()
-
     feature_count_ok = len(feature_counts) == 1
-
-    # --------------------------------------------------------
-    # 최종 PASS
-    # --------------------------------------------------------
 
     passed = all(
         [
@@ -377,55 +335,30 @@ def validate_rolling_features(
         ]
     )
 
-    # ========================================================
-    # 결과 출력
-    # ========================================================
-
     print(f"검증 Fold 수           : {len(result_df)}")
-
-    print(f"Feature 개수            : " f"{feature_counts.tolist()}")
-
-    print(f"Feature 구조 동일       : " f"{'PASS' if feature_consistent else 'FAIL'}")
-
+    print(f"Feature 개수            : {feature_counts.tolist()}")
+    print(f"Feature 구조 동일       : {'PASS' if feature_consistent else 'FAIL'}")
     print(
-        f"최대 NaN 비율           : "
-        f"{max_nan_ratio:.4%} "
+        f"최대 NaN 비율           : {max_nan_ratio:.4%} "
         f"({'PASS' if nan_ok else 'FAIL'})"
     )
-
-    print(f"Inf 존재 여부           : " f"{'PASS' if inf_ok else 'FAIL'}")
-
-    print(f"기준선(base/upper/lower): " f"{'PASS' if band_ok else 'FAIL'}")
-
-    print(f"Feature 개수 일관성     : " f"{'PASS' if feature_count_ok else 'FAIL'}")
-
-    print(f"상수 Feature            : " f"{'PASS' if constant_ok else 'WARNING'}")
-
+    print(f"Inf 존재 여부           : {'PASS' if inf_ok else 'FAIL'}")
+    print(f"기준선(base/upper/lower): {'PASS' if band_ok else 'FAIL'}")
+    print(f"Feature 개수 일관성     : {'PASS' if feature_count_ok else 'FAIL'}")
+    print(f"상수 Feature            : {'PASS' if constant_ok else 'WARNING'}")
     print()
 
     if passed:
         print("✅ Rolling Feature 생성 검증 PASS")
-        print("→ 다음 단계인 Cross Entropy vs Focal Loss 비교로 진행 가능")
     else:
         print("❌ Rolling Feature 검증 FAIL")
-        print("→ Focal Loss 실험 전에 Feature 생성 구조를 먼저 수정해야 합니다.")
-
-    # ========================================================
-    # Feature 목록 출력
-    # ========================================================
 
     if feature_signatures:
         print("\n[사용 Feature 목록]")
-
         for i, col in enumerate(feature_signatures[0], 1):
             print(f"  {i:2d}. {col}")
 
-    # ========================================================
-    # Fold별 상세표
-    # ========================================================
-
     print("\n[Fold별 검증 요약]")
-
     display_cols = [
         "fold",
         "val_start",
@@ -437,7 +370,6 @@ def validate_rolling_features(
         "constant_feature_count",
         "band_valid",
     ]
-
     print(result_df[display_cols].to_string(index=False))
 
     return {
@@ -448,33 +380,63 @@ def validate_rolling_features(
 
 
 # ============================================================
-# 3. Threshold별 전체 실험
+# 4. Step 7 (Focal Walk-Forward) 옵션 훅
+# ------------------------------------------------------------
+# 이 파일이 두 threshold 를 모두 실행할 수 있도록 FocalConfig 를
+# threshold 별로 생성해서 넘긴다.
+# ============================================================
+def run_focal_experiment(
+    df: pd.DataFrame,
+    fold_details: pd.DataFrame,
+    threshold: float,
+) -> dict:
+    """
+    threshold 하나에 대해 Step 7 Focal Walk-Forward 를 실행한다.
+
+    - FocalConfig(threshold=threshold) 를 명시 생성
+    - make_labels(df, threshold=threshold) 로 y_true 산출
+    - 학습/검증/OOS 라벨이 모두 같은 threshold 사용
+    """
+    # Step 7 모듈은 순환 참조를 피하기 위해 함수 내부에서 import
+    from step7_focal_walkforward import (  # type: ignore
+        evaluate_signals,
+        generate_signals_rolling,
+    )
+
+    cfg = make_focal_config(threshold)
+    print_header(f"② Focal Walk-Forward | Threshold = {threshold * 100:.0f}%")
+    print(f"   FocalConfig.threshold = {cfg.threshold}")
+
+    signals = generate_signals_rolling(df, fold_details, focal_config=cfg)
+    y_true = make_labels(df, threshold=threshold)
+    metrics = evaluate_signals(signals, y_true)
+
+    return {"signals": signals, "metrics": metrics, "config": cfg}
+
+
+# ============================================================
+# 5. Threshold별 전체 실험
 # ============================================================
 
 
 def run_threshold_experiment(
     df: pd.DataFrame,
     threshold: float,
-):
+) -> dict:
     """
-    하나의 threshold에 대해
+    하나의 threshold 에 대해
 
     1. Step 5 Walk-Forward
     2. Fold별 최적 파라미터 확보
-    3. Rolling Feature 생성
-    4. Feature 구조 검증
+    3. Rolling Feature 생성 + 검증
+    4. (옵션) Step 7 Focal Walk-Forward
 
-    까지만 수행한다.
-
-    아직 ML 학습은 수행하지 않는다.
+    를 수행한다.
     """
 
     print_header(f"THRESHOLD = {threshold * 100:.0f}%")
 
-    # ========================================================
-    # Step 5
-    # ========================================================
-
+    # ---- Step 5 ----
     print("\n[5단계] 동적 기준선 6-parameter Walk-Forward")
 
     result_5 = run_walkforward_6params(
@@ -487,15 +449,9 @@ def run_threshold_experiment(
     )
 
     fold_details = result_5["fold_details"].copy()
-
-    print(f"\n✅ 5단계 완료: " f"{len(fold_details)}개 Fold")
-
-    # ========================================================
-    # Fold 파라미터 확인
-    # ========================================================
+    print(f"\n✅ 5단계 완료: {len(fold_details)}개 Fold")
 
     print("\n[Fold별 기준선 파라미터]")
-
     parameter_cols = [
         "alpha_up",
         "alpha_down",
@@ -504,12 +460,7 @@ def run_threshold_experiment(
         "vol_period",
         "volume_period",
     ]
-
     print(fold_details[parameter_cols].to_string(index=False))
-
-    # ========================================================
-    # Median 파라미터
-    # ========================================================
 
     median_params = {
         "alpha_up": float(fold_details["alpha_up"].median()),
@@ -521,19 +472,27 @@ def run_threshold_experiment(
     }
 
     print("\n[Median 기준선 파라미터]")
-
     for k, v in median_params.items():
         print(f"  {k:<15}: {v}")
 
-    # ========================================================
-    # Step 1 Feature 검증
-    # ========================================================
-
+    # ---- Feature 검증 ----
     validation = validate_rolling_features(
         df=df,
         fold_details=fold_details,
         threshold=threshold,
     )
+
+    # ---- Step 7 (옵션) ----
+    focal_result = None
+    if RUN_FOCAL_WALKFORWARD:
+        try:
+            focal_result = run_focal_experiment(
+                df=df,
+                fold_details=fold_details,
+                threshold=threshold,
+            )
+        except Exception as exc:
+            print(f"⚠️ Step 7 Focal 실행 실패: {exc}")
 
     return {
         "threshold": threshold,
@@ -541,30 +500,24 @@ def run_threshold_experiment(
         "fold_details": fold_details,
         "median_params": median_params,
         "feature_validation": validation,
+        "focal_result": focal_result,
     }
 
 
 # ============================================================
-# 4. 1% vs 2% Feature 구조 비교
+# 6. 1% vs 2% 비교
 # ============================================================
 
 
-def compare_feature_validation(
-    results: dict,
-):
+def compare_feature_validation(results: dict):
     print_header("① 최종 비교: 1% vs 2% Rolling Feature")
 
     rows = []
-
     for threshold, result in results.items():
-
         validation = result["feature_validation"]
-
         if validation["fold_results"].empty:
             continue
-
         df_val = validation["fold_results"]
-
         rows.append(
             {
                 "Threshold": f"{threshold * 100:.0f}%",
@@ -584,35 +537,49 @@ def compare_feature_validation(
         print("❌ 비교 가능한 결과가 없습니다.")
         return
 
-    comparison = pd.DataFrame(rows)
-
-    print(comparison.to_string(index=False))
-
-    # ========================================================
-    # 두 threshold의 Feature 컬럼이 같은지 확인
-    # ========================================================
+    print(pd.DataFrame(rows).to_string(index=False))
 
     if 0.01 in results and 0.02 in results:
-
         cols_1 = results[0.01]["feature_validation"]["feature_columns"]
-
         cols_2 = results[0.02]["feature_validation"]["feature_columns"]
-
         same_columns = cols_1 == cols_2
+        print(f"\nFeature 컬럼 구조 1% vs 2%: {'동일' if same_columns else '다름'}")
 
-        print("\nFeature 컬럼 구조 1% vs 2%: " f"{'동일' if same_columns else '다름'}")
 
-        if same_columns:
-            print(
-                "→ threshold 변경은 Label/기준선 파라미터에만 영향을 주고 "
-                "Feature 구조는 동일합니다."
-            )
-        else:
-            print("⚠️ 1%와 2%에서 Feature 구조가 달라졌습니다.")
+def compare_focal_results(results: dict):
+    """Step 7 을 실행한 경우에만 출력."""
+    if not any(r.get("focal_result") for r in results.values()):
+        return
+
+    print_header("② 최종 비교: 1% vs 2% Focal Walk-Forward")
+
+    rows = []
+    for threshold, result in results.items():
+        fr = result.get("focal_result")
+        if fr is None:
+            continue
+        m = fr["metrics"]
+        rows.append(
+            {
+                "Threshold": f"{threshold * 100:.0f}%",
+                "Sharpe": m.get("sharpe", np.nan),
+                "CAGR": m.get("cagr", np.nan),
+                "MDD": m.get("mdd", np.nan),
+                "Win Rate": m.get("win_rate", np.nan),
+                "Macro-F1": m.get("f1_macro", np.nan),
+                "Balanced Acc": m.get("balanced_acc", np.nan),
+            }
+        )
+    if rows:
+        df = pd.DataFrame(rows)
+        for c in df.columns:
+            if c != "Threshold":
+                df[c] = df[c].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "NaN")
+        print(df.to_string(index=False))
 
 
 # ============================================================
-# 5. 메인
+# 7. 메인
 # ============================================================
 
 
@@ -622,146 +589,76 @@ def run_full_pipeline():
     print("KOSPI 3-Class ML Pipeline")
     print("① Rolling Feature 생성 방식 검증")
     print("Threshold = 1% vs 2%")
+    print(f"ADR-AS-0002: 라벨 = open(T+1)→open(T+6), GAP={GAP_DAYS}일")
     print("=" * 70)
 
-    print(
-        "\n현재 단계에서는 "
-        "Cross Entropy / Focal Loss / Threshold Tuning을 "
-        "아직 수행하지 않습니다."
-    )
-
-    print("먼저 Rolling Feature가 완전히 정상인지 검증합니다.")
-
-    # ========================================================
-    # Data Load
-    # ========================================================
+    # ---- 라벨 회귀 테스트 선행 ----
+    _regression_test_make_labels()
 
     print("\n[1단계] 데이터 로드")
-
     df = load_data()
-
     print(f"✅ {len(df):,}일")
+    print(f"   기간: {df.index.min()} ~ {df.index.max()}")
 
-    print(f"   기간: " f"{df.index.min()} ~ {df.index.max()}")
-
-    # ========================================================
-    # Label distribution
-    # ========================================================
-
-    print("\n[라벨 구조 확인]")
-
+    # ---- 라벨 구조 ----
+    print("\n[라벨 구조 확인 — ADR-AS-0002, T+1→T+6]")
     for threshold in THRESHOLDS:
-
-        ret_5d = df["open"].shift(-6) / df["open"].shift(-1) - 1
-
-        y = np.where(
-            ret_5d > threshold,
-            2,
-            np.where(
-                ret_5d < -threshold,
-                0,
-                1,
-            ),
-        )
-
-        valid = np.isfinite(ret_5d)
-
+        y = make_labels(df, threshold=threshold)
+        valid = np.isfinite(y)
+        n_valid = int(valid.sum())
+        n_nan = int((~valid).sum())
         print(f"\nThreshold {threshold * 100:.0f}%")
-
-        for cls, name in [
-            (0, "하락"),
-            (1, "중립"),
-            (2, "상승"),
-        ]:
-            ratio = np.mean(y[valid] == cls)
-
+        print(f"  유효 라벨: {n_valid}일 (NaN 끝행: {n_nan}일)")
+        for cls, name in [(0, "하락"), (1, "중립"), (2, "상승")]:
+            ratio = float(np.mean(y[valid] == cls))
             print(f"  {name}: {ratio:.2%}")
 
-    # ========================================================
-    # Threshold별 실행
-    # ========================================================
-
+    # ---- threshold별 실행 ----
     all_results = {}
-
     for threshold in THRESHOLDS:
-
-        result = run_threshold_experiment(
-            df,
-            threshold,
-        )
-
+        result = run_threshold_experiment(df, threshold)
         all_results[threshold] = result
 
-    # ========================================================
-    # 최종 비교
-    # ========================================================
-
+    # ---- 비교 ----
     compare_feature_validation(all_results)
+    compare_focal_results(all_results)
 
-    # ========================================================
-    # 결과 저장
-    # ========================================================
-
+    # ---- 저장 ----
     output_dir = "feature_validation_results"
-
-    os.makedirs(
-        output_dir,
-        exist_ok=True,
-    )
+    os.makedirs(output_dir, exist_ok=True)
 
     for threshold, result in all_results.items():
+        tag = f"{int(threshold * 100)}pct"
 
         fold_details = result["fold_details"]
-
-        filename = f"fold_details_" f"{int(threshold * 100)}pct.csv"
-
-        path = os.path.join(
-            output_dir,
-            filename,
-        )
-
-        fold_details.to_csv(
-            path,
-            index=False,
-        )
-
-        print(f"\n💾 저장: " f"{os.path.abspath(path)}")
+        fold_path = os.path.join(output_dir, f"fold_details_{tag}.csv")
+        fold_details.to_csv(fold_path, index=False)
+        print(f"\n💾 저장: {os.path.abspath(fold_path)}")
 
         validation_df = result["feature_validation"]["fold_results"]
+        val_path = os.path.join(output_dir, f"feature_validation_{tag}.csv")
+        validation_df.to_csv(val_path, index=False)
+        print(f"💾 저장: {os.path.abspath(val_path)}")
 
-        validation_filename = f"feature_validation_" f"{int(threshold * 100)}pct.csv"
+        fr = result.get("focal_result")
+        if fr is not None:
+            sig_path = os.path.join(output_dir, f"focal_signals_{tag}.csv")
+            fr["signals"].to_csv(sig_path)
+            print(f"💾 저장: {os.path.abspath(sig_path)}")
 
-        validation_path = os.path.join(
-            output_dir,
-            validation_filename,
-        )
+            met_path = os.path.join(output_dir, f"focal_metrics_{tag}.csv")
+            pd.DataFrame([fr["metrics"]]).to_csv(met_path, index=False)
+            print(f"💾 저장: {os.path.abspath(met_path)}")
 
-        validation_df.to_csv(
-            validation_path,
-            index=False,
-        )
-
-        print(f"💾 저장: " f"{os.path.abspath(validation_path)}")
-
-    # ========================================================
-    # 최종 판정
-    # ========================================================
-
+    # ---- 최종 판정 ----
     print_header("① 단계 최종 판정")
-
     all_passed = all(
         result["feature_validation"]["passed"] for result in all_results.values()
     )
-
     if all_passed:
-
         print("✅ 1%, 2% 모두 Rolling Feature 검증 PASS")
-
     else:
-
         print("❌ Rolling Feature 검증 FAIL")
-
-        print("Focal Loss 실험으로 넘어가지 말고 " "Feature 생성부터 수정해야 합니다.")
 
     return all_results
 
