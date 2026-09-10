@@ -125,7 +125,7 @@ def _result_notebook(
             "## 해석 범위\n\n"
             "각 외부 폴드의 상승 임계값과 class weight는 그 폴드의 학습구간 안에 둔 "
             "내부 검증에서만 골랐다. 이 값은 개발구간 공통 OOS 결과이며 봉인 홀드아웃은 "
-            "사용하지 않았다. 이슈 #203 확정 전까지는 잠정 비교 결과다."
+            "사용하지 않았다. 이슈 #216에서 개발구간 선정 규칙과 모델을 확정했다."
         ),
     ]
     return notebook
@@ -188,7 +188,7 @@ def _feature_markdown(
 - 홀드아웃 사용: 없음
 - 공통 expanding 12폴드 · 최초 학습 750거래일 · 검증 60거래일 · gap 5거래일
 - 상승 임계값·class weight: 각 외부 학습구간 안의 내부 60거래일에서만 선택
-- 이슈 #203 팀 확정 전 잠정 결과
+- 이슈 #216에서 확정한 선정 규칙에 따른 개발구간 결과
 """
 
 
@@ -289,7 +289,7 @@ def sync_long_only_best_results(
 def main() -> int:
     report = json.loads(REPORT_PATH.read_text(encoding="utf-8"))
     report["selection_policy"].update(selection_audit(report["candidates"]))
-    report["selection_policy"]["status"] = "pending_issue_216_statistical_review"
+    report["selection_policy"]["status"] = "selected_by_issue_216"
     REPORT_PATH.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -299,7 +299,7 @@ def main() -> int:
     for combination in written:
         # Windows CP949 콘솔은 하트 이모지가 든 실제 폴더 경로를 출력하지 못한다.
         print(f"조합 {combination}: best result 갱신")
-    print("KOSPI200 최종모델 README도 long-only 잠정 1위로 갱신했습니다.")
+    print("KOSPI200 최종모델 README도 long-only 개발구간 선정 모델로 갱신했습니다.")
     return 0
 
 

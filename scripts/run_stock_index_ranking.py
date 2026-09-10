@@ -26,7 +26,7 @@ from models.experiment import (  # noqa: E402
     classification_probability_metrics,
     evaluate_nested_class_weights,
 )
-from models.final_models import load_winning_models  # noqa: E402
+from models.final_models import load_winning_models, preferred_index_report_path  # noqa: E402
 from models.stock_experiment import evaluate_stock_models  # noqa: E402
 from models.stock_ranking import (  # noqa: E402
     aligned_index_splits,
@@ -44,7 +44,7 @@ from scripts.update_final_model_docs import update_final_model_docs  # noqa: E40
 HF_INDEX_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "index_price_dev.parquet"
 HF_DAILY_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "daily_price_dev.parquet"
 STOCK_REPORT_PATH = ROOT / "reports" / "stock_feature_combinations.json"
-INDEX_REPORT_PATH = ROOT / "reports" / "model_sweep.json"
+INDEX_REPORT_PATH = preferred_index_report_path(ROOT / "reports")
 LOCAL_FULL_OUTPUT_PATH = ROOT / "data" / "raw" / "stock_prediction_output.parquet"
 LOCAL_RANKING_PATH = ROOT / "data" / "raw" / "stock_index_direction_ranking.parquet"
 LOCAL_BACKTEST_DAILY_PATH = ROOT / "data" / "raw" / "stock_ranking_backtest_daily.parquet"

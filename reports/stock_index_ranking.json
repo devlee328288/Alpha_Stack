@@ -1,6 +1,6 @@
 {
-  "generated_at_utc": "2026-09-09T06:36:06.074420+00:00",
-  "run_id": "stock-index-ranking-20260909T063606.074420+0000",
+  "generated_at_utc": "2026-09-10T03:47:08.967815+00:00",
+  "run_id": "stock-index-ranking-20260910T034708.967815+0000",
   "source": {
     "repo": "qurious-quant/alphastack-krx-dev",
     "index_path": "full/index_price_dev.parquet",
@@ -46,35 +46,33 @@
     "halted_volume_feature_policy": "mask_is_halted_as_nan_for_volume_features_only"
   },
   "index_model": {
-    "combination": "E",
-    "return_features": [
-      "five_day_return"
-    ],
-    "model": "RandomForest",
+    "combination": "C",
+    "return_features": [],
+    "model": "LogisticRegression",
     "selection": {
-      "metric": "core_harmonic_mean",
-      "value": 0.3862558851498147
+      "metric": "operational_gate_then_pr_auc_up",
+      "value": 0.39651612898455435
     },
     "outer_fold_metrics": {
-      "accuracy": 0.3763888888888889,
-      "macro_f1": 0.374295031548409,
-      "down_recall": 0.4101123595505618,
-      "core_harmonic_mean": 0.3862558851498147,
-      "balanced_accuracy": 0.3810624827070544,
-      "mcc": 0.068615736091267,
-      "pr_auc_down": 0.2645831271168866,
-      "pr_auc_neutral": 0.47272603498696814,
-      "pr_auc_up": 0.40838180406680796,
-      "pr_auc_macro_ovr": 0.3818969887235542
+      "accuracy": 0.40694444444444444,
+      "macro_f1": 0.37626214591458057,
+      "down_recall": 0.23595505617977527,
+      "core_harmonic_mean": 0.32074739666141844,
+      "balanced_accuracy": 0.3783948191612885,
+      "mcc": 0.07975292690109025,
+      "pr_auc_down": 0.2505568146333309,
+      "pr_auc_neutral": 0.5207903049010388,
+      "pr_auc_up": 0.39363814836322264,
+      "pr_auc_macro_ovr": 0.38832842263253076
     },
     "selected_class_weights": {
-      "None": 6,
-      "balanced": 6
+      "balanced": 10,
+      "None": 2
     },
     "prediction_distribution": {
-      "-1": 254,
-      "0": 236,
-      "1": 230
+      "0": 337,
+      "1": 235,
+      "-1": 148
     },
     "classification_baselines": {
       "summary": [
@@ -98,7 +96,7 @@
           "core_harmonic_mean": 0.0,
           "balanced_accuracy": 0.32113333609039485,
           "mcc": -0.04400375250665661,
-          "model_win_folds": 5,
+          "model_win_folds": 6,
           "folds": 12,
           "operational": true
         },
@@ -110,7 +108,7 @@
           "core_harmonic_mean": 0.7067552318337926,
           "balanced_accuracy": 0.7055080616427327,
           "mcc": 0.5420667743481425,
-          "model_win_folds": 1,
+          "model_win_folds": 0,
           "folds": 12,
           "operational": false
         }
@@ -120,13 +118,13 @@
           "fold": 1,
           "baseline": "always_up",
           "accuracy": 0.26666666666666666,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 1,
           "baseline": "majority_class",
           "accuracy": 0.26666666666666666,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 1,
@@ -138,7 +136,7 @@
           "fold": 2,
           "baseline": "always_up",
           "accuracy": 0.35,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 2,
@@ -180,7 +178,7 @@
           "fold": 4,
           "baseline": "majority_class",
           "accuracy": 0.6666666666666666,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 4,
@@ -210,7 +208,7 @@
           "fold": 6,
           "baseline": "always_up",
           "accuracy": 0.36666666666666664,
-          "model_wins": true
+          "model_wins": false
         },
         {
           "fold": 6,
@@ -264,7 +262,7 @@
           "fold": 9,
           "baseline": "always_up",
           "accuracy": 0.16666666666666666,
-          "model_wins": true
+          "model_wins": false
         },
         {
           "fold": 9,
@@ -306,13 +304,13 @@
           "fold": 11,
           "baseline": "majority_class",
           "accuracy": 0.48333333333333334,
-          "model_wins": true
+          "model_wins": false
         },
         {
           "fold": 11,
           "baseline": "previous_direction",
           "accuracy": 0.6,
-          "model_wins": true
+          "model_wins": false
         },
         {
           "fold": 12,
@@ -344,13 +342,13 @@
         "balanced_accuracy": 0.3333333333333333,
         "mcc": 0.0
       },
-      "model_win_folds": 5,
+      "model_win_folds": 6,
       "folds": 12,
       "fold_results": [
         {
           "fold": 1,
           "accuracy": 0.5166666666666667,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 2,
@@ -365,7 +363,7 @@
         {
           "fold": 4,
           "accuracy": 0.6666666666666666,
-          "model_wins": false
+          "model_wins": true
         },
         {
           "fold": 5,
@@ -400,7 +398,7 @@
         {
           "fold": 11,
           "accuracy": 0.48333333333333334,
-          "model_wins": true
+          "model_wins": false
         },
         {
           "fold": 12,
@@ -411,7 +409,7 @@
       "orders": [
         {
           "fold": 1,
-          "train_rows": 750,
+          "train_rows": 986,
           "valid_rows": 60,
           "train_end_raw_position": 1018,
           "p": 1,
@@ -420,7 +418,7 @@
         },
         {
           "fold": 2,
-          "train_rows": 980,
+          "train_rows": 1216,
           "valid_rows": 60,
           "train_end_raw_position": 1248,
           "p": 1,
@@ -429,7 +427,7 @@
         },
         {
           "fold": 3,
-          "train_rows": 1210,
+          "train_rows": 1446,
           "valid_rows": 60,
           "train_end_raw_position": 1478,
           "p": 3,
@@ -438,7 +436,7 @@
         },
         {
           "fold": 4,
-          "train_rows": 1439,
+          "train_rows": 1675,
           "valid_rows": 60,
           "train_end_raw_position": 1707,
           "p": 3,
@@ -447,7 +445,7 @@
         },
         {
           "fold": 5,
-          "train_rows": 1669,
+          "train_rows": 1905,
           "valid_rows": 60,
           "train_end_raw_position": 1937,
           "p": 3,
@@ -456,7 +454,7 @@
         },
         {
           "fold": 6,
-          "train_rows": 1899,
+          "train_rows": 2135,
           "valid_rows": 60,
           "train_end_raw_position": 2167,
           "p": 3,
@@ -465,7 +463,7 @@
         },
         {
           "fold": 7,
-          "train_rows": 2129,
+          "train_rows": 2365,
           "valid_rows": 60,
           "train_end_raw_position": 2397,
           "p": 3,
@@ -474,7 +472,7 @@
         },
         {
           "fold": 8,
-          "train_rows": 2359,
+          "train_rows": 2595,
           "valid_rows": 60,
           "train_end_raw_position": 2627,
           "p": 3,
@@ -483,7 +481,7 @@
         },
         {
           "fold": 9,
-          "train_rows": 2589,
+          "train_rows": 2825,
           "valid_rows": 60,
           "train_end_raw_position": 2857,
           "p": 2,
@@ -492,7 +490,7 @@
         },
         {
           "fold": 10,
-          "train_rows": 2818,
+          "train_rows": 3054,
           "valid_rows": 60,
           "train_end_raw_position": 3086,
           "p": 2,
@@ -501,7 +499,7 @@
         },
         {
           "fold": 11,
-          "train_rows": 3048,
+          "train_rows": 3284,
           "valid_rows": 60,
           "train_end_raw_position": 3316,
           "p": 2,
@@ -510,7 +508,7 @@
         },
         {
           "fold": 12,
-          "train_rows": 3278,
+          "train_rows": 3514,
           "valid_rows": 60,
           "train_end_raw_position": 3546,
           "p": 2,
@@ -2577,7 +2575,7 @@
     "predicted_up_rows": 8249,
     "true_up_rows": 3048,
     "up_precision": 0.36949933325251544,
-    "buy_signal_rows": 3224,
+    "buy_signal_rows": 3825,
     "by_sector": [
       {
         "industry_index_name": "금속",
@@ -2660,34 +2658,34 @@
     ]
   },
   "all_candidate_stock_hit_rate": 0.421259842519685,
-  "all_candidate_index_direction_match_rate": 0.3451829550717925,
+  "all_candidate_index_direction_match_rate": 0.36391269106067625,
   "probability_quantile_summary": [
     {
       "top_n": 1,
       "rows": 720,
       "dates": 720,
-      "direction_hit_rate": 0.4597222222222222,
-      "mean_selected_probability": 0.49165948723684544,
-      "random_direction_hit_rate": 0.34492031700892445,
-      "hit_rate_lift_over_random": 0.11480190521329775
+      "direction_hit_rate": 0.49583333333333335,
+      "mean_selected_probability": 0.5053462947996376,
+      "random_direction_hit_rate": 0.3643561819000694,
+      "hit_rate_lift_over_random": 0.13147715143326394
     },
     {
       "top_n": 3,
       "rows": 2160,
       "dates": 720,
-      "direction_hit_rate": 0.4634259259259259,
-      "mean_selected_probability": 0.4588135256264616,
-      "random_direction_hit_rate": 0.3449203170089245,
-      "hit_rate_lift_over_random": 0.1185056089170014
+      "direction_hit_rate": 0.475462962962963,
+      "mean_selected_probability": 0.47297308914919994,
+      "random_direction_hit_rate": 0.3643561819000694,
+      "hit_rate_lift_over_random": 0.11110678106289357
     },
     {
       "top_n": 5,
       "rows": 3600,
       "dates": 720,
-      "direction_hit_rate": 0.45,
-      "mean_selected_probability": 0.44095965086212374,
-      "random_direction_hit_rate": 0.3449203170089245,
-      "hit_rate_lift_over_random": 0.10507968299107551
+      "direction_hit_rate": 0.47194444444444444,
+      "mean_selected_probability": 0.4556592821316388,
+      "random_direction_hit_rate": 0.36435618190006935,
+      "hit_rate_lift_over_random": 0.10758826254437509
     }
   ],
   "random_ranking_baseline": [
@@ -2697,7 +2695,7 @@
       "index_predicted": null,
       "dates": 720,
       "expected_selected_rows": 720,
-      "random_direction_hit_rate": 0.34492031700892445
+      "random_direction_hit_rate": 0.3643561819000694
     },
     {
       "model": "LogisticRegression",
@@ -2705,7 +2703,7 @@
       "index_predicted": null,
       "dates": 720,
       "expected_selected_rows": 2160,
-      "random_direction_hit_rate": 0.3449203170089245
+      "random_direction_hit_rate": 0.3643561819000694
     },
     {
       "model": "LogisticRegression",
@@ -2713,102 +2711,102 @@
       "index_predicted": null,
       "dates": 720,
       "expected_selected_rows": 3600,
-      "random_direction_hit_rate": 0.3449203170089245
+      "random_direction_hit_rate": 0.36435618190006935
     },
     {
       "model": "LogisticRegression",
       "top_n": 1,
       "index_predicted": -1.0,
-      "dates": 254,
-      "expected_selected_rows": 254,
-      "random_direction_hit_rate": 0.30547477146235713
+      "dates": 148,
+      "expected_selected_rows": 148,
+      "random_direction_hit_rate": 0.3075519592734143
     },
     {
       "model": "LogisticRegression",
       "top_n": 3,
       "index_predicted": -1.0,
-      "dates": 254,
-      "expected_selected_rows": 762,
-      "random_direction_hit_rate": 0.3054747714623572
+      "dates": 148,
+      "expected_selected_rows": 444,
+      "random_direction_hit_rate": 0.3075519592734143
     },
     {
       "model": "LogisticRegression",
       "top_n": 5,
       "index_predicted": -1.0,
-      "dates": 254,
-      "expected_selected_rows": 1270,
-      "random_direction_hit_rate": 0.3054747714623572
+      "dates": 148,
+      "expected_selected_rows": 740,
+      "random_direction_hit_rate": 0.3075519592734143
     },
     {
       "model": "LogisticRegression",
       "top_n": 1,
       "index_predicted": 0.0,
-      "dates": 236,
-      "expected_selected_rows": 236,
-      "random_direction_hit_rate": 0.4020002887690517
+      "dates": 337,
+      "expected_selected_rows": 337,
+      "random_direction_hit_rate": 0.41874065785674197
     },
     {
       "model": "LogisticRegression",
       "top_n": 3,
       "index_predicted": 0.0,
-      "dates": 236,
-      "expected_selected_rows": 708,
-      "random_direction_hit_rate": 0.40200028876905175
+      "dates": 337,
+      "expected_selected_rows": 1011,
+      "random_direction_hit_rate": 0.4187406578567419
     },
     {
       "model": "LogisticRegression",
       "top_n": 5,
       "index_predicted": 0.0,
-      "dates": 236,
-      "expected_selected_rows": 1180,
-      "random_direction_hit_rate": 0.4020002887690518
+      "dates": 337,
+      "expected_selected_rows": 1685,
+      "random_direction_hit_rate": 0.41874065785674197
     },
     {
       "model": "LogisticRegression",
       "top_n": 1,
       "index_predicted": 1.0,
-      "dates": 230,
-      "expected_selected_rows": 230,
-      "random_direction_hit_rate": 0.3299129049803942
+      "dates": 235,
+      "expected_selected_rows": 235,
+      "random_direction_hit_rate": 0.32214110339516006
     },
     {
       "model": "LogisticRegression",
       "top_n": 3,
       "index_predicted": 1.0,
-      "dates": 230,
-      "expected_selected_rows": 690,
-      "random_direction_hit_rate": 0.32991290498039433
+      "dates": 235,
+      "expected_selected_rows": 705,
+      "random_direction_hit_rate": 0.32214110339516006
     },
     {
       "model": "LogisticRegression",
       "top_n": 5,
       "index_predicted": 1.0,
-      "dates": 230,
-      "expected_selected_rows": 1150,
-      "random_direction_hit_rate": 0.32991290498039433
+      "dates": 235,
+      "expected_selected_rows": 1175,
+      "random_direction_hit_rate": 0.32214110339516006
     }
   ],
   "top5_by_index_direction": [
     {
       "index_direction": "하락",
-      "rows": 1270,
-      "dates": 254,
-      "direction_hit_rate": 0.3984251968503937,
-      "mean_selected_probability": 0.42621956023819485
+      "rows": 740,
+      "dates": 148,
+      "direction_hit_rate": 0.3878378378378378,
+      "mean_selected_probability": 0.45055386200720715
     },
     {
       "index_direction": "중립",
-      "rows": 1180,
-      "dates": 236,
-      "direction_hit_rate": 0.5610169491525424,
-      "mean_selected_probability": 0.4557210656271918
+      "rows": 1685,
+      "dates": 337,
+      "direction_hit_rate": 0.5845697329376854,
+      "mean_selected_probability": 0.46223509362517906
     },
     {
       "index_direction": "상승",
-      "rows": 1150,
-      "dates": 230,
-      "direction_hit_rate": 0.39304347826086955,
-      "mean_selected_probability": 0.4420913427487408
+      "rows": 1175,
+      "dates": 235,
+      "direction_hit_rate": 0.36340425531914894,
+      "mean_selected_probability": 0.4494446170469274
     }
   ],
   "output_contract": {
@@ -2857,137 +2855,137 @@
     "scenarios": [
       {
         "observations": 780,
-        "total_return": 0.14690536136269827,
-        "sharpe": 0.31572453111757975,
-        "max_drawdown": -0.3015455141984047,
-        "turnover": 84.12373108188791,
+        "total_return": 0.10392923595366788,
+        "sharpe": 0.25191731121922056,
+        "max_drawdown": -0.41853295966817516,
+        "turnover": 90.44923721306077,
         "top_n": 1,
         "round_trip_cost": 0.0,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 210,
+        "trade_rows": 226,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.30277753976384325,
-        "sharpe": 0.6350483855230169,
-        "max_drawdown": -0.14682828417277072,
-        "turnover": 89.00238407817848,
+        "total_return": -0.024856891623140753,
+        "sharpe": 0.05236489861090607,
+        "max_drawdown": -0.363264894792922,
+        "turnover": 93.7363385909127,
         "top_n": 3,
         "round_trip_cost": 0.0,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 580,
+        "trade_rows": 644,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.38896162067450546,
-        "sharpe": 0.8527431672603281,
-        "max_drawdown": -0.12358733307226955,
-        "turnover": 89.35864777587281,
+        "total_return": 0.1162630881241915,
+        "sharpe": 0.29482353082933316,
+        "max_drawdown": -0.2863335069169667,
+        "turnover": 93.79543770184658,
         "top_n": 5,
         "round_trip_cost": 0.0,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 922,
+        "trade_rows": 1010,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.019705518716106818,
-        "sharpe": 0.13316789069320334,
-        "max_drawdown": -0.33171035402687976,
-        "turnover": 84.12829369569158,
+        "total_return": -0.027274973538257585,
+        "sharpe": 0.08292298821802899,
+        "max_drawdown": -0.4431557366376444,
+        "turnover": 90.4758117321999,
         "top_n": 1,
         "round_trip_cost": 0.0028,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 210,
+        "trade_rows": 226,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.15016473754320936,
-        "sharpe": 0.37179485343453234,
-        "max_drawdown": -0.18923813623080943,
-        "turnover": 89.01474781299616,
+        "total_return": -0.14493370915857084,
+        "sharpe": -0.17012125607733222,
+        "max_drawdown": -0.39986551287810956,
+        "turnover": 93.76191059220534,
         "top_n": 3,
         "round_trip_cost": 0.0028,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 580,
+        "trade_rows": 644,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.2257741591548903,
-        "sharpe": 0.5544238033158014,
-        "max_drawdown": -0.1421144932501448,
-        "turnover": 89.37069816859699,
+        "total_return": -0.021177999748718812,
+        "sharpe": 0.042890865149964055,
+        "max_drawdown": -0.3185611541354303,
+        "turnover": 93.82135543684619,
         "top_n": 5,
         "round_trip_cost": 0.0028,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 922,
+        "trade_rows": 1010,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": -0.0425485560107437,
-        "sharpe": 0.03525536388464287,
-        "max_drawdown": -0.3479435354865841,
-        "turnover": 84.13073202601709,
+        "total_return": -0.09106598249839959,
+        "sharpe": -0.00772484876337307,
+        "max_drawdown": -0.45592494260781413,
+        "turnover": 90.49006375187336,
         "top_n": 1,
         "round_trip_cost": 0.0043,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 210,
+        "trade_rows": 226,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.07587054825465112,
-        "sharpe": 0.2305091354686132,
-        "max_drawdown": -0.2143279897874023,
-        "turnover": 89.02136134508383,
+        "total_return": -0.20309220433155262,
+        "sharpe": -0.28928156028555324,
+        "max_drawdown": -0.42184811814412926,
+        "turnover": 93.77562826834392,
         "top_n": 3,
         "round_trip_cost": 0.0043,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 580,
+        "trade_rows": 644,
         "signal_dates": 720
       },
       {
         "observations": 780,
-        "total_return": 0.14635681982426108,
-        "sharpe": 0.3941874997754923,
-        "max_drawdown": -0.16133940697611115,
-        "turnover": 89.37714305381178,
+        "total_return": -0.08774795753689113,
+        "sharpe": -0.09207968092737186,
+        "max_drawdown": -0.3352357047261044,
+        "turnover": 93.83525836714078,
         "top_n": 5,
         "round_trip_cost": 0.0043,
         "position_policy": "KOSPI200 상승 예측과 개별종목 상승 예측이 모두 성립한 종목만 매수, 그 외는 현금",
         "entry": "T+1 adj_open",
         "exit": "T+6 adj_open",
         "tracks": 5,
-        "trade_rows": 922,
+        "trade_rows": 1010,
         "signal_dates": 720
       }
     ],
@@ -2995,450 +2993,450 @@
       {
         "track": 1,
         "observations": 732,
-        "total_return": -0.08876317929414423,
-        "sharpe": 0.04304268065052632,
-        "max_drawdown": -0.39049876699109276,
-        "turnover": 82.0,
+        "total_return": -0.13746351698643144,
+        "sharpe": 0.054717219278736684,
+        "max_drawdown": -0.4661719179139062,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": -0.04645178317863308,
-        "sharpe": 0.09709803921998623,
-        "max_drawdown": -0.4831231090259249,
-        "turnover": 82.0,
+        "total_return": -0.2774653549627317,
+        "sharpe": -0.15701963148549405,
+        "max_drawdown": -0.5899895947469711,
+        "turnover": 94.0,
         "top_n": 1,
         "round_trip_cost": 0.0
       },
       {
         "track": 3,
         "observations": 732,
-        "total_return": 0.9036701899318134,
-        "sharpe": 0.7309467862963945,
-        "max_drawdown": -0.26216216216216215,
-        "turnover": 78.0,
+        "total_return": 0.5084840460185522,
+        "sharpe": 0.5418858724047276,
+        "max_drawdown": -0.4071231326343895,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0
       },
       {
         "track": 4,
         "observations": 732,
-        "total_return": -0.18445733550064336,
-        "sharpe": -0.09148374326680342,
-        "max_drawdown": -0.5337642560230802,
-        "turnover": 92.0,
+        "total_return": 0.03528313023973184,
+        "sharpe": 0.21767905265839824,
+        "max_drawdown": -0.6009120579125309,
+        "turnover": 98.0,
         "top_n": 1,
         "round_trip_cost": 0.0
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": 0.011226412257313356,
-        "sharpe": 0.1552972040198248,
-        "max_drawdown": -0.327715447370728,
-        "turnover": 86.0,
+        "total_return": 0.1856301933307103,
+        "sharpe": 0.3434902960643574,
+        "max_drawdown": -0.41387590281623887,
+        "turnover": 92.0,
         "top_n": 1,
         "round_trip_cost": 0.0
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": 0.024703091762434237,
-        "sharpe": 0.1377746233696297,
-        "max_drawdown": -0.21149046686651918,
-        "turnover": 84.0,
+        "total_return": -0.21617480924261823,
+        "sharpe": -0.2647868254766854,
+        "max_drawdown": -0.4510527929146313,
+        "turnover": 88.0,
         "top_n": 3,
         "round_trip_cost": 0.0
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": 0.23734677373386948,
-        "sharpe": 0.4344631269696758,
-        "max_drawdown": -0.17661779738146355,
+        "total_return": -0.1894561207555543,
+        "sharpe": -0.1415926722104745,
+        "max_drawdown": -0.5249935005645893,
+        "turnover": 98.0,
+        "top_n": 3,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.25200807431484296,
+        "sharpe": 0.40442103600451573,
+        "max_drawdown": -0.3533107839929851,
         "turnover": 90.0,
         "top_n": 3,
         "round_trip_cost": 0.0
       },
       {
-        "track": 3,
-        "observations": 732,
-        "total_return": 0.6217577939999825,
-        "sharpe": 0.7391918676184753,
-        "max_drawdown": -0.2658298211789051,
-        "turnover": 84.0,
-        "top_n": 3,
-        "round_trip_cost": 0.0
-      },
-      {
         "track": 4,
         "observations": 732,
-        "total_return": 0.4496417229827987,
-        "sharpe": 0.6976141433436884,
-        "max_drawdown": -0.2638570023578717,
-        "turnover": 94.0,
+        "total_return": -0.07707136632184297,
+        "sharpe": 0.024098387549725066,
+        "max_drawdown": -0.40904710936589606,
+        "turnover": 98.0,
         "top_n": 3,
         "round_trip_cost": 0.0
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": 0.06802493919511488,
-        "sharpe": 0.2117739701703736,
-        "max_drawdown": -0.2536963049494406,
-        "turnover": 92.0,
+        "total_return": 0.017907262583110706,
+        "sharpe": 0.13976379956033186,
+        "max_drawdown": -0.3725206876810553,
+        "turnover": 94.0,
         "top_n": 3,
         "round_trip_cost": 0.0
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": 0.40126440560465615,
-        "sharpe": 0.7230931307551982,
-        "max_drawdown": -0.17267529063025944,
-        "turnover": 86.0,
+        "total_return": -0.031433616210591486,
+        "sharpe": 0.047140094201182176,
+        "max_drawdown": -0.3944739666848297,
+        "turnover": 88.0,
         "top_n": 5,
         "round_trip_cost": 0.0
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": 0.11791977355419125,
-        "sharpe": 0.29266487142783654,
-        "max_drawdown": -0.17744223370525336,
+        "total_return": -0.29438292082579975,
+        "sharpe": -0.42232637979640225,
+        "max_drawdown": -0.4444654616244753,
+        "turnover": 98.0,
+        "top_n": 5,
+        "round_trip_cost": 0.0
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.4036040384904891,
+        "sharpe": 0.5809659004860461,
+        "max_drawdown": -0.2702203131062012,
         "turnover": 90.0,
         "top_n": 5,
         "round_trip_cost": 0.0
       },
       {
-        "track": 3,
-        "observations": 732,
-        "total_return": 0.39255265799258887,
-        "sharpe": 0.6252407777450146,
-        "max_drawdown": -0.2096585877628505,
-        "turnover": 84.0,
-        "top_n": 5,
-        "round_trip_cost": 0.0
-      },
-      {
         "track": 4,
         "observations": 732,
-        "total_return": 0.6295267568503184,
-        "sharpe": 0.9744585746553929,
-        "max_drawdown": -0.21590346597541132,
-        "turnover": 94.0,
+        "total_return": 0.20932931679424316,
+        "sharpe": 0.4022791248063636,
+        "max_drawdown": -0.32348965160999776,
+        "turnover": 98.0,
         "top_n": 5,
         "round_trip_cost": 0.0
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": 0.26101642062132613,
-        "sharpe": 0.5462957436972721,
-        "max_drawdown": -0.17293445669327145,
-        "turnover": 92.0,
+        "total_return": 0.359418483610894,
+        "sharpe": 0.6412058894141995,
+        "max_drawdown": -0.22983948849284552,
+        "turnover": 94.0,
         "top_n": 5,
         "round_trip_cost": 0.0
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": -0.18765722705036114,
-        "sharpe": -0.08805819318530315,
-        "max_drawdown": -0.433322723582357,
-        "turnover": 82.0,
+        "total_return": -0.23322374047142513,
+        "sharpe": -0.048639043785602354,
+        "max_drawdown": -0.4924280214554023,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": -0.14993777139752662,
-        "sharpe": -0.033495648112016656,
-        "max_drawdown": -0.5092335118916844,
-        "turnover": 82.0,
+        "total_return": -0.36661834915990155,
+        "sharpe": -0.2909669679915224,
+        "max_drawdown": -0.6134190307626024,
+        "turnover": 94.0,
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
       {
         "track": 3,
         "observations": 732,
-        "total_return": 0.7066070026241673,
-        "sharpe": 0.6404768118730539,
-        "max_drawdown": -0.2642266619459458,
-        "turnover": 78.0,
+        "total_return": 0.34100965830848873,
+        "sharpe": 0.44284053432693204,
+        "max_drawdown": -0.4315250173086229,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
       {
         "track": 4,
         "observations": 732,
-        "total_return": -0.283080548390496,
-        "sharpe": -0.24013842578072417,
-        "max_drawdown": -0.5634751553474138,
-        "turnover": 92.0,
+        "total_return": -0.09753122222492216,
+        "sharpe": 0.09148946118030946,
+        "max_drawdown": -0.6226615378725837,
+        "turnover": 98.0,
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": -0.1035569340296083,
-        "sharpe": 0.00925471487302769,
-        "max_drawdown": -0.34812025015359926,
-        "turnover": 86.0,
+        "total_return": 0.04225245963817437,
+        "sharpe": 0.2000634782817196,
+        "max_drawdown": -0.4411404518923555,
+        "turnover": 92.0,
         "top_n": 1,
         "round_trip_cost": 0.0028
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": -0.08906113619242106,
-        "sharpe": -0.08013415754773091,
-        "max_drawdown": -0.22788787214825668,
-        "turnover": 84.0,
+        "total_return": -0.3070902887254826,
+        "sharpe": -0.4554669844908254,
+        "max_drawdown": -0.47805252408599275,
+        "turnover": 88.0,
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": 0.09076698655808291,
-        "sharpe": 0.24381386633901828,
-        "max_drawdown": -0.20724126927192388,
+        "total_return": -0.293439134987721,
+        "sharpe": -0.32087240176372495,
+        "max_drawdown": -0.5583677689183559,
+        "turnover": 98.0,
+        "top_n": 3,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.1036914657689263,
+        "sharpe": 0.2609314612315099,
+        "max_drawdown": -0.3856810155416529,
         "turnover": 90.0,
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
       {
-        "track": 3,
-        "observations": 732,
-        "total_return": 0.4417075678931688,
-        "sharpe": 0.5926359180281489,
-        "max_drawdown": -0.26995124362245726,
-        "turnover": 84.0,
-        "top_n": 3,
-        "round_trip_cost": 0.0028
-      },
-      {
         "track": 4,
         "observations": 732,
-        "total_return": 0.2707715456082693,
-        "sharpe": 0.48764309796903776,
-        "max_drawdown": -0.2851992797541957,
-        "turnover": 94.0,
+        "total_return": -0.19547199053047748,
+        "sharpe": -0.15482451119604151,
+        "max_drawdown": -0.4412528382209283,
+        "turnover": 98.0,
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": -0.061130843248924926,
-        "sharpe": 0.00014423392480405716,
-        "max_drawdown": -0.30027493530760163,
-        "turnover": 92.0,
+        "total_return": -0.10769153174134705,
+        "sharpe": -0.06345175298385908,
+        "max_drawdown": -0.4149708609899012,
+        "turnover": 94.0,
         "top_n": 3,
         "round_trip_cost": 0.0028
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": 0.2422082184259473,
-        "sharpe": 0.4971274280090734,
-        "max_drawdown": -0.19778578508690514,
-        "turnover": 86.0,
+        "total_return": -0.1437771313610975,
+        "sharpe": -0.16135136247922816,
+        "max_drawdown": -0.4242565029756623,
+        "turnover": 88.0,
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": -0.014512335184973302,
-        "sharpe": 0.07279014270097012,
-        "max_drawdown": -0.21789938199969794,
+        "total_return": -0.3849050907725089,
+        "sharpe": -0.6345587118536846,
+        "max_drawdown": -0.47913772451931813,
+        "turnover": 98.0,
+        "top_n": 5,
+        "round_trip_cost": 0.0028
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.23732892014176055,
+        "sharpe": 0.4112684380038247,
+        "max_drawdown": -0.30416724377100846,
         "turnover": 90.0,
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
       {
-        "track": 3,
-        "observations": 732,
-        "total_return": 0.23794916426199908,
-        "sharpe": 0.441900026334961,
-        "max_drawdown": -0.24006146587770694,
-        "turnover": 84.0,
-        "top_n": 5,
-        "round_trip_cost": 0.0028
-      },
-      {
         "track": 4,
         "observations": 732,
-        "total_return": 0.4284607034846446,
-        "sharpe": 0.7362906771556369,
-        "max_drawdown": -0.22750745543470074,
-        "turnover": 94.0,
+        "total_return": 0.05418693551216913,
+        "sharpe": 0.19241714193217802,
+        "max_drawdown": -0.35676352076429296,
+        "turnover": 98.0,
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": 0.10852226388106256,
-        "sharpe": 0.29090857394053016,
-        "max_drawdown": -0.19974021889157922,
-        "turnover": 92.0,
+        "total_return": 0.191680882357687,
+        "sharpe": 0.40833270388440884,
+        "max_drawdown": -0.267719500452281,
+        "turnover": 94.0,
         "top_n": 5,
         "round_trip_cost": 0.0028
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": -0.23619461445400036,
-        "sharpe": -0.1580933837928522,
-        "max_drawdown": -0.45503552210751874,
-        "turnover": 82.0,
+        "total_return": -0.28012108559254356,
+        "sharpe": -0.103936199796379,
+        "max_drawdown": -0.5059728283511389,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": -0.20072889194515553,
-        "sharpe": -0.10354416445529152,
-        "max_drawdown": -0.5226886109072697,
-        "turnover": 82.0,
+        "total_return": -0.40980806294371064,
+        "sharpe": -0.36277552941821195,
+        "max_drawdown": -0.6254275185397985,
+        "turnover": 94.0,
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
       {
         "track": 3,
         "observations": 732,
-        "total_return": 0.6094671564265512,
-        "sharpe": 0.5918999804604224,
-        "max_drawdown": -0.2674416564887504,
-        "turnover": 78.0,
+        "total_return": 0.2589912181508476,
+        "sharpe": 0.38982642350194213,
+        "max_drawdown": -0.4441951203221708,
+        "turnover": 84.0,
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
       {
         "track": 4,
         "observations": 732,
-        "total_return": -0.33096204168428345,
-        "sharpe": -0.31931910069767944,
-        "max_drawdown": -0.5786210237549232,
-        "turnover": 92.0,
+        "total_return": -0.16159322332599302,
+        "sharpe": 0.024288568525489915,
+        "max_drawdown": -0.6338331088892195,
+        "turnover": 98.0,
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": -0.15964864015703673,
-        "sharpe": -0.06917977374175603,
-        "max_drawdown": -0.36226405127965644,
-        "turnover": 86.0,
+        "total_return": -0.027357318761003335,
+        "sharpe": 0.12289465252898177,
+        "max_drawdown": -0.45523590825006854,
+        "turnover": 92.0,
         "top_n": 1,
         "round_trip_cost": 0.0043
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": -0.14477571231464959,
-        "sharpe": -0.19652645339853822,
-        "max_drawdown": -0.24993965348352087,
-        "turnover": 84.0,
+        "total_return": -0.3514219556164714,
+        "sharpe": -0.5573248904139948,
+        "max_drawdown": -0.49198094817127047,
+        "turnover": 88.0,
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": 0.01944776870758913,
-        "sharpe": 0.14147429857101573,
-        "max_drawdown": -0.2312522684339705,
+        "total_return": -0.343594557565309,
+        "sharpe": -0.4169046224331563,
+        "max_drawdown": -0.5752893432513028,
+        "turnover": 98.0,
+        "top_n": 3,
+        "round_trip_cost": 0.0043
+      },
+      {
+        "track": 3,
+        "observations": 732,
+        "total_return": 0.031527187736194895,
+        "sharpe": 0.18418724394067998,
+        "max_drawdown": -0.4081972011529431,
         "turnover": 90.0,
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
       {
-        "track": 3,
-        "observations": 732,
-        "total_return": 0.3535302716675621,
-        "sharpe": 0.5139499259706255,
-        "max_drawdown": -0.27432616394068043,
-        "turnover": 84.0,
-        "top_n": 3,
-        "round_trip_cost": 0.0043
-      },
-      {
         "track": 4,
         "observations": 732,
-        "total_return": 0.18411879956386712,
-        "sharpe": 0.3752524123093353,
-        "max_drawdown": -0.2963889031996436,
-        "turnover": 94.0,
+        "total_return": -0.252581638529098,
+        "sharpe": -0.24990382807159264,
+        "max_drawdown": -0.45779523774989817,
+        "turnover": 98.0,
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": -0.12383587535789564,
-        "sharpe": -0.11372945562303856,
-        "max_drawdown": -0.32404524376930754,
-        "turnover": 92.0,
+        "total_return": -0.16853722769708424,
+        "sharpe": -0.17272209153935106,
+        "max_drawdown": -0.436540773294942,
+        "turnover": 94.0,
         "top_n": 3,
         "round_trip_cost": 0.0043
       },
       {
         "track": 1,
         "observations": 732,
-        "total_return": 0.16448149937145629,
-        "sharpe": 0.3759300427333805,
-        "max_drawdown": -0.2109368680936673,
-        "turnover": 86.0,
+        "total_return": -0.19855740991590054,
+        "sharpe": -0.2729285207478491,
+        "max_drawdown": -0.43962050023774824,
+        "turnover": 88.0,
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
       {
         "track": 2,
         "observations": 732,
-        "total_return": -0.0789479207152074,
-        "sharpe": -0.04531180864956623,
-        "max_drawdown": -0.23877012012481358,
-        "turnover": 90.0,
+        "total_return": -0.4285677766433055,
+        "sharpe": -0.7480019366958723,
+        "max_drawdown": -0.4968318983869995,
+        "turnover": 98.0,
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
       {
         "track": 3,
         "observations": 732,
-        "total_return": 0.16223407987155913,
-        "sharpe": 0.3434251684655296,
-        "max_drawdown": -0.2558815630710459,
-        "turnover": 84.0,
+        "total_return": 0.156426828406508,
+        "sharpe": 0.32037974983498907,
+        "max_drawdown": -0.323242972903492,
+        "turnover": 90.0,
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
       {
         "track": 4,
         "observations": 732,
-        "total_return": 0.3310552784094307,
-        "sharpe": 0.6085308612980995,
-        "max_drawdown": -0.2396001974301607,
-        "turnover": 94.0,
+        "total_return": -0.020644821870075325,
+        "sharpe": 0.08060094249749927,
+        "max_drawdown": -0.37392860132000627,
+        "turnover": 98.0,
         "top_n": 5,
         "round_trip_cost": 0.0043
       },
       {
         "track": 5,
         "observations": 732,
-        "total_return": 0.03448646916957254,
-        "sharpe": 0.1533926111259947,
-        "max_drawdown": -0.21639970771678751,
-        "turnover": 92.0,
+        "total_return": 0.11042125609222841,
+        "sharpe": 0.2829363554560127,
+        "max_drawdown": -0.29181455327216854,
+        "turnover": 94.0,
         "top_n": 5,
         "round_trip_cost": 0.0043
       }

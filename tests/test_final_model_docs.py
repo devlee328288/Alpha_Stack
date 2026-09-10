@@ -58,7 +58,7 @@ def test_평가보고서의_새_1위와_피처가_최종모델_readme에_자동�
     assert "결합 출력 보고서는 새 1위 조합과 일치하지 않습니다" in second_stock
 
 
-def test_완료된_long_only_보고서가_있으면_kospi200_잠정문서에_우선반영한다(tmp_path):
+def test_완료된_long_only_보고서가_있으면_kospi200_선정문서에_우선반영한다(tmp_path):
     _copy_reports(tmp_path)
     stock_report = json.loads(
         (tmp_path / "reports" / "stock_feature_combinations.json").read_text(encoding="utf-8")
@@ -125,3 +125,5 @@ def test_완료된_long_only_보고서가_있으면_kospi200_잠정문서에_우
 
     assert "조합 | C + 기본" in index_markdown
     assert "조합 C LogisticRegression + 기본" in root_markdown
+    assert "개발구간 최종 선정 모델" in index_markdown
+    assert "| 확정 | 이슈 #216 개발구간 선정 규칙 |" in root_markdown

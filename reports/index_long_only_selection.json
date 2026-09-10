@@ -156,7 +156,7 @@
     "prediction_rule": "p_up >= threshold이면 상승, 아니면 p_down과 p_neutral 중 큰 클래스"
   },
   "selection_policy": {
-    "status": "pending_issue_216_statistical_review",
+    "status": "selected_by_issue_216",
     "gate": "accuracy_minus_training_majority_baseline > 0 and baseline_win_folds >= 7/12",
     "ranking": [
       "pr_auc_up",

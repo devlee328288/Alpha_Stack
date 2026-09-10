@@ -19,6 +19,7 @@ if str(ROOT) not in sys.path:
 from models.final_models import (  # noqa: E402
     compare_index_model_selection_policies,
     load_winning_models,
+    preferred_index_report_path,
     select_best_long_only_index_model,
     select_best_stock_model,
 )
@@ -84,11 +85,17 @@ def _variant_label(return_features: tuple[str, ...]) -> str:
     return " + ".join(labels.get(feature, feature) for feature in return_features)
 
 
-def _render_root(index_winner, stock_winner) -> str:
+def _render_root(index_winner, stock_winner, *, index_selected: bool = False) -> str:
     index_variant = _variant_label(index_winner.return_features)
+    index_status = "확정" if index_selected else "잠정"
+    index_basis = (
+        "이슈 #216 개발구간 선정 규칙"
+        if index_selected
+        else "이슈 #203 선정 기준 확인 중"
+    )
     index_row = (
         f"| KOSPI200 | 조합 {index_winner.combination} {index_winner.model} + "
-        f"{index_variant} | 잠정 | 이슈 #203 선정 기준 확인 중 |"
+        f"{index_variant} | {index_status} | {index_basis} |"
     )
     return f"""{GENERATED_NOTICE}
 # 최종모델
@@ -102,7 +109,7 @@ def _render_root(index_winner, stock_winner) -> str:
 {index_row}
 | 개별종목 | 조합 {stock_winner.combination} {stock_winner.model} | 확정 | ADR 0007 |
 
-- [KOSPI200 잠정 모델](KOSPI200/README.md)
+- [KOSPI200 선정 모델](KOSPI200/README.md)
 - [개별종목 최종 모델](개별종목/README.md)
 
 새 피처 조합은 기존 네 모델로 같은 개발구간 OOS 평가를 마친 뒤 보고서에 추가합니다.
@@ -217,13 +224,13 @@ def _render_index_long_only(
     multiple = policy["multiple_testing"]
     paired_t = multiple["winner_accuracy_paired_t"]
     return f"""{GENERATED_NOTICE}
-# KOSPI200 long-only 기준 잠정 모델
+# KOSPI200 long-only 개발구간 최종 선정 모델
 
 ## 상태
 
 KOSPI200이 상승으로 예측된 경우만 매수하는 운영 목적에 맞춰 기존 100개 후보를 전부
-같은 12폴드에서 다시 평가한 잠정 1위입니다. 최종 채택은 이슈 #203의 팀 확인 전이며,
-봉인 홀드아웃은 사용하지 않았습니다.
+같은 12폴드에서 다시 평가했습니다. 이슈 #216에서 합의한 선정 규칙에 따라 조합 C
+LogisticRegression을 개발구간 최종 모델로 고정했으며, 봉인 홀드아웃은 사용하지 않았습니다.
 
 | 항목 | 값 |
 |---|---|
@@ -272,8 +279,8 @@ KOSPI200이 상승으로 예측된 경우만 매수하는 운영 목적에 맞�
 - ΔSharpe의 다중 시도 기준: `SR*(N=100) = {multiple['deflated_sharpe_threshold_n_100']:.4f}`
 
 따라서 조합 C는 개발구간 운영 기준에 따른 선택이지, 100개 후보 전체에 대해 통계적 우위가
-확정됐다는 뜻은 아닙니다. 관문과 순위를 확정한 뒤 봉인 홀드아웃을 한 번만 개봉하며, 그
-결과로 모델·피처·임계값을 다시 선택하지 않습니다.
+확정됐다는 뜻은 아닙니다. 선정 모델과 규칙을 고정한 뒤 봉인 홀드아웃을 한 번만 개봉하며,
+그 결과로 모델·피처·임계값을 다시 선택하지 않습니다.
 
 ## 전처리 누수 확인
 
@@ -282,7 +289,7 @@ LogisticRegression은 `StandardScaler → LogisticRegression`의 sklearn `Pipeli
 전체 기간을 먼저 표준화하는 누수는 없습니다. `hv_20`과 `vol_ratio_20`도 각 폴드
 학습구간의 평균·표준편차만 사용해 변환됩니다.
 
-## 조합별 잠정 1위
+## 조합별 개발구간 순위
 
 {combination_header}
 |---:|---|---|---:|---:|---:|---:|---:|---:|
@@ -383,12 +390,14 @@ def update_final_model_docs(root: Path = ROOT) -> dict[str, Path]:
     """현재 평가 보고서로 비교 JSON과 최종모델 README 세 개를 원자적으로 갱신한다."""
 
     index_path = root / INDEX_REPORT_RELATIVE
-    long_only_index_path = root / LONG_ONLY_INDEX_REPORT_RELATIVE
+    preferred_index_path = preferred_index_report_path(root / "reports")
     stock_path = root / STOCK_REPORT_RELATIVE
     index_report = _read_json(index_path)
     stock_report = _read_json(stock_path)
     long_only_report = (
-        _read_json(long_only_index_path) if long_only_index_path.exists() else None
+        _read_json(preferred_index_path)
+        if preferred_index_path.name == LONG_ONLY_INDEX_REPORT_RELATIVE.name
+        else None
     )
     if long_only_report is None:
         index_winner, stock_winner = load_winning_models(index_path, stock_path)
@@ -444,7 +453,10 @@ def update_final_model_docs(root: Path = ROOT) -> dict[str, Path]:
         json.dumps(comparison, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    root_readme.write_text(_render_root(index_winner, stock_winner), encoding="utf-8")
+    root_readme.write_text(
+        _render_root(index_winner, stock_winner, index_selected=long_only_report is not None),
+        encoding="utf-8",
+    )
     index_markdown = (
         _render_index(index_winner, index_record, comparison)
         if long_only_report is None
