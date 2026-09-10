@@ -96,11 +96,19 @@ from ingest.store.migrations import migrate_path  # noqa: E402
 #: 남았다. 4,102행짜리 재적재는 19초라 끌 이유가 없었는데도 비싼 이웃과 운명을 같이한
 #: 것이다. 값이 싸고 뒤따르는 단계가 전부 의존하는 일은 **제 단계로 세워 둔다** —
 #: 그래야 `--only` 로 무엇을 빼는지도 눈에 보인다.
-STAGES = ("ingest", "calendar", "adj", "gate", "verify", "export", "upload")
+#:
+#: `action`(기업행위 표)이 `calendar` **뒤**이고 `adj` **앞**인 까닭:
+#: 이 표는 `is_series_restart` 로 코드 재사용 자리를 끊는데 그 판정에 거래일 달력이
+#: 든다 — 달력이 낡으면 공백을 못 세고 사건 종류가 바뀐다. 반대로 `adj` 에는 안
+#: 기댄다. 대조하는 chain 계수를 `adj_close` 가 아니라 `factor_series` 에서 직접
+#: 얻기 때문이다. 그래서 평소에 꺼 두는 `adj` 와 운명을 같이하지 않게 앞에 둔다
+#: (`calendar` 를 `adj` 에서 떼어낸 것과 같은 이유 — 사흘 동안 달력만 뒤에 남았었다).
+STAGES = ("ingest", "calendar", "action", "adj", "gate", "verify", "export", "upload")
 
 단계이름 = {
     "ingest": "수집",
     "calendar": "거래일 달력",
+    "action": "기업행위 표",
     "adj": "수정주가",
     "gate": "품질 게이트",
     "verify": "재배포 판정",
@@ -271,6 +279,26 @@ def _단계_달력(ctx: Dict) -> Dict:
     return {"note": 꼬리[:300]}
 
 
+def _단계_기업행위(ctx: Dict) -> Dict:
+    """`corporate_action` 을 다시 깐다. 수정주가와 무관하게 매번 돈다.
+
+    **끄는 스위치가 없다.** `trading_calendar` 와 같은 파생물이라 시세가 늘면 곧바로
+    낡는데, 낡아도 예외가 안 난다 — 새 액면분할이 표에 없을 뿐이다. 비용은 4분이고
+    원가격은 건드리지 않는다.
+
+    ⚠️ 이 단계는 값을 **고치지 않는다.** 증거와 chain 계수를 나란히 적고 어긋난
+       자리를 표시할 뿐이다. 그래서 붉은 자리가 나와도 여기서 멈추지 않는다 —
+       멈춰야 하는지는 `gate`·`verify` 가 정한다.
+    """
+    if ctx["dry_run"]:
+        return {"note": "돌리면 scripts/build_corporate_actions.py "
+                        "(자본 사건을 표로 세우고 chain 계수와 대조 · 실측 4분)"}
+    코드, 꼬리 = 돌린다(["scripts/build_corporate_actions.py"])
+    if 코드 != 0:
+        raise RuntimeError(f"기업행위 표 재구축이 실패했다 (종료코드 {코드}) — {꼬리}")
+    return {"note": 꼬리[:300]}
+
+
 def _단계_수정주가(ctx: Dict) -> Dict:
     if not ctx["with_adj"]:
         return {"skip": True,
@@ -348,6 +376,7 @@ def _단계_업로드(ctx: Dict) -> Dict:
 단계함수 = {
     "ingest": _단계_수집,
     "calendar": _단계_달력,
+    "action": _단계_기업행위,
     "adj": _단계_수정주가,
     "gate": _단계_게이트,
     "verify": _단계_판정,

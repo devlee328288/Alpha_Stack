@@ -680,3 +680,228 @@ def back_adjusted_closes(rows: Sequence[Mapping]) -> List[float]:
         out[i] = float(close * 누적) if close is not None else float("nan")
         누적 *= factors[i]          # 이 날의 조정은 그 **앞** 행들에 적용된다
     return out
+
+
+# ==================================================
+# 6. 사건 — 결과가 아니라 무슨 일이 있었나
+# ==================================================
+#
+# 위까지는 전부 **결과**를 다룬다 — 이 날 가격이 끊겼나(`is_basis_adjusted`), 얼마나
+# 끊겼나(`adjustment_factor`), 어떻게 이어 붙이나(`factor_series`). 사건 자체는
+# 어디에도 남지 않아서, 물을 때마다 920만 행을 다시 훑어야 했다.
+#
+# 여기서는 같은 증거로 **사건을 하나 골라 이름을 붙인다.** zipline 의 `splits`·
+# `mergers` 표와 같은 자리이고, 담기는 곳은 `corporate_action` (스키마 v16) 이다.
+#
+# 왜 종류를 하나만 고르나
+# ----------------------
+# 한 거래일에 액면분할과 유상증자가 같이 날 수 있다. 그래도 **행은 하나**다 —
+# 증거 칸(`par_before/after` · `shares_before/after`)에 둘 다 남으므로 희석은 그대로
+# 보이고, 종류를 둘로 쪼개면 "이 날의 가격 배율" 이 두 줄이 되어 쓰는 쪽이 곱해 버린다.
+# 배율은 한 날에 하나여야 한다.
+
+#: 액면가 비율과 주식수 비율이 서로 역수인지 볼 때의 여유. 자본금(액면가 × 주식수)이
+#: 이만큼 안쪽이면 "안 바뀌었다" 로 본다.
+#:
+#: 실측(2026-09-10 · 액면가 변경 792건)에서 자본금비가 1 근처인 무리와 나머지가
+#: 완전히 갈렸다 — 순수 분할·병합 666건은 전부 0.001 안쪽이고, 그다음으로 가까운
+#: 동시사건이 0.0294(276730)다. 30배 가까이 벌어져 있어 문턱에 둔감하다.
+CAPITAL_TOLERANCE = Fraction(1, 1000)
+
+
+@dataclass(frozen=True)
+class CorporateEvent:
+    """한 종목·한 거래일에 일어난 자본 사건 하나."""
+
+    code: str
+    ex_date: str
+    event_type: str
+    #: 가격 조정 배율. **가격이 연속인 사건에서는 `None`** 이다 (유상증자·이전상장).
+    ratio: Optional[Fraction]
+    #: 무엇을 보고 정했나 — par · shares · basis · listing · none
+    source: str
+    par_before: Optional[str]
+    par_after: Optional[str]
+    shares_before: Optional[int]
+    shares_after: Optional[int]
+    basis_ratio: Optional[float]
+
+
+#: 사건 종류. `corporate_action.event_type` 의 CHECK 와 같아야 한다.
+EVENT_TYPES = ("split_merge", "par_reduction", "resume_revalue", "rights_off",
+               "series_restart", "market_transfer", "share_change")
+
+
+def _par_fraction(before, after) -> Optional[Fraction]:
+    """액면가 둘로 만든 **가격** 배율. 5,000 → 500 이면 가격은 1/10 이 된다.
+
+    ⚠️ 액면가는 숫자가 아닐 수 있다 — `'무액면'` 73,713행 · 주식예탁증권의 `'0'`
+       7,616행 · 외국주의 `'.5'` 같은 소수 표기가 실재한다. 못 읽으면 `None` 이고,
+       **모르는 것을 배율로 만들지 않는다.**
+    """
+    try:
+        앞, 뒤 = float(before), float(after)
+    except (TypeError, ValueError):
+        return None
+    if 앞 <= 0 or 뒤 <= 0:
+        return None
+    lim = 10 ** 6
+    return Fraction(뒤).limit_denominator(lim) / Fraction(앞).limit_denominator(lim)
+
+
+def classify_event(prev_row: Mapping, row: Mapping,
+                   prev_base: Optional[Mapping], base: Optional[Mapping], *,
+                   restart: bool) -> Optional[CorporateEvent]:
+    """이 두 거래일 사이에 무슨 일이 있었나. 아무 일도 없었으면 `None`.
+
+    `prev_row`·`row` 는 `daily_price` 의 이웃 두 행이고, `prev_base`·`base` 는 같은
+    날의 `stock_base_info` 행이다(없으면 `None`). `restart` 는 `is_series_restart`
+    의 판정을 **부르는 쪽에서** 받는다 — 그 판정은 달력과 상장일 목록이 있어야
+    하는데 두 행만으로는 만들 수 없기 때문이다.
+
+    ## 갈래를 이 순서로 본다 — 먼저 맞는 것 하나만 남는다
+
+    ① `series_restart`   공백 뒤에 새 상장일이 생겼다 → **다른 회사다.** 조정이 아니라
+                         단절이라 배율이 없다.
+    ② `market_transfer`  상장일이 바뀌었는데 공백이 없다 → 시장만 옮겼다(코스닥→유가
+                         22건). 가격은 이어지므로 배율이 없다.
+    ③ `par_reduction`    액면가가 바뀌고 **주식수는 그대로** → 결손금을 턴 것이다.
+                         주주가 가진 주식 수도 회사도 그대로라 **가격이 안 움직인다.**
+                         실측 42건 전부에서 chain 도 조정하지 않았다.
+    ④ `split_merge`      액면가가 바뀌고 **자본금이 그대로** → 순수 액면분할·병합이다.
+                         배율은 액면가 비율이고, 이것만이 단수주 반올림이 없는
+                         **정확한 정수비**다 (주식수 비율은 단수주 때문에 어긋난다 —
+                         000040 은 ×5 여야 할 주식수가 ×4.99999977 이다).
+    ⑤ `resume_revalue`   직전이 거래정지인데 기준가가 끊겼다 → KRX 가 단일가로 새로
+                         매겼다. 배율은 `adjustment_factor` 가 정한다(㉠㉡㉢ 세 갈래).
+    ⑥ `rights_off`       평상일에 기준가가 끊겼다 → 권리락·주식배당. 주식수가 안 바뀌어도
+                         기준가만 바뀌는 사건이다(실측 3,730일).
+    ⑦ `share_change`     주식수만 바뀌고 가격은 연속 → 유상증자 등 39,515건. 배율이
+                         없지만 **희석이 그 자체로 신호**라 담는다.
+
+    ③④를 ⑤⑥보다 **먼저** 보는 데 뜻이 있다. 액면분할은 주권 교체 때문에 KRX 가 반드시
+    거래를 정지시키므로 전부 재개일에 있는데, 재개일이라는 이유로 ⑤로 보내면 기준가에
+    판정을 넘기게 된다. 그러면 KRX 가 기준가를 안 고친 자리(정리매매 15건)에서 사건이
+    통째로 사라진다 — **어긋남을 세려면 사건이 먼저 있어야 한다.**
+    """
+    ex_date = str(row["bas_dd"])
+    code = str(row.get("code") or (base or {}).get("code") or "")
+    앞par = None if prev_base is None else prev_base.get("parval")
+    뒤par = None if base is None else base.get("parval")
+    앞주식수 = prev_row.get("listed_shares")
+    주식수 = row.get("listed_shares")
+    기준가, 앞종가 = basis_price(row), prev_row["close"]
+    기준가비 = (float(기준가) / float(앞종가)
+             if 기준가 is not None and 기준가 > 0 and 앞종가 else None)
+
+    def 사건(event_type, ratio, source):
+        return CorporateEvent(code=code, ex_date=ex_date, event_type=event_type,
+                              ratio=ratio, source=source,
+                              par_before=None if 앞par is None else str(앞par),
+                              par_after=None if 뒤par is None else str(뒤par),
+                              shares_before=앞주식수, shares_after=주식수,
+                              basis_ratio=기준가비)
+
+    if restart:                                                          # ①
+        return 사건("series_restart", None, "listing")
+
+    앞상장일 = None if prev_base is None else prev_base.get("list_dd")
+    상장일 = None if base is None else base.get("list_dd")
+    if 앞상장일 is not None and 상장일 is not None and 앞상장일 != 상장일:   # ②
+        return 사건("market_transfer", None, "listing")
+
+    par바뀜 = (prev_base is not None and base is not None and 앞par != 뒤par)
+    주식수바뀜 = (앞주식수 is not None and 주식수 is not None and 앞주식수 != 주식수)
+
+    if par바뀜:
+        par비 = _par_fraction(앞par, 뒤par)
+        if not 주식수바뀜:                                                # ③
+            return 사건("par_reduction", None, "par")
+        if par비 is not None and 앞주식수 and 주식수:
+            자본금비 = par비 * Fraction(int(주식수), int(앞주식수))
+            if abs(자본금비 - 1) <= CAPITAL_TOLERANCE:                     # ④
+                return 사건("split_merge", par비, "par")
+        # 자본금이 바뀌었다 — 액면가로는 설명이 안 된다. 아래 기준가 갈래로 넘긴다.
+
+    끊김 = adjustment_factor(prev_row, row)
+    if 끊김 != 1:
+        return (사건("resume_revalue", 끊김, "basis") if is_halted(prev_row)  # ⑤
+                else 사건("rights_off", 끊김, "basis"))                       # ⑥
+
+    if 주식수바뀜:                                                        # ⑦
+        return 사건("share_change", None, "shares")
+    return None
+
+
+#: 배율이 없는 사건 중 **"가격이 연속이다" 를 예고하는** 종류. chain 계수가 1 이어야 한다.
+CONTINUOUS_TYPES = ("par_reduction", "market_transfer")
+
+#: 🔴 **`agrees` 를 `None` 으로 두는 종류 — 재면 안 되는 자리다.**
+#:
+#: `rights_off` · `resume_revalue` 는 배율을 `adjustment_factor` 에서 얻는다. 그것을
+#: 다시 chain(`factor_series`)과 대조하면 **검사가 대상과 같은 값을 쓴다** — 실제로
+#: 3,974건이 통째로 "맞음" 으로 나왔다. 초록이 아무것도 뜻하지 않는 자리다.
+#:
+#: `series_restart` 도 같다. `factor_series` 가 같은 `is_series_restart` 로 끊으므로
+#: 판정을 공유한다. `share_change` 는 가격 배율에 대해 아무 예고도 하지 않는다.
+#:
+#: 남는 것은 **액면가**(`split_merge` · `par_reduction`)와 **상장일**
+#: (`market_transfer`)뿐이다. chain 은 그 둘을 배율 계산에 쓰지 않으므로 독립이다.
+UNJUDGED_TYPES = ("series_restart", "share_change", "rights_off", "resume_revalue")
+
+#: 배율이 같다고 볼 여유. 실측 분포가 정했다 (2026-09-10 · `split_merge` 666건).
+#:
+#: `|chain/증거 - 1|` 을 전수로 세웠더니 **8.408e-06 과 7.457e-01 사이가 통째로
+#: 비어 있다** — 88,700배다. 아래 662건은 전부 단수주로 설명된다. chain 은 재개일에
+#: 주식수 배율을 쓰는데(㉠) 그 비율이 정수가 아니기 때문이다.
+#:
+#:     417180  액면비 0.2  ·  주식수비 0.1999999658   (4주 차이)
+#:
+#: 액면가 비율만 KRX 가 정한 값이라 **정확한 정수비**다. 같은 사건을 두 축이 마지막
+#: 자리까지 다르게 부르는 것이므로 어긋남이 아니다. 빈 구간의 낮은 쪽에 붙여 둔다 —
+#: 정상 자리를 잃는 것이 오검출보다 비싸다(`adj_price.CA_BASIS_TOLERANCE` 와 같은 판단).
+AGREE_TOLERANCE = 1e-4
+
+#: 원본이 자기모순인지 볼 때, 주식수가 "크게" 바뀌었다고 보는 경계.
+#: `SHARE_RATIO_MIN` 과 같은 값을 쓴다 — 같은 것을 두 이름으로 재면 나중에 갈라진다.
+CONFLICT_SHARE_RATIO = SHARE_RATIO_MIN
+
+
+def event_agrees(event: CorporateEvent, chain: Optional[Fraction]) -> Optional[bool]:
+    """이 사건이 예고한 배율과 `adj_price` 가 실제로 쓴 계수가 맞나.
+
+    잴 수 없으면 `None` 이다 — **모르는 것을 어긋남으로 치지 않는다.** 특히 증거가
+    chain 과 같은 값에서 나온 종류는 재지 않는다(`UNJUDGED_TYPES`).
+    """
+    if event.event_type in UNJUDGED_TYPES:
+        return None
+    if event.ratio is not None:
+        if chain is None:
+            return False
+        return abs(float(chain / event.ratio) - 1) <= AGREE_TOLERANCE
+    if event.event_type in CONTINUOUS_TYPES:
+        return chain is None or abs(float(chain) - 1) <= AGREE_TOLERANCE
+    return None
+
+
+def source_conflict(row: Mapping, shares_before, shares_after) -> bool:
+    """원본 두 칸이 서로 모순인가 — **chain 을 안 쓰고 재는 축이다.**
+
+    주식수가 크게 바뀌었는데 그 날 KRX 등락률이 가격제한폭 밖이면, 같은 원본이
+    "주식수가 1,500분의 1 이 됐는데 가격은 그 폭만큼 움직였다" 고 말하는 셈이다.
+    둘 중 하나는 그 날의 사실을 안 담고 있다.
+
+    실측 17건 · **17건 전부 정리매매**이고 전부 기준가비가 정확히 1 이다
+    (2026-09-10 · 제일바이오 2026-02-09 은 주식수 ×1/1500 에 등락률 +29,948%).
+    정리매매 구간에는 가격제한폭이 적용되지 않으므로 **원본 오류가 아니다** —
+    KRX 가 그 구간의 기준가를 안 고칠 뿐이다. 그래서 값을 고치지 않고 표시만 한다.
+
+    🔴 `agrees` 와 **다른 질문**이라 칸을 따로 둔다. 한 칸에 섞으면 붉은불을 보고
+       무엇을 고쳐야 하는지 모른다.
+    """
+    if not shares_before or not shares_after:
+        return False
+    비 = Fraction(int(shares_after), int(shares_before))
+    if not (비 >= CONFLICT_SHARE_RATIO or 비 <= 1 / CONFLICT_SHARE_RATIO):
+        return False
+    return is_outlier(row)
