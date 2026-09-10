@@ -77,11 +77,22 @@ INDEX_COLUMNS: Sequence[str] = (
 #:
 #: `adj_source` 는 그 행의 수정값이 어디서 왔는지다 — `fdr`(외부 실측 81.6%) ·
 #: `chain`(우리가 조정계수로 이어 붙임 18.4%).
+#: 🔴 **총수익 3칸은 성과 축이지 피처가 아니다** (마이그레이션 v15). `adj_close` 에
+#:    빠져 있는 현금배당까지 담은 값인데, 배당 확정이 주주총회라 그날 이전에는 금액을
+#:    알 수 없다 — 입력 피처로 넣으면 미래참조가 된다. 라벨은 `adj_open`(T+1 시가 →
+#:    T+6 시가)으로 만들고, 이 셋은 누적수익·ΔSharpe 를 잴 때만 쓴다.
+#:
+#: ⚠️ **칸을 늘리면 여기도 늘린다.** `test_칸_목록이_저장소_반환을_덮는다` 가 저장소
+#:    반환과 이 목록을 대조하는데, v15 를 얹을 때 실제로 그 시험이 먼저 걸렸다.
+#:    "파생 칸을 늘리면 따라와야 하는 곳" 이 이것으로 여섯이 됐다 — `COLUMN_NOTES` ·
+#:    `EXPORT_DAILY_COLUMNS` · `verify_hf_dataset._attach_export_derived` ·
+#:    `run_stock_model_experiment.DAILY_COLUMNS` · `krx_store.SCHEMA` · 그리고 여기.
 PRICE_COLUMNS: Sequence[str] = (
     "bas_dd", "date", "code", "name", "market", "sector", "open", "high", "low",
     "close", "change", "change_rate", "volume", "value", "market_cap",
     "listed_shares",
     "adj_open", "adj_high", "adj_low", "adj_close", "adj_source",
+    "adj_dividend", "adj_close_tr", "is_dividend_suspect",
 )
 
 

@@ -87,6 +87,12 @@ DAILY_COLUMNS = (
     "adj_high",
     "adj_low",
     "adj_close",
+    # 총수익 축 — `adj_close` 에 빠져 있는 현금배당까지 담은 값(마이그레이션 v15).
+    # 🔴 **성과 평가용이지 피처가 아니다.** 배당 확정은 주주총회라 그날 이전에는 금액을
+    #    알 수 없어서, 입력으로 넣으면 미래참조가 된다. 라벨은 지금처럼 `adj_open`
+    #    (T+1 시가 → T+6 시가)으로 만들고, 이 칸은 누적수익·ΔSharpe 를 잴 때만 쓴다.
+    "adj_close_tr",
+    "adj_dividend",
     "close",
     "change_rate",
     "volume",

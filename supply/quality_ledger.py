@@ -64,9 +64,9 @@ LEDGER_NAME = "QUALITY_LEDGER.json"
 #: 저장소에 쌓는 이력. append-only — 고치지 않고 새 줄을 쓴다.
 HISTORY_PATH = Path("reports") / "quality_ledger.jsonl"
 
-#: 일곱 축의 이름과 순서. 카드 표도 이 순서로 나간다.
+#: 여덟 축의 이름과 순서. 카드 표도 이 순서로 나간다.
 AXES = ("missing", "validity", "outlier", "volume", "calendar", "duplicate",
-        "sealing")
+        "sealing", "total_return")
 
 #: 거래량 급변을 재는 기준 — **KRX 시장경보제도**가 쓰는 정의를 그대로 따른다.
 #: 시장감시규정 시행세칙의 투자주의 지정 요건 중 하나가 *"당일의 거래량이 최근
@@ -478,6 +478,71 @@ def _axis_sealing(manifest: Optional[Dict], daily: Optional[pd.DataFrame],
     return axis
 
 
+# ── 축 8. 총수익 — 배당이 실제로 얹혔나 ───────────────────────────────────────
+
+def _axis_total_return(daily: Optional[pd.DataFrame]) -> Dict:
+    """총수익 — 수정주가에 빠져 있는 현금배당이 `adj_close_tr` 에 제대로 얹혔나.
+
+    ## 왜 별도 축인가
+
+    `adj_close` 는 분할·무상증자·주식배당까지만 편 값이라 **현금배당이 없다**(CRSP 로
+    치면 `RETX`). 그 차이는 작지 않다 — 배당락일의 평균 일간수익률이 평소보다 1.4665%p
+    낮고 17년이 전부 음수다. 그래서 배당까지 담은 축을 옆에 세웠는데, **세운 것과
+    제대로 얹힌 것은 다르다.**
+    조인이 한 칸 어긋나거나 배율을 안 태우면 값은 나오지만 틀린 값이 나온다.
+
+    ## 무엇을 붉게 보나
+
+    붉게 보는 것은 **총수익이 가격보다 작은 행**뿐이다. 배당은 더하기만 하므로
+    `adj_close_tr / adj_close` 는 첫날 1 에서 시작해 **줄어들 수 없다.** 줄었다면
+    부호나 조인이 뒤집힌 것이고, 그건 어떤 시장 사건으로도 설명되지 않는다.
+
+    나머지는 **기록만 한다.** 배당이 붙은 행 수와 단위 오류로 뺀 행 수는 원본이 바뀌면
+    같이 움직이는 값이라, 기준을 세워 두면 거짓 붉은불이 된다. 대신 이력에 남겨
+    "지난번보다 갑자기 줄었다" 를 사람이 보게 한다.
+    """
+    필요 = {"adj_close", "adj_close_tr"}
+    if daily is None or daily.empty or 필요 - set(daily.columns):
+        빠짐 = "반출본에 총수익 칸이 없다" if daily is not None else "반출본을 못 읽었다"
+        return {k: _metric(None, 빠짐, _SKIP)
+                for k in ("tr_below_price_rows", "tr_filled_rows",
+                          "dividend_rows", "suspect_rows")}
+
+    axis: Dict[str, Any] = {}
+    있음 = daily["adj_close_tr"].notna() & daily["adj_close"].notna() \
+        & (daily["adj_close"] > 0)
+    sub = daily.loc[있음]
+
+    # 🔴 총수익이 가격보다 작을 수는 없다 — 배당은 더하기만 하기 때문이다.
+    #    1e-9 는 부동소수 누적곱의 반올림 폭이다. 그 안쪽은 같은 값으로 본다.
+    아래 = int((sub["adj_close_tr"] < sub["adj_close"] * (1 - 1e-9)).sum())
+    axis["tr_below_price_rows"] = _metric(
+        아래, "1행 이상", _OK if 아래 == 0 else _RED,
+        "배당은 더하기만 하므로 총수익이 가격 아래로 내려갈 수 없다")
+
+    axis["tr_filled_rows"] = _metric(
+        int(있음.sum()), "판정하지 않는다 — 기록만", _OK,
+        "총수익이 채워진 행. 수정주가가 없는 최근 며칠은 비어 있는 것이 정상이다")
+
+    if "adj_dividend" in daily.columns:
+        axis["dividend_rows"] = _metric(
+            int(daily["adj_dividend"].notna().sum()),
+            "판정하지 않는다 — 기록만", _OK,
+            "배당이 실제로 얹힌 행. 현금·동시배당만 담는다")
+    else:
+        axis["dividend_rows"] = _metric(None, "칸이 없다", _SKIP)
+
+    if "is_dividend_suspect" in daily.columns:
+        axis["suspect_rows"] = _metric(
+            int(daily["is_dividend_suspect"].fillna(0).astype(float).sum()),
+            "판정하지 않는다 — 기록만", _OK,
+            "원본 배당금의 단위 오류로 총수익에서 뺀 행")
+    else:
+        axis["suspect_rows"] = _metric(None, "칸이 없다", _SKIP)
+
+    return axis
+
+
 # ── 원장 ──────────────────────────────────────────────────────────────────────
 
 def build_quality_ledger(
@@ -516,6 +581,7 @@ def build_quality_ledger(
         "calendar": _axis_calendar(conn, daily),
         "duplicate": _axis_duplicate(conn, daily),
         "sealing": _axis_sealing(manifest, daily, holdout_start),
+        "total_return": _axis_total_return(daily),
     }
 
     붉은 = [f"{축}.{이름}" for 축, 표 in axes.items()
@@ -559,6 +625,10 @@ EXPORT_DAILY_COLUMNS = (
     # 없으면 "전일" 이 코드를 재사용한 다른 회사의 종가가 되어 값이 조용히 틀린다 —
     # 그래서 그 함수가 `REQUIRED_COLUMNS` 로 못 박고 여기서 읽어 넘긴다.
     "is_first_listing",
+    # 총수익 축(`_axis_total_return`)이 읽는 칸. 수정주가에 현금배당이 빠져 있어
+    # 옆에 세운 축이라, 배당이 실제로 얹혔는지·단위 오류를 걸렀는지를 반출본에서
+    # 직접 확인한다.
+    "adj_close_tr", "adj_dividend", "is_dividend_suspect",
 )
 
 
@@ -669,6 +739,7 @@ _축이름 = {
     "calendar": "달력 정합",
     "duplicate": "중복",
     "sealing": "시점·봉인",
+    "total_return": "총수익",
 }
 _표시 = {_OK: "✅", _RED: "🔴", _WARN: "⚠️", _SKIP: "—"}
 

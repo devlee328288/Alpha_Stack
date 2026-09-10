@@ -442,6 +442,13 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
         주권종류 3칸  stock_base_info 조인       supply/universe.py
         기업행위 3칸  flag_series                common/corporate_actions.py ← `ca` 로 받는다
 
+    ⚠️ **총수익 3칸(`adj_close_tr`·`adj_dividend`·`is_dividend_suspect`)은 여기 없다.**
+       빠뜨린 것이 아니라 `daily_price` 의 **진짜 칸**이라서다 — 반출도 판정기도
+       `SELECT *` 로 읽으므로 양쪽에 저절로 같이 들어온다. 위 네 묶음은 DB 에 없고
+       반출이 그때그때 얹는 것이라 판정기가 따로 얹어야 하는 것이고, 총수익은
+       `scripts/build_total_return.py` 가 미리 채워 둔다. 같은 이유로 수정주가
+       4칸(`adj_open`…)도 여기 없다.
+
     🔴 종목의 **다른 행을 보는 판정**(품질 4칸 · 기업행위 3칸)은 여기서 계산하지 않고
        전 구간에서 한 번 만든 표를 받아 붙인다. 연도로 잘라 계산하면 경계에서 답이
        달라진다 — 기업행위는 09-08 에, 품질은 09-09 에 각각 겪었다(`_quality_table`).

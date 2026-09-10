@@ -88,8 +88,8 @@ write_lock = threading.Lock()
 #: 다음에 쓸 마이그레이션 번호. 위 표를 함께 고친다.
 #: 반입이 v5 를 가져가면서 공시·거시 예약이 v6·v7 로 밀렸고, v8 을 수집 실행 기록이,
 #: v9 를 수정주가·거래일 달력이, v10 을 종목 신원·법인 개요가, v11 을 종목기본정보가,
-#: v12 를 텍스트 신호가, v13 을 지수 기본키가, v14 를 배당이 가져갔으므로
-#: 빈 자리는 v15 다.
-NEXT_MIGRATION_VERSION = 15
+#: v12 를 텍스트 신호가, v13 을 지수 기본키가, v14 를 배당이, v15 를 총수익이
+#: 가져갔으므로 빈 자리는 v16 이다.
+NEXT_MIGRATION_VERSION = 16
 
 __all__ = ["write_lock", "NEXT_MIGRATION_VERSION"]
