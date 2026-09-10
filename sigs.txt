@@ -1,0 +1,880 @@
+﻿
+===== features\model_dataset.py =====
+
+> """HF 吏???먯떆 Parquet?먯꽌 A~F 紐⑤뜽 ?낅젰???ы쁽?쒕떎."""
+  
+  from __future__ import annotations
+  
+> @dataclass(frozen=True)
+> class ModelDataset:
+>     """???쇱쿂 議고빀???숈뒿 ?쒖? 諛깊뀒?ㅽ듃???먯떆 ?쒓?."""
+  
+      frame: pd.DataFrame
+      raw_prices: pd.DataFrame
+>     @property
+>     def x(self) -> pd.DataFrame:
+>         return self.frame.loc[:, self.feature_columns]
+  
+>     @property
+>     def y(self) -> np.ndarray:
+>         return self.frame["label_numeric"].to_numpy(dtype=int)
+  
+>     @property
+>     def signal_positions(self) -> np.ndarray:
+>         return self.frame["raw_position"].to_numpy(dtype=int)
+  
+>     @property
+>     def opens(self) -> np.ndarray:
+>         return self.raw_prices["open"].to_numpy(dtype=float)
+  
+  
+> def _normalize_dates(frame: pd.DataFrame) -> pd.Series:
+      dates = (
+          frame["bas_dd"]
+          .astype("string")
+>     return dates
+  
+  
+> def build_kospi200_feature_frame(
+      index_prices: pd.DataFrame,
+      *,
+      holdout_start: str = HOLDOUT_START,
+>     """?꾩껜 吏???먯떆?쒖뿉??KOSPI200 ?쇱쿂? 5嫄곕옒???쇰꺼??怨꾩궛?쒕떎."""
+  
+      missing = RAW_COLUMNS - set(index_prices.columns)
+      if missing:
+>     return target
+  
+  
+> def _add_derived_features(frame: pd.DataFrame) -> pd.DataFrame:
+      out = frame.copy()
+      close = out["close"]
+  
+>     return out.replace([np.inf, -np.inf], np.nan)
+  
+  
+> def build_model_dataset(
+      index_prices: pd.DataFrame,
+      combination: str,
+      *,
+>     """A~F? ?좏깮???섏씡瑜??쇱쿂瑜?留뚮뱾怨? ?????덈뒗 ?됰쭔 ?④릿??"""
+  
+      key = combination.upper()
+      if key not in COMBINATION_FEATURES:
+>     return ModelDataset(
+          frame=model_frame,
+          raw_prices=raw,
+          feature_columns=feature_columns,
+
+
+
+
+===== models\lightgbm.py =====
+
+> """LightGBM 湲곗? 紐⑤뜽???앹꽦?섎뒗 紐⑤뱢."""
+  
+  # LightGBM??sklearn ?명솚 遺꾨쪟 紐⑤뜽??媛?몄샃?덈떎.
+  from lightgbm import LGBMClassifier
+> def build_lightgbm_baseline(
+      *,
+      random_state: int = DEFAULT_RANDOM_STATE,
+      n_estimators: int = DEFAULT_N_ESTIMATORS,
+>     """3遺꾨쪟 諛⑺뼢 ?덉륫??LightGBM 紐⑤뜽??留뚮벊?덈떎.
+  
+      ???⑥닔???곗씠?곕? 吏곸젒 遺꾪븷?섏? ?딆뒿?덈떎.
+      ?뚰겕?ъ썙?쒖뿉???꾨떖諛쏆? ?숈뒿 ?곗씠?곕쭔 fit()???ｌ뼱???⑸땲??
+>     """
+  
+      # ?섎씫쨌以묐┰쨌?곸듅???덉륫?섎뒗 ?ㅼ쨷遺꾨쪟 紐⑤뜽???앹꽦?⑸땲??
+      model = LGBMClassifier(
+>     return model
+
+
+
+
+===== models\experiment.py =====
+
+> """A~F 紐⑤뜽 ?ㅽ뿕?먯꽌 怨듭쑀?섎뒗 遺꾪븷쨌?숈뒿쨌?됯? ?⑥닔."""
+  
+  from __future__ import annotations
+  
+> @dataclass(frozen=True)
+> class NestedWeightResult:
+>     """?대? 媛以묒튂 鍮꾧탳? ?좏깮??媛以묒튂???몃? OOS 寃곌낵."""
+  
+      inner_results: pd.DataFrame
+      outer_results: pd.DataFrame
+> def classification_metrics(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
+>     """???듭떖 遺꾨쪟 吏?쒖? 洹?議고솕?됯퇏??媛숈? 洹쒖튃?쇰줈 怨꾩궛?쒕떎."""
+  
+      accuracy = float(accuracy_score(actual, predicted))
+      macro_f1 = float(
+>     return {
+          "accuracy": accuracy,
+          "macro_f1": macro_f1,
+          "down_recall": down_recall,
+> def ordered_class_probabilities(model: object, x: pd.DataFrame) -> np.ndarray:
+>     """紐⑤뜽蹂??대옒???쒖꽌瑜??꾨줈?앺듃 怨듯넻 ?쒖꽌(-1, 0, 1)濡?留욎텣??"""
+  
+      probabilities = np.asarray(model.predict_proba(x), dtype=float)
+      classes = np.asarray(model.classes_, dtype=int)
+>     return ordered
+  
+  
+> def classification_probability_metrics(
+      actual: object,
+      predicted: object,
+      probabilities: object,
+>     """OOS ?덉륫??遺덇퇏??3遺꾨쪟 吏?쒖? ?쇰룞?됰젹??怨꾩궛?쒕떎."""
+  
+      actual_array = np.asarray(actual, dtype=int)
+      predicted_array = np.asarray(predicted, dtype=int)
+>     return {
+          **classification_metrics(actual_array, predicted_array),
+          **average_precisions,
+          "pr_auc_macro_ovr": float(np.mean(list(average_precisions.values()))),
+> def inner_class_weight_split(
+      outer_train_index: np.ndarray,
+      *,
+      valid_size: int = VALID_SIZE,
+>     """?몃? ?숈뒿 ??60?쇱쓣 ?대? 寃利앹쑝濡??쇨퀬 洹?吏곸쟾 5?쇱쓣 踰꾨┛??"""
+  
+      indices = np.asarray(outer_train_index, dtype=int)
+      if indices.ndim != 1 or indices.size < valid_size + gap + 1:
+>     return inner_train, inner_valid
+  
+  
+> def evaluate_nested_class_weights(
+      dataset: ModelDataset,
+      *,
+      model_names: tuple[str, ...] | None = None,
+>     """媛??몃? ?대뱶 ?덉뿉??湲곕낯쨌balanced瑜?怨좊Ⅸ ??OOS瑜??됯??쒕떎."""
+  
+      selected_builders = MODEL_BUILDERS
+      if model_names is not None:
+>     return NestedWeightResult(
+          inner_results=pd.DataFrame(inner_rows),
+          outer_results=pd.DataFrame(outer_rows),
+          oos_predictions=pd.DataFrame(prediction_rows),
+> def window_selection_sharpe(
+      result: OverlappingResult,
+  ) -> tuple[float, float, float, bool]:
+>     """?덈룄 ?좏깮???꾨왂쨌踰ㅼ튂留덊겕 Sharpe? 李⑥씠瑜?怨꾩궛?쒕떎.
+  
+      ?곸듅 ?덉륫????踰덈룄 ?놁쑝硫??꾨왂? ??湲곌컙 ?꾧툑?닿퀬 ?쇰퀎 ?섏씡瑜좊룄 紐⑤몢 0?대떎.
+      ?쇰컲 ?깃낵 ?⑥닔?먯꽌????寃쎌슦 Sharpe媛 ?뺤쓽?섏? ?딆?留? ?꾨낫 ?덈룄 ?됯??먯꽌??    ?ъ슜?먭? ?뺥븳 洹쒖튃???곕씪 ?꾨왂 Sharpe瑜?0?쇰줈 ?붾떎. ?곸닔 ?섏씡瑜좎쿂???꾧툑 蹂댁쑀媛
+>     """
+  
+      strategy_sharpe = sharpe_ratio(result.strategy_net)
+      buyhold_sharpe = sharpe_ratio(result.buyhold_net)
+>     return (
+          strategy_sharpe - buyhold_sharpe,
+          strategy_sharpe,
+          buyhold_sharpe,
+> def common_window_splits(
+      n_samples: int,
+      *,
+      n_folds: int = N_FOLDS,
+>     """紐⑤뱺 李??꾨낫媛 媛숈? 寃利??몃뜳?ㅻ? ?ъ슜?섎룄濡??숈뒿 ?몃뜳?ㅻ쭔 諛붽씔??"""
+  
+      largest_window = max(rolling_windows)
+      anchors = expanding_splits(
+>     return result
+  
+  
+> def evaluate_window_candidates(
+      dataset: ModelDataset,
+      *,
+      class_weight: str | None = None,
+>     """????곗씠?곗뿉????紐⑤뜽怨???李??꾨낫???대뱶蹂??깃낵瑜?怨꾩궛?쒕떎."""
+  
+      splits_by_window = common_window_splits(len(dataset.frame))
+      rows = []
+>     return pd.DataFrame(rows)
+  
+  
+> def summarize_window_results(results: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+>     """48媛??대뱶쨌紐⑤뜽 寃곌낵??李쎈퀎 以묒븰媛믨낵 ?좏깮???꾩뿭 李쎌쓣 ?뚮젮以??"""
+  
+      required = {"window", "model", "fold", "delta_sharpe_net"}
+      missing = required - set(results.columns)
+>     return summary, selected
+
+
+
+
+===== backtest\backtest_strategies.py =====
+
+> def load_data() -> pd.DataFrame:
+>     """
+      Hugging Face?먯꽌 KRX ?곗씠?곕? 濡쒕뱶?섍퀬 ?뺣━?⑸땲??
+  
+      ?꾩슂??而щ읆:
+>     return df
+  
+  
+  # ============================================================
+> def predict_5d_after(
+      base_date: pd.Timestamp,
+      market_data: pd.DataFrame,
+  ) -> Tuple[str, Dict[str, float]]:
+>     """
+      5?곸뾽????諛⑺뼢???덉륫?⑸땲??
+  
+      ?꾩옱??諛깊뀒?ㅽ듃 援ъ“ ?뚯뒪?몃? ?꾪븳 ?쒕뜡 ?덉륫?낅땲??
+>     """
+  
+      # ?좎쭨留덈떎 ?숈씪???쒕뜡 寃곌낵媛 ?섏삤?꾨줉 seed 怨좎젙
+      np.random.seed(hash(base_date) % 2**32)
+>     return chosen_label, prob_map
+  
+  
+  # ============================================================
+> def get_trade_ratio_a(signal: str, consecutive_up: int, consecutive_down: int) -> float:
+>     """
+      A ?꾨왂: ?④퀎??遺꾪븷留ㅻℓ
+  
+      ?곸듅:
+>     """
+  
+      if signal == "?곸듅":
+  
+>             return 0.20
+  
+          elif consecutive_up == 2:
+>             return 0.30
+  
+          else:
+>             return 0.50
+  
+      elif signal == "?섎씫":
+  
+>             return -0.20
+  
+          elif consecutive_down == 2:
+>             return -0.30
+  
+          else:
+>             return -0.50
+  
+      else:
+>         return 0.0
+  
+  
+> def get_trade_ratio_b(signal: str) -> float:
+>     """
+      B ?꾨왂: 怨좎젙 25% 遺꾪븷留ㅻℓ
+  
+      ?곸듅 ??+25%
+>     """
+  
+      if signal == "?곸듅":
+>         return 0.25
+  
+      elif signal == "?섎씫":
+>         return -0.25
+  
+      else:
+>         return 0.0
+  
+  
+> def get_trade_ratio_c(signal: str) -> float:
+>     """
+      C ?꾨왂: ?ъ씤 / ?ъ븘??
+      ?곸듅 ??+100%
+      ?섎씫 ??-100%
+>     """
+  
+      if signal == "?곸듅":
+>         return 1.0
+  
+      elif signal == "?섎씫":
+>         return -1.0
+  
+      else:
+>         return 0.0
+  
+  
+  # ============================================================
+> def get_trade_ratio(
+      strategy: str, signal: str, consecutive_up: int, consecutive_down: int
+  ) -> float:
+>     """
+      ?좏깮???꾨왂???곕씪 ?대쾲 ?좏샇??留ㅻℓ 鍮꾩쑉??諛섑솚?⑸땲??
+>     """
+  
+      if strategy == "A":
+>         return get_trade_ratio_a(signal, consecutive_up, consecutive_down)
+  
+      elif strategy == "B":
+>         return get_trade_ratio_b(signal)
+  
+      elif strategy == "C":
+>         return get_trade_ratio_c(signal)
+  
+      else:
+          raise ValueError(f"?????녿뒗 ?꾨왂?낅땲?? {strategy}")
+> def update_signal_streak(signal: str, consecutive_up: int, consecutive_down: int):
+>     """
+      ?꾩껜 ?쒓렇?먯쓽 ?곗냽?깆쓣 愿由ы빀?덈떎.
+  
+      洹쒖튃
+>     """
+  
+      if signal == "?곸듅":
+  
+>     return consecutive_up, consecutive_down
+  
+  
+  # ============================================================
+> def run_backtest(
+      market_data: pd.DataFrame,
+      start_date: pd.Timestamp,
+      end_date: pd.Timestamp,
+>     """
+      A / B / C ?꾨왂 諛깊뀒?ㅽ듃瑜??ㅽ뻾?⑸땲??
+  
+      ------------------------------------------------------------
+>     """
+  
+      if strategy not in ["A", "B", "C"]:
+          raise ValueError("strategy??'A', 'B', 'C' 以??섎굹?ъ빞 ?⑸땲??")
+>     def get_max_streak(condition: pd.Series) -> int:
+  
+          if len(condition) == 0:
+>             return 0
+  
+          groups = (condition != condition.shift()).cumsum()
+  
+>         return int(streaks.max() if len(streaks) > 0 else 0)
+  
+      max_win_streak = get_max_streak(daily_returns_series > 0)
+  
+>     return {
+          # ?꾨왂
+          "strategy": strategy,
+          # ?쒓퀎??        "portfolio_series": portfolio_series,
+
+
+
+
+===== evaluation\evaluation_backtest.py =====
+
+> def _validate_same_length(
+      array_a: np.ndarray,
+      array_b: np.ndarray,
+      name_a: str,
+>     """
+      ??諛곗뿴??湲몄씠媛 ?숈씪?쒖? ?뺤씤?쒕떎.
+  
+      ?ㅼ젣 紐⑤뜽 寃곌낵瑜??곌껐????    ?덉륫媛믨낵 ?ㅼ젣媛믪쓽 ???섍? ?쒕줈 ?ㅻⅤ硫?    吏??怨꾩궛 ?먯껜媛 ?섎せ?????덉쑝誘濡?    怨꾩궛 ?꾩뿉 紐낆떆?곸쑝濡?寃利앺븳??
+>     """
+  
+      if len(array_a) != len(array_b):
+          raise ValueError(
+> def _validate_non_empty(
+      array: np.ndarray,
+      name: str,
+  ) -> None:
+>     """
+      ?낅젰 諛곗뿴??鍮꾩뼱 ?덈뒗吏 ?뺤씤?쒕떎.
+>     """
+  
+      if len(array) == 0:
+          raise ValueError(f"{name}??鍮꾩뼱 ?덉쓣 ???놁뒿?덈떎.")
+> def mean_absolute_error(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+  ) -> float:
+>     """
+      MAE (Mean Absolute Error)
+      ?됯퇏 ?덈? ?ㅼ감
+  
+>     """
+  
+      y_true = np.asarray(y_true, dtype=float)
+      y_pred = np.asarray(y_pred, dtype=float)
+>         return np.nan
+  
+>     return np.mean(np.abs(y_true[valid] - y_pred[valid]))
+  
+  
+> def root_mean_squared_error(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+  ) -> float:
+>     """
+      RMSE (Root Mean Squared Error)
+      ?됯퇏 ?쒓낢洹??ㅼ감
+  
+>     """
+  
+      y_true = np.asarray(y_true, dtype=float)
+      y_pred = np.asarray(y_pred, dtype=float)
+>         return np.nan
+  
+      mse = np.mean((y_true[valid] - y_pred[valid]) ** 2)
+  
+>     return np.sqrt(mse)
+  
+  
+> def pearson_information_coefficient(
+      predictions: np.ndarray,
+      returns: np.ndarray,
+  ) -> float:
+>     """
+      Pearson IC
+      Pearson Information Coefficient
+  
+>     """
+  
+      predictions = np.asarray(predictions, dtype=float)
+      returns = np.asarray(returns, dtype=float)
+>         return np.nan
+  
+      # ?곴?怨꾩닔????蹂?섏쓽 遺꾩궛??紐⑤몢 議댁옱?댁빞 怨꾩궛 媛?ν븯??
+      if np.std(predictions) == 0 or np.std(returns) == 0:
+>         return np.nan
+  
+      corr, _ = pearsonr(predictions, returns)
+  
+>     return float(corr)
+  
+  
+> def rank_information_coefficient(
+      predictions: np.ndarray,
+      returns: np.ndarray,
+  ) -> float:
+>     """
+      Rank IC
+      Spearman Rank Information Coefficient
+  
+>     """
+  
+      predictions = np.asarray(predictions, dtype=float)
+      returns = np.asarray(returns, dtype=float)
+>         return np.nan
+  
+      # 紐⑤뱺 ?덉륫媛믪씠 ?숈씪??寃쎌슦
+      # ?쒖쐞 ?곴?愿怨꾨? ?뺤쓽?????녿떎.
+>         return np.nan
+  
+      corr, _ = spearmanr(predictions, returns)
+  
+>     return float(corr)
+  
+  
+> def information_coefficient_ratio(
+      ic_series: np.ndarray,
+  ) -> float:
+>     """
+      ICIR
+      Information Coefficient Information Ratio
+  
+>     """
+  
+      ic_series = np.asarray(ic_series, dtype=float)
+  
+>         return np.nan
+  
+      mean_ic = np.mean(ic_series)
+  
+>         return np.nan
+  
+>     return float(mean_ic / std_ic)
+  
+  
+  # ============================================================
+> def class_distribution(
+      y_true: np.ndarray,
+      labels: Optional[List] = None,
+  ) -> Dict[Any, float]:
+>     """
+>     Class Distribution
+      ?대옒??遺꾪룷
+  
+      ------------------------------------------------------------
+>     """
+  
+      y_true = np.asarray(y_true)
+  
+>     return {label: float(np.sum(y_true == label) / total) for label in labels}
+  
+  
+> def confusion_matrix_multiclass(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+      labels: Optional[List] = None,
+>     """
+      Multiclass Confusion Matrix
+      ?ㅼ쨷 ?대옒???쇰룞 ?됰젹
+  
+>     """
+  
+      y_true = np.asarray(y_true)
+      y_pred = np.asarray(y_pred)
+>     return confusion_matrix(
+          y_true,
+          y_pred,
+          labels=labels,
+> def balanced_accuracy_multiclass(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+      labels: Optional[List] = None,
+>     """
+      Balanced Accuracy
+      洹좏삎 ?뺥솗??
+      ------------------------------------------------------------
+>     """
+  
+      y_true = np.asarray(y_true)
+      y_pred = np.asarray(y_pred)
+>     return float(np.mean(recalls))
+  
+  
+> def mcc_multiclass(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+  ) -> float:
+>     """
+      Multiclass MCC
+      ?ㅼ쨷 ?대옒??Matthews Correlation Coefficient
+  
+>     """
+  
+      y_true = np.asarray(y_true)
+      y_pred = np.asarray(y_pred)
+>     return float(
+          matthews_corrcoef(
+              y_true,
+              y_pred,
+> def binary_pr_auc(
+      y_true: np.ndarray,
+      y_pred_proba: np.ndarray,
+  ) -> float:
+>     """
+      Binary PR-AUC (Precision-Recall Area Under the Curve) - 怨꾨떒??AP) 諛⑹떇
+  
+      ------------------------------------------------------------
+>     """
+      y_true = np.asarray(y_true, dtype=int)
+      y_pred_proba = np.asarray(y_pred_proba, dtype=float)
+  
+>         return np.nan
+  
+      # ?좏슚??媛믩쭔 ?ъ슜
+      valid = np.isfinite(y_true) & np.isfinite(y_pred_proba)
+>         return np.nan
+  
+      # sklearn??average_precision_score ?ъ슜 (怨꾨떒??AP 諛⑹떇)
+>     return float(average_precision_score(y_true, y_pred_proba))
+  
+  
+> def macro_average_precision(
+      y_true: np.ndarray,
+      y_pred_proba: np.ndarray,
+      labels: Optional[List] = None,
+>     """
+      Macro Average Precision
+      Macro-averaged Average Precision
+  
+>     """
+  
+      y_true = np.asarray(y_true)
+      y_pred_proba = np.asarray(
+>         return np.nan
+  
+>     return float(np.mean(ap_list))
+  
+  
+  # ============================================================
+> def calculate_all_regression_metrics(
+      predictions: np.ndarray,
+      returns: np.ndarray,
+      ic_series: Optional[np.ndarray] = None,
+>     """
+      ?뚭? ?깃낵吏?쒕? ??踰덉뿉 怨꾩궛?쒕떎.
+  
+      ------------------------------------------------------------
+>     """
+  
+      predictions = np.asarray(
+          predictions,
+>     return results
+  
+  
+  # ============================================================
+> def calculate_all_classification_metrics(
+      y_true: np.ndarray,
+      y_pred: np.ndarray,
+      y_pred_proba: Optional[np.ndarray] = None,
+>     """
+      遺꾨쪟 ?깃낵吏?쒕? ??踰덉뿉 怨꾩궛?쒕떎.
+  
+      ------------------------------------------------------------
+>     """
+  
+      y_true = np.asarray(y_true)
+      y_pred = np.asarray(y_pred)
+>     return results
+  
+  
+  # ============================================================
+
+
+
+
+===== evaluation\evaluation_risk.py =====
+
+> def maximum_drawdown(returns: np.ndarray) -> float:
+>     """
+      Maximum Drawdown (MDD) - 理쒕? ?숉룺
+  
+      ?뱪 HTML ?섏떇 (?숈튂 ?쒗쁽)
+>     return abs(np.min(drawdown))
+  
+  
+  # ============================================================
+> def sharpe_ratio(
+      returns: np.ndarray, risk_free_rate: float = 0.0, periods_per_year: int = 252
+  ) -> float:
+>     """
+      Annualized Sharpe Ratio - ?고솚???ㅽ봽 鍮꾩쑉
+  
+      ?뱪 HTML ?섏떇
+>     """
+      returns = np.asarray(returns, dtype=float)
+  
+      # 湲곌컙蹂?臾댁쐞?섏닔?듬쪧濡?蹂??(?곌컙 -> ?쇨컙/二쇨컙/?붽컙)
+>         return np.nan
+  
+      # ?곗쑉?? (湲곌컙蹂?SR) * ?숹
+>     return (mean_excess / std_excess) * np.sqrt(periods_per_year)
+  
+  
+  # ============================================================
+> def sortino_ratio(
+      returns: np.ndarray,
+      target_return: float = 0.0,
+      risk_free_rate: float = 0.0,
+>     """
+      Annualized Sortino Ratio - ?고솚???뚰떚??鍮꾩쑉
+  
+      ?뱪 HTML ?섏떇
+>     """
+      returns = np.asarray(returns, dtype=float)
+  
+      # 湲곌컙蹂?臾댁쐞?섏닔?듬쪧
+>         return np.nan
+  
+      # ?고솚??    annualized_excess_return = np.mean(excess_returns) * periods_per_year
+      annualized_downside_deviation = downside_deviation * np.sqrt(periods_per_year)
+>     return annualized_excess_return / annualized_downside_deviation
+  
+  
+  # ============================================================
+> def _get_drawdown_periods(returns: np.ndarray) -> List[float]:
+>     """
+      ?꾩껜 湲곌컙?먯꽌 諛쒖깮??媛곴컖???섎씫 援ш컙(Drawdown Episode)??理쒕? 源딆씠瑜?諛섑솚.
+  
+      Returns
+>     """
+      returns = np.asarray(returns, dtype=float)
+      cumulative = np.cumprod(1 + returns)
+      running_max = np.maximum.accumulate(cumulative)
+>     return periods
+  
+  
+> def average_drawdown(returns: np.ndarray) -> float:
+>     """
+      Average Drawdown - ?됯퇏 ?숉룺 (?꾩껜 湲곌컙 ?됯퇏)
+  
+      ?뱪 HTML ?섏떇
+>     """
+      returns = np.asarray(returns, dtype=float)
+      cumulative = np.cumprod(1 + returns)
+      running_max = np.maximum.accumulate(cumulative)
+>     return abs(np.mean(drawdown))
+  
+  
+  # ============================================================
+> def sterling_ratio(
+      returns: np.ndarray,
+      risk_free_rate: float = 0.0,
+      periods_per_year: int = 252,
+>     """
+      Sterling Ratio - ?ㅽ꽭留?鍮꾩쑉
+  
+      ?뱪 HTML ?섏떇 (?ㅻТ ?쒖?)
+>     """
+      returns = np.asarray(returns, dtype=float)
+  
+      # CAGR (?고룊洹?蹂듬━ ?섏씡瑜?
+>             return np.nan
+          # ?대┝李⑥닚 ?뺣젹 ???곸쐞 K媛??됯퇏
+          sorted_periods = sorted(periods, reverse=True)
+          avg_mdd = np.mean(sorted_periods[:top_k])
+>         return np.nan
+  
+>     return excess_return / avg_mdd
+  
+  
+  # ============================================================
+> def calmar_ratio(
+      returns: np.ndarray, risk_free_rate: float = 0.0, periods_per_year: int = 252
+  ) -> float:
+>     """
+      Calmar Ratio - 移쇰쭏 鍮꾩쑉
+  
+      ?뱪 HTML ?섏떇
+>     """
+      returns = np.asarray(returns, dtype=float)
+  
+      # CAGR (?고룊洹?蹂듬━ ?섏씡瑜?
+>         return np.nan
+  
+>     return excess_return / mdd
+  
+  
+  # ============================================================
+> def deflated_sharpe_ratio(
+      sharpe: float,
+      n_observations: int,
+      skewness: float,
+>     """
+      Deflated Sharpe Ratio (DSR) - ?뷀뵆?덉씠?곕뱶 ?ㅽ봽 鍮꾩쑉
+  
+      ?뱪 HTML ?섏떇 (Bailey & Lopez de Prado, 2014)
+>     """
+      from scipy.stats import norm
+  
+      if n_observations <= 1:
+>         return np.nan
+  
+      # 1. Sharpe Ratio???쒖??ㅼ감 (?(SR*)) 怨꾩궛
+      sharpe_std = np.sqrt(
+>         return np.nan
+  
+      # 2. 洹臾닿?????湲곕? 理쒕? Sharpe (SR0) 怨꾩궛
+      if n_trials > 1:
+>     return dsr
+  
+  
+  # ============================================================
+> def calculate_all_metrics(
+      returns: np.ndarray,
+      risk_free_rate: float = 0.0,
+      target_return: float = 0.0,
+>     """
+      紐⑤뱺 ?깃낵吏?쒕? ??踰덉뿉 怨꾩궛?섎뒗 ?듯빀 ?⑥닔
+  
+      Parameters
+>     """
+      returns = np.asarray(returns, dtype=float)
+  
+      # Sharpe Ratio 怨꾩궛
+>     return {
+          "MDD": maximum_drawdown(returns),
+          "Sharpe Ratio": sharpe,
+          "Sortino Ratio": sortino_ratio(
+
+
+
+
+===== evaluation\walk_forward.py =====
+
+> """?뚰겕?ъ썙??遺꾪븷 ???쒓컙 ?쒖꽌瑜?吏?ㅻ뒗 ?숈뒿쨌寃利?援ш컙 ?섎늻湲?
+  
+  **紐⑤뜽??紐⑤Ⅸ??** ?몃뜳???띾쭔 ?뚮젮以?? 洹??몃뜳?ㅻ줈 臾댁뾿???숈뒿?섎뱺 ?곴??녿떎.
+  
+> """
+  
+  from __future__ import annotations
+  
+> class LeakageError(RuntimeError):
+>     """?숈뒿 援ш컙怨?寃利?援ш컙??**?덉씠釉붿쓣 ?듯빐** 寃뱀튌 ???섏쭊??
+  
+      ?몃뜳?ㅺ? 寃뱀튂吏 ?딆븘???꾩닔???쇱뼱?쒕떎. ?덉씠釉붿씠 誘몃옒瑜?蹂닿퀬 留뚮뱾?댁?湲??뚮Ц?대떎.
+      t ?됱쓽 ?덉씠釉붿씠 t+5 媛寃⑹쑝濡?留뚮뱾?댁죱?ㅻ㈃, ?숈뒿 留덉?留???t ???대? t+5 瑜??뚭퀬
+>     """
+  
+  
+> def _resolve_gap(gap: int | None, horizon: int, label_horizon: int | None,
+                   allow_leakage: bool) -> Tuple[int, int]:
+>     """`gap` ???뺤젙?섍퀬, ?꾩닔媛 ?섎뒗 媛믪씠硫?留됰뒗??
+  
+      洹쒖튃? ?뗫퓧?대떎.
+  
+>     """
+      lh = horizon if label_horizon is None else label_horizon
+      if lh < 0:
+          raise ValueError(f"label_horizon ? 0 ?댁긽?댁뼱???쒕떎 (諛쏆? 媛? {lh})")
+>         return lh, lh
+  
+      if gap < 0:
+          raise ValueError(f"gap ? 0 ?댁긽?댁뼱???쒕떎 (諛쏆? 媛? {gap})")
+>     return gap, lh
+  
+  
+> def expanding_splits(n_samples: int, n_folds: int = DEFAULT_FOLDS,
+                       min_train: int = MIN_TRAIN, horizon: int = 1,
+                       gap: int | None = None, *,
+                       label_horizon: int | None = None,
+>     """?뺤옣李?遺꾪븷 ???숈뒿 援ш컙???대뱶留덈떎 湲몄뼱吏꾨떎.
+  
+      Args:
+          n_samples:     ?꾩껜 ?쒕낯 ??        n_folds:       ?대뱶 ??        min_train:     泥??숈뒿 援ш컙??理쒖냼 湲몄씠
+>     return splits
+  
+  
+> def expanding_group_splits(
+      groups: object,
+      n_folds: int = DEFAULT_FOLDS,
+      min_train: int = MIN_TRAIN,
+>     """媛숈? ?쒖젏???됱쓣 ???⑹뼱由щ줈 ?좎??섎뒗 ?뺤옣李?遺꾪븷??留뚮뱺??
+  
+      媛쒕퀎 醫낅ぉ ?⑤꼸????踰덊샇濡??먮Ⅴ硫?媛숈? 嫄곕옒?쇱쓽 ?쇰? 醫낅ぉ? ?숈뒿?? ?섎㉧吏??    寃利앹뿉 ?ㅼ뼱媛????덈떎. ???⑥닔??怨좎쑀 洹몃９???쒖젏?쇰줈 遺꾪븷????洹??쒖젏???랁븳
+      紐⑤뱺 ?먮낯 ?됱쓣 ?④퍡 諛섑솚?쒕떎. ``min_train``쨌``horizon``쨌``gap``???⑥쐞?????섍?
+>     """
+      group_values = np.asarray(groups)
+      if group_values.ndim != 1:
+          raise ValueError("groups???됰쭏??媛??섎굹瑜?媛뽯뒗 1李⑥썝 ?먮즺?ъ빞 ?⑸땲??)
+>     return splits
+  
+  
+> def rolling_splits(n_samples: int, train_size: int, n_folds: int = DEFAULT_FOLDS,
+                     horizon: int = 1, gap: int | None = None, *,
+                     label_horizon: int | None = None,
+                     allow_leakage: bool = False) -> List[Split]:
+>     """濡ㅻ쭅李?遺꾪븷 ???숈뒿 援ш컙 湲몄씠瑜?怨좎젙?섍퀬 李쎌쓣 ?욎쑝濡?誘쇰떎.
+  
+      ???먮즺媛 ?ㅽ엳???대∼?ㅺ퀬 蹂????대떎. ?쒖옣 援?㈃??諛붾뚮㈃ 5????愿怨꾨뒗 吏湲덇낵
+      ?ㅻⅤ湲??뚮Ц?대떎. `train_size` 瑜??쇰쭏濡??섏?媛 ??諛⑹떇???듭떖 媛?뺤씠怨?
+>     """
+      gap, _lh = _resolve_gap(gap, horizon, label_horizon, allow_leakage)
+      _validate(n_samples, n_folds, train_size, horizon, gap)
+  
+>     return splits
+  
+  
+> def iter_splits(splits: List[Split]) -> Iterator[Tuple[int, np.ndarray, np.ndarray]]:
+>     """?대뱶 踰덊샇瑜?遺숈뿬 ?묐뒗?? ?대뱶蹂??깅뒫???곕줈 湲곕줉?????대떎.
+  
+      ?좑툘 **?대뱶蹂?寃곌낵瑜??됯퇏留??닿퀬 踰꾨━吏 ?딅뒗??** ?됯퇏??醫뗭븘???대뱶 ?ъ씠 遺꾩궛??       ?щ㈃ 洹??꾨왂? ?쒓린???곕씪 ?꾩쟾???ㅻⅤ寃??吏곸씤?ㅻ뒗 ?살씠?? 洹?遺꾩궛?댁빞留먮줈
+         "???깅뒫??誘우뼱???섎뒗媛"??????듭씠??
+>     """
+      for i, (train_idx, valid_idx) in enumerate(splits):
+          yield i, train_idx, valid_idx
+  
+> def _validate(n_samples: int, n_folds: int, min_train: int, horizon: int, gap: int) -> None:
+>     """遺꾪븷???깅┰?섏? ?딅뒗 議곌굔??**誘몃━** 留됰뒗??
+  
+      議곗슜??鍮?由ъ뒪?몃? ?뚮젮二쇰㈃ ?몄텧遺??"?대뱶媛 0媛???梨꾨줈 怨꾩냽 ?뚮떎媛 ?쒖갭 ?ㅼ뿉
+      ?됰슧??怨녹뿉???곗쭊?? ?ш린??臾댁뾿??遺議깊븳吏 留먰빐 二쇰뒗 ?몄씠 ?ル떎.
+>     """
+      if n_folds < 1:
+          raise ValueError(f"n_folds ??1 ?댁긽?댁뼱???쒕떎 (諛쏆? 媛? {n_folds})")
+      if horizon < 1:
+
+
+
