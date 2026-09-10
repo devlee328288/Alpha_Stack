@@ -64,6 +64,7 @@ import json
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Mapping
 
 import numpy as np
 import pandas as pd
@@ -146,9 +147,17 @@ _별칭 = {"A": "A_winsorize_only", "A'": "Aprime_winsorize_non_vol",
 
 
 def build_condition_dataset(
-    dataset: StockModelDataset, condition: str
+    dataset: StockModelDataset,
+    condition: str,
+    *,
+    conditions: Mapping[str, dict[str, object] | None] | None = None,
 ) -> StockModelDataset:
     """조건 하나를 조합 K 피처에만 건다. 키·라벨·행은 고정한다.
+
+    `conditions` 를 주면 그 사전에서 조건을 찾는다. 생략하면 이 파일의 `CONDITIONS` 다 —
+    **A~D 를 돌리는 기존 동작은 그대로**이고, 다음 판의 러너
+    (`run_stock_preprocessing_axis.py`)가 자기 조건 사전을 끼울 자리만 열어 둔 것이다.
+    조립 순서·검증·결측 처리를 두 번 쓰면 두 판의 숫자가 조용히 갈라진다.
 
     C 는 날짜 수준 8칸을 **덧붙이므로** 피처 목록이 함께 늘어난다. 나머지는 칸 이름·개수가
     그대로다.
@@ -160,7 +169,7 @@ def build_condition_dataset(
     남기는 공통 표본을 `main()` 이 만든다. 이 함수는 만든 것을 그대로 돌려주고, 어디에
     구멍이 났는지는 그쪽에서 센다.
     """
-    options = CONDITIONS[condition]
+    options = (CONDITIONS if conditions is None else conditions)[condition]
     frame = dataset.frame.copy()
     columns = list(dataset.feature_columns)
     if options is None:
@@ -226,14 +235,21 @@ def common_sample(
 def _append_trials(
     *, run_id: str, condition: str, result: StockExperimentResult,
     source: dict[str, object], feature_columns: tuple[str, ...],
+    report_path: str = "reports/stock_preprocessing_candidates.json",
+    extra_experiment: Mapping[str, object] | None = None,
 ) -> None:
-    """실제로 끝난 fit 을 시행 원장에 남긴다. 사전 등록의 '시행 6' 을 세는 근거다."""
+    """실제로 끝난 fit 을 시행 원장에 남긴다. 사전 등록의 '시행 6' 을 세는 근거다.
+
+    `report_path` 와 `extra_experiment` 는 다음 판의 러너가 자기 보고서를 가리키고
+    자기 표본 이름(`sample_set`)을 남기려고 열어 둔 자리다. 원장 형식을 두 번 쓰면
+    나중에 시행을 셀 때 두 판이 같은 자로 세어지지 않는다.
+    """
     common = {
         "schema_version": 1,
         "status": "success",
         "track": "stock",
         "run": run_id,
-        "report_path": "reports/stock_preprocessing_candidates.json",
+        "report_path": report_path,
         "dataset_source": source,
         "experiment": {
             "combination": COMBINATION,
@@ -241,6 +257,7 @@ def _append_trials(
             "condition": condition,
             "feature_columns": list(feature_columns),
             "label": "T+1_adj_open_to_T+6_adj_open_absolute_2pct_band",
+            **(extra_experiment or {}),
         },
         "audit": {"origin": "direct_execution", "coverage": "all_completed_fits"},
     }
