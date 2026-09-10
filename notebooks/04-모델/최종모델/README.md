@@ -7,7 +7,7 @@
 
 | 트랙 | 현재 모델 | 상태 | 근거 |
 |---|---|---|---|
-| KOSPI200 | 조합 E RandomForest + 5Day Return | 잠정 | 이슈 #203 선정 기준 확인 중 |
+| KOSPI200 | 조합 C LogisticRegression + 기본 | 잠정 | 이슈 #203 선정 기준 확인 중 |
 | 개별종목 | 조합 K LogisticRegression | 확정 | ADR 0007 |
 
 - [KOSPI200 잠정 모델](KOSPI200/README.md)

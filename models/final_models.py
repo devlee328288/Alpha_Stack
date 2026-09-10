@@ -16,6 +16,7 @@ INDEX_POLICY_CORE_HARMONIC = "core_harmonic_mean"
 INDEX_POLICY_ACCURACY_THEN_MACRO = "accuracy_then_macro_f1"
 INDEX_POLICY_ACCURACY_MACRO_HARMONIC = "accuracy_macro_f1_harmonic"
 INDEX_POLICY_DELTA_REPORTED_MAJORITY = "accuracy_minus_reported_majority_then_macro_f1"
+INDEX_POLICY_LONG_ONLY = "operational_gate_then_pr_auc_up"
 INDEX_SELECTION_POLICIES = (
     INDEX_POLICY_CORE_HARMONIC,
     INDEX_POLICY_ACCURACY_THEN_MACRO,
@@ -163,6 +164,53 @@ def select_best_index_model(
     )
 
 
+def select_best_long_only_index_model(report: dict[str, Any]) -> WinningModel:
+    """완료된 long-only 100후보 보고서의 잠정 1위를 반환한다.
+
+    순위는 실행기가 기록한 운영 기준선 게이트와 상승 PR-AUC 순서를 그대로 따른다.
+    보고서가 부분 실행 상태이거나 순위가 중복되면 중간 결과를 최종 모델처럼 쓰지 않는다.
+    """
+
+    if report.get("status") != "complete":
+        raise ValueError("KOSPI200 long-only 평가 보고서가 완료 상태가 아닙니다.")
+    if report.get("holdout_used") is not False:
+        raise ValueError("KOSPI200 long-only 모델 선택에 홀드아웃이 사용됐습니다.")
+    candidates = report.get("candidates")
+    if not isinstance(candidates, list) or not candidates:
+        raise ValueError("KOSPI200 long-only 평가 보고서에 candidates가 없습니다.")
+    expected = int(report.get("expected_candidate_count", len(candidates)))
+    if len(candidates) != expected:
+        raise ValueError(
+            f"KOSPI200 long-only 후보 수가 완료 조건과 다릅니다: {len(candidates)}/{expected}"
+        )
+    ranks = [int(record.get("rank", 0)) for record in candidates]
+    if sorted(ranks) != list(range(1, len(candidates) + 1)):
+        raise ValueError("KOSPI200 long-only 후보 순위가 중복되거나 빠졌습니다.")
+
+    winner = min(candidates, key=lambda record: int(record["rank"]))
+    experiment = winner.get("experiment", {})
+    summary = winner.get("summary", {})
+    combination = str(experiment.get("combination", "")).strip()
+    model = str(experiment.get("model", "")).strip()
+    if not combination or not model:
+        raise ValueError("KOSPI200 long-only 1위 모델의 조합 또는 모델명이 비어 있습니다.")
+    required = {"pr_auc_up", "passes_operational_gate"}
+    missing = required - set(summary)
+    if missing:
+        raise ValueError(f"KOSPI200 long-only 1위 지표가 없습니다: {sorted(missing)}")
+    if summary["passes_operational_gate"] is not True:
+        raise ValueError("KOSPI200 long-only 1위가 운영 기준선 게이트를 통과하지 못했습니다.")
+    return WinningModel(
+        track="KOSPI200",
+        combination=combination,
+        model=model,
+        feature_columns=_feature_tuple(winner.get("feature_columns"), "KOSPI200 long-only 1위"),
+        return_features=tuple(str(value) for value in experiment.get("return_features", [])),
+        selection_metric=INDEX_POLICY_LONG_ONLY,
+        selection_value=float(summary["pr_auc_up"]),
+    )
+
+
 def compare_index_model_selection_policies(report: dict[str, Any]) -> dict[str, Any]:
     """홀드아웃을 보지 않고 개발구간 후보의 선정 정책별 1위를 비교한다."""
 
@@ -280,8 +328,13 @@ def load_winning_models(
     stock_index_sha = stock_report.get("source", {}).get("index_sha256")
     if index_sha and stock_index_sha and index_sha != stock_index_sha:
         raise ValueError("KOSPI200과 개별종목 평가 보고서의 지수 데이터 SHA-256이 다릅니다.")
+    index_winner = (
+        select_best_long_only_index_model(index_report)
+        if "candidates" in index_report
+        else select_best_index_model(index_report)
+    )
     return (
-        select_best_index_model(index_report),
+        index_winner,
         select_best_stock_model(stock_report),
     )
 
@@ -291,10 +344,12 @@ __all__ = [
     "INDEX_POLICY_ACCURACY_THEN_MACRO",
     "INDEX_POLICY_CORE_HARMONIC",
     "INDEX_POLICY_DELTA_REPORTED_MAJORITY",
+    "INDEX_POLICY_LONG_ONLY",
     "INDEX_SELECTION_POLICIES",
     "WinningModel",
     "compare_index_model_selection_policies",
     "load_winning_models",
     "select_best_index_model",
+    "select_best_long_only_index_model",
     "select_best_stock_model",
 ]
