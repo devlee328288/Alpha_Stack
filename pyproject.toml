@@ -19,6 +19,7 @@ dependencies = [
   "sqlalchemy==2.0.52",    # common/db.py — Postgres 어댑터
   "yfinance==1.5.2",       # clients/yf_data.py — 해외 지수 대조군
   "finance-datareader==0.9.202",  # 수정 OHLC 수집과 액면분할 보정
+  "torch==2.9.0",          # focal_classifier.py — Focal Loss MLP 학습
 
   # ── 1차 프로젝트가 새로 들이는 것 ─────────────────────────
   "pandas==3.0.5",         # 피처 표(feature table) 조작
