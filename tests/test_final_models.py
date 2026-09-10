@@ -8,10 +8,21 @@ from models.final_models import (
     INDEX_POLICY_DELTA_REPORTED_MAJORITY,
     compare_index_model_selection_policies,
     load_winning_models,
+    preferred_index_report_path,
     select_best_index_model,
     select_best_long_only_index_model,
     select_best_stock_model,
 )
+
+
+def test_KOSPI200_보고서_경로도_long_only_완료본을_우선한다(tmp_path):
+    legacy = tmp_path / "model_sweep.json"
+    legacy.write_text("{}", encoding="utf-8")
+    assert preferred_index_report_path(tmp_path) == legacy
+
+    long_only = tmp_path / "index_long_only_selection.json"
+    long_only.write_text("{}", encoding="utf-8")
+    assert preferred_index_report_path(tmp_path) == long_only
 
 
 def test_kospi200_보고서에서_조화평균_1위를_가져온다():

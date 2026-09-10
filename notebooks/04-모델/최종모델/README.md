@@ -7,10 +7,10 @@
 
 | 트랙 | 현재 모델 | 상태 | 근거 |
 |---|---|---|---|
-| KOSPI200 | 조합 C LogisticRegression + 기본 | 잠정 | 이슈 #203 선정 기준 확인 중 |
+| KOSPI200 | 조합 C LogisticRegression + 기본 | 확정 | 이슈 #216 개발구간 선정 규칙 |
 | 개별종목 | 조합 K LogisticRegression | 확정 | ADR 0007 |
 
-- [KOSPI200 잠정 모델](KOSPI200/README.md)
+- [KOSPI200 선정 모델](KOSPI200/README.md)
 - [개별종목 최종 모델](개별종목/README.md)
 
 새 피처 조합은 기존 네 모델로 같은 개발구간 OOS 평가를 마친 뒤 보고서에 추가합니다.

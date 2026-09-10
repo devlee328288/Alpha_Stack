@@ -17,6 +17,8 @@ INDEX_POLICY_ACCURACY_THEN_MACRO = "accuracy_then_macro_f1"
 INDEX_POLICY_ACCURACY_MACRO_HARMONIC = "accuracy_macro_f1_harmonic"
 INDEX_POLICY_DELTA_REPORTED_MAJORITY = "accuracy_minus_reported_majority_then_macro_f1"
 INDEX_POLICY_LONG_ONLY = "operational_gate_then_pr_auc_up"
+INDEX_LEGACY_REPORT = "model_sweep.json"
+INDEX_LONG_ONLY_REPORT = "index_long_only_selection.json"
 INDEX_SELECTION_POLICIES = (
     INDEX_POLICY_CORE_HARMONIC,
     INDEX_POLICY_ACCURACY_THEN_MACRO,
@@ -36,6 +38,17 @@ class WinningModel:
     return_features: tuple[str, ...] = ()
     selection_metric: str = ""
     selection_value: float | None = None
+
+
+def preferred_index_report_path(reports_dir: Path) -> Path:
+    """최종 실행과 문서가 함께 사용할 KOSPI200 보고서 경로를 반환한다.
+
+    long-only 완료 보고서가 만들어진 뒤에도 호출처 하나가 옛 sweep 보고서를 읽으면
+    서로 다른 1위를 사용할 수 있다. 경로 선택을 이곳 한 군데로 모으고, 새 보고서가
+    없을 때만 이전 보고서로 호환한다. 보고서 내용의 완료 여부는 선택 함수가 검증한다.
+    """
+    long_only = reports_dir / INDEX_LONG_ONLY_REPORT
+    return long_only if long_only.exists() else reports_dir / INDEX_LEGACY_REPORT
 
 
 def _read_report(path: Path) -> dict[str, Any]:
@@ -165,7 +178,7 @@ def select_best_index_model(
 
 
 def select_best_long_only_index_model(report: dict[str, Any]) -> WinningModel:
-    """완료된 long-only 100후보 보고서의 잠정 1위를 반환한다.
+    """완료된 long-only 100후보 보고서의 최종 선정 모델을 반환한다.
 
     순위는 실행기가 기록한 운영 기준선 게이트와 상승 PR-AUC 순서를 그대로 따른다.
     보고서가 부분 실행 상태이거나 순위가 중복되면 중간 결과를 최종 모델처럼 쓰지 않는다.
@@ -340,12 +353,15 @@ def load_winning_models(
 
 
 __all__ = [
+    "INDEX_LEGACY_REPORT",
+    "INDEX_LONG_ONLY_REPORT",
     "INDEX_POLICY_ACCURACY_MACRO_HARMONIC",
     "INDEX_POLICY_ACCURACY_THEN_MACRO",
     "INDEX_POLICY_CORE_HARMONIC",
     "INDEX_POLICY_DELTA_REPORTED_MAJORITY",
     "INDEX_POLICY_LONG_ONLY",
     "INDEX_SELECTION_POLICIES",
+    "preferred_index_report_path",
     "WinningModel",
     "compare_index_model_selection_policies",
     "load_winning_models",
