@@ -13,20 +13,20 @@ ADR 0007의 `학습 최빈 기준선 대비 Accuracy → Macro F1 → 기준선 
 
 ## 사용 피처
 
-- `atr_ratio`
-- `bb_bandwidth`
-- `hv_regime`
-- `five_day_return`
-- `relative_ret_5_market`
-- `sma_gap_5_20`
-- `sma_gap_20_60`
-- `rsi_14`
-- `macd_hist_ratio`
-- `bb_position`
-- `hv_20`
-- `vol_ratio_20`
-- `obv_slope_20`
-- `daily_return`
+- `atr_ratio`: 14일 평균 실제 변동폭(ATR)을 종가로 나눈 값 — 최근 가격 변동성의 상대 크기
+- `bb_bandwidth`: 20일 볼린저밴드의 폭 — 값이 클수록 최근 가격 변동성이 큼
+- `hv_regime`: 20일 변동성이 최근 250일 평균 변동성의 몇 배인지 나타내는 시장 국면
+- `five_day_return`: 현재 종가가 5거래일 전보다 얼마나 올랐거나 내렸는지 나타내는 수익률
+- `relative_ret_5_market`: 종목의 5일 수익률에서 KOSPI200 5일 수익률을 뺀 시장 대비 성과
+- `sma_gap_5_20`: 5일 이동평균과 20일 이동평균의 상대 차이 — 단기 추세
+- `sma_gap_20_60`: 20일 이동평균과 60일 이동평균의 상대 차이 — 중기 추세
+- `rsi_14`: 최근 14일 상승·하락 강도의 균형을 0~100으로 나타낸 과매수·과매도 지표
+- `macd_hist_ratio`: MACD와 신호선의 차이를 종가로 나눈 값 — 추세 변화의 방향과 강도
+- `bb_position`: 20일 볼린저밴드 안에서 현재 종가가 어디에 있는지 나타내는 위치
+- `hv_20`: 최근 20일 로그수익률의 표준편차로 계산한 과거 변동성
+- `vol_ratio_20`: 당일 거래량을 최근 20일 평균 거래량으로 나눈 값 — 평소 대비 거래량
+- `obv_slope_20`: 가격 방향에 따라 누적한 거래량(OBV)의 최근 20일 변화 방향
+- `daily_return`: 현재 종가가 직전 거래일보다 얼마나 변했는지 나타내는 1일 수익률
 
 ## 개발구간 OOS 결과
 
