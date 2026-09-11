@@ -510,6 +510,8 @@ def _attach_index_relative_features(
     features: pd.DataFrame,
     source: pd.DataFrame,
     index_prices: pd.DataFrame,
+    *,
+    allow_unsealed: bool = False,
 ) -> pd.DataFrame:
     """종목의 그날 업종과 KOSPI200 과거 수익률만 이용해 상대 피처를 붙인다."""
 
@@ -522,7 +524,7 @@ def _attach_index_relative_features(
 
     indices = index_prices.loc[:, sorted(required)].copy()
     indices["bas_dd"] = _normalize_dates(indices)
-    if (indices["bas_dd"] >= HOLDOUT_START).any():
+    if not allow_unsealed and (indices["bas_dd"] >= HOLDOUT_START).any():
         raise RuntimeError("업종 상대강도 원천에 홀드아웃 행이 들어 있습니다.")
     indices = indices.loc[indices["index_class"].eq("KOSPI")].copy()
     indices["close"] = pd.to_numeric(indices["close"], errors="coerce")
@@ -593,6 +595,7 @@ def build_sector_stock_model_dataset(
     feature_columns: tuple[str, ...] = STOCK_FEATURE_COLUMNS,
     drop_incomplete_features: bool = True,
     holdout_start: str = HOLDOUT_START,
+    allow_unsealed: bool = False,
     horizon: int = STOCK_LABEL_HORIZON,
     neutral_band: float = STOCK_NEUTRAL_BAND,
 ) -> StockModelDataset:
@@ -635,7 +638,7 @@ def build_sector_stock_model_dataset(
     source = daily_prices.loc[:, sorted(source_columns)].copy()
     source["bas_dd"] = _normalize_dates(source)
     source["code"] = source["code"].astype("string").str.strip().str.zfill(6)
-    if (source["bas_dd"] >= holdout_start).any():
+    if not allow_unsealed and (source["bas_dd"] >= holdout_start).any():
         first = str(source.loc[source["bas_dd"] >= holdout_start, "bas_dd"].min())
         raise RuntimeError(f"개별 종목 원천에 홀드아웃 행이 들어 있습니다: {first}")
     source = source.loc[source["market"].eq("KOSPI")].copy()
@@ -661,7 +664,7 @@ def build_sector_stock_model_dataset(
     selected = candidates.copy()
     selected["bas_dd"] = _normalize_dates(selected)
     selected["code"] = selected["code"].astype("string").str.strip().str.zfill(6)
-    if (selected["bas_dd"] >= holdout_start).any():
+    if not allow_unsealed and (selected["bas_dd"] >= holdout_start).any():
         raise RuntimeError("종목 후보에 홀드아웃 행이 들어 있습니다.")
     if selected.duplicated(["bas_dd", "code"]).any():
         raise ValueError("종목 후보에 같은 날짜·코드가 두 번 이상 있습니다.")
@@ -677,7 +680,12 @@ def build_sector_stock_model_dataset(
     ]
     features = pd.concat(feature_parts, ignore_index=True)
     if index_prices is not None:
-        features = _attach_index_relative_features(features, feature_source, index_prices)
+        features = _attach_index_relative_features(
+            features,
+            feature_source,
+            index_prices,
+            allow_unsealed=allow_unsealed,
+        )
     selected = selected.merge(
         features,
         on=["bas_dd", "code"],
@@ -765,7 +773,7 @@ def build_sector_stock_model_dataset(
         sort_columns.append("candidate_rank")
     sort_columns.append("code")
     selected = selected.sort_values(sort_columns, kind="stable").reset_index(drop=True)
-    if selected["bas_dd"].max() >= holdout_start:
+    if not allow_unsealed and selected["bas_dd"].max() >= holdout_start:
         raise RuntimeError("개별 종목 모델 입력에 홀드아웃 행이 들어왔습니다.")
     selected.attrs["stock_panel"] = {
         "holdout_start": holdout_start,

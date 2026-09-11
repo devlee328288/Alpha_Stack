@@ -7,8 +7,8 @@ from features.volatility import atr, atr_ratio, hv_regime
 from features.volume import obv_slope_20
 
 
-def _index_prices(rows: int = 400) -> pd.DataFrame:
-    dates = pd.bdate_range("2022-01-03", periods=rows).strftime("%Y%m%d")
+def _index_prices(rows: int = 400, *, start: str = "2022-01-03") -> pd.DataFrame:
+    dates = pd.bdate_range(start, periods=rows).strftime("%Y%m%d")
     step = np.arange(rows, dtype=float)
     close = 100.0 + step * 0.03 + 5.0 * np.sin(step / 5.0)
     return pd.DataFrame(
@@ -44,6 +44,16 @@ def test_마지막_신호의_청산_시가는_원시_개발구간_안에_남는�
     last_signal = int(dataset.signal_positions[-1])
     assert last_signal + 6 < len(dataset.raw_prices)
     assert dataset.frame["bas_dd"].max() < "20240901"
+
+
+def test_개봉을명시한최종실행만_홀드아웃피처와라벨을만든다():
+    prices = _index_prices(400, start="2023-07-03")
+
+    sealed = build_model_dataset(prices, "C")
+    unsealed = build_model_dataset(prices, "C", allow_unsealed=True)
+
+    assert sealed.frame["bas_dd"].max() < "20240901"
+    assert unsealed.frame["bas_dd"].max() >= "20240901"
 
 
 def test_지수파생피처는_인라인이아니라_원자함수와같은값을낸다():
