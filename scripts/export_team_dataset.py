@@ -582,8 +582,11 @@ def build_full_daily(*, end: str, as_of: str, ctx) -> Tuple[pd.DataFrame, Dict]:
     # 관리종목까지 빼기 때문이다. 🔴 그 행의 날짜까지 알게 된 기본정보다(2026-09-11 고침).
     daily = attach_security_type(daily, as_of=as_of)
 
-    # 기업행위 판정 세 칸 (#186 ①). 🔴 **피처로 쓰면 안 된다** — `is_liquidation` 은
-    # "이 뒤로 체결이 끊긴다" 를 보고 매긴다. 표본 선택에만 쓴다. 덜어내지는 않는다.
+    # 기업행위 판정 세 칸 (#186 ①). 작은 벌 `stocks30_train` 은 이 셋을 덜어낸 표본
+    # (89,424 → 82,852행)인데 큰 벌은 안 덜어낸 표본이다 — 판정을 실어 그 차이를 눈에
+    # 보이게 한다. 덜어내지는 않는다.
+    # 🔴 **피처로 쓰면 안 된다** — `is_liquidation` 은 "이 뒤로 체결이 끊긴다" 를 보고
+    #    매기므로 그 시점에는 알 수 없다. 표본 선택에만 쓴다.
     daily = attach_corporate_action_flags(daily, context=ctx)
     판정요약 = {
         칸: int(daily[칸].sum()) for 칸 in CORPORATE_ACTION_COLUMNS
@@ -602,8 +605,11 @@ def build_full_daily(*, end: str, as_of: str, ctx) -> Tuple[pd.DataFrame, Dict]:
           f"신규상장 {판정요약['is_first_listing']:,} "
           f"(셋 중 하나 {판정요약['any']:,}행 — 덜어내지 않는다)")
 
-    # 품질 플래그 넷 (#168). 🔴 걸러야 하는 것은 `is_adj_suspect` 하나뿐이다 —
-    # `is_extreme_return` 은 "진짜 사건이니 남겨라" 는 표시다.
+    # 품질 플래그 넷 (#168). 공급 층에서만 붙이면 HF 로 받는 팀원이 같은 함수를 각자 돌려야
+    # 같은 표본이 된다 — 칸 구성만 보고는 다른 표본을 쓰는지 알 수 없어서(신장환 님 지적)
+    # 정의를 파일 한 곳에 싣는다.
+    # 🔴 걸러야 하는 것은 `is_adj_suspect` 하나뿐이다 — `is_extreme_return` 은 "진짜 사건이니
+    #    남겨라" 는 표시다(`supply.quality_ledger.FLAG_GUIDE` · 카드에도 그렇게 적는다).
     flags = flag_adjustment_quality(daily)
     품질요약 = dict(flags.attrs["adjustment_quality"])
     daily = pd.concat([daily, flags], axis=1)
@@ -757,98 +763,16 @@ def main() -> int:
     if not args.skip_full:
         print()
         print("[큰 벌] 전량 parquet")
-        with krx_store.connect() as conn:
-            conn.execute("PRAGMA cache_size = -1000000")
-            daily = pd.read_sql_query(
-                "SELECT * FROM daily_price WHERE bas_dd <= ?", conn, params=(DEV_END,)
-            )
-        # 🔴 `sector` 는 KRX 소속부다 — KOSPI 는 100% 빈 값이고 KOSDAQ 은 중견기업부·
-        #    벤처기업부 같은 것이라 산업 업종이 아니다. 업종은 손으로 받은 업종분류 현황
-        #    스냅샷에서 **그 행의 날짜까지 알게 된 가장 최근 것**을 `industry` 로 따로
-        #    붙인다(2026-09-11 고침 — 스냅샷 당일 행에는 그날 표가 아니라 그 앞 스냅샷).
-        #    한 칸에 두 뜻을 섞지 않으려고 `sector` 는 그대로 둔다.
-        daily = attach_industry(daily, as_of=오늘_as_of)
-
-        # 🆕 주권종류 세 칸 (#186 ① · 28 → 31칸).
-        #
-        # 개발본에 주권종류가 없어서, 받아 쓰는 쪽이 **종목명이 '우' 로 끝나는지**로
-        # 보통주를 추측하고 있었다. 그 규칙은 연우·동우·신우를 우선주로 잘못 뺀다.
-        # 실측하니 KRX 주권종류와 이름 규칙+감사 예외 10건의 판정이 **한 행도 다르지
-        # 않아서**, 예외 목록을 지우고 이 칸으로 옮겼다.
-        #
-        # `secugrp_nm`·`sect_tp_nm` 까지 싣는 이유는 우선주만으로는 유니버스를 못
-        # 고르기 때문이다. KOSPI200 지수 방법론은 리츠·선박투자회사·SPAC·관리종목도
-        # 빼고, CRSP 는 REIT·closed-end fund·외국주권·ADR 을 뺀다.
-        daily = attach_security_type(daily, as_of=오늘_as_of)
-
-        # 🆕 기업행위 판정 세 칸 (#186 ① · 31 → 34칸).
-        #
-        # 🔴 **작은 벌과 큰 벌이 다른 규칙 위에 서 있었다.** `stocks30_train` 은 이
-        #    셋을 덜어낸 표본(89,424 → 82,852행)인데 `full/daily_price_dev.parquet`
-        #    은 안 덜어낸 표본이다. 그런데 카드는 큰 벌을 "최종 학습용" 이라 부른다.
-        #    판정을 실어 그 차이를 눈에 보이게 한다 — 덜어내지는 않는다.
-        #
-        # 🔴 이 셋은 **피처로 쓰면 안 된다.** `is_liquidation` 은 "이 뒤로 체결이
-        #    끊긴다" 를 보고 매기므로 그 시점에는 알 수 없다. 표본 선택에만 쓴다.
-        daily = attach_corporate_action_flags(daily, context=ctx)
-        판정요약 = {
-            칸: int(daily[칸].sum()) for 칸 in CORPORATE_ACTION_COLUMNS
-        }
-        판정요약["any"] = int(
-            daily[list(CORPORATE_ACTION_COLUMNS)].any(axis=1).sum())
-        stats["corporate_action_flags"] = 판정요약
-        stats["security_type"] = {
-            칸: {str(k): int(v) for k, v in daily[칸].value_counts().items()}
-            for 칸 in SECURITY_TYPE_COLUMNS
-        }
-        print(f"     주권종류 {len(SECURITY_TYPE_COLUMNS)}칸 · 보통주 "
-              f"{int(daily['kind_stkcert_tp_nm'].eq('보통주').sum()):,}행")
-        print(f"     기업행위 {len(CORPORATE_ACTION_COLUMNS)}칸 · 정리매매 "
-              f"{판정요약['is_liquidation']:,} · 거래정지 {판정요약['is_halted']:,} · "
-              f"신규상장 {판정요약['is_first_listing']:,} "
-              f"(셋 중 하나 {판정요약['any']:,}행 — 덜어내지 않는다)")
-
-        # 🆕 품질 플래그 넷을 **파일에 싣는다** (이슈 #168 · 24 → 28칸).
-        #
-        # 지금까지 이 플래그는 공급 층에서만 붙어서, HF 에서 받아 쓰는 팀원은 같은 함수를
-        # 각자 돌려야 같은 표본이 됐다. 신장환 님이 짚은 대로 **칸 구성만 보고는 팀
-        # 기준선과 다른 표본을 쓰고 있다는 것을 눈치채기 어렵다.** 정의를 파일 한 곳에
-        # 둔다.
-        #
-        # 🔴 걸러야 하는 것은 `is_adj_suspect` 하나뿐이다. `is_extreme_return` 은 이름과
-        #    달리 "빼라" 가 아니라 "진짜 사건이니 남겨라" 는 표시다 — 카드에도 그렇게
-        #    적어 나간다(`supply.quality_ledger.FLAG_GUIDE`).
-        flags = flag_adjustment_quality(daily)
-        품질요약 = dict(flags.attrs["adjustment_quality"])
-        daily = pd.concat([daily, flags], axis=1)
-        stats["adjustment_quality"] = 품질요약
-        print(f"     품질 플래그 {len(FLAG_COLUMNS)}칸 · 의심 "
-              f"{품질요약['suspect_rows']:,}행 · 극단 {품질요약['extreme_rows']:,}행 "
-              f"(극단은 거르지 않는다)")
-
-        industry_rows = int(daily["industry"].notna().sum())
-        snap_days = sorted(daily["industry_bas_dd"].dropna().astype(str).unique().tolist())
+        # 파생 14칸(업종 4 · 주권종류 3 · 기업행위 3 · 품질 4)은 `build_full_daily` 하나가
+        # 붙인다. 홀드아웃 봉인 반출(`scripts/export_holdout_dataset.py`)이 같은 함수를
+        # 불러서, 개발구간과 홀드아웃이 **같은 칸 규칙** 위에 선다 (이슈 #240).
+        daily, 큰벌통계 = build_full_daily(end=DEV_END, as_of=오늘_as_of, ctx=ctx)
+        stats.update(큰벌통계)
         _write_parquet(daily, full / "daily_price_dev.parquet", files,
                        "개발구간 전 종목 시세 · industry = KRX 업종분류 현황 스냅샷을 "
                        "행 날짜까지 알게 된 가장 최근 것으로 붙임 (sector 는 소속부, 다른 뜻)")
-        stats["industry"] = {
-            "rows_with_industry": industry_rows,
-            "rows_total": int(len(daily)),
-            "coverage": round(industry_rows / len(daily), 4) if len(daily) else 0.0,
-            "snapshot_days": snap_days,
-            "columns": list(INDUSTRY_COLUMNS),
-        }
-        if industry_rows:
-            print(f"     industry 채움 {industry_rows:,}/{len(daily):,}행 "
-                  f"({industry_rows / len(daily):.1%}) · 스냅샷 {len(snap_days)}장")
-        else:
-            print("     ⚠️ industry 가 전부 비었다 — 업종 스냅샷을 아직 들이지 않았다 "
-                  "(docs/데이터파트/version3.2/직접수집_가이드_업종분류현황.md)")
         del daily
-        with krx_store.connect() as conn:
-            idx = pd.read_sql_query(
-                "SELECT * FROM index_price WHERE bas_dd <= ?", conn, params=(DEV_END,)
-            )
+        idx = read_full_index(end=DEV_END)
         _write_parquet(idx, full / "index_price_dev.parquet", files,
                        "개발구간 전 지수")
         del idx

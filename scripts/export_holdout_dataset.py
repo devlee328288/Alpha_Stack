@@ -107,17 +107,18 @@ def _day_before(day: str) -> str:
 
 
 def validate_range(*, holdout_start: str, end: str, dry_run: bool) -> None:
-    """범위를 **DB 를 읽기 전에** 막는다 — 드라이런이 봉인에 닿지 않게, 진짜가 정본과 어긋나지 않게."""
+    """범위를 **DB 를 읽기 전에** 막는다 — 드라이런은 봉인에 안 닿게, 진짜는 정본대로."""
     for 이름, 값 in (("holdout_start", holdout_start), ("end", end)):
         if len(str(값)) != 8 or not str(값).isdigit():
             raise ValueError(f"{이름} 은 YYYYMMDD 여야 한다: {값!r}")
+    # 봉인 경계를 먼저 본다 — 시작·끝 순서 오류보다 "봉인에 닿는다" 가 더 급한 소식이다.
+    if dry_run and holdout_start >= HOLDOUT_START:
+        raise ValueError(
+            f"🔴 드라이런의 가짜 홀드아웃 시작({holdout_start})은 진짜 봉인 시작"
+            f"({HOLDOUT_START})보다 앞이어야 한다.")
     if holdout_start > end:
         raise ValueError(f"holdout_start({holdout_start}) 가 end({end}) 보다 늦다.")
     if dry_run:
-        if holdout_start >= HOLDOUT_START:
-            raise ValueError(
-                f"🔴 드라이런의 가짜 홀드아웃 시작({holdout_start})은 진짜 봉인 시작"
-                f"({HOLDOUT_START})보다 앞이어야 한다.")
         if end > DEV_END:
             raise ValueError(f"🔴 드라이런은 개발구간 끝({DEV_END})까지만 읽는다 — end={end}")
     elif holdout_start != HOLDOUT_START:
@@ -201,13 +202,16 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     p = argparse.ArgumentParser(description="봉인 홀드아웃 반출 — CLI 는 드라이런만 받는다")
     p.add_argument("--dry-run", action="store_true", help="가짜 홀드아웃으로 반출한다 (필수)")
     p.add_argument("--dry-run-start", default=None,
-                   help=f"가짜 홀드아웃 시작 YYYYMMDD (기본: 개발구간 끝 {DRY_RUN_SESSIONS}거래일 전)")
+                   help=f"가짜 홀드아웃 시작 YYYYMMDD "
+                        f"(기본: 개발구간 끝 {DRY_RUN_SESSIONS}거래일 전)")
     p.add_argument("--out", default=None, help="출력 폴더 (기본 data/sealed/dryrun_<시작>_<끝>)")
     args = p.parse_args(argv)
 
     if not args.dry_run:
-        print("🔴 진짜 홀드아웃 반출은 이 명령으로 하지 않는다 — 반출이 곧 개봉이라 기록과 함께여야 한다.")
-        print("   할 일: python scripts/unseal_holdout.py open --requested-by <이름> --reason <사유>")
+        print("🔴 진짜 홀드아웃 반출은 이 명령으로 하지 않는다 — "
+              "반출이 곧 개봉이라 기록과 함께여야 한다.")
+        print("   할 일: python scripts/unseal_holdout.py open "
+              "--requested-by <이름> --reason <사유>")
         return 2
 
     start = args.dry_run_start or dry_run_start()

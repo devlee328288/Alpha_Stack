@@ -149,7 +149,8 @@ def config_sha256(config_path: Path) -> Tuple[str, str]:
     """설정 지문과 계산 방법. 실행기 모듈이 있으면 **그 계산**을 쓴다(같은 값이어야 하므로)."""
     data = json.loads(Path(config_path).read_text(encoding="utf-8"))
     try:
-        from models.final_holdout import config_from_dict   # 오준영 님 실행기 — 머지 뒤에 생긴다
+        # 오준영 님 실행기(PR #244) — 설정 지문은 실행기와 같은 계산이어야 한다
+        from models.final_holdout import config_from_dict
     except ImportError:
         canonical = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         return sha256(canonical.encode("utf-8")).hexdigest(), "canonical_json_fallback"
@@ -243,10 +244,9 @@ def cmd_open(args: argparse.Namespace) -> int:
         print(f"   다시 열면 '{판정['banner']}' 이다. 반출도 기록도 하지 않았다.")
         return 2
 
-    start = args.start or (dry_run_start() if dry else HOLDOUT_START)
-    end = args.end or (DEV_END if dry else session_span()[1])
-    print(f"── {'드라이런' if dry else '🔴 진짜'} 개봉 · 구간 {start} ~ {end} · 기록 {log}")
+    print(f"── {'드라이런' if dry else '🔴 진짜'} 개봉 · 기록 {log}")
 
+    # 사전 조건은 **DB 를 읽기 전에** 본다 — 멈출 개봉이면 달력·시세에 손대지 않는다.
     사전 = preregistration_state()
     바뀐추적 = tracked_changes()
     문제 = []
@@ -267,6 +267,9 @@ def cmd_open(args: argparse.Namespace) -> int:
         print("🔴 커밋된 사전등록 파일이 하나도 없다 — 사전등록 없이 열 수 없다.")
         return 1
 
+    start = args.start or (dry_run_start() if dry else HOLDOUT_START)
+    end = args.end or (DEV_END if dry else session_span()[1])
+    print(f"   구간 {start} ~ {end}")
     게이트 = data_gates(start=start, end=end)
     for c in 게이트["checks"]:
         꼬리 = "" if c["ok"] else f" · 할 일: {c['fix']}"
@@ -287,7 +290,8 @@ def cmd_open(args: argparse.Namespace) -> int:
         holdout.append_unseal_row(줄, path=log)
     except holdout.UnsealError as exc:
         print(f"🔴 반출은 끝났는데 기록을 못 썼다 — {exc}")
-        print(f"   {root} 는 기록 없이 열린 봉인 반출본이다. 지우지 말고 사람이 사유와 함께 기록한다.")
+        print(f"   {root} 는 기록 없이 열린 봉인 반출본이다.")
+        print("   지우지 말고 사람이 사유와 함께 기록한다.")
         return 2
 
     개봉시각 = datetime.fromisoformat(줄["unsealed_at_kst"])
@@ -295,8 +299,8 @@ def cmd_open(args: argparse.Namespace) -> int:
         print("🔴 사전등록 커밋이 개봉보다 앞서지 않는다 — ADR 0004 가 무효가 된다.")
         return 2
     print(f"✅ 기록 {log}")
-    print(f"   {줄['unsealed_at_kst']} · 스냅샷 {지문[:16]}… · 사전등록 {줄['preregistration_commit'][:7]}"
-          f" ({사전['latest'][0]})")
+    print(f"   {줄['unsealed_at_kst']} · 스냅샷 {지문[:16]}… · "
+          f"사전등록 {줄['preregistration_commit'][:7]} ({사전['latest'][0]})")
     print("다음 — 모델 파트가 이 반출본으로 입력 넷을 만든 뒤:")
     print(f"   python scripts/unseal_holdout.py authorize{' --dry-run' if dry else ''} "
           f"--snapshot {root} --run-id <ID> --index-dev … --index-holdout … "
@@ -355,7 +359,13 @@ def cmd_authorize(args: argparse.Namespace) -> int:
         print(f"🔴 {out} 가 이미 있다 — 승인은 덮어쓰지 않는다.")
         return 2
 
-    지문, 방법 = config_sha256(Path(args.config))
+    try:
+        지문, 방법 = config_sha256(Path(args.config))
+    except (OSError, KeyError, ValueError, TypeError) as exc:
+        print(f"🔴 설정 파일을 실행기 계약으로 읽지 못했다 — {args.config}")
+        print(f"   {type(exc).__name__}: {exc}")
+        print("   할 일: ADR 0009 정본 config/final_holdout_model.json 과 칸을 맞춘다.")
+        return 1
     승인 = {
         "schema_version": 1,
         "authorized": True,
@@ -405,8 +415,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         붉음.append(f"사전등록 커밋 {줄['preregistration_commit'][:7]} 을 git 에서 찾지 못했다")
     else:
         if not 사전시각 < 개봉시각:
-            붉음.append(f"사전등록 커밋({사전시각.isoformat()})이 개봉({줄['unsealed_at_kst']})보다 "
-                      "앞서지 않는다 — ADR 0004 무효")
+            붉음.append(f"사전등록 커밋({사전시각.isoformat()})이 "
+                      f"개봉({줄['unsealed_at_kst']})보다 앞서지 않는다 — ADR 0004 무효")
     for p in PREREGISTRATION_PATHS:
         c = last_commit_of(p) if (ROOT / p).exists() else None
         if c and c[1] > 개봉시각:
@@ -435,7 +445,8 @@ def cmd_check(args: argparse.Namespace) -> int:
         elif 승인 is not None:
             rep = json.loads(보고.read_text(encoding="utf-8"))
             if rep.get("run_id") != 승인.get("run_id"):
-                붉음.append(f"결과 run_id({rep.get('run_id')})가 승인({승인.get('run_id')})과 다르다")
+                붉음.append(f"결과 run_id({rep.get('run_id')})가 "
+                          f"승인({승인.get('run_id')})과 다르다")
             for n in SOURCE_NAMES:
                 결과지문 = ((rep.get("source") or {}).get(n) or {}).get("sha256")
                 if 결과지문 != (승인.get("source_sha256") or {}).get(n):
@@ -456,8 +467,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     o = sub.add_parser("open", help="사전 조건 확인 → 봉인 반출 → 개봉 기록 한 줄")
     o.add_argument("--dry-run", action="store_true")
-    o.add_argument("--start", default=None, help="홀드아웃 시작 (진짜는 정본 고정 · 드라이런만 바꾼다)")
-    o.add_argument("--end", default=None, help="끝 YYYYMMDD (기본: 진짜는 달력 끝 · 드라이런은 DEV_END)")
+    o.add_argument("--start", default=None,
+                   help="홀드아웃 시작 (진짜는 정본 고정 · 드라이런만 바꾼다)")
+    o.add_argument("--end", default=None,
+                   help="끝 YYYYMMDD (기본: 진짜는 달력 끝 · 드라이런은 DEV_END)")
     o.add_argument("--out", default=None, help="봉인 반출 폴더 (기본 data/sealed/…)")
     o.add_argument("--requested-by", required=True)
     o.add_argument("--reason", required=True)

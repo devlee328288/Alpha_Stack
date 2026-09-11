@@ -4,8 +4,8 @@
 
     open       이미 개봉됐으면 반출하지 않는다 · 사전등록·작업 트리·데이터 게이트가 붉으면 멈춘다
                반출 직후 한 줄을 쓰고, 그 줄의 지문이 반출 대장과 같다
-    authorize  기록이 정확히 한 줄일 때만 · 입력 날짜가 섞이면 거부 · 실행기 계약 여섯 칸 · 덮어쓰지 않음
-    check      두 줄이면 "확증 불가" · 개봉 뒤 사전등록이 커밋되면 붉다 · 산출물에 원자료·시크릿 없음
+    authorize  기록이 정확히 한 줄일 때만 · 입력 날짜가 섞이면 거부 · 계약 여섯 칸 · 안 덮어씀
+    check      두 줄이면 "확증 불가" · 개봉 뒤 사전등록 커밋이면 붉다 · 산출물에 원자료·시크릿 없음
 
 DB 와 git 은 건드리지 않는다. 반출·게이트·git 은 갈아 끼우고, 기록은 임시 경로에 쓴다 —
 **진짜 `reports/unseal.log` 는 이 시험이 절대 만들지 않는다.**
@@ -36,7 +36,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def 환경(tmp_path, monkeypatch):
-    """경로·git·게이트·반출을 갈아 끼운다. 반출은 대장과 파일 지문이 실제로 맞는 작은 폴더를 만든다."""
+    """경로·git·게이트·반출을 갈아 끼운다. 반출은 대장·파일 지문이 실제로 맞는 작은 폴더다."""
     real = tmp_path / "reports" / "unseal.log"
     dry = tmp_path / "reports" / "dryrun" / "unseal.log"
     monkeypatch.setattr(uh, "log_path_for", lambda dry_run: dry if dry_run else real)
@@ -95,8 +95,9 @@ def 입력넷(tmp: Path, *, dev_last="20240531", hold=("20240603", "20240830")) 
 def 승인인자(tmp: Path, snapshot: Path, 경로: dict, **kw) -> argparse.Namespace:
     cfg = tmp / "final_holdout_model.json"
     if not cfg.exists():
-        cfg.write_text(json.dumps({"stock_combination": "K", "index_up_threshold": 0.3375,
-                                   "schema_version": 1}, ensure_ascii=False), encoding="utf-8")
+        # 실행기 계약의 설정 정본을 그대로 쓴다 — 칸이 모자란 가짜 설정은 실행기가 거부한다
+        cfg.write_text((ROOT / "config" / "final_holdout_model.json").read_text(encoding="utf-8"),
+                       encoding="utf-8")
     base = dict(dry_run=True, snapshot=str(snapshot), run_id="dry-001", config=str(cfg),
                 out=None, **경로)
     base.update(kw)
@@ -179,12 +180,15 @@ def test_authorize_는_실행기_계약_여섯_칸을_쓴다(환경):
     assert set(승인["source_sha256"]) == set(uh.SOURCE_NAMES)
     for n, p in 경로.items():
         assert 승인["source_sha256"][n] == holdout.sha256_file(Path(p))
-    # 설정 지문 — 정렬된 JSON 의 SHA-256 을 따로 계산해 대조한다
+    # 설정 지문 — 실행기 모듈이 있으면 그 계산과, 없으면 정렬된 JSON 의 SHA-256 과 대조한다
     원본 = json.loads(Path(args.config).read_text(encoding="utf-8"))
-    기대 = sha256(json.dumps(원본, ensure_ascii=False, sort_keys=True,
-                           separators=(",", ":")).encode("utf-8")).hexdigest()
     if 승인["config_sha256_method"] == "canonical_json_fallback":
-        assert 승인["config_sha256"] == 기대
+        기대 = sha256(json.dumps(원본, ensure_ascii=False, sort_keys=True,
+                               separators=(",", ":")).encode("utf-8")).hexdigest()
+    else:
+        from models.final_holdout import config_from_dict
+        기대 = config_from_dict(원본).sha256
+    assert 승인["config_sha256"] == 기대
     assert 승인["snapshot_sha256"] == holdout.read_unseal_log(환경["dry"])[0]["snapshot_sha256"]
 
 
@@ -215,6 +219,19 @@ def test_authorize_는_승인을_덮어쓰지_않는다(환경):
     args = 승인인자(tmp, tmp / "sealed" / "snap", 입력넷(tmp))
     assert uh.cmd_authorize(args) == 0
     assert uh.cmd_authorize(args) == 2
+
+
+def test_authorize_는_계약에_안_맞는_설정이면_멈추고_승인을_쓰지_않는다(환경, capsys):
+    """칸이 모자란 설정은 실행기가 거부한다. 트레이스백 대신 할 일을 말하고 승인 파일은 안 쓴다."""
+    pytest.importorskip("models.final_holdout")
+    tmp = 환경["tmp"]
+    assert uh.cmd_open(열기(tmp)) == 0
+    모자란 = tmp / "모자란_설정.json"
+    모자란.write_text(json.dumps({"schema_version": 1}), encoding="utf-8")
+    args = 승인인자(tmp, tmp / "sealed" / "snap", 입력넷(tmp), config=str(모자란))
+    assert uh.cmd_authorize(args) == 1
+    assert "ADR 0009" in capsys.readouterr().out
+    assert not uh.authorization_path_for(True).exists()
 
 
 def test_실행기_계약과_실제로_맞는다(환경):
