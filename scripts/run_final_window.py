@@ -35,6 +35,17 @@ DEFAULT_INDEX_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "index_pri
 DEFAULT_DAILY_PATH = ROOT / "data" / "raw" / "hf_snapshot" / "full" / "daily_price_dev.parquet"
 DEFAULT_CONFIG_PATH = ROOT / "config" / "final_holdout_model.json"
 DEFAULT_UNSEAL_LOG = ROOT / "reports" / "unseal.log"
+DEFAULT_SHARED_OUTPUT_DIR = ROOT / "notebooks" / "04-모델" / "최종결과"
+
+LABEL_NAMES = {-1: "하락", 0: "보합", 1: "상승"}
+SHARED_STOCK_METADATA = (
+    "bas_dd",
+    "code",
+    "name",
+    "industry_index_name",
+    "sector_market_cap_rank",
+    "industry_stock_rank",
+)
 
 DAILY_COLUMNS = (
     "bas_dd",
@@ -108,14 +119,23 @@ def _exclude_corporate_action_samples(candidates: pd.DataFrame) -> pd.DataFrame:
 def _write_outputs(
     output_dir: Path,
     *,
+    shared_output_dir: Path,
     result: FinalHoldoutResult,
+    stock_test: pd.DataFrame,
     window: FinalWindow,
     index_path: Path,
     daily_path: Path,
     unseal_log: Path,
 ) -> None:
-    if output_dir.exists():
-        raise FileExistsError(f"기존 결과를 덮어쓰지 않습니다: {output_dir}")
+    if output_dir.resolve() == shared_output_dir.resolve():
+        raise ValueError("로컬 원본 결과와 팀 공유 결과 디렉터리는 달라야 합니다.")
+    for target in (output_dir, shared_output_dir):
+        if target.exists():
+            raise FileExistsError(f"기존 결과를 덮어쓰지 않습니다: {target}")
+    # 공유 열 계약도 실제 파일을 만들기 전에 검사해 실패 시 반쪽 결과가 남지 않게 한다.
+    shared_rows = _build_shared_stock_rows(result, stock_test)
+    shared_index = _shared_index_result(result.index_predictions)
+
     output_dir.mkdir(parents=True)
     result.index_predictions.to_parquet(output_dir / "index_predictions.parquet", index=False)
     result.stock_predictions.to_parquet(output_dir / "stock_predictions.parquet", index=False)
@@ -151,9 +171,120 @@ def _write_outputs(
             "최종 목표 구간을 사용하는 라벨은 학습에서 제외했다."
         ),
     }
-    (output_dir / "report.json").write_text(
-        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    report_text = json.dumps(report, ensure_ascii=False, indent=2) + "\n"
+    (output_dir / "report.json").write_text(report_text, encoding="utf-8")
+
+    shared_output_dir.mkdir(parents=True)
+    (shared_output_dir / "report.json").write_text(report_text, encoding="utf-8")
+    shared_payload = {
+        "schema_version": 1,
+        "window": report["window"],
+        "index": shared_index,
+        "stocks": shared_rows.to_dict(orient="records"),
+    }
+    (shared_output_dir / "final_signals.json").write_text(
+        json.dumps(shared_payload, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
+    (shared_output_dir / "README.md").write_text(
+        _shared_readme(report, shared_payload, shared_rows), encoding="utf-8"
+    )
+
+
+def _label_name(value: object) -> str:
+    return LABEL_NAMES[int(value)]
+
+
+def _shared_index_result(predictions: pd.DataFrame) -> dict[str, object]:
+    if len(predictions) != 1:
+        raise ValueError("공유 결과의 KOSPI200 예측은 정확히 한 행이어야 합니다.")
+    row = predictions.iloc[0]
+    return {
+        "actual": _label_name(row["actual"]),
+        "prediction": _label_name(row["predicted"]),
+        "p_down": float(row["p_down"]),
+        "p_flat": float(row["p_neutral"]),
+        "p_up": float(row["p_up"]),
+        "hit": "O" if int(row["actual"]) == int(row["predicted"]) else "X",
+    }
+
+
+def _build_shared_stock_rows(
+    result: FinalHoldoutResult,
+    stock_test: pd.DataFrame,
+) -> pd.DataFrame:
+    missing = set(SHARED_STOCK_METADATA) - set(stock_test.columns)
+    if missing:
+        raise ValueError(f"공유 종목표 메타데이터가 없습니다: {sorted(missing)}")
+    metadata = stock_test.loc[:, list(SHARED_STOCK_METADATA)].copy()
+    metadata["code"] = metadata["code"].astype("string")
+    if metadata.duplicated(["bas_dd", "code"]).any():
+        raise ValueError("공유 종목표 메타데이터의 날짜·종목코드가 중복됐습니다.")
+
+    rows = result.combined_predictions.merge(
+        metadata,
+        on=["bas_dd", "code"],
+        how="left",
+        validate="one_to_one",
+    )
+    if rows.loc[:, list(SHARED_STOCK_METADATA[2:])].isna().any().any():
+        raise ValueError("예측 결과와 공유 종목표 메타데이터를 전부 연결하지 못했습니다.")
+    rows = rows.sort_values(
+        ["sector_market_cap_rank", "industry_stock_rank", "code"], kind="stable"
+    )
+    shared = pd.DataFrame(
+        {
+            "sector_rank": rows["sector_market_cap_rank"].astype(int),
+            "industry": rows["industry_index_name"].astype(str),
+            "name": rows["name"].astype(str),
+            "code": rows["code"].astype(str),
+            "industry_market_cap_rank": rows["industry_stock_rank"].astype(int),
+            "stock_prediction": rows["stock_predicted"].map(_label_name),
+            "p_up": rows["p_up"].astype(float),
+            "p_flat": rows["p_neutral"].astype(float),
+            "p_down": rows["p_down"].astype(float),
+            "actual": rows["stock_actual"].map(_label_name),
+            "hit": rows.apply(
+                lambda row: "O"
+                if int(row["stock_actual"]) == int(row["stock_predicted"])
+                else "X",
+                axis=1,
+            ),
+            "buy_candidate": rows["buy_candidate"].map({True: "O", False: "X"}),
+        }
+    )
+    return shared.reset_index(drop=True)
+
+
+def _shared_readme(
+    report: dict[str, object],
+    payload: dict[str, object],
+    rows: pd.DataFrame,
+) -> str:
+    window = report["window"]
+    index = payload["index"]
+    lines = [
+        "# 최종 모델 결과",
+        "",
+        f"- 판단일: `{window['decision_date']}`",
+        f"- 진입일: `{window['entry_date']}`",
+        f"- 청산일: `{window['exit_date']}`",
+        "- KOSPI200 예측/실제/적중: "
+        f"`{index['prediction']}` / `{index['actual']}` / `{index['hit']}`",
+        f"- 매수 후보: `{int((rows['buy_candidate'] == 'O').sum())}`건",
+        "",
+        "| 업종 순위 | 업종 | 종목명·코드 | 업종 내 시총 순위 | 종목 예측 | "
+        "p_up | p_flat | p_down | 실제 결과 | 적중 | 매수 후보 |",
+        "|---:|---|---|---:|---|---:|---:|---:|---|:---:|:---:|",
+    ]
+    for row in rows.itertuples(index=False):
+        lines.append(
+            f"| {row.sector_rank} | {row.industry} | {row.name}·{row.code} | "
+            f"{row.industry_market_cap_rank} | {row.stock_prediction} | "
+            f"{row.p_up:.4f} | {row.p_flat:.4f} | {row.p_down:.4f} | "
+            f"{row.actual} | {row.hit} | {row.buy_candidate} |"
+        )
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
@@ -163,6 +294,7 @@ def main() -> None:
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--unseal-log", type=Path, default=DEFAULT_UNSEAL_LOG)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--shared-output-dir", type=Path, default=DEFAULT_SHARED_OUTPUT_DIR)
     args = parser.parse_args()
 
     require_single_unseal(args.unseal_log)
@@ -217,7 +349,9 @@ def main() -> None:
     result = run_final_holdout(index_train, index_test, stock_train, stock_test, config)
     _write_outputs(
         args.output_dir,
+        shared_output_dir=args.shared_output_dir,
         result=result,
+        stock_test=stock_test,
         window=window,
         index_path=args.index_path,
         daily_path=args.daily_path,
