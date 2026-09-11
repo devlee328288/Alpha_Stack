@@ -27,6 +27,8 @@ def test_평가보고서의_새_1위와_피처가_최종모델_readme에_자동�
     assert "조합 | E + 5Day Return" in first_index
     assert "조합 | K" in first_stock
     assert "scripts/update_final_model_docs.py가 생성합니다" in first_index
+    assert "`atr_ratio`: 14일 평균 실제 변동폭" in first_stock
+    assert "`relative_ret_5_market`: 종목의 5일 수익률" in first_stock
 
     index_path = tmp_path / "reports" / "model_sweep.json"
     index_report = json.loads(index_path.read_text(encoding="utf-8"))
@@ -55,6 +57,7 @@ def test_평가보고서의_새_1위와_피처가_최종모델_readme에_자동�
     assert "조합 | Z" in second_stock
     assert "모델 | RandomForest" in second_stock
     assert "`new_feature`" in second_stock
+    assert "발표 전 의미 설명을 추가해야 함" in second_stock
     assert "결합 출력 보고서는 새 1위 조합과 일치하지 않습니다" in second_stock
 
 
