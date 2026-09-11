@@ -152,6 +152,8 @@ def compare_column(a: pd.Series, b: pd.Series) -> Optional[Dict]:
 
     문자열에서 **빈 문자열과 결측은 다른 것으로 본다.** 실제로 DB 의 빈 소속부가 CSV 를
     거치며 `NaN` 이 되는 일이 있었고, 그걸 같다고 처리하면 그 변화를 영영 못 본다.
+    다만 차이가 **빈 문자열 ↔ 결측뿐**이면 표기 한계로 분류한다. 값이 있던 칸이 결측이 된
+    것(`'보통주'` → 결측)은 CSV 가 만들 수 없는 모양이라 **자료의 변화**다.
     """
     수치 = pd.api.types.is_numeric_dtype(a) and pd.api.types.is_numeric_dtype(b)
     if 수치:
@@ -179,10 +181,16 @@ def compare_column(a: pd.Series, b: pd.Series) -> Optional[Dict]:
         n = int((av != bv).sum())
         if not n:
             return None
-        결측엇갈림 = int((a.isna() ^ b.isna()).sum())
+        a결측 = a.isna().to_numpy(dtype=bool)
+        b결측 = b.isna().to_numpy(dtype=bool)
+        엇갈림 = a결측 ^ b결측
+        결측엇갈림 = int(엇갈림.sum())
         최대ulp = 최대상대 = float("nan")
-        # 결측 엇갈림만 있는 문자열 차이는 CSV 가 빈 칸을 결측으로 읽어서 생긴다
-        표기한계 = 결측엇갈림 == n
+        # CSV 는 빈 칸을 결측으로 읽는다 — 그래서 **빈 문자열 ↔ 결측** 만 표기 한계다.
+        # 🔴 결측 엇갈림이 다 표기는 아니다 — '보통주' → 결측은 CSV 가 못 만든다
+        #    (2026-09-11 · 상장 첫날 주권종류 3,462행이 이 모양인데 ⚪ 로 적혔다).
+        남은값 = np.where(a결측, bv.to_numpy(dtype=object), av.to_numpy(dtype=object))[엇갈림]
+        표기한계 = 결측엇갈림 == n and bool((남은값 == "").all())
     return {"행": n, "결측엇갈림": 결측엇갈림, "최대ulp": 최대ulp,
             "최대상대": 최대상대, "표기한계": 표기한계}
 

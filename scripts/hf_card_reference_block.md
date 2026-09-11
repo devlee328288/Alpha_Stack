@@ -1,5 +1,5 @@
 <!-- reference-block -->
-## 📚 종류별 지도 — 이 저장소에 무엇이 어디 있나 (2026-09-04 갱신)
+## 📚 종류별 지도 — 이 저장소에 무엇이 어디 있나 (2026-09-04 갱신 · 09-11 재무 시점 규칙)
 
 시세만으로는 "이 종목이 무슨 회사인가" 를 알 수 없습니다. 종목코드는 바뀌고, 재무는
 법인 단위로 오고, 거시는 날짜 축이 다릅니다. 그 사이를 잇는 자료를 **종류별 폴더**로
@@ -94,7 +94,7 @@
 | `sj_div` | 재무제표 종류 | `BS`·`IS`·`CIS`·`CF`·`SCE` (5종) |
 | `account_id` · `account_nm` · `account_detail` | 계정 | 🔴 **`account_detail` 이 기본키의 일부입니다** |
 | `thstrm_amount` / `frmtrm_amount` / `bfefrmtrm_amount` | 당기 / 전기 / 전전기 | 결측 7.5% / 8.9% / 11.1% |
-| `rcept_no` · `rcept_dt` | 접수번호 · **접수일** | 🔴 시점 기준은 `rcept_dt` 입니다 |
+| `rcept_no` · `rcept_dt` | 접수번호 · **접수일** | 🔴 쓸 수 있는 날은 접수일 **다음 거래일** — 아래 |
 | `currency` · `ord` · `thstrm_nm` | 통화 · 순서 · 기수 | |
 | `rm` | 비고 | **100% 결측** — 무시하세요 |
 
@@ -104,8 +104,19 @@
 🔴 **커버리지가 338종목입니다.** 전 종목 재무가 아니라 **표본**입니다.
 `daily_price` 의 3,462종에 조인하면 대부분이 빕니다. 전 종목 전제로 설계하지 마세요.
 
-🔴 **시점은 `rcept_dt`(접수일)** 로 봅니다. `bsns_year` 로 자르면 2023년 실적을
-2023년 중에 알았던 것처럼 됩니다 — 실제로는 2024년 3월에 공시됩니다.
+🔴 **시점은 접수일 다음 거래일부터입니다** (2026-09-11 · 저장소 `supply.financial` 과 같은 규칙).
+`rcept_dt` 에는 시각이 없어서, 접수일 행에 붙이면 장 마감 뒤에 접수된 보고서를 그날 알던 것이
+됩니다. `bsns_year` 로 자르면 더 나쁩니다 — 2023년 실적을 2023년 중에 알았던 것처럼 됩니다
+(실제 공시는 2024년 3월).
+
+🔴 **접수일이 정정일인 보고서가 있습니다.** DART 재무 API 는 마지막 정정본을 줍니다 — 우리 DB 의
+사업보고서 3,209건 중 835건(26%)이 `[기재정정]` 입니다. 이 파일의 `report_nm` 은 전부
+"사업보고서" 라 **정정본인지 보이지 않습니다.** 원본 제출일로 당기지 마세요 — 정정된 숫자를
+원본 날짜에 붙이게 됩니다.
+
+🔴 **"가장 최근 보고서" 는 접수일 순이 아니라 `bsns_year` 순으로 고르세요.** 정정본은 옛 해를
+늦게 드러냅니다 — 접수일 순으로 고르면 몇 년 뒤 정정된 옛 사업연도가 최신 사업연도 자리를
+차지합니다. 예외는 안 나고 숫자가 멀쩡하게 붙습니다.
 
 ### `macro/macro_series_dev.parquet` — 15,782행 × 8칸 · 결측 0
 
@@ -247,8 +258,21 @@ snap = ident[ident["known_at"] <= today].sort_values("bas_dd").groupby("code").t
 merged = snap.merge(prof, on="crno", suffixes=("", "_prof"))
 merged = merged[(merged["fst_opeg_dt"] <= today) & (merged["last_opeg_dt"] >= today)]
 
-# DART 재무 붙이기 — 접수일이 지난 것만 (미래를 안 봅니다)
-seen = fin[fin["rcept_dt"] <= today]
+# DART 재무 붙이기 — 접수일 **다음 거래일**부터 봅니다 (저장소 supply.financial 과 같은 규칙)
+import bisect
+days = sorted(cal.loc[cal["market"] == "ALL", "bas_dd"].astype(str).unique())
+
+def next_session(d):                  # 접수일이 휴장일이어도 그 뒤 첫 거래일
+    i = bisect.bisect_right(days, str(d))
+    return days[i] if i < len(days) else None
+
+fin["known_at"] = fin["rcept_dt"].map(next_session)
+seen = fin[fin["known_at"].notna()]
+seen = seen[seen["known_at"] <= today]
+
+# 종목마다 결산이 가장 늦은 보고서 하나 — 접수일 순이 아니다 (아래 🔴)
+last = seen.sort_values(["bsns_year", "rcept_dt"]).groupby("stock_code")["rcept_no"].last()
+report = seen[seen["rcept_no"].isin(last)]
 ```
 
 ### 🔴 조인하기 전에 알아야 할 것 넷
@@ -259,7 +283,8 @@ seen = fin[fin["rcept_dt"] <= today]
    신원 2,694종 · 시세 2,711종 · 교집합 2,573종. 시세에만 138종, 신원에만 121종입니다
    (출처가 포털 vs KRX 로 다릅니다). **어느 쪽을 유니버스로 삼을지 먼저 정하세요.**
 3. **`known_at` 으로 조인하세요.** `bas_dd`·`period` 로 조인하면 그 시점에 알 수 없던
-   정보가 새어 듭니다. 신원은 +1영업일, 거시는 발표 지연이 있습니다.
+   정보가 새어 듭니다. 신원은 +1영업일, 거시는 발표 지연이 있습니다. 재무에는 `known_at`
+   칸이 없으니 위 예시처럼 **접수일 다음 거래일**을 달력으로 계산해 씁니다.
 4. **재무는 338종목뿐입니다.** 조인 후 행이 급감하면 버그가 아니라 커버리지입니다.
 
 ### 홀드아웃
