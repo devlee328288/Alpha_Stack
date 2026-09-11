@@ -134,7 +134,7 @@ def _to_frame(rows: List[dict]) -> pd.DataFrame:
 
 def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
                          db_path=None) -> pd.DataFrame:
-    """시세 표(`bas_dd`·`code` 가 있는 것)에 **그 날의** 주권종류 세 칸을 붙인다.
+    """시세 표(`bas_dd`·`code` 가 있는 것)에 **그 날까지 알 수 있었던** 주권종류 세 칸을 붙인다.
 
     `common_stocks` 가 하루씩 답하는 것을 표 전체에 한 번에 하는 함수다. 반출본은
     788만 행이라 날짜마다 부르면 4,105번 조회가 된다.
@@ -177,34 +177,58 @@ def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
             out[col] = pd.Series([], dtype="object")
         return out
 
-    # 🔴 `as_of` 시점에 알 수 있었던 행만 본다. 오늘 알게 된 주권종류로 2015년을
-    #    판정하면 그게 미래참조다. `known_at` 은 basDd 의 다음 거래일로 적혀 있다.
+    # 🔴 **그 행의 날짜까지 알게 된** 기본정보만 붙인다 (2026-09-11 고침).
+    #
+    #    `known_at` 은 basDd 의 **다음 거래일**이다. 예전에는 같은 날짜로 조인하고
+    #    (`bas_dd = 행`) `as_of` 하나로만 잘랐는데, 그러면 그날 마감 뒤에야 나온 기본정보가
+    #    그날 행에 붙는다 — 반출처럼 `as_of` 를 넉넉히 주는 경로에서 **모든 행이 하루씩
+    #    앞선 정보**를 봤다. 점 조회 `common_stocks` 는 처음부터 `known_by` 로 이 규칙을
+    #    지켰고(`base_info_store.universe_rows`), 붙이기만 어긋나 있었다.
+    #
+    #    그래서 행 T 에는 `known_at <= T` 인 것 중 **가장 최근 basDd** 를 붙인다. 기본정보는
+    #    매 거래일 있으므로 보통 직전 거래일 것이다. 상장 첫날은 직전 기본정보가 없어 빈 칸이다.
     상한 = _known_by(as_of)
-    처음, 끝 = str(out["bas_dd"].min()), str(out["bas_dd"].max())
+    days = out["bas_dd"].astype(str).str.replace("-", "", regex=False)
+    처음, 끝 = days.min(), days.max()
+    # 첫 행이 볼 **직전** 기본정보까지 읽는다. 매 거래일 있으니 40일이면 연휴를 넘기고도 남는다.
+    읽기시작 = (pd.Timestamp(처음) - pd.Timedelta(days=40)).strftime("%Y%m%d")
 
     conn = sqlite3.connect(db_path) if db_path else None
     try:
         if conn is None:
             with krx_store.connect() as c:
-                right = _read_security_type(c, 처음, 끝, 상한)
+                right = _read_security_type(c, 읽기시작, 끝, 상한)
         else:
-            right = _read_security_type(conn, 처음, 끝, 상한)
+            right = _read_security_type(conn, 읽기시작, 끝, 상한)
     finally:
         if conn is not None:
             conn.close()
 
-    left = out[["bas_dd", "code"]].copy()
-    left["bas_dd"] = left["bas_dd"].astype(str)
-    left["code"] = left["code"].astype(str)
-    left["_order"] = range(len(left))
-    merged = left.merge(right, on=["bas_dd", "code"], how="left")
-    # 🔴 기본키가 (bas_dd, code) 라 1:1 이어야 한다. 늘어났다면 저장소가 중복을 물고
-    #    있다는 뜻이고, 그대로 두면 반출본 행 수가 조용히 불어난다.
+    if right.empty:
+        for col in SECURITY_TYPE_COLUMNS:
+            out[col] = pd.Series([None] * len(out), index=out.index, dtype="object")
+        return out
+
+    left = pd.DataFrame({
+        "code": out["code"].astype(str).to_numpy(),
+        "_key": days.astype(int).to_numpy(),
+        "_order": range(len(out)),
+    })
+    right = right.assign(code=right["code"].astype(str),
+                         _key=right["known_at"].astype(str).astype(int))
+    # 🔴 (종목, known_at) 이 겹치면 `merge_asof` 가 어느 행을 붙일지 보장하지 않는다.
+    #    휴장일 basDd 가 섞이면 두 basDd 의 다음 거래일이 같아진다 — 늦은 basDd 하나만 남긴다.
+    right = (right.sort_values(["code", "_key", "bas_dd"])
+                  .drop_duplicates(["code", "_key"], keep="last"))
+    merged = pd.merge_asof(left.sort_values("_key"),
+                           right[["_key", "code", *SECURITY_TYPE_COLUMNS]].sort_values("_key"),
+                           on="_key", by="code", direction="backward",
+                           allow_exact_matches=True)
+    # 🔴 `merge_asof` 는 왼쪽 행 수를 그대로 둔다. 달라졌다면 어딘가 잘못 붙은 것이고,
+    #    그대로 두면 반출본 행 수가 조용히 바뀐다.
     if len(merged) != len(left):
         raise ValueError(
-            f"주권종류 조인이 행을 늘렸다: {len(left):,} → {len(merged):,}. "
-            "stock_base_info 에 (bas_dd, code) 중복이 있다."
-        )
+            f"주권종류를 붙이다 행 수가 바뀌었다: {len(left):,} → {len(merged):,}.")
     merged = merged.sort_values("_order")
     for col in SECURITY_TYPE_COLUMNS:
         out[col] = merged[col].to_numpy()
@@ -212,9 +236,9 @@ def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
 
 
 def _read_security_type(conn, 처음: str, 끝: str, 상한: str) -> pd.DataFrame:
-    """`stock_base_info` 에서 세 칸을 날짜 범위만큼 읽는다."""
+    """`stock_base_info` 에서 세 칸과 `known_at` 을 날짜 범위만큼 읽는다."""
     return pd.read_sql_query(
-        "SELECT bas_dd, code, kind_stkcert_tp_nm, secugrp_nm, sect_tp_nm "
+        "SELECT bas_dd, code, known_at, kind_stkcert_tp_nm, secugrp_nm, sect_tp_nm "
         "FROM stock_base_info "
         "WHERE bas_dd BETWEEN ? AND ? AND known_at <= ?",
         conn, params=(처음, 끝, 상한),

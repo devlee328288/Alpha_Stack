@@ -11,6 +11,15 @@
 
     rows = index_series(as_of="2020-06-30")
 
+중기·장기 원천(재무·거시·공시 텍스트)도 같은 문을 지난다 — 2026-09-11 에 열었다.
+행 T 에 보이는 조건은 셋 다 `known_at <= T` 하나다.
+
+    from supply import attach_financial, attach_macro, attach_text
+
+    panel = attach_financial(prices, as_of="2024-08-31")   # 접수일 다음 거래일 · 정정본은 정정일
+    panel = attach_macro(panel, as_of="2024-08-31")        # 발표된 날부터 · 순환변동치 제외
+    panel = attach_text(panel, as_of="2024-08-31")         # 그날 새로 보인 공시 건수·확률
+
 계층 방향
 --------
     ingest/(수집·저장)  →  supply/(이 문)  →  features/ · models/ · evaluation/
@@ -30,12 +39,29 @@
 """
 
 from supply.clock import (
+    DART_KNOWN_RULE,
     AsOfRequired,
     as_bas_dd,
+    dart_known_at,
     is_known,
     known_at,
     latest_known_day,
+    row_day,
     to_kst,
+)
+from supply.financial import (
+    FINANCIAL_ACCOUNTS,
+    FINANCIAL_COLUMNS,
+    attach_financial,
+    financial_as_of,
+    financial_lines_as_of,
+)
+from supply.macro import (
+    DEFAULT_INDICATORS,
+    REVISED_INDICATORS,
+    attach_macro,
+    macro_as_of,
+    macro_history,
 )
 from supply.market import (
     INDEX_COLUMNS,
@@ -46,6 +72,7 @@ from supply.market import (
     price_series,
     to_frame,
 )
+from supply.text import TEXT_DAILY_COLUMNS, attach_text, text_as_of
 from supply.training import MarketContext, market_context, training_frame, training_frames
 from supply.universe import (
     UNIVERSE_COLUMNS,
@@ -58,11 +85,14 @@ from supply.universe import (
 __all__ = [
     # 시각·경계
     "AsOfRequired",
+    "DART_KNOWN_RULE",
     "as_bas_dd",
     "as_of_bounds",
+    "dart_known_at",
     "is_known",
     "known_at",
     "latest_known_day",
+    "row_day",
     "to_kst",
     # 예측 경로 — as_of 를 내고 그 시점에 알 수 있었던 것만 받는다
     "INDEX_COLUMNS",
@@ -77,6 +107,20 @@ __all__ = [
     "coverage",
     "excluded",
     "top_by_market_cap",
+    # 중기·장기 원천 — 재무(접수일) · 거시(발표일) · 공시 텍스트(접수일)
+    "DEFAULT_INDICATORS",
+    "FINANCIAL_ACCOUNTS",
+    "FINANCIAL_COLUMNS",
+    "REVISED_INDICATORS",
+    "TEXT_DAILY_COLUMNS",
+    "attach_financial",
+    "attach_macro",
+    "attach_text",
+    "financial_as_of",
+    "financial_lines_as_of",
+    "macro_as_of",
+    "macro_history",
+    "text_as_of",
     # 학습 경로 — 여기서만 미래를 본다 (supply/training.py 를 읽고 쓴다)
     "MarketContext",
     "market_context",

@@ -675,7 +675,8 @@ def main() -> int:
             )
         # 🔴 `sector` 는 KRX 소속부다 — KOSPI 는 100% 빈 값이고 KOSDAQ 은 중견기업부·
         #    벤처기업부 같은 것이라 산업 업종이 아니다. 업종은 손으로 받은 업종분류 현황
-        #    스냅샷에서 **그 행의 날짜 이전 가장 최근 것**을 `industry` 로 따로 붙인다.
+        #    스냅샷에서 **그 행의 날짜까지 알게 된 가장 최근 것**을 `industry` 로 따로
+        #    붙인다(2026-09-11 고침 — 스냅샷 당일 행에는 그날 표가 아니라 그 앞 스냅샷).
         #    한 칸에 두 뜻을 섞지 않으려고 `sector` 는 그대로 둔다.
         daily = attach_industry(daily, as_of=오늘_as_of)
 
@@ -740,7 +741,7 @@ def main() -> int:
         snap_days = sorted(daily["industry_bas_dd"].dropna().astype(str).unique().tolist())
         _write_parquet(daily, full / "daily_price_dev.parquet", files,
                        "개발구간 전 종목 시세 · industry = KRX 업종분류 현황 스냅샷을 "
-                       "행 날짜 이전 가장 최근 것으로 붙임 (sector 는 소속부, 다른 뜻)")
+                       "행 날짜까지 알게 된 가장 최근 것으로 붙임 (sector 는 소속부, 다른 뜻)")
         stats["industry"] = {
             "rows_with_industry": industry_rows,
             "rows_total": int(len(daily)),
