@@ -176,6 +176,58 @@ def test_행마다_그_날짜까지_알게_된_가장_최근_스냅샷이_붙고
     assert "sector" not in out.columns
 
 
+def _코드재사용_스냅샷(conn, path, tmp_path):
+    """`036220` — 인포피아가 2016-01-04 스냅샷에 실리고, 코드를 20240313 에 다시 받은 오상헬스케어는
+    2024-07-01 스냅샷에 처음 실린다. 옛 업종과 새 업종을 **일부러 다르게** 둔다 — 실측에서는 둘 다
+    '제약' 이라 틀린 것이 값으로 안 보였다."""
+    달력(conn, "20160104", "20160105", "20160504", "20240102", "20240103",
+         "20240312", "20240313", "20240314", "20240701", "20240702")
+    스냅샷(path, tmp_path, "20160104", {"036220": "제약"})
+    스냅샷(path, tmp_path, "20240102", {"005930": "전기·전자"})
+    스냅샷(path, tmp_path, "20240701", {"036220": "의료·정밀기기", "005930": "전기·전자"})
+    return pd.DataFrame({"bas_dd": ["20160504", "20240313", "20240314", "20240702"],
+                         "code": ["036220"] * 4})
+
+
+def test_코드를_다시_받은_회사는_자기가_실린_스냅샷_전까지_업종이_빈_칸이다(db, tmp_path):
+    """🔴 2026-09-11 에 고친 자리. 실측 `036220` 은 2024-03-13 ~ 07-01 에 2016-01-04 스냅샷의
+    인포피아 업종을 받았다(74행) · 홀드아웃 `101970` 은 187행.
+
+    대조군 — 구간을 나누지 않으면(`restart_days={}`) 뒤 회사의 행에 앞 회사의 스냅샷이 붙는다.
+    """
+    conn, path = db
+    frame = _코드재사용_스냅샷(conn, path, tmp_path)
+
+    out = sector.attach_industry(frame, as_of="2026-09-11", db_path=path,
+                                 restart_days={"036220": ("20240313",)})
+    assert list(out["industry"].fillna("-")) == ["제약", "-", "-", "의료·정밀기기"]
+    assert list(out["industry_bas_dd"].fillna("-")) == ["20160104", "-", "-", "20240701"]
+
+    구간무시 = sector.attach_industry(frame, as_of="2026-09-11", db_path=path, restart_days={})
+    assert list(구간무시["industry_bas_dd"]) == ["20160104", "20160104", "20160104", "20240701"], \
+        "대조: 구간을 나누지 않으면 앞 회사의 스냅샷이 붙는다"
+
+
+def test_구간_시작을_안_주면_DB_의_시세와_상장일로_판정한다(db, tmp_path):
+    """노트북·검증 스크립트처럼 `restart_days` 를 모르는 쪽도 같은 답을 받아야 한다."""
+    conn, path = db
+    frame = _코드재사용_스냅샷(conn, path, tmp_path)
+    conn.executemany("INSERT INTO daily_price (bas_dd, code) VALUES (?, ?)", [
+        ("20160504", "036220"), ("20240313", "036220"), ("20240314", "036220"),
+        ("20240312", "005930"), ("20240313", "005930"),
+    ])
+    conn.executemany(
+        "INSERT INTO stock_base_info (bas_dd, code, list_dd, known_at, known_rule, fetched_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)", [
+            ("20160504", "036220", "20070605", "20160509", "시험", "2026-09-11"),
+            ("20240313", "036220", "20240313", "20240314", "시험", "2026-09-11"),
+        ])
+    conn.commit()
+
+    out = sector.attach_industry(frame, as_of="2026-09-11", db_path=path)
+    assert list(out["industry"].fillna("-")) == ["제약", "-", "-", "의료·정밀기기"]
+
+
 def test_스냅샷이_하나도_없으면_빈_칸으로_돌려준다(db):
     """반출이 업종 때문에 죽어서는 안 된다. 빈 칸은 눈에 띈다."""
     conn, path = db

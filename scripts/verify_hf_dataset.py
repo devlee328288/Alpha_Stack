@@ -64,6 +64,7 @@ from common.corporate_actions import (  # noqa: E402
     flag_series,
     is_traded,
     listing_days_by_code,
+    series_restart_days,
 )
 from supply.adj_quality import flag_adjustment_quality  # noqa: E402
 from supply.sector import attach_industry  # noqa: E402
@@ -361,11 +362,14 @@ def verify_manifest(snap: Path, manifest: Dict) -> bool:
           "index_name": str, "index_class": str, "date": str}
 
 
-def _corporate_action_table(conn) -> pd.DataFrame:
+def _corporate_action_table(conn, *, listing=None) -> pd.DataFrame:
     """기업행위 판정 세 칸을 **전 구간에서 한 번** 만든다.
 
     🔴 `flag_series` 는 그 종목의 전 구간을 요구한다 — 정리매매는 이력의 끝을,
        신규상장은 첫 행을 본다. 연도별 루프 안에서 부르면 해마다 다른 답이 나온다.
+
+    `listing` 은 상장일 표다. 부르는 쪽이 상장 구간 판정(`series_restart_days`)과 **같은 표**를
+    쓰려고 넘긴다 — 만드는 데 약 9초라 두 번 만들지 않는다.
     """
     calendar = [r[0] for r in conn.execute(
         "SELECT DISTINCT bas_dd FROM daily_price ORDER BY bas_dd")]
@@ -373,7 +377,8 @@ def _corporate_action_table(conn) -> pd.DataFrame:
     listed = {r[0] for r in conn.execute(
         "SELECT code FROM daily_price WHERE bas_dd = ?", (calendar[-1],))}
     # 코드 재사용으로 시계열이 끊긴 자리를 판정하려면 상장일이 필요하다 (이슈 #195).
-    listing = listing_days_by_code(conn)
+    if listing is None:
+        listing = listing_days_by_code(conn)
 
     df = pd.read_sql_query(
         "SELECT bas_dd, code, open, high, low, volume, listed_shares "
@@ -435,7 +440,7 @@ def _quality_table(conn, dev_end: str, ca: pd.DataFrame) -> pd.DataFrame:
 
 
 def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
-                           quality: pd.DataFrame) -> pd.DataFrame:
+                           quality: pd.DataFrame, *, restart_days=None) -> pd.DataFrame:
     """반출이 붙이는 **파생 칸을 판정기도 똑같이 붙인다.**
 
     🔴 이 함수가 없으면 반출이 칸을 늘릴 때마다 "칸 구성이 다르다" 로 영원히 붉다.
@@ -461,8 +466,13 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
     🔴 종목의 **다른 행을 보는 판정**(품질 4칸 · 기업행위 3칸)은 여기서 계산하지 않고
        전 구간에서 한 번 만든 표를 받아 붙인다. 연도로 잘라 계산하면 경계에서 답이
        달라진다 — 기업행위는 09-08 에, 품질은 09-09 에 각각 겪었다(`_quality_table`).
+
+    🔴 업종·주권종류는 반출과 **같은 함수**라 **같은 잘못도 공유한다** — 그 함수가 틀리면 이
+       대조는 초록이다. 2026-09-11 에 코드 재사용(`036220`)의 업종 74행이 그렇게 숨었다. 두
+       함수가 옳은지는 이 대조가 아니라 시험과 따로 잰 실측으로 확인한다. `restart_days` 는
+       반출과 같은 상장 구간 표를 넘기는 자리다 — 안 넘기면 연도마다 DB 에서 다시 만든다.
     """
-    out = attach_industry(db, as_of=오늘_as_of())
+    out = attach_industry(db, as_of=오늘_as_of(), restart_days=restart_days)
 
     n = len(out)
     out = out.merge(quality, on=["bas_dd", "code"], how="left", validate="one_to_one")
@@ -475,7 +485,7 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
     #    반출 쪽 `attach_security_type` 을 "그 행의 날짜까지 알게 된 기본정보" 로 고치면서,
     #    이 자리가 옛 규칙(하루 앞선 정보)으로 남아 반출과 판정기가 갈라질 뻔했다.
     #    위 설명의 "한 함수에 모은다" 를 주권종류에도 지킨다.
-    out = attach_security_type(out, as_of=오늘_as_of())
+    out = attach_security_type(out, as_of=오늘_as_of(), restart_days=restart_days)
 
     out = out.merge(ca, on=["bas_dd", "code"], how="left")
     for c in CORPORATE_ACTION_COLUMNS:
@@ -512,8 +522,14 @@ def compare_raw(snap: Path, dev_end: str) -> bool:
     t0 = time.time()
     print("  기업행위 판정 준비 중… (전 구간 1회)")
     with ro_connect() as conn0:
-        ca_table = _corporate_action_table(conn0)
-    print(f"  기업행위 판정 {len(ca_table):,}행 · {time.time() - t0:.0f}초")
+        # 상장일 표는 약 9초라 한 번만 만든다. 기업행위 판정과 상장 구간 판정이 **같은 표**를
+        # 써야 반출(`MarketContext` 하나)과 같은 조건이다.
+        listing = listing_days_by_code(conn0)
+        ca_table = _corporate_action_table(conn0, listing=listing)
+        restart_days = series_restart_days(conn0, listing_days=listing)
+    보이는시작 = sum(1 for v in restart_days.values() for d in v if d <= dev_end)
+    print(f"  기업행위 판정 {len(ca_table):,}행 · 상장 구간 시작 {보이는시작}곳 (≤ {dev_end}) "
+          f"· {time.time() - t0:.0f}초")
     t0 = time.time()
     print("  품질 판정 준비 중… (전 구간 1회 · 반출과 같은 입력)")
     with ro_connect() as conn0:

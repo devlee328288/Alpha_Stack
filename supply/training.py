@@ -99,7 +99,11 @@ class MarketContext:
 
 
 def market_context() -> MarketContext:
-    """`MarketContext` 를 한 번 만든다. 실측 약 1초(920만 행 · 4,097거래일)."""
+    """`MarketContext` 를 한 번 만든다.
+
+    실측 2026-09-11 — 거래일 달력 0.72초(4,105거래일) + 상장일 표 약 9초(`stock_base_info`
+    923만 행 · `listing_days_by_code`). 예전 설명의 "약 1초" 는 상장일 표가 들어오기 전 값이다.
+    """
     with krx_store.connect() as conn:
         index, last_index = market_calendar_index(conn)
         last_day = conn.execute("SELECT MAX(bas_dd) FROM daily_price").fetchone()[0]

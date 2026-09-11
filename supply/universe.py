@@ -35,6 +35,7 @@ import pandas as pd
 
 from ingest.store import base_info_store, krx_store
 from supply.clock import AsOf, as_bas_dd, latest_known_day, to_kst
+from supply.listing_segment import restart_days_from_db, segment_numbers
 
 #: 후보 표가 내는 칸. 부르는 쪽이 이 이름에 기대므로 함부로 바꾸지 않는다.
 UNIVERSE_COLUMNS = (
@@ -133,11 +134,22 @@ def _to_frame(rows: List[dict]) -> pd.DataFrame:
 
 
 def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
-                         db_path=None) -> pd.DataFrame:
+                         db_path=None, restart_days=None) -> pd.DataFrame:
     """시세 표(`bas_dd`·`code` 가 있는 것)에 **그 날까지 알 수 있었던** 주권종류 세 칸을 붙인다.
 
     `common_stocks` 가 하루씩 답하는 것을 표 전체에 한 번에 하는 함수다. 반출본은
     788만 행이라 날짜마다 부르면 4,105번 조회가 된다.
+
+    ## 🔴 상장 구간을 건너지 않는다 (2026-09-11 고침)
+
+    코드를 다시 받은 회사의 상장 첫날에 **앞 회사의 마지막 기본정보**가 붙어 있었다 —
+    `036220` 오상헬스케어 20240313 에 2016-05-04 인포피아의 기록. 가장 최근 기록을 얼마나
+    오래됐든 가져왔기 때문이다. 이제 행과 **같은 상장 구간**의 기록만 붙고
+    (`supply.listing_segment`), 그 날은 다른 신규상장 첫날처럼 빈 칸이다.
+
+    `restart_days` 는 `종목 → 구간 시작일들` 표(`common.corporate_actions.series_restart_days`)다.
+    안 주면 DB 에서 만든다(약 9초). 반출처럼 이미 가진 쪽은 넘긴다. `{}` 는 *"코드 재사용이
+    없다"* 는 뜻이라 구간을 나누지 않는다.
 
     ## 왜 이름 규칙을 대신할 수 있나
 
@@ -209,20 +221,32 @@ def attach_security_type(frame: pd.DataFrame, *, as_of: AsOf,
             out[col] = pd.Series([None] * len(out), index=out.index, dtype="object")
         return out
 
+    # 🔴 **상장 구간을 건너지 않는다** (2026-09-11 고침). 코드를 다시 받은 회사의 행에 앞 회사의
+    #    기본정보가 붙지 않도록 (종목, 구간번호) 로 건다 — `supply.listing_segment`.
+    #    이게 없을 때는 위 40일 창이 답을 갈랐다. 표를 연도로 잘라 넘기면 옛 기록이 창 밖이라
+    #    빈 칸이고, 통째로 넘기면 옛 기록이 붙었다 — 판정기와 반출본이 036220 상장일 1행에서
+    #    어긋난 이유다.
+    if restart_days is None:
+        restart_days = restart_days_from_db(db_path)
+
     left = pd.DataFrame({
         "code": out["code"].astype(str).to_numpy(),
         "_key": days.astype(int).to_numpy(),
+        "_seg": segment_numbers(out["code"], days, restart_days),
         "_order": range(len(out)),
     })
     right = right.assign(code=right["code"].astype(str),
                          _key=right["known_at"].astype(str).astype(int))
-    # 🔴 (종목, known_at) 이 겹치면 `merge_asof` 가 어느 행을 붙일지 보장하지 않는다.
+    # 기록은 자기 날짜(bas_dd)로 구간을 센다 — 상장일보다 앞선 기본정보는 전 종목 0행이다.
+    right["_seg"] = segment_numbers(right["code"], right["bas_dd"], restart_days)
+    # 🔴 (종목, 구간, known_at) 이 겹치면 `merge_asof` 가 어느 행을 붙일지 보장하지 않는다.
     #    휴장일 basDd 가 섞이면 두 basDd 의 다음 거래일이 같아진다 — 늦은 basDd 하나만 남긴다.
-    right = (right.sort_values(["code", "_key", "bas_dd"])
-                  .drop_duplicates(["code", "_key"], keep="last"))
+    right = (right.sort_values(["code", "_seg", "_key", "bas_dd"])
+                  .drop_duplicates(["code", "_seg", "_key"], keep="last"))
     merged = pd.merge_asof(left.sort_values("_key"),
-                           right[["_key", "code", *SECURITY_TYPE_COLUMNS]].sort_values("_key"),
-                           on="_key", by="code", direction="backward",
+                           right[["_key", "code", "_seg", *SECURITY_TYPE_COLUMNS]]
+                           .sort_values("_key"),
+                           on="_key", by=["code", "_seg"], direction="backward",
                            allow_exact_matches=True)
     # 🔴 `merge_asof` 는 왼쪽 행 수를 그대로 둔다. 달라졌다면 어딘가 잘못 붙은 것이고,
     #    그대로 두면 반출본 행 수가 조용히 바뀐다.

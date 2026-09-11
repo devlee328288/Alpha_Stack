@@ -36,9 +36,14 @@ from supply.universe import SECURITY_TYPE_COLUMNS, attach_security_type
 
 @pytest.fixture
 def 기본정보DB(tmp_path):
-    """`stock_base_info` 만 있는 작은 DB. `known_at` 은 basDd 의 **다음 거래일**이다.
+    """`stock_base_info` 와 빈 `daily_price` 가 있는 작은 DB.
+
+    `known_at` 은 basDd 의 **다음 거래일**이다.
 
     20200102(목) 의 다음 거래일은 20200103(금), 20200103 의 다음 거래일은 20200106(월)이다.
+
+    `list_dd` 칸과 `daily_price` 표는 상장 구간 판정(`series_restart_days`)이 읽는다. 이
+    픽스처에는 코드 재사용이 없어 둘 다 비워 둔다 — 재사용 자리는 아래 `코드재사용DB` 가 본다.
     """
     경로 = tmp_path / "base.db"
     conn = sqlite3.connect(경로)
@@ -46,12 +51,14 @@ def 기본정보DB(tmp_path):
         """
         CREATE TABLE stock_base_info (
             bas_dd TEXT, code TEXT, kind_stkcert_tp_nm TEXT,
-            secugrp_nm TEXT, sect_tp_nm TEXT, known_at TEXT
+            secugrp_nm TEXT, sect_tp_nm TEXT, known_at TEXT, list_dd TEXT
         );
+        CREATE TABLE daily_price (bas_dd TEXT, code TEXT);
         """
     )
     conn.executemany(
-        "INSERT INTO stock_base_info VALUES (?,?,?,?,?,?)",
+        "INSERT INTO stock_base_info (bas_dd, code, kind_stkcert_tp_nm, secugrp_nm, "
+        "sect_tp_nm, known_at) VALUES (?,?,?,?,?,?)",
         [
             # 이름이 '우' 로 끝나는 **보통주** — 옛 이름 규칙이 잘못 뺐던 종목
             ("20200102", "006800", "보통주", "주권", "", "20200103"),
@@ -191,6 +198,78 @@ def test_상장_첫날은_빈_칸이고_다음_거래일부터_붙는다(기본�
                                as_of="2026-09-09", db_path=str(기본정보DB))
     assert pd.isna(out["kind_stkcert_tp_nm"].iloc[0])
     assert out["kind_stkcert_tp_nm"].iloc[1] == "보통주"
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# ④′ 코드를 다시 받은 회사 — 앞 회사의 기본정보는 건너오지 않는다
+# ══════════════════════════════════════════════════════════════════════════
+@pytest.fixture
+def 코드재사용DB(tmp_path):
+    """`036220` — 인포피아(~20160504)의 코드를 오상헬스케어가 20240313 에 다시 받은 모양.
+
+    옛 회사와 새 회사의 소속부를 **일부러 다르게** 둔다. 실측에서는 붙은 옛 값('보통주')이
+    새 회사 값과 같아 틀린 것이 안 보였다 — 시험이 그 우연에 기대지 않게 한다.
+    `005930` 은 20240312 를 채워 2016 과 2024 사이를 거래일 공백으로 만든다.
+    """
+    경로 = tmp_path / "reuse.db"
+    conn = sqlite3.connect(경로)
+    conn.executescript(
+        """
+        CREATE TABLE stock_base_info (
+            bas_dd TEXT, code TEXT, kind_stkcert_tp_nm TEXT,
+            secugrp_nm TEXT, sect_tp_nm TEXT, known_at TEXT, list_dd TEXT
+        );
+        CREATE TABLE daily_price (bas_dd TEXT, code TEXT);
+        """
+    )
+    conn.executemany("INSERT INTO daily_price VALUES (?, ?)", [
+        ("20160503", "036220"), ("20160504", "036220"),
+        ("20240313", "036220"), ("20240314", "036220"),
+        *[(d, "005930") for d in ("20160503", "20160504", "20240312", "20240313", "20240314")],
+    ])
+    conn.executemany("INSERT INTO stock_base_info VALUES (?,?,?,?,?,?,?)", [
+        ("20160503", "036220", "보통주", "주권", "투자주의환기종목", "20160504", "20070605"),
+        ("20160504", "036220", "보통주", "주권", "투자주의환기종목", "20160509", "20070605"),
+        ("20240313", "036220", "보통주", "주권", "중견기업부", "20240314", "20240313"),
+    ])
+    conn.commit()
+    conn.close()
+    return 경로
+
+
+def test_코드를_다시_받은_회사의_상장일에는_앞_회사의_기본정보가_붙지_않는다(코드재사용DB):
+    """🔴 2026-09-11 에 고친 자리. 실측 `036220` 20240313 에 2016-05-04 인포피아의 기록이 붙었다.
+
+    상장일은 다른 신규상장 첫날처럼 빈 칸이고, 다음 거래일부터 새 회사 기록이 붙는다.
+    대조군 — 구간을 나누지 않으면(`restart_days={}`) 상장일에 앞 회사의 소속부가 붙는다.
+    """
+    frame = _시세(("20160504", "036220"), ("20240313", "036220"), ("20240314", "036220"))
+
+    out = attach_security_type(frame, as_of="2026-09-11", db_path=str(코드재사용DB))
+    assert list(out["sect_tp_nm"].fillna("-")) == ["투자주의환기종목", "-", "중견기업부"]
+
+    구간무시 = attach_security_type(frame, as_of="2026-09-11", db_path=str(코드재사용DB),
+                                    restart_days={})
+    assert list(구간무시["sect_tp_nm"]) == ["투자주의환기종목", "투자주의환기종목", "중견기업부"], \
+        "대조: 구간을 나누지 않으면 상장일에 앞 회사의 기록이 붙는다"
+
+
+def test_표를_어디서_잘라_넘겨도_상장일의_답이_같다(코드재사용DB):
+    """고치기 전에는 기본정보를 40일만 거슬러 읽는 창이 답을 갈랐다.
+
+    판정기는 연도로 잘라 넘겨 옛 기록이 창 밖이었고(빈 칸), 반출은 통째로 넘겨 옛 기록이
+    붙었다 — 둘이 `036220` 상장일 1행에서 어긋난 이유다. 대조군으로 그 어긋남을 다시 만든다.
+    """
+    통째 = _시세(("20160504", "036220"), ("20240313", "036220"))
+    잘라 = _시세(("20240313", "036220"))
+
+    def 상장일(frame, **kw):
+        out = attach_security_type(frame, as_of="2026-09-11", db_path=str(코드재사용DB), **kw)
+        return out.loc[out["bas_dd"] == "20240313", "sect_tp_nm"].iloc[0]
+
+    assert pd.isna(상장일(통째)) and pd.isna(상장일(잘라))
+    assert 상장일(통째, restart_days={}) == "투자주의환기종목", "대조: 통째로 넘기면 붙었다"
+    assert pd.isna(상장일(잘라, restart_days={})), "대조: 잘라 넘기면 창 밖이라 빈 칸이었다"
 
 
 # ══════════════════════════════════════════════════════════════════════════
