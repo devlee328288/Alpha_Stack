@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-09-11T07:26:01.826891+00:00",
+  "mode": "official",
+  "run_id": "final-holdout-20260911",
+  "holdout_start": "20240901",
+  "config_sha256": "5299a08f4107bde9000331f421ea473ae71d734ccd61488638d7f405ac92be2e",
+  "source": {
+    "index_dev": {
+      "path": "data\\sealed\\official_inputs_20260911_final\\index_dev.parquet",
+      "sha256": "49a4cc23fe083e88818ec6e75753cfedfb49b5abd22e5df2717fa6f9f97d20ce"
+    },
+    "index_holdout": {
+      "path": "data\\sealed\\official_inputs_20260911_final\\index_holdout.parquet",
+      "sha256": "cbbe6fdb5e309d428e775e0f64a5b4fa5b3d38c0803a764f8d6bbe6eb87cbc06"
+    },
+    "stock_dev": {
+      "path": "data\\sealed\\official_inputs_20260911_final\\stock_dev.parquet",
+      "sha256": "0070feeff43faccd7b22c0a2aa15f1a1b134514fd58988c3b2ee1f80803dc826"
+    },
+    "stock_holdout": {
+      "path": "data\\sealed\\official_inputs_20260911_final\\stock_holdout.parquet",
+      "sha256": "399793379ed2b74aebe79a452663a73871a90eee179e214a7dc02019ac8e284c"
+    }
+  },
+  "models": {
+    "index": "C LogisticRegression",
+    "stock": "K LogisticRegression"
+  },
+  "rows": {
+    "index": 478,
+    "stock": 23567,
+    "combined": 23567,
+    "buy_candidates": 7397
+  },
+  "metrics": {
+    "index": {
+      "accuracy": 0.4330543933054393,
+      "macro_f1": 0.31255062144115425,
+      "down_recall": 0.10869565217391304,
+      "core_harmonic_mean": 0.20396146931729942,
+      "balanced_accuracy": 0.3285189332197474,
+      "mcc": -0.011362528308995165,
+      "pr_auc_down": 0.2789975287301176,
+      "pr_auc_neutral": 0.2318193633749746,
+      "pr_auc_up": 0.5725843464282622,
+      "pr_auc_macro_ovr": 0.36113374617778476,
+      "confusion_matrix": {
+        "down": {
+          "down": 15,
+          "neutral": 19,
+          "up": 104
+        },
+        "neutral": {
+          "down": 18,
+          "neutral": 16,
+          "up": 45
+        },
+        "up": {
+          "down": 25,
+          "neutral": 60,
+          "up": 176
+        }
+      }
+    },
+    "stock": {
+      "accuracy": 0.38070182882844655,
+      "macro_f1": 0.3739982810624,
+      "down_recall": 0.4497991967871486,
+      "core_harmonic_mean": 0.39873728073619547,
+      "balanced_accuracy": 0.37412057746438787,
+      "mcc": 0.05853441298341414,
+      "pr_auc_down": 0.4018259557975986,
+      "pr_auc_neutral": 0.3715598223235626,
+      "pr_auc_up": 0.39061456703153774,
+      "pr_auc_macro_ovr": 0.38800011505089965,
+      "confusion_matrix": {
+        "down": {
+          "down": 3696,
+          "neutral": 1335,
+          "up": 3186
+        },
+        "neutral": {
+          "down": 2593,
+          "neutral": 1856,
+          "up": 2287
+        },
+        "up": {
+          "down": 3741,
+          "neutral": 1453,
+          "up": 3420
+        }
+      }
+    }
+  },
+  "note": "결과를 본 뒤 모델·피처·임계값을 다시 선택하지 않는다."
+}
