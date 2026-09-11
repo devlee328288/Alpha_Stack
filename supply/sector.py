@@ -11,12 +11,17 @@
 제10조 ② 가 자동화 수집을 금지하므로 **사람이 화면에서 내려받은 스냅샷**을 반입 엔진으로
 들이고(`kind="sector"`), 여기서 시점 규칙을 걸어 내준다.
 
-## 스냅샷은 드문드문 있다 — 그래서 "그날 이전 가장 최근 것"
+## 스냅샷은 드문드문 있다 — 그래서 "그날까지 알게 된 가장 최근 것"
 
 연 1회(매년 첫 거래일) + 2024-07-01(체계 개편일) 로 18장이다. 날짜 `d` 의 업종은
-**`d` 이전 가장 최근 스냅샷**에서 읽는다. 업종 소속은 잘 안 바뀌어 최대 1년 지연을
-감수한다. 그 대신 **뒤의 스냅샷을 앞으로 당겨 쓰는 일은 없다** — 2026년 분류로 2015년을
-판정하면 미래참조이고 에러는 나지 않는다. `as_of` 가 그것을 막는다.
+**`d` 까지 알게 된(`known_at <= d`) 가장 최근 스냅샷**에서 읽는다. 업종 소속은 잘 안
+바뀌어 최대 1년 지연을 감수한다. 그 대신 **뒤의 스냅샷을 앞으로 당겨 쓰는 일은 없다** —
+2026년 분류로 2015년을 판정하면 미래참조이고 에러는 나지 않는다.
+
+🔴 2026-09-11 까지는 스냅샷 **날짜**(`bas_dd <= d`)로 잘랐다. 스냅샷은 그날 마감 뒤에 나오므로
+   (`known_at` = 다음 거래일) 스냅샷 당일 행이 그날 표를 하루 먼저 봤다 — 실측 40,857행 중
+   새 정보 5,300행. `as_of` 하나로는 이것이 막히지 않는다. `as_of` 는 *"지금 어디에 서
+   있나"* 이고, 행마다의 경계는 **그 행의 날짜**다.
 
 ## 이름이 `index_price` 와 어긋나는 셋
 
@@ -32,7 +37,7 @@ import pandas as pd
 
 from common.trading_calendar import CalendarOutOfRange, next_session
 from ingest.inbox import store as inbox_store
-from supply.clock import AsOf, latest_known_day
+from supply.clock import AsOf, as_bas_dd, latest_known_day
 
 #: 반입 규격 이름 (`ingest/inbox/schemas/sector.json`).
 SECTOR_KIND = "sector"
@@ -182,16 +187,23 @@ def industry_as_of(bas_dd: str, *, as_of: AsOf, market: Optional[str] = None,
 
     칸: code · industry · industry_bas_dd · industry_known_at · industry_ambiguous.
 
-    `bas_dd` 이전 가장 최근 스냅샷 **하나**를 통째로 준다. 스냅샷이 아직 없는 구간이면
-    빈 표(칸은 있다). 빈 표는 오류가 아니라 *"그때는 몰랐다"* 다.
+    **그 행의 날짜까지 알게 된**(`known_at <= bas_dd`) 스냅샷 중 가장 최근 **하나**를 통째로
+    준다. 스냅샷이 아직 없는 구간이면 빈 표(칸은 있다). 빈 표는 오류가 아니라
+    *"그때는 몰랐다"* 다.
+
+    🔴 스냅샷 **날짜**로 자르지 않는다 (2026-09-11 고침). `known_at` 은 스냅샷 날짜의 다음
+       거래일이라, 날짜로 자르면 스냅샷 당일 행에 그날 마감 뒤에야 나온 표가 붙는다. `as_of`
+       를 넉넉히 주는 학습·반출 경로에서만 드러났다 — 실측 스냅샷 당일 40,857행 전부가
+       그랬고, 그중 5,300행(처음 실림 3,630 · 업종 바뀜 1,670)이 새 정보를 하루 먼저 봤다.
 
     종목마다 **한 행**이다 — 원본이 한 종목을 업종 둘에 실었으면 `resolve_duplicates`
     가 규칙으로 하나를 고르고 `industry_ambiguous` 에 참을 남긴다.
     """
+    바스 = as_bas_dd(bas_dd)
     snaps = _usable(snapshots(db_path=db_path), as_of)
     if market:
         snaps = snaps[snaps["market"] == market]
-    snaps = snaps[snaps["bas_dd"] <= str(bas_dd)]
+    snaps = snaps[snaps["known_at"] <= 바스]
     if snaps.empty:
         return pd.DataFrame(columns=["code", *INDUSTRY_COLUMNS])
     최근 = snaps["bas_dd"].max()
@@ -208,9 +220,10 @@ def industry_as_of(bas_dd: str, *, as_of: AsOf, market: Optional[str] = None,
 def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.DataFrame:
     """시세 표(`bas_dd`·`code` 가 있는 것)에 업종 네 칸을 붙인다.
 
-    행마다 **그 행의 `bas_dd` 이전 가장 최근 스냅샷**을 종목별로 찾는다
-    (`merge_asof(direction="backward")`). 스냅샷이 하나도 없으면 세 칸을 비워서 돌려준다 —
-    반출이 업종 때문에 죽어서는 안 되고, 빈 칸은 눈에 띈다.
+    행마다 **그 행의 날짜까지 알게 된 가장 최근 스냅샷**을 종목별로 찾는다
+    (`merge_asof(direction="backward")`). 붙이는 열쇠는 스냅샷 날짜가 아니라 `known_at` 이다 —
+    2026-09-11 고침, 이유는 `industry_as_of` 설명에 있다. 스냅샷이 하나도 없으면 네 칸을
+    비워서 돌려준다 — 반출이 업종 때문에 죽어서는 안 되고, 빈 칸은 눈에 띈다.
 
     ⚠️ 입력 순서를 보존한다. `merge_asof` 는 정렬을 요구하므로 안에서 정렬했다가 되돌린다.
     """
@@ -225,7 +238,7 @@ def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.Dat
             out[col] = pd.Series([None] * len(out), index=out.index, dtype="object")
         return out
 
-    # 🔴 `merge_asof` 는 오른쪽에 (종목, 날짜) 가 겹치면 **어느 행이 붙을지 보장하지 않는다.**
+    # 🔴 `merge_asof` 는 오른쪽에 (종목, 열쇠) 가 겹치면 **어느 행이 붙을지 보장하지 않는다.**
     #    스냅샷마다 하나로 줄여 두어야 몇 번을 돌려도 같은 업종이 붙는다.
     #    (`resolve_duplicates` 가 날짜별로 세므로 표를 통째로 넘겨도 날짜가 섞이지 않는다.)
     snaps = resolve_duplicates(snaps)
@@ -234,12 +247,19 @@ def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.Dat
         "ambiguous": "industry_ambiguous",
     })[["code", "industry_bas_dd", "industry", "industry_known_at",
         "industry_ambiguous"]].copy()
+    right["code"] = right["code"].astype(str)
     # `merge_asof` 는 `on` 키가 숫자·시각이어야 한다 — YYYYMMDD 문자열은 거부한다.
     # 정수로 바꿔도 순서는 같다(자릿수가 고정된 날짜라서).
-    right["_key"] = right["industry_bas_dd"].astype(str).astype(int)
+    # 🔴 열쇠는 `industry_known_at` 이다. `industry_bas_dd` 로 걸면 스냅샷 당일 행에 그날
+    #    마감 뒤에 나온 표가 붙는다.
+    right["_key"] = right["industry_known_at"].astype(str).astype(int)
+    # 휴장일 스냅샷이 섞이면 두 스냅샷의 다음 거래일(열쇠)이 같아진다 — 늦은 스냅샷 하나만.
+    right = (right.sort_values(["code", "_key", "industry_bas_dd"])
+                  .drop_duplicates(["code", "_key"], keep="last"))
 
     left = out[["bas_dd", "code"]].copy()
-    left["_key"] = left["bas_dd"].astype(str).astype(int)
+    left["_key"] = left["bas_dd"].astype(str).str.replace("-", "", regex=False).astype(int)
+    left["code"] = left["code"].astype(str)
     left["_order"] = range(len(left))
     left = left.sort_values(["_key", "code"])
     right = right.sort_values(["_key", "code"])

@@ -68,6 +68,7 @@ from common.corporate_actions import (  # noqa: E402
 from supply.adj_quality import flag_adjustment_quality  # noqa: E402
 from supply.sector import attach_industry  # noqa: E402
 from supply.training import CORPORATE_ACTION_COLUMNS  # noqa: E402
+from supply.universe import attach_security_type  # noqa: E402
 
 
 def 오늘_as_of() -> str:
@@ -439,7 +440,7 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
 
         업종 4칸      attach_industry            supply/sector.py
         품질 4칸      flag_adjustment_quality    supply/adj_quality.py   ← `quality` 로 받는다
-        주권종류 3칸  stock_base_info 조인       supply/universe.py
+        주권종류 3칸  attach_security_type       supply/universe.py
         기업행위 3칸  flag_series                common/corporate_actions.py ← `ca` 로 받는다
 
     ⚠️ **총수익 3칸(`adj_close_tr`·`adj_dividend`·`is_dividend_suspect`)은 여기 없다.**
@@ -462,12 +463,11 @@ def _attach_export_derived(db: pd.DataFrame, conn, ca: pd.DataFrame,
     for c in ("is_adj_suspect", "is_extreme_return"):
         out[c] = out[c].astype(bool)
 
-    lo, hi = str(out["bas_dd"].min()), str(out["bas_dd"].max())
-    base = pd.read_sql_query(
-        "SELECT bas_dd, code, kind_stkcert_tp_nm, secugrp_nm, sect_tp_nm "
-        "FROM stock_base_info WHERE bas_dd BETWEEN ? AND ?",
-        conn, params=(lo, hi))
-    out = out.merge(base, on=["bas_dd", "code"], how="left")
+    # 🔴 반출과 **같은 함수**로 붙인다. 예전에는 여기서 같은 날짜로 따로 조인했다. 09-11 에
+    #    반출 쪽 `attach_security_type` 을 "그 행의 날짜까지 알게 된 기본정보" 로 고치면서,
+    #    이 자리가 옛 규칙(하루 앞선 정보)으로 남아 반출과 판정기가 갈라질 뻔했다.
+    #    위 설명의 "한 함수에 모은다" 를 주권종류에도 지킨다.
+    out = attach_security_type(out, as_of=오늘_as_of())
 
     out = out.merge(ca, on=["bas_dd", "code"], how="left")
     for c in CORPORATE_ACTION_COLUMNS:
