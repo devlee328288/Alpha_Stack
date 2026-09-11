@@ -72,7 +72,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import pandas as pd
 
 from common.paths import krx_db_path
-from supply.clock import AsOf, as_bas_dd, dart_known_at, latest_known_day, to_kst
+from supply.clock import AsOf, as_bas_dd, dart_known_at, latest_known_day, row_day, to_kst
 
 #: 보고서 코드 → 같은 사업연도 안의 결산 순서. 1분기 < 반기 < 3분기 < 사업보고서.
 #: 지금 DB 에는 사업보고서(11011)만 있지만, 분기를 들여도 "가장 최근" 이 흔들리지 않게 둔다.
@@ -141,24 +141,6 @@ def _connect(db_path=None) -> sqlite3.Connection:
 def _empty(columns: Sequence[str]) -> pd.DataFrame:
     """빈 표에도 칸을 남긴다 — 칸이 없으면 부르는 쪽의 `df["fin_revenue"]` 가 KeyError 로 터진다."""
     return pd.DataFrame({c: pd.Series(dtype="object") for c in columns})
-
-
-def _row_day(bas_dd: AsOf, as_of: AsOf) -> str:
-    """행의 거래일을 `YYYYMMDD` 로 맞추고, `as_of` 시점에 아직 오지 않은 날이면 세운다.
-
-    🔴 빈 표를 주지 않고 세우는 이유 — 빈 표는 *"그날 재무가 없었다"* 로 읽힌다.
-    """
-    바스 = as_bas_dd(bas_dd)
-    if 바스 is None:
-        raise ValueError(f"bas_dd 를 읽을 수 없다: {bas_dd!r}")
-    상한 = latest_known_day(as_of)
-    if 바스 > 상한:
-        raise ValueError(
-            f"{바스} 는 as_of({to_kst(as_of).date()}) 시점에 아직 오지 않은 거래일이다.\n"
-            f"  그때 알 수 있었던 가장 최근 거래일: {상한}\n"
-            "  할 일: bas_dd 를 그 이하로 주거나, as_of 를 뒤로 옮긴다."
-        )
-    return 바스
 
 
 def _normalize_codes(codes: Optional[Iterable[str]]) -> Optional[List[str]]:
@@ -392,7 +374,7 @@ def financial_as_of(bas_dd: AsOf, *, as_of: AsOf, codes: Optional[Iterable[str]]
     칸: `code` + `FINANCIAL_COLUMNS`(메타 9 · 계정 9). 그날까지 보고서가 하나도 안 보이는
     종목은 행이 없다. 빈 표는 오류가 아니라 *"그때는 몰랐다"* 다.
     """
-    바스 = _row_day(bas_dd, as_of)
+    바스 = row_day(bas_dd, as_of=as_of)
     코드 = _normalize_codes(codes)
     if 코드 == []:
         return _empty(["code", *FINANCIAL_COLUMNS])
@@ -416,7 +398,7 @@ def financial_lines_as_of(bas_dd: AsOf, *, as_of: AsOf, codes: Optional[Iterable
     `fin_rcept_no` 로 이으면 어긋나지 않는다. 접두어 정규화는 `account_key` 에 해 두지만
     어떤 계정을 쓸지는 부르는 쪽이 고른다.
     """
-    바스 = _row_day(bas_dd, as_of)
+    바스 = row_day(bas_dd, as_of=as_of)
     코드 = _normalize_codes(codes)
     if 코드 == []:
         return _empty(FINANCIAL_LINE_COLUMNS)

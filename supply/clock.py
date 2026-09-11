@@ -145,6 +145,26 @@ def latest_known_day(as_of: AsOf) -> str:
     return (moment.date() - timedelta(days=1)).strftime("%Y%m%d")
 
 
+def row_day(bas_dd: AsOf, *, as_of: AsOf) -> str:
+    """행의 거래일을 `YYYYMMDD` 로 맞추고, `as_of` 시점에 **아직 오지 않은 날**이면 세운다.
+
+    재무·거시·공시 텍스트 정문이 한 날짜를 물을 때 함께 쓴다. 빈 표를 주지 않고 세우는
+    이유는 빈 표가 *"그날 자료가 없었다"* 로 읽히기 때문이다 — `as_of` 보다 뒤의 날을
+    묻는 것 자체가 미래참조다.
+    """
+    바스 = as_bas_dd(bas_dd)
+    if 바스 is None:
+        raise ValueError(f"bas_dd 를 읽을 수 없다: {bas_dd!r}")
+    상한 = latest_known_day(as_of)
+    if 바스 > 상한:
+        raise ValueError(
+            f"{바스} 는 as_of({to_kst(as_of).date()}) 시점에 아직 오지 않은 거래일이다.\n"
+            f"  그때 알 수 있었던 가장 최근 거래일: {상한}\n"
+            "  할 일: bas_dd 를 그 이하로 주거나, as_of 를 뒤로 옮긴다."
+        )
+    return 바스
+
+
 # ==================================================
 # DART 접수일 — 재무와 공시 텍스트가 같은 규칙을 쓴다
 # ==================================================
