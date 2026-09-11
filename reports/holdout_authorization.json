@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "authorized": true,
+  "run_id": "final-holdout-20260911",
+  "holdout_start": "20240901",
+  "config_sha256": "5299a08f4107bde9000331f421ea473ae71d734ccd61488638d7f405ac92be2e",
+  "source_sha256": {
+    "index_dev": "49a4cc23fe083e88818ec6e75753cfedfb49b5abd22e5df2717fa6f9f97d20ce",
+    "index_holdout": "cbbe6fdb5e309d428e775e0f64a5b4fa5b3d38c0803a764f8d6bbe6eb87cbc06",
+    "stock_dev": "0070feeff43faccd7b22c0a2aa15f1a1b134514fd58988c3b2ee1f80803dc826",
+    "stock_holdout": "399793379ed2b74aebe79a452663a73871a90eee179e214a7dc02019ac8e284c"
+  },
+  "dry_run": false,
+  "evaluation_range": [
+    "20240901",
+    "20260901"
+  ],
+  "authorized_at_kst": "2026-09-11T16:25:56+09:00",
+  "git_commit": "9ae1f15cbfa350520dc0ec456e9c34b28148534f",
+  "config_path": "C:\\Users\\kik32\\workspace\\EST-Camp-AI-Quant\\team_project\\Alpha_Stack\\config\\final_holdout_model.json",
+  "config_sha256_method": "models.final_holdout",
+  "source_path": {
+    "index_dev": "data\\sealed\\official_inputs_20260911_final\\index_dev.parquet",
+    "index_holdout": "data\\sealed\\official_inputs_20260911_final\\index_holdout.parquet",
+    "stock_dev": "data\\sealed\\official_inputs_20260911_final\\stock_dev.parquet",
+    "stock_holdout": "data\\sealed\\official_inputs_20260911_final\\stock_holdout.parquet"
+  },
+  "snapshot_sha256": "ecb3c806dd777caffee3cafa2a419f2a2da2bb44543b3a44ee13e4304de1a920",
+  "unseal": {
+    "unsealed_at_kst": "2026-09-11T16:18:48+09:00",
+    "git_commit": "9c87be990c81c47e95ba6794b8d6e6e4e7e71cb4",
+    "snapshot_sha256": "ecb3c806dd777caffee3cafa2a419f2a2da2bb44543b3a44ee13e4304de1a920",
+    "preregistration_commit": "0d5bd5bffcff8c7d7735f9ddc9507686d4d9bc04",
+    "requested_by": "이동원",
+    "reason": "최종 모델 1회 평가 — 팀 합의 2026-09-11 · 끝은 수정주가가 채워진 20260901"
+  }
+}
