@@ -35,9 +35,9 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Optional, Union
+from typing import Dict, Iterable, Optional, Union
 
-from common.trading_calendar import KST
+from common.trading_calendar import KST, next_session, session_span
 
 #: `as_of` 로 받을 수 있는 것들. 문자열·날짜·시각 아무거나 받되 안에서 하나로 만든다.
 AsOf = Union[str, date, datetime]
@@ -143,3 +143,49 @@ def latest_known_day(as_of: AsOf) -> str:
     """
     moment = to_kst(as_of)
     return (moment.date() - timedelta(days=1)).strftime("%Y%m%d")
+
+
+# ==================================================
+# DART 접수일 — 재무와 공시 텍스트가 같은 규칙을 쓴다
+# ==================================================
+#: DART 접수일로 시점을 세우는 규칙의 이름. HF 에 이미 나간 공시 텍스트 반출
+#: (`scripts/export_text_signal.py` 의 `KNOWN_RULE`)과 **같은 이름·같은 계산**이다.
+#: 두 곳이 갈라지면 `tests/test_supply_financial.py` 가 실패한다.
+DART_KNOWN_RULE = "rceptDt+1session"
+
+
+def dart_known_at(rcept_dates: Iterable[str], *, db_path=None) -> Dict[str, Optional[str]]:
+    """DART 접수일(`YYYYMMDD`) → 그 공시를 **행에 붙일 수 있는 첫 거래일**.
+
+    규칙은 *"접수일 다음 거래일"* 이다(2026-09-11 합의). `rcept_dt` 에는 시각이 없어서
+    장중 접수인지 마감 뒤 접수인지 모른다. 모르는 것을 유리한 쪽으로 가정하지 않는다.
+
+        2024-03-12(화) 접수 → 20240313 → 행 20240313 부터 보인다 → 20240314 시가 진입
+
+    행 T 에 보이는 조건은 `known_at <= T` 다.
+
+    - 달력의 **마지막 거래일 이후** 접수는 `None` 이다. 다음 거래일을 지어내면 아직 열리지
+      않은 장에 자료를 붙이게 된다. 부르는 쪽은 그 행을 버린다.
+    - 달력 **시작보다 이른** 접수는 달력의 첫 거래일로 둔다. 진짜 다음 거래일은 그보다
+      이르거나 같으므로 늦는 방향이다 — 성능을 부풀리는 쪽으로는 틀리지 않는다.
+
+    날짜 계산으로 하루를 더하지 않고 **실측 달력**을 쓴다. 금요일 접수의 다음 거래일이
+    월요일 공휴일을 건너 화요일인 경우가 실재한다.
+    """
+    first, last = session_span(db_path)
+    out: Dict[str, Optional[str]] = {}
+    for raw in rcept_dates:
+        if raw is None or (isinstance(raw, float) and raw != raw):   # None · NaN
+            continue
+        day = str(raw).strip()
+        if day in out:
+            continue
+        if len(day) != 8 or not day.isdigit():
+            raise ValueError(f"접수일은 YYYYMMDD 여야 한다: {raw!r}")
+        if day < first:
+            out[day] = first
+        elif day >= last:
+            out[day] = None
+        else:
+            out[day] = next_session(day, db_path)
+    return out
