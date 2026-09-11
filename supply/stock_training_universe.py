@@ -122,6 +122,7 @@ def build_sector_candidate_frame(
     index_prices: pd.DataFrame,
     *,
     holdout_start: str = HOLDOUT_START,
+    allow_unsealed: bool = False,
     sector_count: int = 10,
     stocks_per_sector: int = 5,
 ) -> pd.DataFrame:
@@ -137,7 +138,7 @@ def build_sector_candidate_frame(
         raise ValueError("sector_count와 stocks_per_sector는 1 이상이어야 합니다.")
 
     daily_dates = _normalize_dates(daily_prices["bas_dd"], column="bas_dd")
-    if (daily_dates >= holdout_start).any():
+    if not allow_unsealed and (daily_dates >= holdout_start).any():
         raise RuntimeError("종목 후보 원천에 홀드아웃 행이 들어 있습니다.")
     # 업종 후보는 KOSPI만 사용한다. 788만 행 전체에 종목명 판정을 적용하면
     # KOSDAQ·KONEX 메모리까지 불필요하게 복제하므로 시장을 먼저 줄인다.
@@ -147,7 +148,7 @@ def build_sector_candidate_frame(
     stocks = attach_common_stock(stock_input)
     indices = index_prices.copy()
     indices["bas_dd"] = _normalize_dates(indices["bas_dd"], column="bas_dd")
-    if (indices["bas_dd"] >= holdout_start).any():
+    if not allow_unsealed and (indices["bas_dd"] >= holdout_start).any():
         raise RuntimeError("업종지수 원천에 홀드아웃 행이 들어 있습니다.")
 
     indices["market_cap"] = pd.to_numeric(indices["market_cap"], errors="coerce")

@@ -168,6 +168,34 @@ def test_후보입력에홀드아웃행이있으면중단한다():
         build_sector_candidate_frame(daily, index)
 
 
+def test_개봉을명시하면_홀드아웃날짜의후보를만든다():
+    daily = pd.DataFrame(
+        {
+            "bas_dd": ["20240902"],
+            "code": ["005930"],
+            "name": ["삼성전자"],
+            "market": ["KOSPI"],
+            "market_cap": [1.0],
+            "industry": ["전기전자"],
+            "kind_stkcert_tp_nm": ["보통주"],
+        }
+    )
+    index = pd.DataFrame(
+        {
+            "bas_dd": ["20240902"],
+            "index_name": ["전기전자"],
+            "index_class": ["KOSPI"],
+            "market_cap": [1.0],
+        }
+    )
+
+    result = build_sector_candidate_frame(daily, index, allow_unsealed=True)
+
+    assert result[["bas_dd", "code"]].to_dict(orient="records") == [
+        {"bas_dd": "20240902", "code": "005930"}
+    ]
+
+
 def test_극단수익률은_전체종목시계열에서계산하고_해당후보만제거한다():
     prices = pd.DataFrame(
         {

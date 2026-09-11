@@ -168,6 +168,7 @@ def build_kospi200_feature_frame(
     index_prices: pd.DataFrame,
     *,
     holdout_start: str = HOLDOUT_START,
+    allow_unsealed: bool = False,
     horizon: int = LABEL_HORIZON,
     neutral_band: float = NEUTRAL_BAND,
 ) -> pd.DataFrame:
@@ -179,7 +180,10 @@ def build_kospi200_feature_frame(
 
     source = index_prices.copy()
     source["bas_dd"] = _normalize_dates(source)
-    source = source.loc[source["bas_dd"] < holdout_start].copy()
+    # 봉인 개봉 전의 모든 실험은 기존 경계를 그대로 지킨다. 최종 한 구간 실행만
+    # 명시적으로 개봉 자료를 허용하며, 호출자가 실수로 새 자료를 읽는 일은 계속 막는다.
+    if not allow_unsealed:
+        source = source.loc[source["bas_dd"] < holdout_start].copy()
     if source.empty:
         raise ValueError(f"{holdout_start} 이전 지수 데이터가 없습니다.")
 
@@ -278,6 +282,7 @@ def build_model_dataset(
     *,
     return_features: Sequence[str] = (),
     holdout_start: str = HOLDOUT_START,
+    allow_unsealed: bool = False,
 ) -> ModelDataset:
     """조합 피처와 선택한 수익률 피처를 만들고, 쓸 수 있는 행만 남긴다."""
 
@@ -294,7 +299,11 @@ def build_model_dataset(
     if duplicated:
         raise ValueError(f"조합 기본 피처와 수익률 피처가 중복되었습니다: {sorted(duplicated)}")
 
-    raw = build_kospi200_feature_frame(index_prices, holdout_start=holdout_start)
+    raw = build_kospi200_feature_frame(
+        index_prices,
+        holdout_start=holdout_start,
+        allow_unsealed=allow_unsealed,
+    )
     derived = _add_derived_features(raw)
     feature_columns = (*COMBINATION_FEATURES[key], *returns)
     finite = np.isfinite(derived.loc[:, feature_columns].to_numpy(dtype=float)).all(axis=1)
@@ -302,7 +311,7 @@ def build_model_dataset(
     model_frame = derived.loc[usable].copy().reset_index(drop=True)
     if model_frame.empty:
         raise ValueError(f"조합 {key}에 학습 가능한 행이 없습니다.")
-    if model_frame["bas_dd"].max() >= holdout_start:
+    if not allow_unsealed and model_frame["bas_dd"].max() >= holdout_start:
         raise RuntimeError("모델 입력에 홀드아웃 행이 들어왔습니다.")
     if model_frame["raw_position"].iloc[-1] + LABEL_HORIZON + 1 >= len(raw):
         raise RuntimeError("마지막 모델 행의 5거래일 청산 시가가 개발구간 밖에 있습니다.")
