@@ -231,10 +231,18 @@ def listing_days_by_code(con: sqlite3.Connection) -> Dict[str, Tuple[str, ...]]:
 
     `stock_base_info` 는 날짜마다 행이 있어 920만 행이지만 `DISTINCT` 로 줄이면 수천
     행이다 — 종목마다 다시 부르지 말고 한 번 만들어 `MarketContext` 에 담아 돌려 쓴다.
+
+    ⏱ **`NOT INDEXED` 를 지우지 않는다.** 없으면 SQLite 가 `ORDER BY code` 정렬을 피하려고
+       `idx_base_info_code(code, bas_dd)` 를 따라가며 **행마다 표를 다시 찾는다** — `list_dd` 가
+       그 인덱스에 없어서다. 표를 순서대로 훑고 수천 행만 정렬하는 편이 훨씬 싸다.
+
+           실측 2026-09-11 · stock_base_info 9,229,173행        결과
+           인덱스를 따라감  (SCAN … USING INDEX)   74.38초      3,701행
+           표 순서대로      (NOT INDEXED)            9.49초      3,701행 (같다)
     """
     out: Dict[str, list] = {}
     for code, list_dd in con.execute(
-        "SELECT DISTINCT code, list_dd FROM stock_base_info "
+        "SELECT DISTINCT code, list_dd FROM stock_base_info NOT INDEXED "
         "WHERE list_dd IS NOT NULL ORDER BY code, list_dd"
     ):
         out.setdefault(str(code), []).append(str(list_dd))
@@ -270,6 +278,62 @@ def is_series_restart(prev_row: Mapping, row: Mapping, *,
     if calendar_index[이날] - calendar_index[앞날] - 1 <= 0:      # ① 공백이 없다
         return False
     return any(앞날 < str(day) <= 이날 for day in listing_days)   # ② 새 상장일
+
+
+def series_restart_days(con: sqlite3.Connection, *,
+                        listing_days: Optional[Mapping[str, Sequence[str]]] = None,
+                        calendar_index: Optional[Mapping[str, int]] = None,
+                        ) -> Dict[str, Tuple[str, ...]]:
+    """`종목코드 → 코드 재사용으로 새 회사가 시작된 거래일들` (오름차순). 재사용이 없는 코드는 없다.
+
+    **왜 필요한가.** 기록을 *"그 날까지 알게 된 가장 최근 것"* 으로 붙이는 함수들
+    (`supply.universe.attach_security_type` · `supply.sector.attach_industry`)은 그 기록이
+    **얼마나 오래됐든** 가져온다. 한 코드 안에 회사가 둘이면 뒤 회사의 행에 앞 회사의
+    주권종류·업종이 붙는다. 붙이는 쪽이 이 표로 상장 구간을 나눠 다른 구간의 기록을 뺀다.
+
+    실측 2026-09-11 · 구간을 나누지 않았을 때 옛 회사 기록이 붙은 행
+
+        036220  구간 시작 20240313   주권종류 1행 · 업종  74행 (20240313 ~ 20240701)   개발구간
+        101970  구간 시작 20250328   주권종류 1행 · 업종 187행 (20250328 ~ 20260102)   홀드아웃
+
+    붙은 옛 값은 새 회사의 나중 값과 **우연히 같았다**(업종 제약·금속 · 주권종류 보통주).
+    값을 대조해서는 드러나지 않는 종류라, 붙은 기록의 **날짜**가 구간 시작보다 앞서는지로 센다.
+
+    ## 판정은 `is_series_restart` 그대로다
+
+    그래서 `flag_series` 가 `first_listing` 을 켜는 자리와 **같은 날**이 나오고, 반출본의
+    `is_first_listing` 과 갈라지지 않는다. 다만 종목의 이웃 행을 전부 보지 않고 **상장일마다
+    이웃 한 쌍**만 본다. `is_series_restart` 가 참이 되려면 `앞 행 < 상장일 <= 이 행` 이어야
+    하므로, 그 상장일을 사이에 둔 쌍(상장일 앞 마지막 행 · 상장일 이후 첫 행) 말고는 참이
+    될 수 없다. 920만 행을 훑지 않고 상장일 수만큼 인덱스를 두 번씩 찾는다.
+
+    ⏱ `listing_days` 를 안 주면 `listing_days_by_code` 로 만든다 — 실측 80~88초
+       (`stock_base_info` 923만 행). `MarketContext` 처럼 이미 가진 쪽은 넘긴다.
+    """
+    if listing_days is None:
+        listing_days = listing_days_by_code(con)
+    if calendar_index is None:
+        calendar_index, _ = market_calendar_index(con)
+
+    out: Dict[str, Tuple[str, ...]] = {}
+    for code, days in listing_days.items():
+        시작들: Set[str] = set()
+        for day in days:
+            뒤 = con.execute(
+                "SELECT bas_dd FROM daily_price WHERE code = ? AND bas_dd >= ? "
+                "ORDER BY bas_dd LIMIT 1", (str(code), str(day))).fetchone()
+            앞 = con.execute(
+                "SELECT bas_dd FROM daily_price WHERE code = ? AND bas_dd < ? "
+                "ORDER BY bas_dd DESC LIMIT 1", (str(code), str(day))).fetchone()
+            # 상장일 앞에 행이 없으면 그 코드의 첫 상장이다 — 이어 붙일 앞 회사가 없다.
+            if 뒤 is None or 앞 is None:
+                continue
+            if is_series_restart({"bas_dd": str(앞[0])}, {"bas_dd": str(뒤[0])},
+                                 calendar_index=calendar_index, listing_days=days):
+                시작들.add(str(뒤[0]))
+        if 시작들:
+            out[str(code)] = tuple(sorted(시작들))
+    return out
 
 
 def codes_present_on(con: sqlite3.Connection, bas_dd: str) -> Set[str]:

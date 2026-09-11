@@ -387,7 +387,7 @@ def test_판정_표에_없는_행이_있으면_붙이지_않고_멈춘다(tmp_pa
         q = V._quality_table(conn, "20240831", _ca표(코드_재사용))
     db = pd.DataFrame({"bas_dd": ["20240313", "20240399"], "code": ["036220", "036220"],
                        "adj_close": [11740.0, 1.0]})
-    monkeypatch.setattr(V, "attach_industry", lambda frame, *, as_of: frame)
+    monkeypatch.setattr(V, "attach_industry", lambda frame, **_: frame)
     ca = pd.DataFrame(columns=["bas_dd", "code", *V.CORPORATE_ACTION_COLUMNS])
     with pytest.raises(RuntimeError, match="반출과 같은 입력"):
         V._attach_export_derived(db, None, ca, q)

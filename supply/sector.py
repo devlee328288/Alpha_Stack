@@ -38,6 +38,7 @@ import pandas as pd
 from common.trading_calendar import CalendarOutOfRange, next_session
 from ingest.inbox import store as inbox_store
 from supply.clock import AsOf, as_bas_dd, latest_known_day
+from supply.listing_segment import restart_days_from_db, segment_numbers
 
 #: 반입 규격 이름 (`ingest/inbox/schemas/sector.json`).
 SECTOR_KIND = "sector"
@@ -217,13 +218,19 @@ def industry_as_of(bas_dd: str, *, as_of: AsOf, market: Optional[str] = None,
     }).reset_index(drop=True)
 
 
-def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.DataFrame:
+def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None,
+                    restart_days=None) -> pd.DataFrame:
     """시세 표(`bas_dd`·`code` 가 있는 것)에 업종 네 칸을 붙인다.
 
     행마다 **그 행의 날짜까지 알게 된 가장 최근 스냅샷**을 종목별로 찾는다
     (`merge_asof(direction="backward")`). 붙이는 열쇠는 스냅샷 날짜가 아니라 `known_at` 이다 —
     2026-09-11 고침, 이유는 `industry_as_of` 설명에 있다. 스냅샷이 하나도 없으면 네 칸을
     비워서 돌려준다 — 반출이 업종 때문에 죽어서는 안 되고, 빈 칸은 눈에 띈다.
+
+    🔴 **상장 구간을 건너지 않는다** (2026-09-11 고침). 코드를 다시 받은 회사는 자기가 처음
+       실린 스냅샷이 나오기 전까지 빈 칸이다 — 앞 회사가 마지막으로 실린 스냅샷을 받지 않는다
+       (`supply.listing_segment`). `restart_days` 는 `종목 → 구간 시작일들` 표이고, 안 주면
+       DB 에서 만든다(약 9초). `{}` 는 *"코드 재사용이 없다"* 는 뜻이다.
 
     ⚠️ 입력 순서를 보존한다. `merge_asof` 는 정렬을 요구하므로 안에서 정렬했다가 되돌린다.
     """
@@ -237,6 +244,8 @@ def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.Dat
         for col in INDUSTRY_COLUMNS:
             out[col] = pd.Series([None] * len(out), index=out.index, dtype="object")
         return out
+    if restart_days is None:
+        restart_days = restart_days_from_db(db_path)
 
     # 🔴 `merge_asof` 는 오른쪽에 (종목, 열쇠) 가 겹치면 **어느 행이 붙을지 보장하지 않는다.**
     #    스냅샷마다 하나로 줄여 두어야 몇 번을 돌려도 같은 업종이 붙는다.
@@ -253,18 +262,25 @@ def attach_industry(frame: pd.DataFrame, *, as_of: AsOf, db_path=None) -> pd.Dat
     # 🔴 열쇠는 `industry_known_at` 이다. `industry_bas_dd` 로 걸면 스냅샷 당일 행에 그날
     #    마감 뒤에 나온 표가 붙는다.
     right["_key"] = right["industry_known_at"].astype(str).astype(int)
+    # 🔴 **상장 구간을 건너지 않는다** (2026-09-11 고침). 스냅샷은 연 1회라, 코드를 다시 받은
+    #    회사는 자기가 처음 실린 스냅샷이 나오기 전까지 **앞 회사가 마지막으로 실린 스냅샷**을
+    #    받았다 — 036220 은 2024-03-13 ~ 07-01 에 2016-01-04 의 '제약'(74행), 101970 은
+    #    2025-03-28 ~ 2026-01-02 에 2015-01-02 의 '금속'(187행). 새 회사의 나중 업종과 우연히
+    #    같아 값 대조로는 안 보였다. (종목, 구간번호) 로 걸고, 스냅샷은 **자기 날짜**로 센다.
+    right["_seg"] = segment_numbers(right["code"], right["industry_bas_dd"], restart_days)
     # 휴장일 스냅샷이 섞이면 두 스냅샷의 다음 거래일(열쇠)이 같아진다 — 늦은 스냅샷 하나만.
-    right = (right.sort_values(["code", "_key", "industry_bas_dd"])
-                  .drop_duplicates(["code", "_key"], keep="last"))
+    right = (right.sort_values(["code", "_seg", "_key", "industry_bas_dd"])
+                  .drop_duplicates(["code", "_seg", "_key"], keep="last"))
 
     left = out[["bas_dd", "code"]].copy()
     left["_key"] = left["bas_dd"].astype(str).str.replace("-", "", regex=False).astype(int)
     left["code"] = left["code"].astype(str)
+    left["_seg"] = segment_numbers(left["code"], left["_key"].astype(str), restart_days)
     left["_order"] = range(len(left))
     left = left.sort_values(["_key", "code"])
     right = right.sort_values(["_key", "code"])
 
-    merged = pd.merge_asof(left, right, on="_key", by="code", direction="backward")
+    merged = pd.merge_asof(left, right, on="_key", by=["code", "_seg"], direction="backward")
     merged = merged.sort_values("_order")
     for col in INDUSTRY_COLUMNS:
         out[col] = merged[col].to_numpy()

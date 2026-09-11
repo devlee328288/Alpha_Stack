@@ -60,6 +60,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from common.corporate_actions import series_restart_days  # noqa: E402
 from common.export_profile import write_profile  # noqa: E402
 from evaluation.horizon import (  # noqa: E402
     HOLDOUT_START,
@@ -571,16 +572,26 @@ def build_full_daily(*, end: str, as_of: str, ctx) -> Tuple[pd.DataFrame, Dict]:
         daily = pd.read_sql_query(
             "SELECT * FROM daily_price WHERE bas_dd <= ?", conn, params=(end,)
         )
+        # 🔴 코드 재사용으로 한 코드 안의 회사가 바뀐 날. 업종·주권종류가 **앞 회사의 기록을
+        #    건너오지 않게** 두 붙이기에 같은 표를 넘긴다(2026-09-11 고침). 기업행위 판정이 쓰는
+        #    상장일 표·달력(`ctx`)을 그대로 쓰므로 `is_first_listing` 과 같은 날이 나온다.
+        구간시작 = series_restart_days(conn, listing_days=ctx.listing_days,
+                                      calendar_index=ctx.calendar_index)
+    # 반출 끝 뒤의 시작일은 찍지 않는다 — 행마다 자기 날짜 이하만 세므로 값에도 쓰이지 않는다.
+    보이는시작 = sorted((c, d) for c, v in 구간시작.items() for d in v if d <= end)
+    print(f"     상장 구간 시작 {len(보이는시작)}곳 (≤ {end}) — "
+          + (" · ".join(f"{c} {d}" for c, d in 보이는시작) or "없음"))
+
     # 🔴 `sector` 는 KRX 소속부다 — KOSPI 는 100% 빈 값이고 KOSDAQ 은 중견기업부·
     #    벤처기업부 같은 것이라 산업 업종이 아니다. 업종은 손으로 받은 업종분류 현황
     #    스냅샷에서 **그 행의 날짜까지 알게 된 가장 최근 것**을 `industry` 로 따로
     #    붙인다(2026-09-11 고침 — 스냅샷 당일 행에는 그날 표가 아니라 그 앞 스냅샷).
-    daily = attach_industry(daily, as_of=as_of)
+    daily = attach_industry(daily, as_of=as_of, restart_days=구간시작)
 
     # 주권종류 세 칸 (#186 ①). 이름 규칙('우' 로 끝나면 우선주)은 연우·동우·신우를 잘못
     # 뺐다. `secugrp_nm`·`sect_tp_nm` 까지 싣는 이유는 KOSPI200 방법론·CRSP 가 리츠·SPAC·
     # 관리종목까지 빼기 때문이다. 🔴 그 행의 날짜까지 알게 된 기본정보다(2026-09-11 고침).
-    daily = attach_security_type(daily, as_of=as_of)
+    daily = attach_security_type(daily, as_of=as_of, restart_days=구간시작)
 
     # 기업행위 판정 세 칸 (#186 ①). 작은 벌 `stocks30_train` 은 이 셋을 덜어낸 표본
     # (89,424 → 82,852행)인데 큰 벌은 안 덜어낸 표본이다 — 판정을 실어 그 차이를 눈에
