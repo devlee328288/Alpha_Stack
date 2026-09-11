@@ -1,0 +1,97 @@
+{
+  "schema_version": 2,
+  "generated_at_utc": "2026-09-11T08:43:01.929070+00:00",
+  "mode": "unsealed_final_window",
+  "models": {
+    "index": "C LogisticRegression",
+    "stock": "K LogisticRegression"
+  },
+  "window": {
+    "decision_date": "20260824",
+    "entry_date": "20260825",
+    "exit_date": "20260901",
+    "rule": "T일 종가 판단 → T+1 시가 진입 → T+6 시가 청산"
+  },
+  "source": {
+    "index": {
+      "path": "D:\\Alpha\\data\\sealed\\holdout_20240901_20260901\\full\\index_price_all.parquet",
+      "sha256": "20c16d99bf8f77055291608099613b50dca2c2285002816e28339a26f77e9326"
+    },
+    "daily": {
+      "path": "D:\\Alpha\\data\\sealed\\holdout_20240901_20260901\\full\\daily_price_all.parquet",
+      "sha256": "a4f91026d0d2d17f80d05e9ec25c38f310785b20a61dcc64e23badca43780fba"
+    },
+    "unseal_log": {
+      "path": "C:\\Users\\Administrator\\Alpha_Stack\\reports\\unseal.log",
+      "sha256": "fc41a64cbe6995fda482b907db17bb0af09032c3a498d1022a2f8bd55714118a"
+    }
+  },
+  "config_sha256": "5299a08f4107bde9000331f421ea473ae71d734ccd61488638d7f405ac92be2e",
+  "rows": {
+    "index": 1,
+    "stock": 50,
+    "combined": 50,
+    "buy_candidates": 33
+  },
+  "metrics": {
+    "index": {
+      "accuracy": 1.0,
+      "macro_f1": 0.3333333333333333,
+      "down_recall": 0.0,
+      "core_harmonic_mean": 0.0,
+      "balanced_accuracy": 1.0,
+      "mcc": 0.0,
+      "pr_auc_down": 0.0,
+      "pr_auc_neutral": 0.0,
+      "pr_auc_up": 1.0,
+      "pr_auc_macro_ovr": 0.3333333333333333,
+      "confusion_matrix": {
+        "down": {
+          "down": 0,
+          "neutral": 0,
+          "up": 0
+        },
+        "neutral": {
+          "down": 0,
+          "neutral": 0,
+          "up": 0
+        },
+        "up": {
+          "down": 0,
+          "neutral": 0,
+          "up": 1
+        }
+      }
+    },
+    "stock": {
+      "accuracy": 0.52,
+      "macro_f1": 0.3837312113174183,
+      "down_recall": 0.6666666666666666,
+      "core_harmonic_mean": 0.4975893697083726,
+      "balanced_accuracy": 0.48888888888888893,
+      "mcc": 0.2451214265780891,
+      "pr_auc_down": 0.47767455303687184,
+      "pr_auc_neutral": 0.39542967846449134,
+      "pr_auc_up": 0.7321170334560982,
+      "pr_auc_macro_ovr": 0.5350737549858205,
+      "confusion_matrix": {
+        "down": {
+          "down": 6,
+          "neutral": 0,
+          "up": 3
+        },
+        "neutral": {
+          "down": 6,
+          "neutral": 0,
+          "up": 10
+        },
+        "up": {
+          "down": 5,
+          "neutral": 0,
+          "up": 20
+        }
+      }
+    }
+  },
+  "note": "개봉 후 목적을 마지막 T+1→T+6 한 구간 예측으로 바로잡았다. 최종 목표 구간을 사용하는 라벨은 학습에서 제외했다."
+}

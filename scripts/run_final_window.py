@@ -340,7 +340,6 @@ def main() -> None:
         candidates,
         index_prices=index_prices,
         feature_columns=config.stock_features,
-        drop_incomplete_features=False,
         holdout_start=HOLDOUT_START,
         allow_unsealed=True,
     )
