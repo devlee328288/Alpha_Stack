@@ -549,6 +549,95 @@ def verify_no_holdout(root: Path) -> int:
     return 검사한
 
 
+def build_full_daily(*, end: str, as_of: str, ctx) -> Tuple[pd.DataFrame, Dict]:
+    """큰 벌 일별시세 — `daily_price` 원 칸 위에 파생 14칸을 얹는다.
+
+        업종 4 · 주권종류 3 · 기업행위 3 · 품질 4
+
+    🔴 **개발본 반출(`main`)과 홀드아웃 반출(`scripts/export_holdout_dataset.py`)이 이 함수
+       하나를 부른다** (이슈 #240). 두 곳이 따로 붙이면 개발구간과 홀드아웃의 칸 규칙이
+       조용히 갈라지고, 최종모델은 학습과 평가를 다른 규칙 위에서 하게 된다. 행 수만 세는
+       검사로는 안 잡힌다.
+
+    `end` 이하 **전 구간**을 읽는다. 품질·기업행위 판정은 종목의 앞뒤 행을 보므로 잘라 읽으면
+    경계에서 답이 달라진다(`verify_hf_dataset._quality_table` 이 09-09 에 겪었다).
+
+    돌려주는 것: (표, 통계). 통계 키는 MANIFEST 의 `stats` 에 그대로 들어간다 —
+    `corporate_action_flags` · `security_type` · `adjustment_quality` · `industry`.
+    """
+    stats: Dict = {}
+    with krx_store.connect() as conn:
+        conn.execute("PRAGMA cache_size = -1000000")
+        daily = pd.read_sql_query(
+            "SELECT * FROM daily_price WHERE bas_dd <= ?", conn, params=(end,)
+        )
+    # 🔴 `sector` 는 KRX 소속부다 — KOSPI 는 100% 빈 값이고 KOSDAQ 은 중견기업부·
+    #    벤처기업부 같은 것이라 산업 업종이 아니다. 업종은 손으로 받은 업종분류 현황
+    #    스냅샷에서 **그 행의 날짜까지 알게 된 가장 최근 것**을 `industry` 로 따로
+    #    붙인다(2026-09-11 고침 — 스냅샷 당일 행에는 그날 표가 아니라 그 앞 스냅샷).
+    daily = attach_industry(daily, as_of=as_of)
+
+    # 주권종류 세 칸 (#186 ①). 이름 규칙('우' 로 끝나면 우선주)은 연우·동우·신우를 잘못
+    # 뺐다. `secugrp_nm`·`sect_tp_nm` 까지 싣는 이유는 KOSPI200 방법론·CRSP 가 리츠·SPAC·
+    # 관리종목까지 빼기 때문이다. 🔴 그 행의 날짜까지 알게 된 기본정보다(2026-09-11 고침).
+    daily = attach_security_type(daily, as_of=as_of)
+
+    # 기업행위 판정 세 칸 (#186 ①). 🔴 **피처로 쓰면 안 된다** — `is_liquidation` 은
+    # "이 뒤로 체결이 끊긴다" 를 보고 매긴다. 표본 선택에만 쓴다. 덜어내지는 않는다.
+    daily = attach_corporate_action_flags(daily, context=ctx)
+    판정요약 = {
+        칸: int(daily[칸].sum()) for 칸 in CORPORATE_ACTION_COLUMNS
+    }
+    판정요약["any"] = int(
+        daily[list(CORPORATE_ACTION_COLUMNS)].any(axis=1).sum())
+    stats["corporate_action_flags"] = 판정요약
+    stats["security_type"] = {
+        칸: {str(k): int(v) for k, v in daily[칸].value_counts().items()}
+        for 칸 in SECURITY_TYPE_COLUMNS
+    }
+    print(f"     주권종류 {len(SECURITY_TYPE_COLUMNS)}칸 · 보통주 "
+          f"{int(daily['kind_stkcert_tp_nm'].eq('보통주').sum()):,}행")
+    print(f"     기업행위 {len(CORPORATE_ACTION_COLUMNS)}칸 · 정리매매 "
+          f"{판정요약['is_liquidation']:,} · 거래정지 {판정요약['is_halted']:,} · "
+          f"신규상장 {판정요약['is_first_listing']:,} "
+          f"(셋 중 하나 {판정요약['any']:,}행 — 덜어내지 않는다)")
+
+    # 품질 플래그 넷 (#168). 🔴 걸러야 하는 것은 `is_adj_suspect` 하나뿐이다 —
+    # `is_extreme_return` 은 "진짜 사건이니 남겨라" 는 표시다.
+    flags = flag_adjustment_quality(daily)
+    품질요약 = dict(flags.attrs["adjustment_quality"])
+    daily = pd.concat([daily, flags], axis=1)
+    stats["adjustment_quality"] = 품질요약
+    print(f"     품질 플래그 {len(FLAG_COLUMNS)}칸 · 의심 "
+          f"{품질요약['suspect_rows']:,}행 · 극단 {품질요약['extreme_rows']:,}행 "
+          f"(극단은 거르지 않는다)")
+
+    industry_rows = int(daily["industry"].notna().sum())
+    snap_days = sorted(daily["industry_bas_dd"].dropna().astype(str).unique().tolist())
+    stats["industry"] = {
+        "rows_with_industry": industry_rows,
+        "rows_total": int(len(daily)),
+        "coverage": round(industry_rows / len(daily), 4) if len(daily) else 0.0,
+        "snapshot_days": snap_days,
+        "columns": list(INDUSTRY_COLUMNS),
+    }
+    if industry_rows:
+        print(f"     industry 채움 {industry_rows:,}/{len(daily):,}행 "
+              f"({industry_rows / len(daily):.1%}) · 스냅샷 {len(snap_days)}장")
+    else:
+        print("     ⚠️ industry 가 전부 비었다 — 업종 스냅샷을 아직 들이지 않았다 "
+              "(docs/데이터파트/version3.2/직접수집_가이드_업종분류현황.md)")
+    return daily, stats
+
+
+def read_full_index(*, end: str) -> pd.DataFrame:
+    """큰 벌 지수 — `index_price` 의 `end` 이하 전부. 개발본·홀드아웃 반출이 함께 쓴다."""
+    with krx_store.connect() as conn:
+        return pd.read_sql_query(
+            "SELECT * FROM index_price WHERE bas_dd <= ?", conn, params=(end,)
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="팀원 반출용 데이터셋을 만든다")
     parser.add_argument("--out", default=None, help="출력 폴더 (기본 data/outbox/<오늘>)")
