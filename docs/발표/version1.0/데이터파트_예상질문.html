@@ -1,0 +1,491 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qurious 데이터 파트 예상 질문</title>
+<meta name="description" content="발표에 데이터 담당이 없을 때 신장환·강민석이 그대로 읽어 답할 수 있는 데이터 파트 예상 질문과 답">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* 토큰 — 팀 소개 자료와 같은 값. 읽는 문서라 라이트·다크를 둘 다 둔다.
+   뷰어 상태가 셋(명시 라이트 · 명시 다크 · 미지정)이라 블록도 셋이다. */
+:root {
+  --paper:      #E9ECF1;
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F6F9;
+  --ink:        #0F1826;
+  --muted:      #5A6779;
+  --faint:      #8A96A8;
+  --rule:       #CDD5E0;
+  --rule-soft:  #DFE5EC;
+  --navy:       #1B3A5C;
+  --navy-2:     #2E5F8F;
+  --navy-3:     #5E8DBC;
+  --navy-wash:  #E3EAF3;
+  --signal:     #B8323A;
+  --signal-wash:#F7E5E6;
+  --ok:         #1F6B4A;
+  --ok-wash:    #E2F0E9;
+  --warn:       #8A6A1F;
+  --warn-wash:  #F6EEDA;
+
+  --sans:  "IBM Plex Sans KR", "Malgun Gothic", system-ui, -apple-system, sans-serif;
+  --serif: "Nanum Myeongjo", "Batang", Georgia, serif;
+  --mono:  "IBM Plex Mono", "D2Coding", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #0C1420;
+    --surface:    #131E2D;
+    --surface-2:  #182536;
+    --ink:        #E4EAF2;
+    --muted:      #9AA8BA;
+    --faint:      #6E7C90;
+    --rule:       #2B3B4F;
+    --rule-soft:  #223044;
+    --navy:       #8FBBE4;
+    --navy-2:     #6BA1D2;
+    --navy-3:     #4A7BA8;
+    --navy-wash:  #16283C;
+    --signal:     #E4787E;
+    --signal-wash:#2E1A1D;
+    --ok:         #6FC79E;
+    --ok-wash:    #14291F;
+    --warn:       #D8B364;
+    --warn-wash:  #2A2314;
+  }
+}
+:root[data-theme="dark"] {
+  --paper:      #0C1420;
+  --surface:    #131E2D;
+  --surface-2:  #182536;
+  --ink:        #E4EAF2;
+  --muted:      #9AA8BA;
+  --faint:      #6E7C90;
+  --rule:       #2B3B4F;
+  --rule-soft:  #223044;
+  --navy:       #8FBBE4;
+  --navy-2:     #6BA1D2;
+  --navy-3:     #4A7BA8;
+  --navy-wash:  #16283C;
+  --signal:     #E4787E;
+  --signal-wash:#2E1A1D;
+  --ok:         #6FC79E;
+  --ok-wash:    #14291F;
+  --warn:       #D8B364;
+  --warn-wash:  #2A2314;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 1rem; line-height: 1.75;
+  word-break: keep-all; overflow-wrap: anywhere; -webkit-font-smoothing: antialiased;
+}
+p, h1, h2, h3, ul, ol, dl, dd { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+code { font-size: .86em; background: var(--navy-wash); color: var(--navy); padding: .08em .35em; border-radius: 2px; }
+a { color: var(--navy-2); text-underline-offset: .2em; text-decoration-thickness: 1px; }
+a:hover { color: var(--signal); }
+a:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; border-radius: 2px; }
+
+.wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem; }
+.col { max-width: 44rem; }
+
+/* ── 머리 ─────────────────────────────────────────────────────── */
+.top { background: var(--surface); border-bottom: 1px solid var(--rule-soft); padding: 3rem 0 2.25rem; }
+.eyebrow { font-family: var(--mono); font-size: .75rem; font-weight: 500; letter-spacing: .12em; color: var(--navy-2); }
+h1 { font-family: var(--serif); font-weight: 800; font-size: clamp(1.9rem, 5vw, 2.6rem); letter-spacing: -.02em; line-height: 1.25; margin-top: .6rem; text-wrap: balance; }
+.lede { color: var(--muted); font-size: 1.0625rem; margin-top: .9rem; }
+.lede b { color: var(--ink); font-weight: 600; }
+.warn {
+  margin-top: 1.25rem; padding: .8rem 1rem; background: var(--warn-wash); color: var(--ink);
+  border-radius: 3px; font-size: .9375rem; display: flex; gap: .75rem; align-items: baseline;
+}
+.warn .lab { color: var(--warn); }
+
+/* ── 절 ──────────────────────────────────────────────────────── */
+main { padding: 2.5rem 0 4rem; display: flex; flex-direction: column; gap: 3rem; }
+h2 { font-family: var(--serif); font-weight: 700; font-size: 1.45rem; letter-spacing: -.01em; line-height: 1.35; text-wrap: balance; }
+.sec-head { display: flex; flex-direction: column; gap: .35rem; margin-bottom: 1.25rem; }
+.sec-head .rule { width: 3rem; height: 2px; background: var(--navy); margin-bottom: .3rem; }
+.sec-head p { color: var(--muted); font-size: .9375rem; }
+.lab { font-family: var(--mono); font-size: .72rem; font-weight: 600; letter-spacing: .1em; color: var(--navy-2); white-space: nowrap; }
+
+/* 외울 숫자 */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 1px; background: var(--rule-soft); border: 1px solid var(--rule-soft); border-radius: 3px; overflow: hidden; }
+.stat { background: var(--surface); padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .2rem; }
+.stat .v { font-family: var(--mono); font-weight: 600; font-size: 1.6rem; letter-spacing: -.02em; line-height: 1.15; color: var(--navy-2); font-variant-numeric: tabular-nums; }
+.stat .v small { font-size: .55em; font-weight: 500; color: var(--muted); margin-left: .15em; letter-spacing: 0; }
+.stat .k { font-size: .875rem; color: var(--muted); line-height: 1.55; }
+
+/* 표 */
+.tablewrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule-soft); border-radius: 3px; }
+table { border-collapse: collapse; width: 100%; font-size: .9375rem; }
+th, td { text-align: left; vertical-align: top; padding: .75rem .95rem; border-bottom: 1px solid var(--rule-soft); line-height: 1.6; }
+thead th { font-family: var(--mono); font-size: .72rem; font-weight: 600; letter-spacing: .08em; color: var(--muted); background: var(--navy-wash); border-bottom: 1px solid var(--rule); white-space: nowrap; }
+tbody tr:last-child td { border-bottom: 0; }
+td.no { color: var(--signal); text-decoration: line-through; text-decoration-thickness: 1px; min-width: 11rem; }
+td.why { color: var(--muted); min-width: 10rem; }
+td.yes { min-width: 14rem; }
+
+/* 목차 */
+.toc { display: flex; flex-wrap: wrap; gap: .5rem; }
+.toc a {
+  display: inline-flex; gap: .5rem; align-items: baseline; text-decoration: none; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--rule-soft); border-radius: 3px; padding: .45rem .8rem; font-size: .9rem;
+}
+.toc a b { font-family: var(--mono); color: var(--navy-2); font-weight: 600; }
+.toc a:hover { border-color: var(--navy-3); color: var(--ink); }
+
+/* 질문 한 개 */
+.group { display: flex; flex-direction: column; }
+.group > .sec-head h2 span { font-family: var(--mono); font-size: .8em; color: var(--navy-3); margin-right: .5rem; }
+.qa { display: grid; gap: .9rem; padding: 1.75rem 0; border-top: 1px solid var(--rule); scroll-margin-top: 1rem; }
+.qa h3 { display: flex; gap: .8rem; align-items: baseline; font-family: var(--serif); font-weight: 700; font-size: 1.2rem; line-height: 1.45; text-wrap: balance; }
+.qn { flex: none; font-family: var(--mono); font-size: .8rem; font-weight: 600; color: var(--navy-2); background: var(--navy-wash); padding: .1rem .45rem; border-radius: 2px; }
+.say { background: var(--navy-wash); border-radius: 3px; padding: .95rem 1.15rem 1.05rem; display: grid; gap: .35rem; }
+.say p:last-child { font-size: 1.0625rem; line-height: 1.85; color: var(--ink); }
+.ev { display: grid; gap: .1rem; }
+.ev > div { display: grid; grid-template-columns: 5.25rem 1fr; gap: 1rem; padding: .45rem 0; border-top: 1px dashed var(--rule-soft); }
+.ev > div:first-child { border-top: 0; }
+.ev dt { padding-top: .2rem; }
+.ev dd { font-size: .9375rem; line-height: 1.7; }
+.ev dd .num { font-weight: 500; }
+.ev dd.src code { word-break: break-all; }
+.flag { color: var(--signal); font-weight: 600; }
+
+/* 문서 지도 */
+.map { display: grid; gap: 0; background: var(--surface); border: 1px solid var(--rule-soft); border-radius: 3px; }
+.map li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; padding: .75rem 1rem; border-top: 1px solid var(--rule-soft); font-size: .9375rem; }
+.map li:first-child { border-top: 0; }
+.map li code { word-break: break-all; align-self: start; }
+.map li span { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .ev > div { grid-template-columns: 1fr; gap: .15rem; }
+  .map li { grid-template-columns: 1fr; gap: .25rem; }
+  .warn { flex-direction: column; gap: .2rem; }
+}
+@media print {
+  :root { color-scheme: light; }
+  body { background: #FFFFFF; }
+  .qa { break-inside: avoid; }
+  .toc { display: none; }
+}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">QURIOUS · 9월 13일 발표 · 목차 2 · 3 질의응답</p>
+    <h1>데이터 파트 예상 질문</h1>
+    <div class="col">
+      <p class="lede">발표 자리에 데이터 담당 이동원이 없습니다. 질문이 나오면 <b>이렇게 답하세요</b> 칸만 읽어도 설명이 되게 썼습니다. 숫자는 전부 2026-09-11에 DB와 반출본에서 다시 쟀고, 더 깊이 들어오면 <b>문서</b> 칸의 경로를 알려 주면 됩니다.</p>
+    </div>
+    <p class="warn"><span class="lab">발표 당일 확인</span><span>그 사이 홀드아웃을 열었다면 Q8의 “unseal.log 0줄(미개봉)”을 “1줄(개봉 1회)”로 바꿔 말하세요. 나머지 숫자는 그대로입니다.</span></p>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section aria-labelledby="h-nums">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-nums">먼저 외울 숫자 다섯</h2><p>질문 대부분이 이 다섯 중 하나로 돌아옵니다.</p></div>
+    <div class="stats">
+      <div class="stat"><p class="v">9,231,938</p><p class="k">일별시세 행 · 2010-01-04 ~ 2026-09-04</p></div>
+      <div class="stat"><p class="v">913<small>종</small></p><p class="k">지우지 않은, 지금은 거래되지 않는 종목 · 전체의 24.8%</p></div>
+      <div class="stat"><p class="v">0<small>행</small></p><p class="k">정문으로 붙였을 때 그날 알 수 없던 재무 보고서를 본 행</p></div>
+      <div class="stat"><p class="v">8<small>축</small> · 1<small>붉음</small></p><p class="k">2026-09-11 반출본 품질 원장</p></div>
+      <div class="stat"><p class="v">8 → 0</p><p class="k">시험한 전처리 후보 → 채택. 원값을 쓴다</p></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-dont">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-dont">이렇게 말하지 마세요</h2><p>틀린 말은 아니어도 한 번 더 물으면 무너지는 표현입니다.</p></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>피할 말</th><th>왜</th><th>대신 이렇게</th></tr></thead>
+        <tbody>
+          <tr><td class="no">누수가 전혀 없습니다</td><td class="why">증명할 수 없는 말입니다</td><td class="yes">일부러 틀리게 붙인 대조군과 비교해 보니 정문은 0행이었습니다</td></tr>
+          <tr><td class="no">기준선은 52.64%입니다</td><td class="why">초기에 KOSPI200 하루 방향을 둘로 나눌 때의 숫자입니다</td><td class="yes">기준선은 폴드마다 학습구간의 최빈 클래스를 찍은 정확도입니다 (개별종목 0.3969)</td></tr>
+          <tr><td class="no">FinanceDataReader가 틀렸습니다</td><td class="why">대부분은 제대로 폈습니다</td><td class="yes">감자를 조정하지 않은 자리가 있어서 전 종목을 검사하고 직접 보정했습니다</td></tr>
+          <tr><td class="no">이상치를 제거했습니다</td><td class="why">지우지 않았습니다</td><td class="yes">지우지 않고 칸으로 표시했습니다. 진짜 사건과 오류를 구분하려고요</td></tr>
+          <tr><td class="no">전처리는 안 했습니다</td><td class="why">여덟 가지를 시험했습니다</td><td class="yes">시험해 보니 원값이 가장 나아서 원값을 씁니다</td></tr>
+          <tr><td class="no">홀드아웃으로 모델을 골랐습니다</td><td class="why">선정은 개발구간으로만 했습니다</td><td class="yes">모델은 개발구간에서 고정했고, 홀드아웃은 마지막에 한 번만 엽니다</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <nav class="toc" aria-label="질문 묶음">
+    <a href="#g-a"><b>A</b>수집과 저장 · Q1–Q4</a>
+    <a href="#g-b"><b>B</b>시점과 누수 · Q5–Q8</a>
+    <a href="#g-c"><b>C</b>생존편향과 가격 · Q9–Q12</a>
+    <a href="#g-d"><b>D</b>품질 게이트 · Q13–Q14</a>
+    <a href="#g-e"><b>E</b>전처리 · Q15–Q16</a>
+    <a href="#g-f"><b>F</b>한계와 다음 · Q17–Q19</a>
+  </nav>
+
+  <!-- ───────────────────────────── A ───────────────────────────── -->
+  <section class="group" id="g-a" aria-labelledby="h-a">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-a"><span>A</span>수집과 저장</h2></div>
+
+    <article class="qa" id="q1">
+      <h3><span class="qn">Q1</span>데이터는 어디서 얼마나 받았나요? 돈이 드나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>전부 무료 공개 API입니다. KRX Open API로 시세 · 종목기본정보 · 지수를, DART로 공시와 재무를, 한국은행 ECOS로 거시지표를, 공공데이터포털로 종목 식별 정보와 배당을 받았습니다. 2010년 1월 4일부터 2026년 9월 4일까지 일별시세만 923만 행이고, 표 23개를 SQLite 한 파일에 쌓았습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>일별시세 <span class="num">9,231,938</span> · 종목기본정보 <span class="num">9,229,173</span> · 공시 <span class="num">1,555,556</span> · 재무 <span class="num">662,933</span> · 배당 <span class="num">71,681</span> · 거시 <span class="num">17,864</span> · DB <span class="num">6,685 MB</span> · 스키마 v16</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>호출 한도는 코드가 먼저 셉니다(<code>call_budget</code>). 한도 앞에서 멈추고, 이미 받은 날짜는 수집 대장(<code>collect_log</code>)을 보고 건너뜁니다. 수정주가만 FinanceDataReader 라이브러리에서 받습니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/요약본.md</code> — 무엇이 몇 행 있는지 한 장 · <code>docs/데이터파트/version4.5/API키_발급_가이드.md</code> — 키 발급처와 한도</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q2">
+      <h3><span class="qn">Q2</span>pykrx나 FinanceDataReader를 그냥 쓰면 되지 않나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>둘 다 값을 가져다주는 도구라서, 그 값이 언제부터 알 수 있었는지나 성한지는 알려 주지 않습니다. 실제로 FinanceDataReader 수정주가를 전 종목 검사해 보니 감자를 조정하지 않은 자리가 있어서 19종목 45,515행을 직접 보정했습니다. pykrx는 KRX 정보데이터시스템이 2025년 12월 27일 회원제로 바뀐 뒤 로그인 문제가 생겨서, 공식 Open API를 직접 부릅니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>수정주가 출처 칸 <code>adj_source</code> — FinanceDataReader <span class="num">7,485,449</span>행 · 우리가 KRX 등락률로 이은 행 <span class="num">1,692,836</span> · 감자 보정 <span class="num">45,515</span>행(<span class="num">19</span>종목) · pykrx 저장소 이슈 #244(2026-01-02)</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>FinanceDataReader 수정주가는 종목마다 최근 3,000거래일까지만 줍니다. 그 앞은 KRX 등락률로 우리가 이었고, 그래서 행마다 어느 쪽 값인지 적는 칸이 있습니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/데이터_품질_규약.md</code> §6 — 감자를 놓친 이유와 관문 셋</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q3">
+      <h3><span class="qn">Q3</span>업종은 어떻게 붙였나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>KRX 이용약관 제10조 ②가 자동화 수집을 금지해서, 업종분류현황 화면을 사람이 내려받은 스냅샷 36장으로 붙였습니다. 각 행에는 그날까지 알 수 있었던 가장 최근 스냅샷만 씁니다. 뒤에 받은 표를 앞으로 당겨 쓰지 않는 대신, 업종이 바뀐 걸 늦게 반영하는 것은 감수했습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd><span class="num">40,874</span>행 · KOSPI 18장 + KOSDAQ 18장 · 반입 격리 0 · 스냅샷은 그날 장 마감 뒤에 나온다고 보고 “알 수 있는 날”을 다음 거래일로 둔다</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>KRX 화면이 한 종목을 두 업종에 싣는 경우가 KOSDAQ에 17쌍 있어서, 같은 스냅샷 안에서 종목이 더 많은 업종을 고르고 <code>industry_ambiguous</code> 칸에 그 사실을 남깁니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/직접수집_가이드_업종분류현황.md</code> — 받는 방법과 약관 · <code>supply/sector.py</code> — 붙이는 규칙</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q4">
+      <h3><span class="qn">Q4</span>왜 SQLite 한 파일인가요? 팀원은 어떻게 쓰나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>수집 DB는 데이터 담당 한 사람이 씁니다. 팀원에게는 DB를 주지 않고, 개발구간(2024년 8월 말까지)만 잘라 낸 반출본을 Hugging Face 비공개 저장소로 나눠 줍니다. 그래서 팀원 손에는 봉인 구간 자료가 애초에 없습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd><code>full/daily_price_dev.parquet</code> <span class="num">7,888,945</span>행 × 37칸 · 반출본 마지막 날 <span class="num">20240830</span> · 파일 8개의 SHA-256을 대장에 적는다</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/HF_배포_변경이력.md</code> — 배포마다 무엇이 바뀌었나</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ───────────────────────────── B ───────────────────────────── -->
+  <section class="group" id="g-b" aria-labelledby="h-b">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-b"><span>B</span>시점과 누수</h2></div>
+
+    <article class="qa" id="q5">
+      <h3><span class="qn">Q5</span>룩어헤드 편향은 어떻게 막았나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>자료를 꺼내는 함수가 날짜(<code>as_of</code>)를 반드시 받게 했습니다. 기본값이 없어서 빼면 호출이 멈춥니다. 재무 · 거시 · 공시 · 업종처럼 발표 시점이 따로 있는 자료는 “언제부터 알 수 있었나” 칸을 두고, 그 날짜가 행 날짜보다 늦으면 붙이지 않습니다. 일부러 틀리게 붙인 방법과 비교해 보면 차이가 보입니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>그날 알 수 없던 재무 보고서를 본 행 — 결산기 끝 날짜로 붙이면 <span class="num">23.2%</span>(1,324행) · 원본 최초 접수일로 붙이면 <span class="num">9.1%</span>(516행) · 정문 <span class="num">0</span>행. 같은 팀 유니버스, 월말 116일 × 후보 5,703행</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>시점 칸이 있어도 샌 적이 있습니다. 업종을 날짜로만 조인해서 그날 장 마감 뒤에 나온 표가 하루 먼저 붙었습니다(업종 5,300행). 9월 11일에 찾아서 고쳤고, 반출과 검증기가 같은 함수를 쓰게 바꿨습니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>notebooks/01-데이터수집/09.모아둔-것을-정문으로-연다.ipynb</code> — 그림 7장 · <code>docs/데이터파트/version4.5/요약본.md</code> ② ③</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q6">
+      <h3><span class="qn">Q6</span>재무 데이터는 언제부터 쓸 수 있다고 봤나요? 정정공시는요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>DART 접수일 다음 거래일부터 보이게 했습니다. 보고서의 26%가 정정본인데, 정정본은 정정 접수일부터 보이게 해서 나중에 고친 숫자가 과거로 새지 않습니다. 재무는 꺼내는 함수까지 만들었고, 최종 모델 피처에는 아직 넣지 않았습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>재무 <span class="num">662,933</span>행 · 접수일 2015-09-23 ~ 2026-08-14 · 홀드아웃을 2년으로 잡아 개발구간에서 쓸 수 있는 재무가 <span class="num">45.4%</span> → <span class="num">75.1%</span></dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/decisions/0005-홀드아웃-2년.md</code> — 홀드아웃 경계를 2024-09-01로 정한 이유</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q7">
+      <h3><span class="qn">Q7</span>거시지표는 발표일을 어떻게 알았나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>한국은행 ECOS API는 발표일을 주지 않습니다. 그래서 지표마다 발표 규칙으로 “늦어도 이날엔 알았다”를 보수적으로 계산해 넣었습니다. 규칙을 바꾸면 전부 다시 받습니다. 과거 값이 나중에 고쳐지는 순환변동치는 기본으로 뺐습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>거시지표 <span class="num">17,864</span>행 · 9종 · 2009-08부터</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/erd/version2.7/ERD.md</code> §2.4 — 칸 뜻과 함정</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q8">
+      <h3><span class="qn">Q8</span>홀드아웃을 보지 않았다는 걸 어떻게 증명하나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>세 겹입니다. 첫째, 팀원 반출본에는 2024년 9월 1일 이후 행이 아예 없고, 반출할 때마다 파일을 다시 열어 확인합니다. 둘째, 모델 · 임계값 · class weight는 열기 전에 커밋으로 고정했습니다. 셋째, 여는 일은 명령 하나로만 하고 연 사실을 <code>unseal.log</code>에 한 줄로 남깁니다. 두 줄이 되면 보고서 표지에 “확증 불가”가 찍힙니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>반출본 마지막 날 <span class="num">20240830</span> · <span class="flag">2026-09-11 기준 unseal.log 0줄(미개봉)</span> · 두 번째 개봉은 반출하기 전에 거부 · 사전등록 커밋이 개봉보다 앞서야 통과</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>최종 설정은 KOSPI200 조합 C 로지스틱 회귀(상승 임계 0.3375), 개별종목 조합 K 로지스틱 회귀이고 둘 다 class weight는 balanced입니다. 두 트랙이 모두 상승일 때만 매수 후보가 됩니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/홀드아웃_개봉_절차.md</code> — 누가 무엇을 어떤 순서로 · <code>docs/decisions/0009-최종-홀드아웃-실행설정.md</code> — 열기 전에 고정한 값</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ───────────────────────────── C ───────────────────────────── -->
+  <section class="group" id="g-c" aria-labelledby="h-c">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-c"><span>C</span>생존편향과 가격</h2></div>
+
+    <article class="qa" id="q9">
+      <h3><span class="qn">Q9</span>생존편향은요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>상장폐지나 합병으로 지금은 거래되지 않는 종목을 지우지 않았습니다. 전체 3,678종 중 913종이고, 개발구간 안에서 끊긴 종목만 750종입니다. 다만 정리매매 구간은 학습 표본에서 뺍니다. 가격제한폭이 없어서 실제로 사고팔기 어려운 값이 찍히기 때문입니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>마지막 거래일이 2026-09-04보다 앞선 종목 <span class="num">913</span>(<span class="num">24.8%</span>) · 2026-09-11 실측 · 학습 표본에서 빼는 행(정리매매 · 거래정지 · 신규상장 첫날) <span class="num">3.185%</span></dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/퀀트기준_대조.md</code> §2.1 — 생존편향 실측</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q10">
+      <h3><span class="qn">Q10</span>수정주가는 믿을 수 있나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>라이브러리 문서를 그대로 믿지 않고 전 종목을 검사했습니다. 상장주식수가 2배 넘게 바뀐 자리마다 원가격이 실제로 튀었는지, FinanceDataReader가 그걸 폈는지, KRX 기준가만큼 폈는지를 세 관문으로 봅니다. 여기서 감자를 조정하지 않은 자리가 나와서 직접 보정했습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>예: 훈영(017170) 2011-04-04 주식수 <span class="num">53,406,538 → 2,670,326</span>, 수정주가가 하루에 <span class="num">20.00</span>배 튐 · 보정 <span class="num">19</span>종목 <span class="num">45,515</span>행 · KRX 등락률과 1%p 넘게 어긋나는 행은 전 시장 <span class="num">1,352</span>, 매수 후보군 안에서는 0(2026-09-07 실측)</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>최근일수록 이 문제가 커집니다. 2026년 상장폐지 요건이 강화된 뒤 2월 12일부터 7월 2일까지 주식병합이 243건으로, 전년 같은 기간 10건의 약 24배였습니다(연합인포맥스, 2026-07-04).</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/데이터_품질_규약.md</code> §6.1–§6.7 — 사례 표와 재개일 규칙</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q11">
+      <h3><span class="qn">Q11</span>배당은 반영했나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>라벨과 피처는 가격 기준입니다. 배당은 따로 받아서 총수익 칸을 만들었지만, 배당 금액은 주주총회에서 확정돼 그 전에는 알 수 없습니다. 그래서 피처로는 쓰지 않고 성과를 비교할 때만 씁니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>배당 <span class="num">71,681</span>행 · 배당락일 평균 수익률은 평소보다 가격 기준 <span class="num">−1.1465%p</span>, 총수익 기준 <span class="num">+1.3235%p</span> · 가격 기준으로 이 차이가 음수인 해가 15년 중 11년에서 총수익 기준 1년으로 줄어든다</dd></div>
+        <div><dt class="lab">더 물으면</dt><dd>개별종목 중립대가 ±2%라서, 5거래일 창에 배당락일이 들어가면 라벨이 조금 아래로 밀립니다. 총수익 칸이 있어서 그 크기를 잴 수 있습니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/HF_배포_변경이력.md</code> 2026-09-10 절 — 총수익 세 칸</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q12">
+      <h3><span class="qn">Q12</span>이상치는 어떻게 처리했나요? +29,948% 같은 값은요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>크기로 자르지 않고 표시만 합니다. 수익률이 크다고 오류는 아니라서, KRX가 발표한 등락률과 1%p 넘게 어긋나면 의심 행으로, 어긋나지 않는데 30%를 넘으면 실제 극단 사건으로 칸에 남깁니다. +29,948%는 제일바이오 2026년 2월 9일, 1,500:1 감자 뒤 정리매매 구간이라 원본 오류가 아닙니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>극단 사건 행 <span class="num">2,801</span> · 의심 행 <span class="num">1,352</span> · 예전에 쓰던 “|수익률| &gt; 100%” 필터는 진짜 사건 1건을 지우고 오류는 못 잡았다</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/데이터_품질_규약.md</code> §4.4 · <code>notebooks/06-검토·발견/10.이상치는-크기가-아니라-어긋남으로-가른다.ipynb</code></dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ───────────────────────────── D ───────────────────────────── -->
+  <section class="group" id="g-d" aria-labelledby="h-d">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-d"><span>D</span>품질 게이트</h2></div>
+
+    <article class="qa" id="q13">
+      <h3><span class="qn">Q13</span>품질 원장이 붉은데 왜 배포했나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>막는 검사와 적는 검사를 나눴기 때문입니다. 누수 검사, 검증기 네 개, 비공개 확인은 하나라도 붉으면 한 파일도 올라가지 않습니다. 품질 원장은 막지 않고 붉은 항목을 데이터 카드에 붉게 적어서 올립니다. 막으면 아무도 자료를 못 받고, 조용히 넘기면 팀원이 모르고 쓰게 되니까요.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>2026-09-11 원장 8축 중 붉은 항목 1 — 수정주가 의심 <span class="num">1,352</span>행(FinanceDataReader 1,192 · 우리가 이은 구간 117 · 보정분 43) · 나머지는 OHLC 순서 위반 <span class="num">0</span> · 기본키 중복 <span class="num">0</span> · 반출본 끝날 <span class="num">20240830</span> · 총수익 &lt; 가격 <span class="num">0</span>행</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/데이터_품질_원장_설계.md</code> — 여덟 축과 판정 규칙</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q14">
+      <h3><span class="qn">Q14</span>데이터가 맞다는 건 어떻게 확인하나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>세 번 봅니다. 머지하기 전에 시험 1,762개를 돌리고, 올리기 전에 검증기가 원본과 대조하고, 올린 뒤에는 서버에서 다시 받아 한 번 더 대조합니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd><span class="num">1,762 passed · 3 xfailed</span>(main <code>bd9901b</code>, 2026-09-11) · 9월 11일 재배포 뒤 다시 받아 대조 — 2010~2023년 완전 일치, 2024년 1행 차이(종목코드 재사용 자리 · Q17)</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/명세서.md</code> §2 — 기능마다 확인 방법</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ───────────────────────────── E ───────────────────────────── -->
+  <section class="group" id="g-e" aria-labelledby="h-e">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-e"><span>E</span>전처리</h2></div>
+
+    <article class="qa" id="q15">
+      <h3><span class="qn">Q15</span>왜 정규화나 표준화를 안 했나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>안 한 게 아니라 여덟 가지를 시험해서 원값이 가장 나았습니다. 극단값 자르기, 횡단면 · 시계열 z-score, 순위 변환, 시가총액 · 업종 중립화를 같은 조건에서 비교했고, 원값보다 확실히 나은 후보는 없었습니다. 모델 안의 StandardScaler는 그대로 씁니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>조합 K · 로지스틱 회귀 · 12폴드 · 원값 대비 — 업종 중립화 <span class="num">−3.47%p</span> · 종목별 시계열 z <span class="num">−2.81%p</span> · 시가총액 중립화 <span class="num">−1.94%p</span> · 순위 변환 <span class="num">−1.93%p</span> · 가장 높은 것도 <span class="num">+0.15%p</span>(12폴드 중 7승, p = 0.535) · 시행 N = 10, Bonferroni α = 0.005</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/전처리/version1.4/전처리-설계-명세서.md</code> — 후보 여덟을 한 표에</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q16">
+      <h3><span class="qn">Q16</span>업종 중립화는 퀀트에서 기본 아닌가요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>종목끼리 순위를 매기는 문제에서는 기본입니다. 우리 라벨은 5거래일 절대 수익률이 ±2%를 넘느냐라서, 그날 시장 전체의 수준을 지우면 맞힐 정보도 같이 사라집니다. 실제로 손실 3.47%p를 쪼개 보니 절반 가까이(48%)가 “그날 평균 빼기”에서 나왔습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>그날 평균 빼기 <span class="num">48%</span> · 자유도 <span class="num">33%</span> · 업종 정보 <span class="num">19%</span> · 같은 연산이 ICIR은 <span class="num">+9.5%</span> 올리고 정확도는 <span class="num">−3.47%p</span> 내렸다 — 무엇으로 판정하느냐에 따라 결론이 뒤집힌다</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>notebooks/02-품질·전처리/10.중립화는-그날-평균부터-지운다.ipynb</code> — 그림 다섯</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <!-- ───────────────────────────── F ───────────────────────────── -->
+  <section class="group" id="g-f" aria-labelledby="h-f">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-f"><span>F</span>한계와 다음</h2></div>
+
+    <article class="qa" id="q17">
+      <h3><span class="qn">Q17</span>데이터 쪽에서 아직 못 한 것은요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>다음 차수에서 열 것 세 가지를 적어 두었습니다. 종목코드가 재사용된 경우 예전 회사의 업종이 붙는 자리가 개발구간에 75행 있어서 홀드아웃을 열기 전에 고칩니다. 재무 · 거시 · 공시는 꺼내는 함수까지 만들었고 반출본에는 아직 싣지 않았습니다. KOSPI200 구성종목 변경 이력은 KRX API에 없어서, 지수 트랙의 구성종목 변경 편향은 크기를 재지 못했습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">더 물으면</dt><dd>뉴스와 커뮤니티 글은 약관 판단이 먼저라 이번 차수에서는 받지 않았습니다.</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/요약본.md</code> “다음” 표 · <code>docs/decisions/0002-예측대상과-레이블.md</code> — 구성종목 변경 편향</dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q18">
+      <h3><span class="qn">Q18</span>공시나 뉴스 같은 텍스트는 안 썼나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>공시 제목 18,600개에 한국어 금융 감성 모델(KR-FinBert)을 로컬로 돌려 점수를 매겨 봤습니다. 5거래일 방향과는 관계가 거의 없었습니다. 그래서 최종 피처에는 넣지 않았고, 누구든 다시 재 볼 수 있게 반출해 두었습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>카이제곱 <span class="num">1,698.3</span> · 자유도 4 · 표본 126만 행 · Cramér’s V <span class="num">0.026</span> — 관례상 “작음” 기준(0.1)의 4분의 1. 표본이 커서 p는 작지만 효과는 거의 없다</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/기능명세/version1.5/텍스트_신호.md</code></dd></div>
+      </dl>
+    </article>
+
+    <article class="qa" id="q19">
+      <h3><span class="qn">Q19</span>종목은 어떻게 골랐나요? KOSDAQ은 왜 없나요?</h3>
+      <div class="say"><p class="lab">이렇게 답하세요</p>
+        <p>매 거래일 그날 시가총액으로 업종 상위 10개를 고르고, 업종마다 KOSPI 보통주 상위 5개를 고릅니다. 우선주는 이름이 아니라 KRX 주권종류 칸으로 판별합니다. 이번 차수 유니버스는 KOSPI로 정했고, KOSDAQ을 넣으면 스팩이나 관리종목이 섞이기 쉬운데 그걸 거를 칸은 반출본에 이미 실어 두었습니다.</p>
+      </div>
+      <dl class="ev">
+        <div><dt class="lab">근거</dt><dd>T+1 시가에 사고 T+6 시가에 팔 수 없었던 행 — 시가총액 상위 1~50위 <span class="num">0.231%</span>, 501위 밖 <span class="num">7.079%</span> · KOSDAQ 소속부로 보면 스팩 96 · 관리종목 63(2024-08-30)</dd></div>
+        <div><dt class="lab">문서</dt><dd class="src"><code>docs/데이터파트/version4.5/퀀트기준_대조.md</code> §4 · §5 — 체결 가능성과 유니버스 오염</dd></div>
+      </dl>
+    </article>
+  </section>
+
+  <section aria-labelledby="h-map">
+    <div class="sec-head"><span class="rule"></span><h2 id="h-map">더 깊이 물으면 알려 줄 문서</h2><p>경로는 저장소 루트 기준입니다.</p></div>
+    <ul class="map">
+      <li><code>docs/데이터파트/version4.5/요약본.md</code><span>데이터 파트 한 장 요약 · 발표 전 최종판</span></li>
+      <li><code>docs/데이터파트/version4.5/명세서.md</code><span>기능마다 상태와 확인 방법 전체</span></li>
+      <li><code>docs/데이터파트/version4.5/데이터_품질_규약.md</code><span>이상치 · 결측 · 자본변동 · 편향 규칙과 실측</span></li>
+      <li><code>docs/데이터파트/version4.5/퀀트기준_대조.md</code><span>퀀트 표준과 비교해 넘은 것과 못 미친 것</span></li>
+      <li><code>docs/데이터파트/version4.5/홀드아웃_개봉_절차.md</code><span>홀드아웃을 한 번만 여는 절차</span></li>
+      <li><code>docs/전처리/version1.4/전처리-설계-명세서.md</code><span>전처리 후보 여덟 비교와 손실의 구조</span></li>
+      <li><code>docs/decisions/0005-홀드아웃-2년.md</code><span>홀드아웃 경계를 2024-09-01로 정한 이유</span></li>
+      <li><code>docs/decisions/0009-최종-홀드아웃-실행설정.md</code><span>열기 전에 고정한 최종 모델 설정</span></li>
+    </ul>
+  </section>
+
+</main>
