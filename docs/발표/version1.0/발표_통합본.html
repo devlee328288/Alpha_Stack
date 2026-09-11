@@ -1,0 +1,1315 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Qurious 발표 통합본</title>
+<meta name="description" content="Qurious 9월 13일 발표 통합본 — 목차 순서의 전체 틀과 담당자별 채울 자리, 배경·데이터·전처리·결론 초안">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@700;800&family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ══════════════════════════════════════════════════════════════════
+   토큰 — 팀 소개 자료(docs/AlphaStack_팀프로젝트_소개.html)와 같은 값.
+   발표자 노트북이 다크 모드여도 영사 화면이 리허설과 같아야 하므로
+   라이트 한 벌로 고정한다. 표지만 어두운 판(--panel)을 쓴다.
+   ══════════════════════════════════════════════════════════════════ */
+:root {
+  color-scheme: light;
+  --paper:      #E9ECF1;
+  --surface:    #FFFFFF;
+  --surface-2:  #F4F6F9;
+  --ink:        #0F1826;
+  --muted:      #5A6779;
+  --faint:      #8A96A8;
+  --rule:       #CDD5E0;
+  --rule-soft:  #DFE5EC;
+  --navy:       #1B3A5C;
+  --navy-2:     #2E5F8F;
+  --navy-3:     #5E8DBC;
+  --navy-4:     #A9C1DA;
+  --navy-wash:  #E3EAF3;
+  --signal:     #B8323A;   /* 국내장 상승 적색 — 한 장에 한 곳만 */
+  --signal-2:   #D98A90;
+  --signal-wash:#F7E5E6;
+  --ok:         #1F6B4A;
+  --ok-wash:    #E2F0E9;
+  --warn:       #8A6A1F;
+  --warn-wash:  #F6EEDA;
+  --panel:      #0F1826;
+  --panel-rule: #2B3B4F;
+  --on-panel:      #E4EAF2;
+  --on-panel-dim:  #C2CFDF;
+  --on-panel-faint:#8A96A8;
+  --on-panel-blue: #7FB0DC;
+
+  --sans:  "IBM Plex Sans KR", "Malgun Gothic", system-ui, -apple-system, sans-serif;
+  --serif: "Nanum Myeongjo", "Batang", Georgia, serif;
+  --mono:  "IBM Plex Mono", "D2Coding", Consolas, ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); line-height: 1.6;
+  word-break: keep-all;       /* 한국어가 어절 한가운데서 끊기지 않게 */
+  overflow-wrap: anywhere; -webkit-font-smoothing: antialiased;
+}
+p, h1, h2, ul, ol, dl, dd, figure, blockquote { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+code, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+/* ── 검토용 화면 (슬라이드 바깥) ─────────────────────────────── */
+.deck-head {
+  max-width: 76rem; margin: 0 auto; padding: 2.5rem 1.5rem 1.25rem;
+  display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; align-items: flex-end; justify-content: space-between;
+}
+.deck-head .status { display: inline-block; font-family: var(--mono); font-size: .75rem; letter-spacing: .06em; color: var(--warn); background: var(--warn-wash); padding: .2em .6em; border-radius: 2px; }
+.deck-head h1 { font-family: var(--serif); font-weight: 800; letter-spacing: -.015em; line-height: 1.25; font-size: clamp(1.6rem, 3.2vw, 2.25rem); margin-top: .6rem; text-wrap: balance; }
+.deck-head .sub { color: var(--muted); font-size: .9375rem; margin-top: .4rem; max-width: 64ch; }
+.ctl { display: flex; flex-direction: column; gap: .6rem; align-items: flex-end; font-size: .8125rem; color: var(--muted); }
+.ctl-row { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: flex-end; }
+.todo-count { font-family: var(--mono); font-size: .8125rem; color: var(--warn); background: var(--warn-wash); padding: .25em .6em; border-radius: 2px; }
+.todo-count b { font-weight: 600; }
+.btn { font: 600 .875rem/1 var(--sans); color: #FFFFFF; background: var(--navy); border: 0; border-radius: 3px; padding: .75rem 1.05rem; cursor: pointer; }
+.btn:hover { background: var(--navy-2); }
+.btn:focus-visible { outline: 2px solid var(--signal); outline-offset: 3px; }
+kbd { font-family: var(--mono); font-size: .75rem; color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 3px; padding: .05em .4em; }
+
+.deck { max-width: 76rem; margin: 0 auto; padding: .5rem 1.5rem 4rem; display: flex; flex-direction: column; gap: 2.75rem; }
+.part { display: flex; flex-wrap: wrap; gap: .3rem 1rem; align-items: baseline; padding-top: .7rem; border-top: 2px solid var(--navy); font-family: var(--serif); font-weight: 700; font-size: 1.35rem; line-height: 1.35; }
+.part .no { font-family: var(--mono); font-weight: 600; font-size: .95rem; color: var(--navy-3); }
+.part .meta-r { font-family: var(--sans); font-weight: 400; font-size: .875rem; color: var(--muted); }
+.part .st { font-family: var(--mono); font-size: .72rem; font-weight: 600; padding: .15em .55em; border-radius: 2px; }
+.st--has { background: var(--ok-wash); color: var(--ok); }
+.st--todo { background: var(--warn-wash); color: var(--warn); }
+.slot { display: flex; flex-direction: column; gap: .6rem; }
+.slot-cap { display: flex; flex-wrap: wrap; gap: .2rem 1rem; font-family: var(--mono); font-size: .8125rem; color: var(--muted); }
+.slot-cap b { color: var(--navy-2); font-weight: 600; }
+.slot-cap .todo-tag { color: var(--warn); background: var(--warn-wash); padding: 0 .45em; border-radius: 2px; }
+
+/* ── 슬라이드 한 장 — 글자 크기는 슬라이드 폭(cqi)을 따라간다 ── */
+.slide { position: relative; width: 100%; aspect-ratio: 16 / 9; background: var(--surface); border: 1px solid var(--rule-soft); border-radius: 3px; overflow: hidden; container-type: inline-size; }
+.sl { position: absolute; inset: 0; padding: 3.4cqi 4.6cqi 2.5cqi; display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; gap: 1.6cqi; }
+.meta { display: flex; justify-content: space-between; gap: 2cqi; font-family: var(--mono); font-size: 1.02cqi; letter-spacing: .1em; color: var(--navy-2); padding-bottom: .9cqi; border-bottom: 2px solid var(--navy); }
+.thesis { font-family: var(--serif); font-weight: 800; font-size: 2.8cqi; line-height: 1.34; letter-spacing: -.012em; color: var(--ink); text-wrap: balance; }
+.foot { display: flex; justify-content: space-between; gap: 2cqi; padding-top: .8cqi; border-top: 1px solid var(--rule-soft); font-family: var(--mono); font-size: .9cqi; color: var(--faint); }
+.body { min-height: 0; font-size: 1.25cqi; line-height: 1.5; }
+.eyebrow { font-family: var(--mono); font-size: .98cqi; font-weight: 500; letter-spacing: .06em; color: var(--navy-2); }
+.note { font-size: 1.04cqi; color: var(--muted); line-height: 1.5; }
+.note b { color: var(--ink); }
+.body code { font-size: .9em; background: var(--navy-wash); color: var(--navy); padding: .04em .32em; border-radius: 2px; }
+.sig { color: var(--signal); }
+.k { display: inline-block; width: .9cqi; height: .9cqi; margin-right: .45cqi; vertical-align: -.05cqi; }
+.pill { font-family: var(--mono); font-size: .93cqi; font-weight: 600; letter-spacing: .04em; padding: .26cqi .78cqi; border-radius: 2px; white-space: nowrap; }
+.pill--stop  { background: var(--signal); color: #FFFFFF; }
+.pill--log   { background: var(--navy); color: #FFFFFF; }
+.pill--so    { background: var(--navy-wash); color: var(--navy); }
+.pill--draft { background: var(--warn-wash); color: var(--warn); }
+.ph { display: inline-block; font-family: var(--mono); font-size: .92cqi; font-weight: 500; color: var(--warn); background: var(--warn-wash); border: 1px dashed var(--warn); border-radius: 2px; padding: .15cqi .6cqi; white-space: nowrap; }
+.center { display: flex; flex-direction: column; justify-content: center; }
+
+/* ── 표지 ─────────────────────────────────────────────────────── */
+.slide.dark { background: var(--panel); border-color: var(--panel); }
+.cover { position: absolute; inset: 0; padding: 6cqi 6.2cqi 4.4cqi; display: grid; grid-template-rows: auto 1fr auto; }
+.cv-eyebrow { font-family: var(--mono); font-size: 1.1cqi; letter-spacing: .14em; color: var(--on-panel-blue); }
+.cv-main { align-self: center; }
+.cv-title { font-family: var(--serif); font-weight: 800; font-size: 8.4cqi; line-height: 1.05; letter-spacing: -.02em; color: #FFFFFF; }
+.cv-sub { font-size: 1.95cqi; line-height: 1.55; color: var(--on-panel-dim); max-width: 62cqi; margin-top: 1.8cqi; text-wrap: balance; }
+.cv-meta { display: flex; flex-wrap: wrap; gap: 1.2cqi 5cqi; border-top: 1px solid var(--panel-rule); padding-top: 1.8cqi; }
+.cv-meta .k2 { font-family: var(--mono); font-size: .92cqi; letter-spacing: .12em; color: var(--on-panel-faint); }
+.cv-meta .v2 { font-size: 1.35cqi; font-weight: 500; color: var(--on-panel); }
+
+/* ── 목차 ─────────────────────────────────────────────────────── */
+.ag { display: grid; grid-template-columns: 1fr 1fr; gap: 4.2cqi; align-content: center; }
+.ag-col { display: flex; flex-direction: column; }
+.ag-who { display: flex; justify-content: space-between; align-items: baseline; font-size: 1.35cqi; font-weight: 600; padding-bottom: .8cqi; border-bottom: 2px solid var(--navy); }
+.ag-who span { font-family: var(--mono); font-size: 1cqi; font-weight: 500; color: var(--muted); }
+.ag-list li { display: grid; grid-template-columns: 3.6cqi 1fr auto; gap: 1.2cqi; align-items: baseline; padding: .95cqi 0; border-bottom: 1px solid var(--rule-soft); }
+.ag-no { font-family: var(--mono); font-size: 1.08cqi; font-weight: 600; color: var(--navy-3); }
+.ag-t { font-size: 1.36cqi; font-weight: 500; line-height: 1.35; }
+.ag-t small { display: block; font-size: .98cqi; font-weight: 400; color: var(--muted); margin-top: .15cqi; }
+.ag-min { font-family: var(--mono); font-size: 1.08cqi; color: var(--muted); white-space: nowrap; }
+.dt-tag { font-family: var(--mono); font-size: .8cqi; font-weight: 600; padding: .08cqi .5cqi; border-radius: 2px; margin-left: .6cqi; vertical-align: .12cqi; white-space: nowrap; }
+.dt-tag.has { background: var(--ok-wash); color: var(--ok); }
+.dt-tag.todo { background: var(--warn-wash); color: var(--warn); }
+
+/* ── 채울 자리 ────────────────────────────────────────────────── */
+.thesis.todo-t { color: var(--warn); font-size: 2.4cqi; justify-self: start; padding-bottom: .3cqi; border-bottom: 2px dashed var(--warn); }
+.todo-body { display: grid; grid-template-columns: 1.2fr 1fr; gap: 3.4cqi; align-content: start; }
+.todo-body > div { display: flex; flex-direction: column; gap: 1cqi; min-width: 0; }
+.checks { display: grid; gap: .95cqi; }
+.checks li { position: relative; padding-left: 2.1cqi; font-size: 1.2cqi; line-height: 1.45; }
+.checks li::before { content: ""; position: absolute; left: 0; top: .28em; width: 1.1cqi; height: 1.1cqi; border: 1.5px solid var(--navy-3); border-radius: 2px; }
+.warn-box { font-size: 1.08cqi; line-height: 1.5; padding: .9cqi 1.2cqi; background: var(--warn-wash); color: var(--ink); border-radius: 2px; }
+.warn-box b { color: var(--warn); }
+.refs { display: grid; gap: .75cqi; }
+.refs li { font-size: 1.05cqi; color: var(--muted); line-height: 1.45; }
+.refs li code { word-break: break-all; }
+.known { display: grid; gap: .55cqi; padding: 1.1cqi 1.3cqi; background: var(--surface-2); border-top: 2px solid var(--navy-3); }
+.known div { display: grid; grid-template-columns: 11cqi 1fr; gap: 1cqi; align-items: baseline; }
+.known dt { font-size: .95cqi; color: var(--muted); }
+.known dd { font-family: var(--mono); font-size: 1.15cqi; font-weight: 600; color: var(--navy); }
+.video-slot { aspect-ratio: 16 / 9; display: grid; place-content: center; gap: .8cqi; text-align: center; border: 2px dashed var(--navy-3); background: var(--surface-2); color: var(--muted); font-size: 1.1cqi; padding: 2cqi; }
+.video-slot b { font-size: 1.5cqi; color: var(--navy); }
+
+/* ── 데이터 1 · 무엇을 모았나 ─────────────────────────────────── */
+.s1 { display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: auto auto; gap: 1.7cqi 3.4cqi; }
+.inv { border-collapse: collapse; width: 100%; font-size: 1.15cqi; }
+.inv th { font-family: var(--mono); font-weight: 500; font-size: .9cqi; letter-spacing: .05em; color: var(--muted); text-align: left; padding: 0 .6cqi .45cqi; border-bottom: 1px solid var(--rule); }
+.inv td { padding: .36cqi .6cqi; border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+.inv tr:last-child td { border-bottom: 0; }
+.inv .r { text-align: right; }
+.inv td:last-child { color: var(--muted); }
+.facts { display: flex; flex-direction: column; justify-content: center; gap: 1.5cqi; }
+.fact { display: grid; gap: .2cqi; padding-left: 1.6cqi; border-left: 1px solid var(--rule); }
+.fv { font-family: var(--mono); font-weight: 600; font-size: 2.2cqi; color: var(--navy); letter-spacing: -.02em; line-height: 1.12; }
+.fv small { font-size: .52em; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: .15em; }
+.fv .to { color: var(--navy-3); font-weight: 400; margin: 0 .25em; }
+.fk { font-size: 1.1cqi; color: var(--muted); }
+.pipe-wrap { grid-column: 1 / -1; display: grid; gap: .8cqi; }
+.pipe { display: grid; grid-template-columns: repeat(8, 1fr); gap: .5cqi; }
+.pipe li { display: grid; gap: .1cqi; padding: .8cqi .9cqi .7cqi; background: var(--surface-2); border-top: 2px solid var(--navy-3); }
+.pipe .pn { font-family: var(--mono); font-size: .9cqi; color: var(--navy-3); }
+.pipe b { font-size: 1.12cqi; font-weight: 600; }
+.pipe li code { background: none; padding: 0; color: var(--muted); font-size: .86cqi; }
+.pipe li.hot { background: var(--signal-wash); border-top-color: var(--signal); }
+.pipe li.hot .pn, .pipe li.hot b { color: var(--signal); }
+.pipe li.off b { color: var(--muted); font-weight: 500; }
+.pipe-note { font-size: 1.02cqi; color: var(--muted); }
+
+/* ── 데이터 2 · 시점과 봉인 ───────────────────────────────────── */
+.s2 { display: grid; grid-template-columns: 1.14fr 1fr; gap: 3.4cqi; }
+.ctrl, .seal { display: flex; flex-direction: column; gap: 1cqi; min-width: 0; }
+.bars { display: grid; gap: 1.6cqi; margin-top: .9cqi; }
+.bar-row { display: grid; grid-template-columns: 15cqi 1fr 7cqi; align-items: center; gap: 1.1cqi; }
+.bl { font-size: 1.2cqi; line-height: 1.3; }
+.bl code { font-size: .88em; }
+.bt { position: relative; height: 3.2cqi; background: var(--surface-2); }
+.bt i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--navy-3); }
+.bv { font-family: var(--mono); font-weight: 600; font-size: 1.55cqi; color: var(--navy); text-align: right; line-height: 1.1; }
+.bv small { display: block; font-size: .6em; font-weight: 400; color: var(--muted); }
+.bar-row.is-zero .bt::before { content: ""; position: absolute; left: 0; top: -.35cqi; bottom: -.35cqi; width: .28cqi; background: var(--signal); }
+.bar-row.is-zero .bv { color: var(--signal); }
+.axis { position: relative; height: 1.5cqi; margin: 0 8.1cqi 0 16.1cqi; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: .88cqi; color: var(--faint); }
+.axis span { position: absolute; top: .25cqi; transform: translateX(-50%); }
+.axis span:first-child { transform: none; }
+.codeline { margin-top: .8cqi; display: flex; flex-wrap: wrap; align-items: baseline; gap: .3cqi 1.2cqi; padding: 1cqi 1.3cqi; background: var(--panel); border-radius: 2px; font-size: 1.08cqi; color: var(--on-panel-dim); }
+.codeline code { background: none; padding: 0; color: var(--on-panel-blue); font-size: 1.22cqi; }
+.tl-wrap { display: grid; gap: .45cqi; margin-top: .4cqi; }
+.tl-top { font-family: var(--mono); font-size: .92cqi; color: var(--signal); text-align: right; }
+.tl { display: flex; height: 3cqi; }
+.tl-dev { display: flex; align-items: center; padding: 0 1cqi; background: var(--navy); color: #FFFFFF; font-size: 1.02cqi; white-space: nowrap; }
+.tl-hold { display: flex; align-items: center; justify-content: center; color: #FFFFFF; font-size: .95cqi; font-weight: 600; background: repeating-linear-gradient(135deg, var(--signal) 0 .45cqi, var(--signal-2) .45cqi .9cqi); }
+.tl-ends { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .92cqi; color: var(--muted); }
+.unseal { border-collapse: collapse; width: 100%; font-size: 1.12cqi; margin-top: .6cqi; }
+.unseal th { text-align: left; font-weight: 500; font-size: .92cqi; color: var(--muted); padding: .35cqi .8cqi; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.unseal th code { background: none; padding: 0; color: var(--navy-2); }
+.unseal td { padding: .55cqi .8cqi; border-bottom: 1px solid var(--rule-soft); }
+.unseal td:first-child { font-family: var(--mono); white-space: nowrap; width: 11cqi; }
+.unseal tr.now td { background: var(--navy-wash); font-weight: 600; }
+.unseal .when { font-family: var(--mono); font-weight: 500; font-size: .85cqi; color: var(--navy-2); margin-left: .6cqi; }
+.unseal tr.bad td:last-child { color: var(--signal); }
+
+/* ── 데이터 3 · 품질 게이트 ───────────────────────────────────── */
+.s3 { display: grid; grid-template-columns: 1fr 1.32fr; grid-template-rows: auto auto; gap: 1.8cqi 3.2cqi; }
+.gate { display: flex; flex-direction: column; gap: 1cqi; min-width: 0; }
+.gh { display: flex; align-items: center; gap: 1cqi; font-size: 1.18cqi; font-weight: 600; }
+.stops { display: grid; gap: .85cqi; }
+.stops li { position: relative; padding-left: 1.6cqi; font-size: 1.12cqi; }
+.stops li::before { content: ""; position: absolute; left: 0; top: .6em; width: .7cqi; height: .7cqi; background: var(--signal); }
+.axes { display: grid; grid-template-columns: repeat(4, 1fr); gap: .6cqi; }
+.axes li { display: grid; align-content: start; gap: .15cqi; padding: .65cqi .8cqi; background: var(--surface-2); border-top: 2px solid var(--ok); }
+.axes code { background: none; padding: 0; font-size: .95cqi; font-weight: 600; color: var(--ink); }
+.axes span { font-size: .95cqi; line-height: 1.35; color: var(--muted); }
+.axes li.red { background: var(--signal-wash); border-top-color: var(--signal); }
+.axes li.red span { color: var(--signal); font-weight: 500; }
+.axes li.log { border-top-color: var(--navy-3); }
+.legend { display: flex; gap: 1.4cqi; font-size: .92cqi; color: var(--muted); }
+.k.ok { background: var(--ok); } .k.red { background: var(--signal); } .k.log { background: var(--navy-3); }
+.found { grid-column: 1 / -1; display: grid; gap: .7cqi; padding: 1.2cqi 1.6cqi; background: var(--surface-2); border-top: 1px solid var(--rule); }
+.found-t { font-size: 1.25cqi; font-weight: 500; }
+.case { display: flex; flex-wrap: wrap; gap: .6cqi 3cqi; }
+.case div { display: grid; gap: .05cqi; }
+.case dt { font-size: .9cqi; color: var(--muted); }
+.case dd { font-family: var(--mono); font-size: 1.2cqi; font-weight: 600; color: var(--navy); white-space: nowrap; }
+
+/* ── 데이터 4 · 넘기는 것 ─────────────────────────────────────── */
+.s4 { display: flex; flex-direction: column; justify-content: center; gap: 3.2cqi; }
+.hand { display: grid; grid-template-columns: repeat(3, 1fr); align-items: start; }
+.hand li { display: flex; flex-direction: column; gap: .8cqi; padding: .4cqi 2.4cqi 0; border-left: 1px solid var(--rule); }
+.hand li:first-child { padding-left: 0; border-left: 0; }
+.hk { font-family: var(--mono); font-size: 1.02cqi; letter-spacing: .1em; color: var(--navy-2); }
+.hvv { font-size: 1.5cqi; font-weight: 600; }
+.hn { font-family: var(--mono); font-size: 2.5cqi; font-weight: 600; color: var(--navy); letter-spacing: -.02em; line-height: 1.15; }
+.hd { font-size: 1.2cqi; color: var(--muted); }
+.next { display: flex; align-items: baseline; gap: 1.2cqi; padding-top: 1.3cqi; border-top: 1px solid var(--rule); font-size: 1.2cqi; }
+
+/* ── 전처리 판단 ──────────────────────────────────────────────── */
+.s5 { display: grid; grid-template-columns: 1.38fr 1fr; gap: 3.4cqi; }
+.pre, .why { display: flex; flex-direction: column; gap: .9cqi; min-width: 0; }
+.dv { display: grid; gap: .75cqi; margin-top: .4cqi; }
+.dv-row, .dv-axis { display: grid; grid-template-columns: 17.5cqi 1fr 5cqi; gap: 1cqi; align-items: center; }
+.dl { font-size: 1.1cqi; text-align: right; white-space: nowrap; }
+.dt { position: relative; height: 2.3cqi; }
+.dt::before { content: ""; position: absolute; left: 80%; top: -.35cqi; bottom: -.35cqi; width: 1px; background: var(--ink); }
+.dt i { position: absolute; top: 0; bottom: 0; background: var(--navy-3); }
+.dv-row.pos .dt i { background: var(--signal); }
+.dv-row.zero .dt i { background: var(--muted); }
+.dv-row.hot .dt i { background: var(--navy); }
+.dv-row.hot .dl { font-weight: 600; }
+.dvv { font-family: var(--mono); font-size: 1.15cqi; font-weight: 600; color: var(--navy); }
+.dv-row.pos .dvv { color: var(--signal); }
+.tick-row { position: relative; height: 1.5cqi; border-top: 1px solid var(--rule); font-family: var(--mono); font-size: .88cqi; color: var(--faint); }
+.tick-row em { position: absolute; top: .25cqi; font-style: normal; transform: translateX(-50%); }
+.tick-row em:first-child { transform: none; }
+.tick-row em.end { transform: translateX(-100%); }
+.dv-key { display: flex; flex-wrap: wrap; gap: .3cqi 1.6cqi; padding-left: 18.5cqi; font-size: .92cqi; color: var(--muted); }
+.k.neg { background: var(--navy-3); } .k.pos { background: var(--signal); }
+.stack { display: flex; height: 3.3cqi; margin-top: .3cqi; }
+.stack i { display: flex; align-items: center; padding-left: .8cqi; font-style: normal; }
+.stack b { font-family: var(--mono); font-size: 1.12cqi; font-weight: 600; }
+.stack .a { background: var(--navy); color: #FFFFFF; }
+.stack .b { background: var(--navy-3); color: #FFFFFF; }
+.stack .c { background: var(--navy-4); color: var(--ink); }
+.k.a { background: var(--navy); } .k.b { background: var(--navy-3); } .k.c { background: var(--navy-4); }
+.stack-k { display: flex; flex-wrap: wrap; gap: .3cqi 1.6cqi; font-size: 1.02cqi; color: var(--muted); }
+.why-t { font-size: 1.25cqi; line-height: 1.55; padding: 1cqi 0; border-top: 1px solid var(--rule-soft); border-bottom: 1px solid var(--rule-soft); }
+.cond { display: grid; gap: .45cqi; }
+.cond div { display: grid; grid-template-columns: 8cqi 1fr; gap: 1cqi; font-size: 1.05cqi; }
+.cond dt { color: var(--muted); }
+.cond dd { font-weight: 500; }
+
+/* ── 배경 1 · 가로 막대 ───────────────────────────────────────── */
+.b1 { display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 2cqi 3.4cqi; }
+.b1 figure { display: flex; flex-direction: column; gap: .8cqi; min-width: 0; }
+.hb { display: grid; gap: 1.1cqi; margin-top: .8cqi; }
+.hb-row, .hb-axis { display: grid; grid-template-columns: 15cqi 1fr 6.4cqi; gap: 1cqi; align-items: center; }
+.hbl { font-size: 1.15cqi; }
+.hbt { position: relative; height: 2.8cqi; background: var(--surface-2); }
+.hbt i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--navy-3); }
+.hbt i.gap { background: var(--signal); }
+.hb-row.hot .hbt i:first-child { background: var(--navy); }
+.hb-row.warn .hbt i { background: var(--signal); }
+.hbv { font-family: var(--mono); font-weight: 600; font-size: 1.35cqi; color: var(--navy); text-align: right; }
+.hb-row.warn .hbv, .hb-row.hot .hbv { color: var(--signal); }
+.lit { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; gap: 3.4cqi; padding-top: 1.3cqi; border-top: 1px solid var(--rule); }
+.lit > div { display: grid; grid-template-columns: auto 1fr; gap: .2cqi 1.6cqi; align-items: baseline; }
+.lv { grid-row: span 2; font-family: var(--mono); font-weight: 600; font-size: 2.2cqi; color: var(--navy); letter-spacing: -.02em; white-space: nowrap; }
+.lk { font-size: 1.1cqi; }
+.ls { font-size: .92cqi; color: var(--muted); }
+
+/* ── 배경 2 · 시장조사 ────────────────────────────────────────── */
+.b2 { display: flex; flex-direction: column; justify-content: center; gap: 1.8cqi; }
+.mkt { display: grid; grid-template-columns: repeat(3, 1fr); }
+.mkt li { display: flex; flex-direction: column; gap: .7cqi; padding: 0 2.2cqi; border-left: 1px solid var(--rule); }
+.mkt li:first-child { padding-left: 0; border-left: 0; }
+.md { font-family: var(--mono); font-size: .98cqi; color: var(--navy-2); letter-spacing: .04em; }
+.mh { font-size: 1.4cqi; font-weight: 600; line-height: 1.35; min-height: 3.8cqi; }
+.mv { font-family: var(--mono); font-weight: 600; font-size: 3cqi; color: var(--navy); letter-spacing: -.02em; line-height: 1.1; }
+.mv small { font-size: .5em; color: var(--muted); font-weight: 500; margin-left: .15em; }
+.mx { font-size: 1.1cqi; color: var(--muted); min-height: 5cqi; }
+.mw { display: flex; gap: .8cqi; align-items: baseline; font-size: 1.15cqi; font-weight: 500; padding-top: .8cqi; border-top: 1px dashed var(--rule); }
+.ms { font-size: .88cqi; color: var(--faint); font-family: var(--mono); }
+.b2-note { font-size: 1.12cqi; padding: 1.1cqi 1.4cqi; background: var(--surface-2); }
+.b2-note .src { color: var(--faint); font-family: var(--mono); font-size: .85cqi; margin-left: .6cqi; }
+
+/* ── 배경 3 · 팀 ──────────────────────────────────────────────── */
+.b3 { display: flex; flex-direction: column; justify-content: center; gap: 2cqi; }
+.team { display: grid; grid-template-columns: repeat(4, 1fr); gap: .8cqi; }
+.team li { display: flex; flex-direction: column; gap: .7cqi; padding: 1.6cqi 1.6cqi 1.4cqi; background: var(--surface-2); border-top: 2px solid var(--navy-3); }
+.team li.lead { border-top-color: var(--signal); }
+.tn { font-family: var(--serif); font-weight: 800; font-size: 2.2cqi; line-height: 1.2; }
+.tn span { font-family: var(--mono); font-weight: 500; font-size: .9cqi; color: var(--signal); margin-left: .6cqi; vertical-align: .3cqi; }
+.tr { font-size: 1.22cqi; font-weight: 500; min-height: 3.6cqi; }
+.to { font-size: 1.08cqi; color: var(--muted); }
+.tc { margin-top: auto; padding-top: .7cqi; border-top: 1px solid var(--rule-soft); font-size: 1.02cqi; color: var(--muted); }
+.tc b { color: var(--navy); }
+.ring { display: flex; flex-wrap: wrap; align-items: center; gap: .6cqi 1cqi; font-size: 1.22cqi; font-weight: 600; }
+.ring i { font-style: normal; color: var(--navy-3); font-family: var(--mono); }
+.ring em { font-style: normal; font-weight: 400; font-size: 1cqi; color: var(--muted); margin-left: 1.2cqi; }
+.rules { display: grid; grid-template-columns: auto 1fr; gap: 3cqi; align-items: baseline; padding-top: 1.2cqi; border-top: 1px solid var(--rule); font-size: 1.15cqi; }
+.rules b { font-family: var(--serif); font-size: 1.5cqi; }
+
+/* ── 결론 ─────────────────────────────────────────────────────── */
+.c1 { display: flex; flex-direction: column; justify-content: center; gap: 1.8cqi; }
+.res { border-collapse: collapse; width: 100%; font-size: 1.15cqi; }
+.res th { font-family: var(--mono); font-weight: 500; font-size: .9cqi; letter-spacing: .04em; color: var(--muted); text-align: left; padding: 0 .8cqi .6cqi; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+.res td { padding: 1.1cqi .8cqi; border-bottom: 1px solid var(--rule-soft); vertical-align: top; }
+.res .r { text-align: right; }
+.res td.num { font-size: 1.35cqi; font-weight: 600; color: var(--navy); white-space: nowrap; }
+.res td b { font-size: 1.3cqi; }
+.res td small { display: block; font-size: .88cqi; color: var(--muted); }
+.res th.hold, .res td.hold { background: var(--warn-wash); }
+.c1-notes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.4cqi; font-size: 1.05cqi; color: var(--muted); }
+.c1-notes b { color: var(--ink); }
+.fill { display: flex; flex-wrap: wrap; gap: .5cqi 1cqi; align-items: baseline; font-size: 1.1cqi; padding: 1cqi 1.3cqi; border: 1px dashed var(--warn); border-radius: 2px; }
+.c2 { display: flex; flex-direction: column; justify-content: center; gap: 2.2cqi; }
+.cols { display: grid; grid-template-columns: repeat(3, 1fr); }
+.cols section { display: flex; flex-direction: column; gap: 1cqi; padding: 0 2.2cqi; border-left: 1px solid var(--rule); }
+.cols section:first-child { padding-left: 0; border-left: 0; }
+.ch { font-family: var(--mono); font-size: 1cqi; letter-spacing: .08em; color: var(--navy-2); font-weight: 500; }
+.dots { display: grid; gap: 1cqi; }
+.dots li { position: relative; padding-left: 1.5cqi; font-size: 1.2cqi; line-height: 1.5; }
+.dots li::before { content: ""; position: absolute; left: 0; top: .65em; width: .55cqi; height: .55cqi; border-radius: 50%; background: var(--navy-3); }
+.quote { padding: 1.4cqi 0 0; border-top: 1px solid var(--rule); display: grid; gap: .5cqi; }
+.quote p { font-family: var(--serif); font-weight: 700; font-size: 1.8cqi; line-height: 1.4; }
+.quote footer { font-size: 1cqi; color: var(--muted); }
+
+/* ── 질문 ─────────────────────────────────────────────────────── */
+.qs { display: grid; grid-template-columns: 1.4fr 1fr; gap: 4cqi; align-content: center; }
+.who-t { border-collapse: collapse; width: 100%; font-size: 1.3cqi; }
+.who-t th { font-family: var(--mono); font-weight: 500; font-size: .95cqi; color: var(--muted); text-align: left; padding: 0 .8cqi .6cqi; border-bottom: 1px solid var(--rule); }
+.who-t td { padding: 1.1cqi .8cqi; border-bottom: 1px solid var(--rule-soft); }
+.who-t td:nth-child(2) { font-weight: 600; white-space: nowrap; }
+.who-t td.src { font-family: var(--mono); font-size: .95cqi; color: var(--muted); }
+.repo { display: flex; flex-direction: column; justify-content: center; gap: .8cqi; padding-left: 3cqi; border-left: 1px solid var(--rule); }
+.repo .rk { font-family: var(--mono); font-size: 1cqi; letter-spacing: .1em; color: var(--navy-2); }
+.repo .rv { font-family: var(--mono); font-size: 1.6cqi; font-weight: 600; color: var(--navy); word-break: break-all; }
+
+/* ── 발표 모드 — 한 장을 화면에 꽉 차게 ─────────────────────── */
+.pager { display: none; }
+html.presenting, html.presenting body { height: 100%; overflow: hidden; background: #0B111B; }
+html.presenting .deck-head, html.presenting .slot-cap, html.presenting .part, html.presenting .draft-only { display: none; }
+html.presenting .deck { max-width: none; padding: 0; }
+html.presenting .slot { display: none; }
+html.presenting .slot.is-current { display: grid; place-items: center; position: fixed; inset: 0; }
+html.presenting .slot.is-current .slide { width: min(100vw, calc(100vh * 16 / 9)); border: 0; border-radius: 0; }
+html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .7rem; z-index: 2; font-family: var(--mono); font-size: .8rem; color: #8A96A8; }
+
+@media (max-width: 640px) {
+  .ctl { align-items: flex-start; }
+  .ctl-row { justify-content: flex-start; }
+}
+@media print {
+  @page { size: 297mm 167.06mm; margin: 0; }
+  body { background: #FFFFFF; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .deck-head, .slot-cap, .part { display: none; }
+  .deck { max-width: none; padding: 0; gap: 0; }
+  .slide { border: 0; border-radius: 0; break-after: page; }
+}
+</style>
+
+<header class="deck-head">
+  <div>
+    <p class="status">통합본 v1.0 · 2026-09-11 · 틀 이동원 · 각자 자기 구역을 채운다</p>
+    <h1>Qurious 발표 통합본</h1>
+    <p class="sub">9월 13일 발표 · 신장환 1~4 · 강민석 1~6 · 합계 약 18분(가안). 배경 · 데이터 · 전처리 판단 · 결론에는 초안이 들어가 있고, 노란 표시가 붙은 장은 담당자가 채울 자리입니다. 채우는 법은 <code>docs/발표/README.md</code>에 있습니다.</p>
+  </div>
+  <div class="ctl">
+    <div class="ctl-row">
+      <span class="todo-count">채울 자리 <b data-todo-count>10</b>장 남음</span>
+      <button class="btn" type="button" data-present>발표 모드로 보기</button>
+    </div>
+    <span><kbd>P</kbd> 켜고 끄기 · <kbd>←</kbd> <kbd>→</kbd> 넘기기 · <kbd>Esc</kbd> 나가기 · 슬라이드를 두 번 누르면 그 장부터</span>
+  </div>
+</header>
+
+<main class="deck">
+
+  <!-- ═══════════════════════ 표지 · 목차 ═══ 시작 (이동원) ═══════════════════════ -->
+  <section class="slot" aria-label="표지">
+    <p class="slot-cap"><b>표지</b><span>약 10초</span></p>
+    <div class="slide dark">
+      <div class="cover">
+        <p class="cv-eyebrow">주가지수 데이터 활용 머신러닝 · 1차 프로젝트</p>
+        <div class="cv-main">
+          <h2 class="cv-title">Qurious</h2>
+          <p class="cv-sub">주가지수 데이터로 5거래일 뒤 방향을 예측하고,<br>그 예측이 스스로를 속이지 않았는지 검증했습니다</p>
+        </div>
+        <div class="cv-meta">
+          <div><p class="k2">발표</p><p class="v2">2026-09-13 · 신장환 · 강민석</p></div>
+          <div><p class="k2">팀</p><p class="v2">이동원 · 신장환 · 오준영 · 강민석</p></div>
+          <div><p class="k2">장소</p><p class="v2">koreaIT 노원 B강의실</p></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="목차">
+    <p class="slot-cap"><b>목차</b><span>시간은 가안 — 바꾸면 이 장도 함께 고친다</span><span>약 15초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>발표 순서</span><span>QURIOUS</span></header>
+        <h2 class="thesis">발표 순서 — 약 18분</h2>
+        <div class="body ag">
+          <div class="ag-col">
+            <p class="ag-who">신장환<span>약 9분 30초</span></p>
+            <ol class="ag-list">
+              <li><span class="ag-no">01</span><span class="ag-t">배경 · 팀 소개<span class="dt-tag has draft-only">초안</span><small>정확도의 함정 · 2026년 한국 시장 · 네 사람</small></span><span class="ag-min">2:00</span></li>
+              <li><span class="ag-no">02</span><span class="ag-t">데이터 수집 · 품질 게이트<span class="dt-tag has draft-only">초안</span><small>16년치 시장 · 미래 정보 차단 · 막는 검사와 적는 검사</small></span><span class="ag-min">2:25</span></li>
+              <li><span class="ag-no">03</span><span class="ag-t">피처 · 라벨 설계<span class="dt-tag todo draft-only">일부 채울 자리</span><small>전처리 판단 · 유동 임계값 포함</small></span><span class="ag-min">2:00</span></li>
+              <li><span class="ag-no">04</span><span class="ag-t">결과 · 모델 비교 방법론<span class="dt-tag todo draft-only">채울 자리</span><small>모델 4종 비교 · 종목 트랙 · KOSPI200 지수 트랙</small></span><span class="ag-min">3:00</span></li>
+            </ol>
+          </div>
+          <div class="ag-col">
+            <p class="ag-who">강민석<span>약 8분 30초</span></p>
+            <ol class="ag-list">
+              <li><span class="ag-no">05</span><span class="ag-t">동적 기준선 최적화 · Focal 분류기<span class="dt-tag todo draft-only">채울 자리</span></span><span class="ag-min">1:30</span></li>
+              <li><span class="ag-no">06</span><span class="ag-t">신호 → 포지션 규칙<span class="dt-tag todo draft-only">채울 자리</span></span><span class="ag-min">1:00</span></li>
+              <li><span class="ag-no">07</span><span class="ag-t">성과 검증 엔진<span class="dt-tag todo draft-only">채울 자리</span></span><span class="ag-min">1:30</span></li>
+              <li><span class="ag-no">08</span><span class="ag-t">요일별 5트랙 중첩 운용<span class="dt-tag todo draft-only">채울 자리</span></span><span class="ag-min">1:00</span></li>
+              <li><span class="ag-no">09</span><span class="ag-t">Streamlit 시연 (녹화본)<span class="dt-tag todo draft-only">채울 자리</span></span><span class="ag-min">2:00</span></li>
+              <li><span class="ag-no">10</span><span class="ag-t">결론<span class="dt-tag has draft-only">초안</span><small>개발구간 결과 · 홀드아웃 · 다음 차수</small></span><span class="ag-min">1:30</span></li>
+            </ol>
+          </div>
+        </div>
+        <footer class="foot"><span>질의응답은 별도</span><span>시간 가안 · 2026-09-11</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 표지 · 목차 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 신장환 1 · 배경 · 팀 소개 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">01</span>배경 · 팀 소개<span class="meta-r">발표 신장환 · 약 2분 · 3장</span><span class="st st--has">초안 들어감 · 신장환 확인</span></h2>
+
+  <section class="slot" aria-label="01 배경 — 정확도의 함정">
+    <p class="slot-cap"><b>신장환 1 · 1/3</b><span>배경 — 정확도 숫자만으로는 아무것도 말할 수 없다</span><span>약 45초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>01 배경</span><span>QURIOUS · 1 / 3</span></header>
+        <h2 class="thesis">아무 모델 없이 “늘 중립”이라고만 답해도<br>38.50%를 맞힙니다</h2>
+        <div class="body b1">
+          <figure>
+            <figcaption class="eyebrow">KOSPI200 5거래일 뒤 방향 3분류 · 개발구간 3,553거래일</figcaption>
+            <div class="hb">
+              <div class="hb-row"><span class="hbl">셋 중 하나를 무작위로</span><span class="hbt"><i style="width:66.67%"></i></span><span class="hbv">33.3%</span></div>
+              <div class="hb-row"><span class="hbl">늘 “중립”이라고 답하면</span><span class="hbt"><i style="width:77%"></i></span><span class="hbv">38.50%</span></div>
+              <div class="hb-row hot"><span class="hbl">유의하다고 말하려면</span><span class="hbt"><i style="width:77%"></i><i class="gap" style="left:77%;width:5.22%"></i></span><span class="hbv">41.11%</span></div>
+            </div>
+            <div class="hb-axis" aria-hidden="true"><span></span><span class="tick-row"><em style="left:0">0</em><em style="left:20%">10</em><em style="left:40%">20</em><em style="left:60%">30</em><em style="left:80%">40</em><em class="end" style="left:100%">50%</em></span><span></span></div>
+            <p class="note">모델은 기준선보다 <b class="sig">2.61%p</b>를 더 맞혀야 우연이 아니라고 말할 수 있습니다. 5거래일 라벨이 서로 겹쳐 관측이 독립이 아닌 것(VIF 3.78)을 반영한 단측 α = 0.05 문턱입니다.</p>
+          </figure>
+          <figure>
+            <figcaption class="eyebrow">실수 한 줄이면 그 폭이 사라진다 — 라벨과의 상관계수</figcaption>
+            <div class="hb">
+              <div class="hb-row"><span class="hbl">라벨을 제대로 정렬</span><span class="hbt"><i style="width:8.55%"></i></span><span class="hbv">+0.0171</span></div>
+              <div class="hb-row warn"><span class="hbl">하루 어긋나게 정렬</span><span class="hbt"><i style="width:85.45%"></i></span><span class="hbv">+0.1709</span></div>
+            </div>
+            <div class="hb-axis" aria-hidden="true"><span></span><span class="tick-row"><em style="left:0">0</em><em style="left:50%">0.1</em><em class="end" style="left:100%">0.2</em></span><span></span></div>
+            <p class="note">라벨을 시가(t)→시가(t+5)로 하루만 어긋나게 붙였더니 정확히 <b>10.0배</b>로 부풀었고, 에러는 나지 않았습니다. 그래서 예측 모델과 성과 검증 엔진을 같은 비중으로 만들었습니다.</p>
+          </figure>
+          <div class="lit">
+            <div><p class="lv">65% · 82%</p><p class="lk">발표된 이상현상 452개 중 |t| ≥ 1.96을 넘지 못한 비율 · 다중검정 문턱 2.78을 쓰면</p><p class="ls">Hou · Xue · Zhang (2020), Review of Financial Studies 33(5)</p></div>
+            <div><p class="lv">0.40%</p><p class="lk">머신러닝으로 미국 개별주 월간 수익률을 예측했을 때 표본 밖 R²</p><p class="ls">Gu · Kelly · Xiu (2020), Review of Financial Studies 33(5)</p></div>
+          </div>
+        </div>
+        <footer class="foot"><span>기준선 · 문턱 · 상관은 계획서 v5.3 실측 · 2026-09-10</span><span>scripts/build_project_plan.py · docs/시장조사/version2.0</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="01 배경 — 시장조사">
+    <p class="slot-cap"><b>신장환 1 · 2/3</b><span>시장조사 — 2026년 한국 시장에서 달라진 셋</span><span>약 45초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>01 배경 — 시장조사</span><span>QURIOUS · 2 / 3</span></header>
+        <h2 class="thesis">2026년 한국 시장에서 달라진 세 가지가<br>우리 설계를 바꿨습니다</h2>
+        <div class="body b2">
+          <ul class="mkt">
+            <li>
+              <p class="md">2026-01-01 시행</p>
+              <p class="mh">증권거래세가 다시 올랐다</p>
+              <p class="mv">0.20%</p>
+              <p class="mx">코스피 0.05% + 농어촌특별세 0.15%, 코스닥 0.20%. 수익이 아니라 판 금액 전체에 붙는다</p>
+              <p class="mw"><span class="pill pill--so">그래서</span>거래비용을 날짜별 세율로, 네 수준(0.05 · 0.23 · 0.30 · 0.50%)으로 잰다</p>
+              <p class="ms">연합뉴스 2025-12-01 · 기획재정부 시행령 개정</p>
+            </li>
+            <li>
+              <p class="md">2026-02-12 발표 · 7월 시행</p>
+              <p class="mh">주가 1,000원 미만도 상장폐지 사유가 됐다</p>
+              <p class="mv">243<small>건</small></p>
+              <p class="mx">2월 12일~7월 2일 주식병합. 전년 같은 기간은 10건이었다. 30거래일 연속 1,000원 미만이면 관리종목</p>
+              <p class="mw"><span class="pill pill--so">그래서</span>상장폐지 종목을 지우지 않고, 수정주가를 전 종목 검사한다</p>
+              <p class="ms">연합인포맥스 2026-07-04 · 매일경제 2026-02-27</p>
+            </li>
+            <li>
+              <p class="md">2025-12-27 전환</p>
+              <p class="mh">KRX 정보데이터시스템이 로그인 필수가 됐다</p>
+              <p class="mv">회원제</p>
+              <p class="mx">화면을 읽어 오던 오픈소스 pykrx가 로그인 문제를 겪었다</p>
+              <p class="mw"><span class="pill pill--so">그래서</span>화면 대신 KRX Open API를 발급받은 키로 직접 부른다</p>
+              <p class="ms">글로벌이코노믹 2025-12-07 · pykrx 이슈 #244</p>
+            </li>
+          </ul>
+          <p class="b2-note">국내 리테일 퀀트 서비스 다섯 곳 중 시도 횟수를 세어 알려 주는 곳은 찾지 못했습니다. 우리는 모든 시도를 장부(<code>reports/trials.jsonl</code>)에 자동으로 남깁니다.<span class="src">팀 시장조사 v2.0 · 2026-08-27</span></p>
+        </div>
+        <footer class="foot"><span>기사 확인 2026-09-11</span><span>docs/시장조사/version2.0/시장조사.md</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="01 팀 소개">
+    <p class="slot-cap"><b>신장환 1 · 3/3</b><span>팀 소개</span><span>약 30초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>01 팀 소개</span><span>QURIOUS · 3 / 3</span></header>
+        <h2 class="thesis">넷이 한 파트씩 맡고,<br>옆 사람이 만든 것을 검수합니다</h2>
+        <div class="body b3">
+          <ul class="team">
+            <li class="lead"><p class="tn">이동원<span>팀장</span></p><p class="tr">데이터 수집 · 정제 · 전처리 · 문서와 일정</p><p class="to">수집 파이프라인 · 품질 게이트 · 공급 정문</p><p class="tc">검수 <b>신장환</b></p></li>
+            <li><p class="tn">신장환</p><p class="tr">피처 엔지니어링 · 기술적 지표 · 데이터 품질</p><p class="to">지표 모듈 · 손계산 테스트 · 선별 통계</p><p class="tc">검수 <b>오준영</b></p></li>
+            <li><p class="tn">오준영</p><p class="tr">AI 모델 개발 · 학습</p><p class="to">모델 4종 · 성능 비교표 · 최종 모델</p><p class="tc">검수 <b>강민석</b></p></li>
+            <li><p class="tn">강민석</p><p class="tr">백테스팅 · 성과지표 · 대시보드</p><p class="to">검증 엔진 · Streamlit 화면</p><p class="tc">검수 <b>이동원</b></p></li>
+          </ul>
+          <p class="ring" aria-label="검수 순환: 이동원에서 신장환, 오준영, 강민석, 다시 이동원"><span>이동원</span><i>→</i><span>신장환</span><i>→</i><span>오준영</span><i>→</i><span>강민석</span><i>→</i><span>이동원</span><em>만든 사람 → 검수하는 사람</em></p>
+          <div class="rules">
+            <p><b>Qurious</b> = Quant + Curious</p>
+            <p>모든 코드는 PR로 병합하고 교차 검수자 한 명이 승인합니다. 자기가 만든 기능을 5분 안에 설명하지 못하면 병합하지 않습니다.</p>
+          </div>
+        </div>
+        <footer class="foot"><span>역할과 검수 짝은 계획서 부록 B · 발표 신장환 · 강민석</span><span>scripts/build_project_plan.py</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 신장환 1 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 신장환 2 · 데이터 수집 · 품질 게이트 ═══ 시작 (내용 이동원) ═══════════════════════ -->
+  <h2 class="part"><span class="no">02</span>데이터 수집 · 품질 게이트<span class="meta-r">발표 신장환 · 약 2분 25초 · 4장 · 내용 이동원</span><span class="st st--has">초안 들어감</span></h2>
+
+  <section class="slot" aria-label="02 데이터 — 무엇을 모았나">
+    <p class="slot-cap"><b>신장환 2 · 1/4</b><span>무엇을 모았나</span><span>약 35초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>02 데이터 수집 · 품질 게이트</span><span>QURIOUS · 1 / 4</span></header>
+        <h2 class="thesis">16년치 한국 시장을 DB 한 곳에 쌓고,<br>명령 하나로 받고 검사해서 팀에 나눠 줍니다</h2>
+        <div class="body s1">
+          <table class="inv">
+            <thead><tr><th>자료</th><th class="r">행</th><th>출처</th></tr></thead>
+            <tbody>
+              <tr><td>일별시세 · 수정주가 · 총수익</td><td class="r num">9,231,938</td><td>KRX · FinanceDataReader</td></tr>
+              <tr><td>종목기본정보 (그날 기준)</td><td class="r num">9,229,173</td><td>KRX Open API</td></tr>
+              <tr><td>공시 목록</td><td class="r num">1,555,556</td><td>DART</td></tr>
+              <tr><td>재무제표</td><td class="r num">662,933</td><td>DART</td></tr>
+              <tr><td>지수 51종</td><td class="r num">196,272</td><td>KRX Open API</td></tr>
+              <tr><td>배당</td><td class="r num">71,681</td><td>공공데이터포털</td></tr>
+              <tr><td>업종 스냅샷 · 사람이 받은 36장</td><td class="r num">40,874</td><td>KRX 화면</td></tr>
+              <tr><td>거시지표 9종</td><td class="r num">17,864</td><td>한국은행 ECOS</td></tr>
+            </tbody>
+          </table>
+          <div class="facts">
+            <div class="fact"><p class="fv">2010-01-04<span class="to">→</span>2026-09-04</p><p class="fk">쌓아 둔 구간 · 4,105거래일</p></div>
+            <div class="fact"><p class="fv">913<small>종</small></p><p class="fk">지금은 거래되지 않는 종목도 지우지 않았다 — 전체 3,678종의 24.8%</p></div>
+            <div class="fact"><p class="fv">23<small>표</small> · 6,685<small>MB</small></p><p class="fk">SQLite 한 파일. 팀원은 DB 대신 개발구간만 잘라 낸 반출본을 받는다</p></div>
+          </div>
+          <div class="pipe-wrap">
+            <ol class="pipe" aria-label="갱신 여덟 단계">
+              <li><span class="pn">①</span><b>수집</b><code>ingest</code></li>
+              <li><span class="pn">②</span><b>거래일 달력</b><code>calendar</code></li>
+              <li><span class="pn">③</span><b>기업행위 표</b><code>action</code></li>
+              <li class="off"><span class="pn">④</span><b>수정주가</b><code>adj · 평소 꺼 둠</code></li>
+              <li class="hot"><span class="pn">⑤</span><b>품질 게이트</b><code>gate</code></li>
+              <li><span class="pn">⑥</span><b>재배포 판정</b><code>verify</code></li>
+              <li><span class="pn">⑦</span><b>반출</b><code>export</code></li>
+              <li><span class="pn">⑧</span><b>HF 업로드</b><code>upload</code></li>
+            </ol>
+            <p class="pipe-note"><code>python -m pipelines.refresh</code> 한 줄로 여덟 단계가 돈다 · 두 번 눌러도 한 번만 돈다 · 수정주가를 매번 다시 만들면 옛 행이 나빠져서 평소에는 끈다</p>
+          </div>
+        </div>
+        <footer class="foot"><span>실측 2026-09-11 · krx_cache.db 스키마 v16</span><span>scripts/check_db.py · pipelines/refresh.py</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="02 데이터 — 시점과 봉인">
+    <p class="slot-cap"><b>신장환 2 · 2/4</b><span>미래 정보를 못 보게, 홀드아웃은 한 번만</span><span>약 45초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>02 데이터 수집 · 품질 게이트</span><span>QURIOUS · 2 / 4</span></header>
+        <h2 class="thesis">그날 알 수 없던 자료는 그날 행에 붙지 않습니다</h2>
+        <div class="body s2">
+          <figure class="ctrl">
+            <figcaption class="eyebrow">재무 보고서를 붙이는 방법별 — 그날 아직 공시되지 않은 보고서를 본 행</figcaption>
+            <div class="bars">
+              <div class="bar-row"><span class="bl">결산기 끝 날짜로 붙이면</span><span class="bt"><i style="width:92.8%"></i></span><span class="bv">23.2%<small>1,324행</small></span></div>
+              <div class="bar-row"><span class="bl">원본 최초 접수일로 붙이면</span><span class="bt"><i style="width:36.4%"></i></span><span class="bv">9.1%<small>516행</small></span></div>
+              <div class="bar-row is-zero"><span class="bl">정문 <code>attach_financial</code></span><span class="bt"></span><span class="bv">0<small>행</small></span></div>
+            </div>
+            <div class="axis" aria-hidden="true"><span style="left:0">0%</span><span style="left:40%">10%</span><span style="left:80%">20%</span></div>
+            <p class="note">같은 팀 유니버스 · 월말 116일 × 후보 5,703행. 정문은 DART 접수일 다음 거래일부터 보여 주고, 정정본은 정정일부터 보여 준다.</p>
+            <p class="codeline"><code>index_series(as_of="2026-09-01")</code><span>as_of에는 기본값이 없다 — 빼면 그 자리에서 멈춘다</span></p>
+          </figure>
+          <div class="seal">
+            <p class="eyebrow">홀드아웃은 한 번만 연다</p>
+            <div class="tl-wrap">
+              <p class="tl-top">2024-09-01부터 봉인</p>
+              <div class="tl" role="img" aria-label="개발구간 2010-01-04부터 2024-08-30까지, 봉인 2024-09-01부터 2026-09-04까지">
+                <div class="tl-dev" style="flex:1466">개발구간 · 모델은 여기서만 고른다</div>
+                <div class="tl-hold" style="flex:201">봉인</div>
+              </div>
+              <div class="tl-ends"><span>2010-01-04</span><span>2026-09-04</span></div>
+            </div>
+            <table class="unseal">
+              <thead><tr><th><code>reports/unseal.log</code></th><th>판정</th></tr></thead>
+              <tbody>
+                <tr class="now"><td>0줄</td><td>미개봉<span class="when">2026-09-11 현재</span></td></tr>
+                <tr><td>1줄</td><td>개봉 1회 — 확증 가능</td></tr>
+                <tr class="bad"><td>2줄 이상</td><td>보고서 표지에 “확증 불가”</td></tr>
+              </tbody>
+            </table>
+            <p class="note">두 번째 개봉은 반출하기 전에 거부한다. 모델 · 임계값 · class weight는 개봉 전에 커밋으로 고정했다(ADR 0009). 팀원 반출본은 매번 파일을 다시 열어 봉인 구간이 없는지 확인한다.</p>
+          </div>
+        </div>
+        <footer class="foot"><span>실측 2026-09-11 · 노트북 01/09 정문 음성 대조군</span><span>supply/financial.py · supply/holdout.py · scripts/unseal_holdout.py</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="02 데이터 — 품질 게이트">
+    <p class="slot-cap"><b>신장환 2 · 3/4</b><span>품질 게이트 — 막는 검사와 기록만 하는 검사</span><span>약 45초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>02 데이터 수집 · 품질 게이트</span><span>QURIOUS · 3 / 4</span></header>
+        <h2 class="thesis">붉으면 올리지 않습니다.<br>당장 못 고치는 것은 붉다고 적어서 올립니다</h2>
+        <div class="body s3">
+          <div class="gate">
+            <p class="gh"><span class="pill pill--stop">막는다</span>하나라도 붉으면 한 파일도 안 올라간다</p>
+            <ul class="stops">
+              <li><b>봉인 구간 누수 검사</b> — 반출본을 다시 열어 2024-09-01 이후 행이 없는지 본다</li>
+              <li><b>검증기 4종</b> — 종목 식별 · 종목기본정보 · 업종 스냅샷 · 텍스트 신호를 원본과 대조</li>
+              <li><b>비공개 재확인</b> — Hugging Face 저장소가 private인지 서버에 다시 묻는다</li>
+            </ul>
+          </div>
+          <div class="gate">
+            <p class="gh"><span class="pill pill--log">적는다</span>올리되, 붉은 것은 데이터 카드에 붉게 싣는다</p>
+            <ul class="axes" aria-label="품질 원장 여덟 축">
+              <li><code>missing</code><span>0으로 채운 정지 행 0</span></li>
+              <li><code>validity</code><span>OHLC 순서 위반 0</span></li>
+              <li class="red"><code>outlier</code><span>수정주가 의심 1,352행</span></li>
+              <li class="log"><code>volume</code><span>거래량 급변 413,899행</span></li>
+              <li><code>calendar</code><span>달력 · 시세 끝날 일치</span></li>
+              <li><code>duplicate</code><span>기본키 중복 0</span></li>
+              <li><code>sealing</code><span>반출본 끝날 20240830</span></li>
+              <li><code>total_return</code><span>총수익 &lt; 가격 0행</span></li>
+            </ul>
+            <p class="legend"><span><i class="k ok"></i>초록</span><span><i class="k red"></i>붉음</span><span><i class="k log"></i>기록만 (KRX 투자주의 기준 · 오류 아님)</span></p>
+          </div>
+          <div class="found">
+            <p class="eyebrow">게이트가 찾은 것</p>
+            <p class="found-t">FinanceDataReader 문서는 “모든 가격은 수정주가”라고 적지만, 감자를 조정하지 않은 자리가 있었습니다.</p>
+            <dl class="case">
+              <div><dt>훈영 017170 · 2011-04-04</dt><dd>주식수 53,406,538 → 2,670,326</dd></div>
+              <div><dt>수정주가</dt><dd>하루에 20.00배 튐</dd></div>
+              <div><dt>직접 보정</dt><dd>19종목 · 45,515행</dd></div>
+            </dl>
+            <p class="note">최근일수록 커지는 문제입니다 — 2026년 2월 12일부터 7월 2일까지 주식병합이 243건으로, 전년 같은 기간 10건의 약 24배였습니다(연합인포맥스, 2026-07-04).</p>
+          </div>
+        </div>
+        <footer class="foot"><span>실측 2026-09-11 · 반출본 2026-09-11 QUALITY_LEDGER.json</span><span>scripts/upload_to_hf.py · supply/quality_ledger.py</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="02 데이터 — 넘기는 것">
+    <p class="slot-cap"><b>신장환 2 · 4/4</b><span>데이터 파트가 넘기는 것 (03으로 잇기)</span><span>약 20초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>02 데이터 수집 · 품질 게이트</span><span>QURIOUS · 4 / 4</span></header>
+        <h2 class="thesis">피처 파트는 파일 하나와,<br>그 파일을 믿어도 되는 근거를 함께 받습니다</h2>
+        <div class="body s4">
+          <ul class="hand">
+            <li>
+              <p class="hk">파일</p>
+              <p class="hvv"><code>full/daily_price_dev.parquet</code></p>
+              <p class="hn">7,888,945행 × 37칸</p>
+              <p class="hd">2010-01-04 ~ 2024-08-30. 파일마다 SHA-256을 대장(MANIFEST)에 적어 받는 쪽이 같은 파일인지 확인한다</p>
+            </li>
+            <li>
+              <p class="hk">시점</p>
+              <p class="hvv"><code>supply</code> 정문</p>
+              <p class="hn">known_at ≤ T</p>
+              <p class="hd">재무 · 거시 · 공시 · 업종 모두 그날까지 알 수 있던 것만 붙는다</p>
+            </li>
+            <li>
+              <p class="hk">기록</p>
+              <p class="hvv">품질 원장 8축</p>
+              <p class="hn">시험 1,762개 통과</p>
+              <p class="hd">반출할 때마다 원장이 한 줄씩 쌓여 지난번과 무엇이 달라졌는지 남는다</p>
+            </li>
+          </ul>
+          <p class="next"><span class="pill pill--so">다음</span>종목코드가 재사용된 종목에 예전 회사의 업종이 붙는 자리(개발구간 75행)를 홀드아웃 개봉 전에 바로잡고, 재무 · 거시 · 공시도 반출본에 싣습니다</p>
+        </div>
+        <footer class="foot"><span>반출본 2026-09-11 · 시험은 main bd9901b 기준 1,762 passed · 3 xfailed</span><span>docs/데이터파트/version4.5/요약본.md</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 신장환 2 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 신장환 3 · 피처 · 라벨 설계 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">03</span>피처 · 라벨 설계<span class="meta-r">발표 신장환 · 약 2분 · 3장</span><span class="st st--todo">채울 자리 2 · 전처리 판단은 초안(이동원)</span></h2>
+
+  <section class="slot todo" aria-label="03 피처 설계 — 채울 자리">
+    <p class="slot-cap"><b>신장환 3 · 1/3</b><span>피처 설계</span><span class="todo-tag">채울 자리</span><span>약 45초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 담당 신장환</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 피처는 개수가 아니라 어떤 축을 담았는지가 성적을 가른다]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>지표 함수(원자 층)와 조합 A~K(조립 층)가 어떻게 나뉘나</li>
+              <li>조합 K 피처 14개가 담은 축 — 변동성 · 수익률 · 추세 · 과매수와 과매도 · 거래량</li>
+              <li>파생 피처 넷(<code>atr_ratio</code> · <code>hv_regime</code> · <code>obv_slope_20</code> · <code>macd_hist_atr</code>)이 미래를 보지 않는 근거</li>
+              <li>지표마다 붙인 손계산 테스트</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>docs/피처파트/version1.2/피처_두_층과_중장기_수익률.md</code> — 원자 층과 조립 층</li>
+              <li><code>docs/피처파트/version1.2/파생_피처_4개와_시점_규칙.md</code> — 파생 피처 넷의 시점 근거</li>
+              <li><code>notebooks/04-모델/최종모델/개별종목/README.md</code> — 피처 14개의 뜻</li>
+            </ul>
+            <dl class="known">
+              <div><dt>피처 수 ↔ 성적</dt><dd>ρ = −0.0506 · p = 0.8826 (관계 없음)</dd></div>
+              <div><dt>피처 4개 · 조합 I</dt><dd>기준선 대비 +2.10%p</dd></div>
+              <div><dt>피처 14개 · 조합 K</dt><dd>기준선 대비 +2.43%p</dd></div>
+              <div><dt>피처 9개 · 조합 F</dt><dd>기준선 대비 −0.28%p</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>숫자 출처 docs/모델파트/version1.2/조합-A부터-K-성적표.md</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot todo" aria-label="03 라벨 설계와 유동 임계값 — 채울 자리">
+    <p class="slot-cap"><b>신장환 3 · 2/3</b><span>라벨 설계 · 유동 임계값</span><span class="todo-tag">채울 자리</span><span>약 40초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 담당 신장환</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 라벨은 실제로 사고팔 수 있는 시점으로 정의했다]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>T일 종가까지 보고 → T+1 시가에 사고 → T+6 시가에 판다. 신호 · 체결 · 라벨 세 시점이 같다</li>
+              <li>중립대 — KOSPI200 ±1.0% · 개별종목 ±2.0%</li>
+              <li>포지션 <code>{0, +1}</code> — 하락과 중립은 둘 다 현금이라 주문이 같다</li>
+              <li>유동 임계값 — 변동성에 맞춰 경계를 바꾸는 방식과, 고정 밴드와 비교한 결과</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>docs/decisions/0002-예측대상과-레이블.md</code> — 왜 5거래일 · 시가 기준 · 3분류인가</li>
+              <li><code>docs/decisions/0006-개별종목-중립대와-평가기준선.md</code> — 개별종목 ±2.0%와 기준선</li>
+              <li>계획서 목표 ⑤ 유동 임계값 — <code>scripts/build_project_plan.py</code></li>
+            </ul>
+            <dl class="known">
+              <div><dt>KOSPI200 ±1.0%</dt><dd>5거래일 σ의 약 ±0.40σ</dd></div>
+              <div><dt>개별종목 변동성</dt><dd>지수의 약 2.1배 → ±2.1~2.2%</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>ADR 0002 · ADR 0006</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="03 전처리 판단">
+    <p class="slot-cap"><b>신장환 3 · 3/3</b><span>전처리 판단 (내용 이동원)</span><span>약 35초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>03 피처 · 라벨 설계 — 전처리 판단</span><span>QURIOUS · 3 / 3</span></header>
+        <h2 class="thesis">전처리 후보 여덟 가지를 모두 돌렸고,<br>원값보다 확실히 나은 후보는 없었습니다</h2>
+        <div class="body s5">
+          <figure class="pre">
+            <figcaption class="eyebrow">원값 대비 정확도 차이 (%p) · 조합 K · 로지스틱 회귀 · 12폴드 워크포워드</figcaption>
+            <div class="dv">
+              <div class="dv-row pos"><span class="dl">방향 축의 그날 수준 빼기</span><span class="dt"><i style="left:80%;width:3%"></i></span><span class="dvv">+0.15</span></div>
+              <div class="dv-row zero"><span class="dl">극단값 자르기 (변동성 제외)</span><span class="dt"><i style="left:calc(80% - .12cqi);width:.24cqi"></i></span><span class="dvv">+0.00</span></div>
+              <div class="dv-row"><span class="dl">극단값 자르기</span><span class="dt"><i style="left:79%;width:1%"></i></span><span class="dvv">−0.05</span></div>
+              <div class="dv-row"><span class="dl">횡단면 z + 그날 수준 칸</span><span class="dt"><i style="left:68.6%;width:11.4%"></i></span><span class="dvv">−0.57</span></div>
+              <div class="dv-row"><span class="dl">순위 변환</span><span class="dt"><i style="left:41.4%;width:38.6%"></i></span><span class="dvv">−1.93</span></div>
+              <div class="dv-row"><span class="dl">시가총액 중립화</span><span class="dt"><i style="left:41.2%;width:38.8%"></i></span><span class="dvv">−1.94</span></div>
+              <div class="dv-row"><span class="dl">종목별 시계열 z</span><span class="dt"><i style="left:23.8%;width:56.2%"></i></span><span class="dvv">−2.81</span></div>
+              <div class="dv-row hot"><span class="dl">업종 중립화</span><span class="dt"><i style="left:10.6%;width:69.4%"></i></span><span class="dvv">−3.47</span></div>
+            </div>
+            <div class="dv-axis" aria-hidden="true">
+              <span></span>
+              <span class="tick-row"><em style="left:0">−4</em><em style="left:20%">−3</em><em style="left:40%">−2</em><em style="left:60%">−1</em><em style="left:80%">0</em><em class="end" style="left:100%">+1</em></span>
+              <span></span>
+            </div>
+            <p class="dv-key"><span><i class="k neg"></i>원값보다 낮음</span><span><i class="k pos"></i>원값보다 높음 (국내장 관례대로 적색)</span></p>
+            <p class="note">+0.15%p는 12폴드 중 7승 · p = 0.535로 우연과 구별되지 않는다.</p>
+          </figure>
+          <div class="why">
+            <p class="eyebrow">업종 중립화 −3.47%p는 어디서 왔나</p>
+            <div class="stack" role="img" aria-label="그날 평균 빼기 48퍼센트, 자유도 33퍼센트, 업종 정보 19퍼센트">
+              <i class="a" style="flex:48"><b>48%</b></i><i class="b" style="flex:33"><b>33%</b></i><i class="c" style="flex:19"><b>19%</b></i>
+            </div>
+            <p class="stack-k"><span><i class="k a"></i>그날 평균 빼기</span><span><i class="k b"></i>자유도</span><span><i class="k c"></i>업종 정보</span></p>
+            <p class="why-t">라벨은 5거래일 절대 수익률이 ±2%를 넘느냐입니다. 그날 시장 전체의 수준을 지우면 맞힐 정보도 함께 지워집니다.</p>
+            <dl class="cond">
+              <div><dt>다중검정</dt><dd>시행 N = 10 · Bonferroni α = 0.005</dd></div>
+              <div><dt>채택</dt><dd>0 — 원값을 그대로 쓴다</dd></div>
+              <div><dt>그대로 둔 것</dt><dd>모델 안의 StandardScaler</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>두 판의 표본이 달라(151,555행 · 159,900행) 순위는 대략치</span><span>docs/전처리/version1.4 · 노트북 02/10</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 신장환 3 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 신장환 4 · 결과 · 모델 비교 방법론 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">04</span>결과 · 모델 비교 방법론<span class="meta-r">발표 신장환 · 약 3분 · 3장 · 순서는 가안</span><span class="st st--todo">채울 자리 3 · 숫자는 채워 둠</span></h2>
+
+  <section class="slot todo" aria-label="04 모델 4종 비교 방법론 — 채울 자리">
+    <p class="slot-cap"><b>신장환 4 · 1/3</b><span>모델 4종 비교 방법론</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>04 결과 · 모델 비교 방법론</span><span>QURIOUS · 담당 신장환</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 모델 넷을 같은 자로 쟀고, 몇 번 시도했는지까지 적었다]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>LogisticRegression · RandomForest · XGBoost · LightGBM을 같은 자료 · 같은 분할 · 같은 시드로</li>
+              <li>날짜 단위 expanding 12폴드 · 최초 학습 750거래일 · 검증 60거래일 · gap 5 — 폴드 그림 한 장</li>
+              <li>기준선은 폴드마다 학습구간의 최빈 클래스를 찍은 정확도 (검증 정답을 본 값이 아니다)</li>
+              <li>시도 횟수와 다중검정 결과를 함께 — 무엇으로 고를지를 먼저 정한 이유</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>docs/decisions/0007-최종-모델-선정과-홀드아웃.md</code> — 고르는 순서</li>
+              <li><code>docs/모델파트/version1.2/선정축-비교.md</code> — 축을 바꾸면 1위가 바뀐다</li>
+              <li><code>notebooks/04-모델/최종모델/</code> — 두 트랙 최종 모델</li>
+            </ul>
+            <dl class="known">
+              <div><dt>표본 밖 검증</dt><dd>2014-02-17 ~ 2024-08-22 · 720거래일</dd></div>
+              <div><dt>후보 수</dt><dd>KOSPI200 100 · 개별종목 44</dd></div>
+              <div><dt>선정 축의 힘</dt><dd>같은 100개 실험 · 축만 바꾸면 1위 → 93위</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>reports/index_long_only_selection.json · ADR 0007</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot todo" aria-label="04 종목 트랙 결과 — 채울 자리">
+    <p class="slot-cap"><b>신장환 4 · 2/3</b><span>종목 트랙 결과</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>04 결과 — 종목 트랙</span><span>QURIOUS · 담당 신장환</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 개발구간 표본 밖 결과를 한 줄로]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>유니버스 — 매 거래일 업종 시총 상위 10 × 업종별 KOSPI 보통주 상위 5 (하루 최대 50종목)</li>
+              <li>조합 K 로지스틱 회귀의 정확도와 기준선 대비 — 폴드별 이긴 폴드 · 진 폴드 그림</li>
+              <li>상승 Precision과 실제 매수 신호 — 매수는 KOSPI200도 상승일 때만</li>
+              <li>다중검정을 통과하지 못했다는 사실과 그 뜻</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>notebooks/04-모델/최종모델/개별종목/README.md</code></li>
+              <li><code>docs/모델파트/version1.2/조합-A부터-K-성적표.md</code> — 조합 열한 개</li>
+            </ul>
+            <dl class="known">
+              <div><dt>정확도 · 기준선</dt><dd>0.4211 · 0.3969 (+2.43%p)</dd></div>
+              <div><dt>이긴 폴드</dt><dd>10 / 12</dd></div>
+              <div><dt>Macro F1 · MCC</dt><dd>0.3781 · 0.0994</dd></div>
+              <div><dt>상승 Precision</dt><dd>0.3695</dd></div>
+              <div><dt>매수 신호</dt><dd>3,825건 · 기본 출력 34,544행</dd></div>
+              <div><dt>다중검정</dt><dd>후보 44 · Bonferroni 통과 0</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 숫자는 2026-09-09 생성 보고서 기준</span><span>담당 신장환 · 확인 오준영</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot todo" aria-label="04 KOSPI200 지수 트랙 결과 — 채울 자리">
+    <p class="slot-cap"><b>신장환 4 · 3/3</b><span>KOSPI200 지수 트랙 결과</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>04 결과 — KOSPI200 지수 트랙</span><span>QURIOUS · 담당 신장환</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 개발구간 표본 밖 결과를 한 줄로]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>조합 C 로지스틱 회귀 · 피처 6개</li>
+              <li>고르는 순서 — 운영 기준선 관문(7/12) → 상승 PR-AUC → 비용 차감 ΔSharpe → 상승 Precision</li>
+              <li>정확도 · 기준선 대비 · 매수 신호 · 비용 차감 ΔSharpe</li>
+              <li>상승 임계 0.3375를 어떻게 골랐나 — 학습구간 안의 내부 60거래일 검증에서만</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>notebooks/04-모델/최종모델/KOSPI200/README.md</code></li>
+              <li><code>reports/index_long_only_selection.json</code> — 후보 100개 전체</li>
+            </ul>
+            <dl class="known">
+              <div><dt>정확도 · 기준선</dt><dd>0.4542 · 0.3972 (+5.69%p)</dd></div>
+              <div><dt>이긴 폴드</dt><dd>7 / 12</dd></div>
+              <div><dt>상승 PR-AUC</dt><dd>0.3965</dd></div>
+              <div><dt>매수 신호</dt><dd>308 / 720일</dd></div>
+              <div><dt>ΔSharpe 중앙값</dt><dd>0.2332 (비용 차감)</dd></div>
+              <div><dt>다중검정</dt><dd>t = 1.0092 · p = 0.1673 · 통과 못 함</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 숫자는 2026-09-09 생성 보고서 기준</span><span>담당 신장환 · 확인 오준영</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 신장환 4 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 1 · 동적 기준선 최적화 · Focal 분류기 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">05</span>동적 기준선 최적화 · Focal 분류기<span class="meta-r">발표 강민석 · 약 1분 30초</span><span class="st st--todo">채울 자리</span></h2>
+
+  <section class="slot todo" aria-label="05 동적 기준선 최적화와 Focal 분류기 — 채울 자리">
+    <p class="slot-cap"><b>강민석 1</b><span>동적 기준선 최적화 · Focal 분류기</span><span class="todo-tag">채울 자리</span><span>약 1분 30초 · 필요하면 2장으로</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>05 동적 기준선 최적화 · Focal 분류기</span><span>QURIOUS · 담당 강민석</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>하이브리드 기준선 — 중립 Base(20일 이동평균) · 상승 Base + α×변동성 + β×거래량 · 하락 Base − α×변동성 − β×거래량</li>
+              <li>튜닝하는 6개 파라미터와 목적 함수(Sharpe − λ×MDD)</li>
+              <li>Focal Loss 3분류 분류기가 무엇을 풀려고 들어왔나</li>
+              <li>전략이 반전에서 추세 추종으로 바뀐 이유</li>
+            </ul>
+            <p class="warn-box"><b>확인할 것</b> — 라벨 축(T+1 시가 → T+6 시가)과 폴드 체계(expanding 12폴드 · gap 5)가 다른 장과 같은지. 평가파트 v1.2 문서에 파일마다 다르다고 적혀 있습니다.</p>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>docs/평가파트/version1.2/동적기준선_ARIMA동반_백테스트원장.md</code> — 식과 단계</li>
+              <li><code>evaluation/threshold_tuning/</code> — 코드</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>담당 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 1 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 2 · 신호 → 포지션 규칙 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">06</span>신호 → 포지션 규칙<span class="meta-r">발표 강민석 · 약 1분</span><span class="st st--todo">채울 자리</span></h2>
+
+  <section class="slot todo" aria-label="06 신호에서 포지션으로 — 채울 자리">
+    <p class="slot-cap"><b>강민석 2</b><span>신호 → 포지션 규칙</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>06 신호 → 포지션 규칙</span><span>QURIOUS · 담당 강민석</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>보유 / 무보유 × 상승 / 중립 / 하락일 때 무엇을 하는지 한 표</li>
+              <li>시드 배분 규칙</li>
+              <li>매수 후보는 KOSPI200과 개별종목이 모두 상승일 때만</li>
+              <li>공매도가 없어서 하락 예측은 현금으로만 실행한다</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>docs/decisions/0009-최종-홀드아웃-실행설정.md</code> — 매수 후보 조건</li>
+              <li><code>docs/모델파트/version1.2/선정축-비교.md</code> §2.1 — 하락과 중립은 주문이 같다</li>
+              <li>계획서 목표 ⑥ — <code>scripts/build_project_plan.py</code></li>
+            </ul>
+            <dl class="known">
+              <div><dt>KOSPI200 매수 신호</dt><dd>조합 C · 308 / 720일</dd></div>
+              <div><dt>개별종목 매수 신호</dt><dd>조합 K · 3,825건</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>담당 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 2 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 3 · 성과 검증 엔진 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">07</span>성과 검증 엔진<span class="meta-r">발표 강민석 · 약 1분 30초</span><span class="st st--todo">채울 자리</span></h2>
+
+  <section class="slot todo" aria-label="07 성과 검증 엔진 — 채울 자리">
+    <p class="slot-cap"><b>강민석 3</b><span>성과 검증 엔진</span><span class="todo-tag">채울 자리</span><span>약 1분 30초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>07 성과 검증 엔진</span><span>QURIOUS · 담당 강민석</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 어떤 모델이 와도 같은 자로 잰다]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li><code>evaluation</code>이 <code>models</code>를 import하지 않는 구조</li>
+              <li>워크포워드 gap 잠금 — gap이 5보다 작으면 <code>LeakageError</code></li>
+              <li>거래비용 네 수준(0.05 · 0.23 · 0.30 · 0.50%)과 날짜별 세율</li>
+              <li>기준선 3종(<code>always_up</code> · <code>majority_class</code> · <code>previous_direction</code>)</li>
+              <li>성과지표 — MDD · Sharpe · Sortino · Calmar · Deflated Sharpe</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>evaluation/walk_forward.py</code> · <code>evaluation/baseline.py</code></li>
+              <li><code>notebooks/05-백테스트·성과/README.md</code> — 지표 정의</li>
+              <li><code>docs/시장조사/version2.0/시장조사.md</code> §2.4 — 비용이 설계를 바꾼 이유</li>
+            </ul>
+            <dl class="known">
+              <div><dt>ΔSharpe 다중 시도 문턱</dt><dd>SR*(N = 100) = 0.8115</dd></div>
+            </dl>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>담당 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 3 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 4 · 요일별 5트랙 중첩 운용 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">08</span>요일별 5트랙 중첩 운용<span class="meta-r">발표 강민석 · 약 1분</span><span class="st st--todo">채울 자리</span></h2>
+
+  <section class="slot todo" aria-label="08 요일별 5트랙 — 채울 자리">
+    <p class="slot-cap"><b>강민석 4</b><span>요일별 5트랙 중첩 운용</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>08 요일별 5트랙 중첩 운용</span><span>QURIOUS · 담당 강민석</span></header>
+        <h2 class="thesis todo-t">[이 장의 주장 한 문장]</h2>
+        <div class="body todo-body">
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>같은 모델을 매 거래일 돌려 5거래일 보유를 요일별 트랙으로 나눈 이유 — 진입 시점 분산</li>
+              <li>트랙별 성과와 합친 성과 — 그림 한 장</li>
+              <li>보유 기간이 겹칠 때 자금을 나누는 법</li>
+              <li>한 트랙만 운용했을 때와 비교한 MDD · Sharpe</li>
+            </ul>
+          </div>
+          <div>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li>계획서 목표 ④ — <code>scripts/build_project_plan.py</code></li>
+              <li><code>backtest/collector_5days.py</code></li>
+            </ul>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>담당 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 4 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 5 · Streamlit 시연 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">09</span>Streamlit 시연 (녹화본)<span class="meta-r">발표 강민석 · 약 2분</span><span class="st st--todo">채울 자리</span></h2>
+
+  <section class="slot todo" aria-label="09 Streamlit 시연 — 채울 자리">
+    <p class="slot-cap"><b>강민석 5</b><span>Streamlit 녹화본 시연</span><span class="todo-tag">채울 자리</span><span>약 2분</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>09 Streamlit 시연</span><span>QURIOUS · 담당 강민석</span></header>
+        <h2 class="thesis todo-t">[시연에서 보여 줄 것 한 문장]</h2>
+        <div class="body todo-body">
+          <div class="video-slot">
+            <b>녹화본 자리</b>
+            <span>이 상자를 <code>&lt;video src="녹화본.mp4" controls&gt;&lt;/video&gt;</code>로 바꾸거나, 발표 PC에서 따로 재생합니다</span>
+          </div>
+          <div>
+            <p class="eyebrow">넣을 것</p>
+            <ul class="checks">
+              <li>보여 줄 화면 순서 — 예: 오늘 신호 → 성과 → 수집 현황</li>
+              <li>2분 안에 끝나는 길이</li>
+              <li>인터넷 없이 재생되는지 발표 PC에서 확인</li>
+              <li>녹화 파일은 저장소에 커밋하지 않고 발표 PC에 둔다</li>
+            </ul>
+            <p class="eyebrow">참고 자료</p>
+            <ul class="refs">
+              <li><code>dashboard/</code> — AlphaStack Dashboard V1(PR #238)</li>
+            </ul>
+          </div>
+        </div>
+        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>담당 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 5 ═══ 끝 ═══════════════════════ -->
+
+
+  <!-- ═══════════════════════ 강민석 6 · 결론 ═══ 시작 ═══════════════════════ -->
+  <h2 class="part"><span class="no">10</span>결론<span class="meta-r">발표 강민석 · 약 1분 30초 · 2장</span><span class="st st--has">초안 들어감 · 홀드아웃 칸은 개봉 후</span></h2>
+
+  <section class="slot" aria-label="10 결론 — 결과">
+    <p class="slot-cap"><b>강민석 6 · 1/2</b><span>결론 — 개발구간 결과와 홀드아웃 빈칸</span><span>약 50초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>10 결론</span><span>QURIOUS · 1 / 2</span></header>
+        <h2 class="thesis">개발구간에서는 두 트랙 모두 기준선을 넘었고,<br>그 우위가 진짜인지는 봉인한 2년이 답합니다</h2>
+        <div class="body c1">
+          <table class="res">
+            <thead>
+              <tr><th>트랙</th><th>최종 모델</th><th class="r">정확도</th><th class="r">기준선</th><th class="r">기준선 대비</th><th class="r">이긴 폴드</th><th>다중검정</th><th class="hold">홀드아웃 2024-09-01 ~</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>KOSPI200</b></td><td>조합 C · 로지스틱 회귀<small>피처 6 · 상승 임계 0.3375</small></td>
+                <td class="r num">0.4542</td><td class="r num">0.3972</td><td class="r num">+5.69%p</td><td class="r num">7/12</td>
+                <td>통과 못 함<small>후보 100 · p = 0.1673</small></td><td class="hold"><span class="ph">개봉 후 기입</span></td>
+              </tr>
+              <tr>
+                <td><b>개별종목</b></td><td>조합 K · 로지스틱 회귀<small>피처 14 · 업종 상위 10 × 종목 상위 5</small></td>
+                <td class="r num">0.4211</td><td class="r num">0.3969</td><td class="r num">+2.43%p</td><td class="r num">10/12</td>
+                <td>통과 못 함<small>후보 44 · Bonferroni</small></td><td class="hold"><span class="ph">개봉 후 기입</span></td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="c1-notes">
+            <p><b>기준선</b> — 폴드마다 학습구간의 최빈 클래스를 검증구간 전체에 찍은 정확도. 표본 밖 검증 2014-02-17 ~ 2024-08-22, 720거래일 · 12폴드 · gap 5.</p>
+            <p><b>매수</b> — KOSPI200과 개별종목이 둘 다 “상승”일 때만 후보가 됩니다. class weight는 두 트랙 모두 balanced.</p>
+            <p><b>홀드아웃</b> — 한 번만 엽니다. 결과가 기대와 달라도 설정을 바꾸지 않고 그대로 적습니다(ADR 0009).</p>
+          </div>
+          <p class="fill"><span class="pill pill--draft">채울 것 · 강민석</span>홀드아웃 정확도 · 기준선 대비 · 비용 차감 수익률과 ΔSharpe · MDD · <code>unseal.log</code> 줄 수 — 실행 결과 <code>report.json</code>의 값을 그대로 옮긴다</p>
+        </div>
+        <footer class="foot"><span>개발구간 수치 · notebooks/04-모델/최종모델 (2026-09-09 생성)</span><span>ADR 0007 · ADR 0009 · reports/index_long_only_selection.json</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="10 결론 — 다음 차수">
+    <p class="slot-cap"><b>강민석 6 · 2/2</b><span>발전 방향 — 무엇을 가져가고 무엇을 여나</span><span>약 40초</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>10 결론 — 발전 방향</span><span>QURIOUS · 2 / 2</span></header>
+        <h2 class="thesis">다음 차수는 이번에 만든 바닥 위에서 시작합니다</h2>
+        <div class="body c2">
+          <div class="cols">
+            <section>
+              <p class="ch">그대로 가져가는 것</p>
+              <ul class="dots">
+                <li>룩어헤드를 막는 검증 엔진 — gap 5 잠금 · 기준선 · 시도 장부</li>
+                <li>그날까지 알 수 있던 자료만 주는 데이터 정문</li>
+                <li>붉으면 막는 품질 게이트와 한 번만 여는 홀드아웃</li>
+              </ul>
+            </section>
+            <section>
+              <p class="ch">이번에 확인한 것</p>
+              <ul class="dots">
+                <li>전처리 후보 여덟 가지 중 원값보다 확실히 나은 것은 없었다</li>
+                <li>공시 제목 감성은 5거래일 방향과 거의 무관했다 (Cramér’s V 0.026)</li>
+                <li>무엇으로 고르느냐가 1위를 정한다 — 같은 100개 실험에서 1위가 93위가 됐다</li>
+              </ul>
+            </section>
+            <section>
+              <p class="ch">다음 차수에서 여는 것</p>
+              <ul class="dots">
+                <li>재무 · 거시 · 공시를 피처로 — 꺼내는 함수는 이미 있다</li>
+                <li>하락 예측도 쓰는 포지션 {−1, 0, +1} — 선정 기준부터 새 ADR로</li>
+                <li><span class="ph">강민석 확인</span> 요일별 5트랙 · 동적 기준선 결과</li>
+              </ul>
+            </section>
+          </div>
+          <blockquote class="quote">
+            <p>“Researchers should be rewarded for good science, not good results.”</p>
+            <footer>Arnott · Harvey · Markowitz (2019), A Backtesting Protocol in the Era of Machine Learning</footer>
+          </blockquote>
+        </div>
+        <footer class="foot"><span>전처리 v1.4 · 기능명세 v1.5 텍스트 신호 · 모델파트 v1.2 선정축 비교</span><span>docs/발표/version1.0</span></footer>
+      </div>
+    </div>
+  </section>
+
+  <section class="slot" aria-label="질문">
+    <p class="slot-cap"><b>질문</b><span>데이터 질문 답변표는 데이터파트_예상질문.html</span></p>
+    <div class="slide">
+      <div class="sl">
+        <header class="meta"><span>질의응답</span><span>QURIOUS</span></header>
+        <h2 class="thesis">질문 받겠습니다</h2>
+        <div class="body qs">
+          <table class="who-t">
+            <thead><tr><th>질문 주제</th><th>답하는 사람</th><th class="draft-only">답변 자료</th></tr></thead>
+            <tbody>
+              <tr><td>데이터 · 시점 · 품질 게이트 · 전처리</td><td>신장환</td><td class="src draft-only">데이터파트_예상질문.html</td></tr>
+              <tr><td>피처 · 라벨 · 모델 결과</td><td>신장환</td><td class="src draft-only">notebooks/04-모델/최종모델</td></tr>
+              <tr><td>동적 기준선 · 백테스트 · 시연 화면</td><td>강민석</td><td class="src draft-only">docs/평가파트/version1.2</td></tr>
+            </tbody>
+          </table>
+          <div class="repo">
+            <p class="rk">코드와 문서</p>
+            <p class="rv">github.com/devlee328288/Alpha_Stack</p>
+          </div>
+        </div>
+        <footer class="foot"><span>Qurious · 2026-09-13</span><span>이동원 · 신장환 · 오준영 · 강민석</span></footer>
+      </div>
+    </div>
+  </section>
+  <!-- ═══════════════════════ 강민석 6 ═══ 끝 ═══════════════════════ -->
+
+</main>
+
+<p class="pager" aria-live="polite" data-pager></p>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const slots = Array.from(document.querySelectorAll('.slot'));
+  const button = document.querySelector('[data-present]');
+  const pager = document.querySelector('[data-pager]');
+  const todoCount = document.querySelector('[data-todo-count]');
+  let current = 0;
+
+  // 채울 자리가 몇 장 남았는지는 class="slot todo" 를 세어 머리에 적는다
+  if (todoCount) todoCount.textContent = String(document.querySelectorAll('.slot.todo').length);
+
+  const show = (n) => {
+    current = Math.max(0, Math.min(slots.length - 1, n));
+    slots.forEach((slot, k) => slot.classList.toggle('is-current', k === current));
+    if (pager) pager.textContent = `${current + 1} / ${slots.length}`;
+  };
+  const enter = (n) => {
+    show(typeof n === 'number' ? n : current);
+    root.classList.add('presenting');
+    // 뷰어가 전체 화면을 막아 두어도 발표 모드 자체는 그대로 쓴다
+    if (root.requestFullscreen) root.requestFullscreen().catch(() => {});
+  };
+  const exit = () => {
+    root.classList.remove('presenting');
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    slots[current].scrollIntoView({ block: 'center' });
+  };
+
+  button.addEventListener('click', () => enter(0));
+  slots.forEach((slot, k) => slot.querySelector('.slide').addEventListener('dblclick', () => enter(k)));
+  document.addEventListener('keydown', (e) => {
+    const presenting = root.classList.contains('presenting');
+    if (e.key === 'p' || e.key === 'P') { presenting ? exit() : enter(); return; }
+    if (!presenting) return;
+    if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); show(current + 1); }
+    else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); show(current - 1); }
+    else if (e.key === 'Escape') exit();
+  });
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && root.classList.contains('presenting')) exit();
+  });
+  show(0);
+})();
+</script>
+</html>
