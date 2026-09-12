@@ -144,7 +144,11 @@ def test_공유README에는요청한표와매수후보가들어간다():
             "decision_date": "20260824",
             "entry_date": "20260825",
             "exit_date": "20260901",
-        }
+        },
+        "metrics": {
+            "index": {"accuracy": 1.0, "macro_f1": 1 / 3},
+            "stock": {"accuracy": 0.52, "macro_f1": 0.3837},
+        },
     }
     payload = {"index": {"prediction": "상승", "actual": "상승", "hit": "O"}}
 
@@ -153,3 +157,6 @@ def test_공유README에는요청한표와매수후보가들어간다():
     assert "| 업종 순위 | 업종 | 종목명·코드 |" in readme
     assert "| 1 | 전기전자 | 예시종목·A00001 | 1 | 상승 | 0.5200 |" in readme
     assert "매수 후보: `1`건" in readme
+    assert "| KOSPI200 C LogisticRegression | 0.4542 | 0.4167 | 7/12 |" in readme
+    assert "| 개별종목 K LogisticRegression | 0.4211 | 0.3781 | 10/12 |" in readme
+    assert "Macro F1 `0.3837` (동일 판단일 50종목)" in readme

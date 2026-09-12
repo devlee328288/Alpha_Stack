@@ -38,6 +38,10 @@ DEFAULT_UNSEAL_LOG = ROOT / "reports" / "unseal.log"
 DEFAULT_SHARED_OUTPUT_DIR = ROOT / "notebooks" / "04-모델" / "최종결과"
 
 LABEL_NAMES = {-1: "하락", 0: "보합", 1: "상승"}
+DEVELOPMENT_OOS = {
+    "KOSPI200 C": {"accuracy": 0.4542, "macro_f1": 0.4167, "winning_folds": "7/12"},
+    "개별종목 K": {"accuracy": 0.4211, "macro_f1": 0.3781, "winning_folds": "10/12"},
+}
 SHARED_STOCK_METADATA = (
     "bas_dd",
     "code",
@@ -273,10 +277,39 @@ def _shared_readme(
         f"`{index['prediction']}` / `{index['actual']}` / `{index['hit']}`",
         f"- 매수 후보: `{int((rows['buy_candidate'] == 'O').sum())}`건",
         "",
+        "## 개발구간 OOS 선정 성능",
+        "",
+        "12폴드 expanding walk-forward의 공통 OOS 결과입니다. 최종 한 구간 결과와 "
+        "구분해서 봅니다.",
+        "",
+        "| 모델 | OOS Accuracy | OOS Macro F1 | 기준선 승리 폴드 |",
+        "|---|---:|---:|---:|",
+    ]
+    for model, metrics in DEVELOPMENT_OOS.items():
+        lines.append(
+            f"| {model} LogisticRegression | {metrics['accuracy']:.4f} | "
+            f"{metrics['macro_f1']:.4f} | {metrics['winning_folds']} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## 마지막 한 구간 결과",
+            "",
+            f"- KOSPI200: Accuracy `{report['metrics']['index']['accuracy']:.4f}`, "
+            f"Macro F1 `{report['metrics']['index']['macro_f1']:.4f}` (1개 판단일)",
+            f"- 개별종목: Accuracy `{report['metrics']['stock']['accuracy']:.4f}`, "
+            f"Macro F1 `{report['metrics']['stock']['macro_f1']:.4f}` (동일 판단일 50종목)",
+            "",
+            "> 마지막 구간의 Macro F1은 단일 판단일 표본이므로 장기 OOS 성능으로 "
+            "해석하지 않습니다.",
+            "",
+            "## 종목별 결과",
+            "",
         "| 업종 순위 | 업종 | 종목명·코드 | 업종 내 시총 순위 | 종목 예측 | "
         "p_up | p_flat | p_down | 실제 결과 | 적중 | 매수 후보 |",
         "|---:|---|---|---:|---|---:|---:|---:|---|:---:|:---:|",
-    ]
+        ]
+    )
     for row in rows.itertuples(index=False):
         lines.append(
             f"| {row.sector_rank} | {row.industry} | {row.name}·{row.code} | "
@@ -340,7 +373,6 @@ def main() -> None:
         candidates,
         index_prices=index_prices,
         feature_columns=config.stock_features,
-        drop_incomplete_features=False,
         holdout_start=HOLDOUT_START,
         allow_unsealed=True,
     )
