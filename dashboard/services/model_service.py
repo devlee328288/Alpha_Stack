@@ -1,12 +1,8 @@
 # dashboard/services/model_service.py
 """
 4모델 nested walk-forward 실행 서비스.
-레포의 models.experiment 엔진을 호출. UI 로직 없음.
-
-주의: Streamlit @st.cache_data / @st.cache_resource 를 쓰지 않는다.
-      Streamlit의 캐시 래퍼가 stdout 을 ASCII 로 잡아서 repo 코드의
-      emoji/한글 print("① ...") 가 UnicodeEncodeError 로 터지는 문제가
-      있었음. 대신 모듈 레벨 dict 로 수동 캐시.
+레포의 models.experiment 엔진을 호출.
+scope/ticker 지원 (MARKET | STOCK).
 """
 from __future__ import annotations
 
@@ -30,10 +26,9 @@ DEFAULT_RETURN_FEATURES = ("five_day_return",)
 
 _IMPORT_ERR: str | None = None
 try:
-    from supply.hf_model_data import load_hf_index_prices
-    from features.model_dataset import build_model_dataset
     from models.experiment import evaluate_nested_class_weights
     from models.notebook_experiment import summarize_notebook_experiment
+    from features.model_dataset_stock import build_model_dataset_any
 except Exception as e:
     _IMPORT_ERR = f"{type(e).__name__}: {e}"
 
@@ -43,50 +38,58 @@ def engine_status() -> str | None:
 
 
 # ═══════════════════════════════════════════════════════════
-# 수동 캐시 (Streamlit caching 우회)
+# 수동 캐시
 # ═══════════════════════════════════════════════════════════
-_DS_CACHE: dict = {}
 _MODEL_CACHE: dict = {}
 
 
-def _silence_stdout():
-    """repo 코드의 print 를 StringIO 로 흡수하는 컨텍스트 매니저."""
-    return contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO())
+def _silence():
+    return (
+        contextlib.redirect_stdout(io.StringIO()),
+        contextlib.redirect_stderr(io.StringIO()),
+    )
 
 
-def _load_dataset(combination: str, return_features: tuple[str, ...]):
-    key = (combination, tuple(return_features))
-    if key in _DS_CACHE:
-        return _DS_CACHE[key]
+def _load_dataset(
+    scope: str,
+    ticker: str,
+    combination: str,
+    return_features: tuple,
+    source: str = "stocks30",
+):
+    from services import data_loader
 
-    _out, _err = _silence_stdout()
+    _out, _err = _silence()
     with _out, _err:
-        snapshot = load_hf_index_prices()
-        dataset = build_model_dataset(
-            snapshot.frame,
-            combination,
-            return_features=return_features,
+        if source == "full":
+            df = data_loader.load_market_data_full(ticker, price_col="adj_close")
+        else:
+            df = data_loader.load_market_data(scope, ticker)
+        dataset = build_model_dataset_any(
+            df, combination, return_features=return_features,
         )
-
-    _DS_CACHE[key] = (snapshot, dataset)
-    return _DS_CACHE[key]
+    return df, dataset
 
 
 def run_single_model(
+    scope: str,
+    ticker: str,
     model_name: str,
     combination: str = DEFAULT_COMBINATION,
-    return_features: tuple[str, ...] = DEFAULT_RETURN_FEATURES,
+    return_features: tuple = DEFAULT_RETURN_FEATURES,
+    source: str = "stocks30",
 ) -> dict:
     if _IMPORT_ERR:
         raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
 
-    cache_key = (model_name, combination, tuple(return_features))
+    cache_key = (scope, ticker, model_name, combination,
+                 tuple(return_features), source)
     if cache_key in _MODEL_CACHE:
         return _MODEL_CACHE[cache_key]
 
-    snapshot, dataset = _load_dataset(combination, return_features)
+    df, dataset = _load_dataset(scope, ticker, combination, return_features, source)
 
-    _out, _err = _silence_stdout()
+    _out, _err = _silence()
     with _out, _err:
         nested = evaluate_nested_class_weights(
             dataset, model_names=(model_name,),
@@ -96,6 +99,8 @@ def run_single_model(
         )
 
     result = {
+        "scope": scope,
+        "ticker": ticker,
         "model_name": model_name,
         "summary": dict(summary_obj.summary),
         "fold_results": summary_obj.fold_results.to_dict("records"),
@@ -106,9 +111,9 @@ def run_single_model(
         "oos_predictions": nested.oos_predictions.to_dict("records"),
         "run_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "source": {
-            "repo_sha": snapshot.repo_sha,
-            "index_sha256": snapshot.file_sha256,
-            "dev_end": snapshot.dev_end,
+            "scope": scope,
+            "ticker": ticker,
+            "dataset_rows": len(dataset.frame),
         },
     }
     _MODEL_CACHE[cache_key] = result
@@ -116,41 +121,25 @@ def run_single_model(
 
 
 def run_all_models(
-    models: tuple[str, ...] = MODELS,
+    scope: str,
+    ticker: str,
+    models: tuple = MODELS,
     combination: str = DEFAULT_COMBINATION,
-    return_features: tuple[str, ...] = DEFAULT_RETURN_FEATURES,
+    return_features: tuple = DEFAULT_RETURN_FEATURES,
     progress_cb: Callable[[int, int, str], None] | None = None,
-) -> dict[str, dict]:
-    out: dict[str, dict] = {}
+) -> dict:
+    out: dict = {}
     total = len(models)
     for i, name in enumerate(models):
         if progress_cb:
             progress_cb(i, total, name)
-        out[name] = run_single_model(name, combination, return_features)
+        out[name] = run_single_model(
+            scope, ticker, name, combination, return_features,
+        )
     if progress_cb:
         progress_cb(total, total, "done")
     return out
 
 
 def clear_cache() -> None:
-    """디버깅용: 메모리 캐시 초기화."""
-    _DS_CACHE.clear()
     _MODEL_CACHE.clear()
-
-
-# ═══════════════════════════════════════════════════════════
-# Session state 저장/로드
-# ═══════════════════════════════════════════════════════════
-SESSION_KEY = "_model_lab_results"
-
-
-def save_results(results: dict[str, dict]) -> None:
-    st.session_state[SESSION_KEY] = results
-
-
-def load_results() -> dict[str, dict] | None:
-    return st.session_state.get(SESSION_KEY)
-
-
-def clear_results() -> None:
-    st.session_state.pop(SESSION_KEY, None)

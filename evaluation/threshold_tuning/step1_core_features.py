@@ -1,27 +1,104 @@
+import functools
+
 import numpy as np
 import pandas as pd
 from huggingface_hub import hf_hub_download
 
+_REPO_ID = "qurious-quant/alphastack-krx-dev"
+_KOSPI200_CSV = "small/features_labels_kospi200_dev.csv"
+_STOCKS30_CSV = "small/features_labels_stocks30_dev.csv"
+
+ALL_TICKERS = "__ALL__"
+MARKET_TICKER = "KOSPI200"
+
 
 # ============================================================
-# 0. 데이터 로드
+# 0. 데이터 로드 — 지수 / 개별종목 / 유니버스
 # ============================================================
-def load_data() -> pd.DataFrame:
-    path = hf_hub_download(
-        repo_id="qurious-quant/alphastack-krx-dev",
-        filename="small/features_labels_kospi200_dev.csv",
-        repo_type="dataset",
-    )
-    df = pd.read_csv(path)
+def _finalize(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
     df["date"] = pd.to_datetime(df["date"])
-    df.sort_values("date", inplace=True)
-    df.set_index("date", inplace=True)
-
+    if "code" in df.columns and df["code"].nunique() > 1:
+        df = df.sort_values(["code", "date"])
+    else:
+        df = df.sort_values("date")
+    df = df.set_index("date")
     required = ["open", "high", "low", "close", "volume"]
-    missing = [col for col in required if col not in df.columns]
+    missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"데이터에 필요한 컬럼이 없습니다: {missing}")
     return df
+
+
+@functools.lru_cache(maxsize=2)
+def _load_kospi200_raw() -> pd.DataFrame:
+    path = hf_hub_download(
+        repo_id=_REPO_ID, filename=_KOSPI200_CSV, repo_type="dataset",
+    )
+    return pd.read_csv(path)
+
+
+@functools.lru_cache(maxsize=2)
+def _load_stocks30_raw() -> pd.DataFrame:
+    path = hf_hub_download(
+        repo_id=_REPO_ID, filename=_STOCKS30_CSV, repo_type="dataset",
+    )
+    return pd.read_csv(
+        path, dtype={"code": str}, low_memory=False,
+    )
+
+
+def load_data(ticker=None) -> pd.DataFrame:
+    """
+    Parameters
+    ----------
+    ticker : None | "KOSPI200" | "<code>" | "__ALL__"
+        None / "KOSPI200" : 지수 (기존 동작)
+        "<code>"          : stocks30 개별종목 (예 "005930")
+        "__ALL__"         : stocks30 전체 (UNIVERSE 용, code 컬럼 유지)
+    """
+    if ticker is None or ticker == MARKET_TICKER:
+        return _finalize(_load_kospi200_raw())
+
+    if ticker == ALL_TICKERS:
+        return _finalize(_load_stocks30_raw())
+
+    df_all = _load_stocks30_raw()
+
+    # 종목코드 정규화: 6자리 zero-padding
+    code_str = str(ticker).strip()
+    candidates = []
+    # 1) 원본
+    candidates.append(code_str)
+    # 2) 6자리 zero-pad
+    if code_str.isdigit():
+        candidates.append(code_str.zfill(6))
+
+    sub = None
+    for cand in candidates:
+        sub = df_all[df_all["code"] == cand]
+        if not sub.empty:
+            break
+
+    if sub is None or sub.empty:
+        avail = sorted(df_all["code"].unique().tolist())
+        raise ValueError(
+            f"종목코드 {ticker!r} 를 stocks30 에서 찾지 못했습니다. "
+            f"앞 10개: {avail[:10]}"
+        )
+    return _finalize(sub)
+
+
+def list_universe_tickers() -> list:
+    """[{code, name, market, sector}, ...] — UNIVERSE 선택 UI 용."""
+    df = _load_stocks30_raw()
+    meta = (
+        df[["code", "name", "market", "sector"]]
+        .drop_duplicates(subset=["code"])
+        .sort_values("code")
+        .reset_index(drop=True)
+    )
+    return meta.to_dict("records")
 
 
 # ============================================================
@@ -91,11 +168,11 @@ def compute_volume_shock(df: pd.DataFrame, period: int = 20) -> pd.Series:
 
 
 # ============================================================
-# 4. 기준선 (Upper / Lower) 생성 (핵심, 업데이트됨)
+# 4. 기준선 (Upper / Lower)
 # ============================================================
 def compute_bands(
     df: pd.DataFrame,
-    base_type: str = "SMA20",  # 문서에 따라 SMA20으로 기본값 변경
+    base_type: str = "SMA20",
     vol_type: str = "ATR14",
     volume_type: str = "LogRV20",
     alpha: float = 1.0,
@@ -103,13 +180,11 @@ def compute_bands(
     asym: bool = False,
     alpha_up: float = None,
     alpha_down: float = None,
-    beta_up: float = None,  # 추가: 상승 측 거래량 승수
-    beta_down: float = None,  # 추가: 하락 측 거래량 승수
+    beta_up: float = None,
+    beta_down: float = None,
 ) -> pd.DataFrame:
-    # 1) Base
     base = compute_base(df, base_type)
 
-    # 2) Volatility
     if vol_type == "ATR14":
         vol = compute_atr(df, 14)
     elif vol_type == "NATR14":
@@ -119,7 +194,6 @@ def compute_bands(
     else:
         raise ValueError(f"지원하지 않는 Volatility 타입: {vol_type}")
 
-    # 3) Volume effect
     if volume_type is None:
         vol_effect = 1.0
     elif volume_type == "LogRV20":
@@ -131,21 +205,14 @@ def compute_bands(
     else:
         raise ValueError(f"지원하지 않는 Volume 타입: {volume_type}")
 
-    # 4) Width 계산 (exp 적용)
     if asym:
-        # 비대칭 모드: 각각의 alpha, beta 사용
         if alpha_up is None or alpha_down is None:
-            raise ValueError(
-                "비대칭 모드에서는 alpha_up, alpha_down을 반드시 지정해야 합니다."
-            )
-        # beta_up/down이 없으면 기존 beta 값으로 통일 (하위 호환성)
+            raise ValueError("비대칭 모드에서는 alpha_up, alpha_down 필수")
         _beta_up = beta_up if beta_up is not None else beta
         _beta_down = beta_down if beta_down is not None else beta
-
         upper_width = vol * np.exp(alpha_up + _beta_up * vol_effect)
         lower_width = vol * np.exp(alpha_down + _beta_down * vol_effect)
     else:
-        # 대칭 모드
         width = vol * np.exp(alpha + beta * vol_effect)
         upper_width = width
         lower_width = width
@@ -158,7 +225,7 @@ def compute_bands(
 
 
 # ============================================================
-# 5. 모든 피처 한 번에 계산 (분석/디버깅용)
+# 5. 모든 피처 한 번에
 # ============================================================
 def prepare_all_features(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -166,11 +233,9 @@ def prepare_all_features(df: pd.DataFrame) -> pd.DataFrame:
     df["base_EMA20"] = compute_base(df, "EMA20")
     df["base_EMA30"] = compute_base(df, "EMA30")
     df["base_SMA60"] = compute_base(df, "SMA60")
-
     df["ATR14"] = compute_atr(df, 14)
     df["NATR14"] = compute_natr(df, 14)
     df["STD20"] = compute_std_ret(df, 20)
-
     df["LogRV20"] = compute_log_rv(df, 20)
     df["VolZ20"] = compute_volume_zscore(df, 20)
     df["VolShock20"] = compute_volume_shock(df, 20)
@@ -178,5 +243,4 @@ def prepare_all_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 if __name__ == "__main__":
-    # 기존 검증용 출력 코드 (생략 가능, 필요시 주석 해제)
     pass

@@ -1,9 +1,8 @@
 # dashboard/services/baseline_service.py
 """
-Baseline 서비스 — 6-param threshold walk-forward (+옵션 Focal).
-레포의 evaluation/threshold_tuning 엔진을 호출.
-
-주의: Streamlit @st.cache_data 를 쓰지 않는다 (stdout ASCII 캡처 문제 회피).
+Baseline 서비스 — 6-param threshold walk-forward.
+scope/ticker 지원 (MARKET | STOCK).
+Streamlit @st.cache_data 안 씀 (stdout ASCII 캡처 문제 회피).
 """
 from __future__ import annotations
 
@@ -13,7 +12,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# stdout/stderr reconfigure (Streamlit 이전에 미리)
+# stdout/stderr reconfigure
 try:
     for _s in (sys.stdout, sys.stderr):
         if hasattr(_s, "reconfigure"):
@@ -31,13 +30,10 @@ if str(_TH_DIR) not in sys.path:
 
 import numpy as np
 import pandas as pd
-import streamlit as st
 
 _IMPORT_ERR: str | None = None
 _HAS_FOCAL = False
-
 try:
-    from step1_core_features import load_data                    # type: ignore
     from step5_optimize_6params import run_walkforward_6params   # type: ignore
     from focal_classifier import FocalConfig, make_labels        # type: ignore
     try:
@@ -60,9 +56,8 @@ def focal_available() -> bool:
 
 
 # ═══════════════════════════════════════════════════════════
-# 수동 캐시 (Streamlit caching 우회)
+# 수동 캐시
 # ═══════════════════════════════════════════════════════════
-_DF_CACHE: dict = {}
 _BASELINE_CACHE: dict = {}
 
 
@@ -71,14 +66,6 @@ def _silence():
         contextlib.redirect_stdout(io.StringIO()),
         contextlib.redirect_stderr(io.StringIO()),
     )
-
-
-def _load_df() -> pd.DataFrame:
-    if "df" not in _DF_CACHE:
-        _out, _err = _silence()
-        with _out, _err:
-            _DF_CACHE["df"] = load_data()
-    return _DF_CACHE["df"]
 
 
 def _sanitize_metrics(d: dict) -> dict:
@@ -92,18 +79,27 @@ def _sanitize_metrics(d: dict) -> dict:
 
 
 def run_baseline(
+    scope: str = "MARKET",
+    ticker: str = "KOSPI200",
     threshold: float = 0.01,
     max_evals: int = 30,
     include_focal: bool = False,
+    source: str = "stocks30",
 ) -> dict:
     if _IMPORT_ERR:
         raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
 
-    cache_key = (float(threshold), int(max_evals), bool(include_focal))
+    cache_key = (scope, ticker, float(threshold), int(max_evals),
+                 bool(include_focal), source)
     if cache_key in _BASELINE_CACHE:
         return _BASELINE_CACHE[cache_key]
 
-    df = _load_df()
+    # 데이터 로드 (scope/ticker/source 별)
+    from services import data_loader
+    if source == "full":
+        df = data_loader.load_market_data_full(ticker, price_col="adj_close")
+    else:
+        df = data_loader.load_market_data(scope, ticker)
 
     _out, _err = _silence()
     with _out, _err:
@@ -117,6 +113,8 @@ def run_baseline(
         )
 
     out: dict = {
+        "scope": scope,
+        "ticker": ticker,
         "threshold": float(threshold),
         "max_evals": int(max_evals),
         "include_focal": bool(include_focal),
@@ -154,20 +152,4 @@ def run_baseline(
 
 
 def clear_cache() -> None:
-    _DF_CACHE.clear()
     _BASELINE_CACHE.clear()
-
-
-SESSION_KEY = "_baseline_results"
-
-
-def save_results(results: dict) -> None:
-    st.session_state[SESSION_KEY] = results
-
-
-def load_results() -> dict | None:
-    return st.session_state.get(SESSION_KEY)
-
-
-def clear_results() -> None:
-    st.session_state.pop(SESSION_KEY, None)

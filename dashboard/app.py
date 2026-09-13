@@ -19,23 +19,28 @@ from theme import (
 theme.inject()
 
 from components import sidebar_controls
-from services import baseline_service, model_service, comparison_service
+from services import comparison_service
+from state import ctx, get_result, has_result
 
 sidebar_controls()
+c = ctx()
+scope = c["scope"]
+ticker = c["ticker"]
 
 # ═══════════════════════════════════════════════════════════
 # HEADER
 # ═══════════════════════════════════════════════════════════
 st.markdown('<div class="as-title">Overview</div>', unsafe_allow_html=True)
 
-baseline = baseline_service.load_results()
-models = model_service.load_results()
-bt = st.session_state.get("_bt_results")
-cost_grid = st.session_state.get("_cost_grid")
+baseline = get_result("baseline", scope, ticker)
+models = get_result("model_lab", scope, ticker)
+bt = get_result("bt", scope, ticker)
+cost_grid = get_result("cost_grid", scope, ticker)
+cost_be = get_result("cost_be", scope, ticker)
 
 _ready = bool(baseline and models)
 top_strip(
-    ["ALPHASTACK", "KOSPI200", "COMBINATION E"],
+    ["ALPHASTACK", scope, ticker, "COMBINATION E"],
     status_text="READY" if _ready else "INCOMPLETE",
     status_tone="up" if _ready else "warn",
 )
@@ -44,6 +49,7 @@ top_strip(
 # ① STATUS ROW
 # ═══════════════════════════════════════════════════════════
 section_header("PIPELINE")
+
 
 def _status_dot_line(label: str, ready: bool, detail: str = "") -> str:
     tone = "up" if ready else "neutral"
@@ -60,41 +66,42 @@ def _status_dot_line(label: str, ready: bool, detail: str = "") -> str:
         f'</div>'
     )
 
+
+def _is_ready(v) -> bool:
+    if v is None:
+        return False
+    if hasattr(v, "empty") and hasattr(v, "shape"):
+        try:
+            return not bool(v.empty)
+        except Exception:
+            return False
+    if hasattr(v, "__len__"):
+        try:
+            return len(v) > 0
+        except Exception:
+            return False
+    return bool(v)
+
+
 with panel("4 STAGES", status_text="LIVE" if _ready else "PARTIAL",
            status_tone="up" if _ready else "warn"):
-    def _ready(v) -> bool:
-        if v is None:
-            return False
-        if hasattr(v, "empty") and hasattr(v, "shape"):
-            try:
-                return not bool(v.empty)
-            except Exception:
-                return False
-        if hasattr(v, "__len__"):
-            try:
-                return len(v) > 0
-            except Exception:
-                return False
-        return bool(v)
-
-    _cost_n = len(cost_grid) if cost_grid is not None and hasattr(cost_grid, "__len__") else 0
+    _cost_n = len(cost_grid) if _is_ready(cost_grid) else 0
 
     st.markdown(
-        _status_dot_line("Baseline", _ready(baseline),
+        _status_dot_line("Baseline", _is_ready(baseline),
                          f"{baseline['total_folds']} folds" if baseline else "") +
-        _status_dot_line("Model Lab", _ready(models),
+        _status_dot_line("Model Lab", _is_ready(models),
                          f"{len(models)} models" if models else "") +
-        _status_dot_line("Backtest", _ready(bt),
-                         "A/B/C" if _ready(bt) else "") +
-        _status_dot_line("Cost Sens", _ready(cost_grid),
-                         f"{_cost_n} grid" if _ready(cost_grid) else ""),
+        _status_dot_line("Backtest", _is_ready(bt),
+                         "A/B/C" if _is_ready(bt) else "") +
+        _status_dot_line("Cost Sens", _is_ready(cost_grid),
+                         f"{_cost_n} grid" if _is_ready(cost_grid) else ""),
         unsafe_allow_html=True,
     )
 
 if not _ready:
     st.info(
-        "**Baseline 과 Model Lab 페이지에서 각각 RUN 을 실행하세요.**  \n"
-        "두 결과가 준비되면 이 Overview 가 자동으로 채워집니다."
+        f"**{scope}:{ticker}** 에 대해 Baseline 과 Model Lab 페이지에서 각각 RUN 을 실행하세요."
     )
     st.stop()
 
@@ -106,7 +113,7 @@ best_summary = models[best_name]["summary"]
 b_perf = baseline.get("perf_metrics", {})
 b_cls = baseline.get("cls_metrics", {})
 
-section_header("TOP LINE · BEST MODEL vs BASELINE")
+section_header(f"TOP LINE · {scope}:{ticker}")
 
 col_b, col_m = st.columns(2, gap="small")
 
@@ -143,7 +150,7 @@ with col_m:
         ], cols=4)
 
 # ═══════════════════════════════════════════════════════════
-# ③ FOLD TIMELINE · ΔSHARPE per fold
+# ③ FOLD TIMELINE
 # ═══════════════════════════════════════════════════════════
 section_header(f"FOLD TIMELINE · {best_name}")
 
@@ -169,8 +176,7 @@ if not fold_df.empty and "delta_sharpe_net" in fold_df.columns:
             hovertemplate="%{x}<br>%{hovertext}<br>ΔSharpe=%{y:.3f}<extra></extra>",
         ))
         fig.update_layout(
-            height=280,
-            showlegend=False,
+            height=280, showlegend=False,
             xaxis=dict(title=""),
             yaxis=dict(title="ΔSharpe", zeroline=True,
                        zerolinecolor="rgba(255,255,255,0.15)"),
@@ -178,7 +184,6 @@ if not fold_df.empty and "delta_sharpe_net" in fold_df.columns:
         )
         plotly_chart(fig)
 
-        # fold 요약 통계
         _pos = int((fold_df["delta_sharpe_net"] > 0).sum())
         _tot = len(fold_df)
         _med = float(fold_df["delta_sharpe_net"].median())
@@ -214,9 +219,9 @@ with panel(
     )
 
 # ═══════════════════════════════════════════════════════════
-# ⑤ BACKTEST + COST (있을 때만)
+# ⑤ BACKTEST + COST
 # ═══════════════════════════════════════════════════════════
-if bt:
+if _is_ready(bt):
     section_header("BACKTEST · A/B/C")
     with panel("3 STRATEGIES"):
         bt_rows = []
@@ -238,28 +243,23 @@ if bt:
             precision=4,
         )
 
-if cost_grid is not None:
+if _is_ready(cost_be):
     section_header("COST · BREAKEVEN")
-    be = st.session_state.get("_cost_be")
-    if be is not None and not be.empty:
-        be_rows = be.to_dict("records")
-        metric_row([
-            dict(label=f"STRATEGY {r['strategy']}",
-                 value=f"{r['breakeven_cost']*100:.3f}%",
-                 tone="up" if r["breakeven_cost"] > 0.002 else "warn",
-                 accent=True)
-            for r in be_rows
-        ], cols=len(be_rows))
-    else:
-        st.caption("Cost Sensitivity 페이지에서 RUN 한 후 표시됩니다.")
+    be_rows = cost_be.to_dict("records") if hasattr(cost_be, "to_dict") else cost_be
+    metric_row([
+        dict(label=f"STRATEGY {r['strategy']}",
+             value=f"{r['breakeven_cost']*100:.3f}%",
+             tone="up" if r["breakeven_cost"] > 0.002 else "warn",
+             accent=True)
+        for r in be_rows
+    ], cols=len(be_rows))
 
 # ═══════════════════════════════════════════════════════════
-# ⑥ RECENT OOS PREDICTIONS · BEST MODEL
+# ⑥ RECENT OOS PREDICTIONS
 # ═══════════════════════════════════════════════════════════
 _oos = models[best_name].get("oos_predictions")
 if _oos:
     oos_df = pd.DataFrame(_oos).tail(20).copy()
-    # 라벨 변환
     label_map = {-1: "DOWN", 0: "NEUTRAL", 1: "UP"}
     oos_df["actual_label"] = oos_df["actual"].map(label_map)
     oos_df["pred_label"] = oos_df["predicted"].map(label_map)
@@ -297,12 +297,12 @@ if _oos:
         ], cols=4)
 
 # ═══════════════════════════════════════════════════════════
-# ⑦ NEXT STEPS (결과 없을 때만)
+# ⑦ NEXT STEPS
 # ═══════════════════════════════════════════════════════════
-if not bt:
+if not _is_ready(bt):
     section_header("NEXT")
     with panel("RECOMMENDED"):
-        st.markdown("""
-- **Backtest** — A/B/C 전략 백테스트 (실행 후 이 Overview 에 요약 표시)
+        st.markdown(f"""
+- **Backtest** — A/B/C 전략 백테스트 ({scope}:{ticker})
 - **Cost Sensitivity** — 4가지 비용 프리셋 × 3 전략 (breakeven 자동 계산)
 """)

@@ -16,20 +16,34 @@ from theme import (
 theme.inject()
 
 from components import sidebar_controls
-from services import baseline_service, model_service, comparison_service
+from services import comparison_service
+from state import ctx, get_result
 
 sidebar_controls()
+c = ctx()
+scope = c["scope"]
+ticker = c["ticker"]
 
-# ═══════════════════════════════════════════════════════════
-# HEADER
-# ═══════════════════════════════════════════════════════════
+# ── UNIVERSE scope 는 전용 페이지에서 ──
+if scope == "UNIVERSE":
+    st.markdown('<div class="as-title">전용 페이지로 이동</div>', unsafe_allow_html=True)
+    st.info(
+        "**UNIVERSE scope 는 Universe 페이지에서만 사용합니다.**  \n"
+        "사이드바에서 **UNIVERSE** 버튼을 다시 누르거나, "
+        "페이지 목록의 **Universe** 를 여세요."
+    )
+    if st.button("▶  Universe 페이지로", type="primary"):
+        # 사이드바 페이지 이름이 파일명에 따라 다를 수 있음 — 안내만
+        st.switch_page("pages/8_Universe.py")
+    st.stop()
+
 st.markdown('<div class="as-title">Comparison</div>', unsafe_allow_html=True)
 
-baseline = baseline_service.load_results()
-models = model_service.load_results()
+baseline = get_result("baseline", scope, ticker)
+models = get_result("model_lab", scope, ticker)
 
 n_models = len(models) if models else 0
-parts = ["KOSPI200"]
+parts = [scope, ticker]
 if baseline:
     parts.append(f"BASELINE {baseline['threshold']*100:.0f}%")
 if models:
@@ -39,9 +53,6 @@ _ready = bool(baseline and models)
 top_strip(parts, status_text="READY" if _ready else "INCOMPLETE",
           status_tone="up" if _ready else "warn")
 
-# ═══════════════════════════════════════════════════════════
-# 사전 조건 체크
-# ═══════════════════════════════════════════════════════════
 if not baseline and not models:
     st.info("**Baseline** 과 **Model Lab** 페이지에서 각각 RUN을 먼저 실행하세요.")
     st.stop()
@@ -62,24 +73,19 @@ with c2:
 if not _ready:
     st.stop()
 
-# ═══════════════════════════════════════════════════════════
-# TOP LINE · BASELINE vs BEST MODEL
-# ═══════════════════════════════════════════════════════════
 best_name = comparison_service.best_model(models)
 best_summary = models[best_name]["summary"]
-
 b_perf = baseline.get("perf_metrics", {})
 b_cls = baseline.get("cls_metrics", {})
 
-section_header("TOP LINE · BASELINE vs BEST MODEL")
+section_header(f"TOP LINE · {scope}:{ticker}")
 
 col_b, col_m = st.columns(2, gap="small")
 
 with col_b:
     with panel(
         f"BASELINE · 6-PARAM · {baseline['threshold']*100:.0f}%",
-        status_text=f"{baseline['total_folds']} FOLDS",
-        status_tone="accent",
+        status_text=f"{baseline['total_folds']} FOLDS", status_tone="accent",
     ):
         metric_row([
             dict(label="SHARPE", value=f"{b_perf.get('sharpe', 0):.4f}",
@@ -105,9 +111,6 @@ with col_m:
                  tone="up" if _ds > 0 else "down"),
         ], cols=4)
 
-# ═══════════════════════════════════════════════════════════
-# STRATEGY TABLE
-# ═══════════════════════════════════════════════════════════
 cross = comparison_service.build_cross_table(baseline, models)
 
 section_header("STRATEGY · OOS PERFORMANCE")
@@ -119,13 +122,10 @@ with panel("SHARPE · CAGR · MDD · WIN RATE · ΔSHARPE"):
     )
 
 st.caption(
-    "⚠️ BASELINE: 전체 OOS pooled Sharpe ·  "
+    "⚠️ BASELINE: pooled Sharpe ·  "
     "MODEL: fold별 ΔSharpe 중앙값 (전략 Sharpe − Buy&Hold Sharpe). 정의가 다름."
 )
 
-# ═══════════════════════════════════════════════════════════
-# CLASSIFICATION TABLE
-# ═══════════════════════════════════════════════════════════
 section_header("CLASSIFICATION · OOS")
 with panel("ACCURACY · MACRO F1 · BALANCED ACC · DOWN RECALL"):
     show_table(
@@ -134,16 +134,10 @@ with panel("ACCURACY · MACRO F1 · BALANCED ACC · DOWN RECALL"):
         precision=4,
     )
 
-st.caption("⚠️ BASELINE: step5가 반환하는 f1_macro · balanced_acc만 존재.")
-
-# ═══════════════════════════════════════════════════════════
-# MODEL RANKING · HARMONIC
-# ═══════════════════════════════════════════════════════════
 section_header("MODEL RANKING · HARMONIC MEAN")
 with panel("ACC · MACRO F1 · DOWN RECALL 조화평균"):
     cmp_df = comparison_service.build_comparison_table(models)
     colors = ["#4ade80" if i == 0 else "#7fd1ff" for i in range(len(cmp_df))]
-
     fig = go.Figure(go.Bar(
         x=cmp_df["core_harmonic_mean"],
         y=cmp_df["model"],
@@ -162,9 +156,6 @@ with panel("ACC · MACRO F1 · DOWN RECALL 조화평균"):
     )
     plotly_chart(fig)
 
-# ═══════════════════════════════════════════════════════════
-# FULL DETAIL TABLE
-# ═══════════════════════════════════════════════════════════
 section_header("FULL DETAIL · 4 MODELS")
 with panel(f"{len(models)} MODELS · SORT BY HARMONIC",
            status_text=f"BEST · {best_name}", status_tone="up"):

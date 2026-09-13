@@ -23,6 +23,7 @@ import numpy as np
 _IMPORT_ERR: str | None = None
 _HAS_RISK = False
 _HAS_CLS = False
+_HAS_REG = False
 
 try:
     _out, _err = contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO())
@@ -38,8 +39,14 @@ try:
         from evaluation_backtest import (  # type: ignore
             calculate_all_classification_metrics as _cls_all,
         )
+        from evaluation_backtest import (  # type: ignore
+            calculate_all_regression_metrics as _reg_all,
+        )
     _HAS_CLS = True
+    _HAS_REG = True
 except Exception as e:
+    _HAS_CLS = False
+    _HAS_REG = False
     if _IMPORT_ERR is None:
         _IMPORT_ERR = f"evaluation_backtest: {type(e).__name__}: {e}"
 
@@ -118,6 +125,37 @@ def calculate_classification(
             out[k] = {str(kk): float(vv) if isinstance(vv, (int, float, np.floating)) else vv
                       for kk, vv in v.items()}
         elif isinstance(v, (int, float, np.floating, np.integer)):
+            fv = float(v)
+            out[k] = fv if np.isfinite(fv) else None
+        else:
+            out[k] = v
+    return out
+
+
+def regression_available() -> bool:
+    return _HAS_REG
+
+
+def calculate_regression(
+    predictions,
+    returns,
+    ic_series=None,
+) -> dict:
+    """evaluation_backtest.calculate_all_regression_metrics 래퍼."""
+    if not _HAS_REG:
+        raise RuntimeError(f"regression import 실패: {_IMPORT_ERR}")
+
+    _out, _err = contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO())
+    with _out, _err:
+        result = _reg_all(
+            predictions=np.asarray(predictions, dtype=float),
+            returns=np.asarray(returns, dtype=float),
+            ic_series=None if ic_series is None else np.asarray(ic_series, dtype=float),
+        )
+
+    out = {}
+    for k, v in result.items():
+        if isinstance(v, (int, float, np.floating, np.integer)):
             fv = float(v)
             out[k] = fv if np.isfinite(fv) else None
         else:
