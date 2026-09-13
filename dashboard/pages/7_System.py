@@ -11,12 +11,12 @@ st.set_page_config(page_title="System · AlphaStack", layout="wide")
 import theme
 from theme import (
     metric_row, section_header, top_strip, panel, show_table,
-    status_dot,
 )
 theme.inject()
 
 from components import sidebar_controls
 from services import system_service
+from state import list_result_keys
 
 sidebar_controls()
 
@@ -97,7 +97,8 @@ for name, info in sys_all["engines"].items():
         ),
     })
 
-with panel(f"{_n_engines} SERVICES", status_text=f"{_ok_engines}/{_n_engines} OK",
+with panel(f"{_n_engines} SERVICES",
+           status_text=f"{_ok_engines}/{_n_engines} OK",
            status_tone="up" if _ok_engines == _n_engines else "warn"):
     show_table(pd.DataFrame(engine_rows))
 
@@ -122,21 +123,24 @@ with panel(
 section_header("SESSION")
 
 sess = sys_all["session"]
+keys_map = list_result_keys()
+_total_entries = sum(len(v) for v in keys_map.values())
 
 metric_row([
     dict(label="SCOPE", value=sess["scope"]),
     dict(label="TICKER", value=sess["ticker"]),
     dict(label="SESSION KEYS", value=f"{sess['n_session_keys']}"),
-    dict(label="RESULT KEYS", value=f"{len(sess['result_keys'])}"),
+    dict(label="RESULT KINDS", value=f"{len(keys_map)}"),
 ], cols=4)
 
-if sess["result_keys"]:
-    section_header("RESULT KEYS")
-    rk_df = pd.DataFrame([
-        {"key": k, "n_entries": n} for k, n in sess["result_keys"]
-    ])
-    with panel():
-        show_table(rk_df, num_cols=["n_entries"], precision=0)
+if keys_map:
+    section_header(f"RESULT KEYS · {_total_entries} ENTRIES")
+    rk_rows = []
+    for kind, keys in keys_map.items():
+        for k in keys:
+            rk_rows.append({"kind": kind, "scope:ticker": k})
+    with panel(f"{len(rk_rows)} ENTRIES"):
+        show_table(pd.DataFrame(rk_rows))
 
 if sess["all_underscore_keys"]:
     with st.expander("전체 underscore session keys"):
@@ -170,7 +174,8 @@ with panel("CACHE / STATE"):
     with c2:
         if st.button("Clear session results", use_container_width=True):
             for k in ["_baseline_results", "_model_lab_results",
-                      "_bt_results", "_cost_grid", "_cost_be"]:
+                      "_bt_results", "_cost_grid", "_cost_be",
+                      "_universe_baseline", "_universe_models"]:
                 st.session_state.pop(k, None)
             st.success("session 결과 초기화 완료")
     with c3:

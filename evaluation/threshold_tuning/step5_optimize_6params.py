@@ -329,7 +329,7 @@ def run_walkforward_6params(
     total_len = len(df)
 
     first_train_end = INITIAL_TRAIN
-    last_train_end = total_len - VAL_DAYS - GAP
+    last_train_end = total_len - VAL_DAYS - GAP - 6
 
     if last_train_end <= first_train_end:
         raise ValueError(

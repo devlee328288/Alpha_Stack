@@ -151,6 +151,25 @@ a:hover { text-decoration: underline; }
   margin: 8px 0;
 }
 
+/* 사이드바 버튼 압축 (SCOPE 버튼 텍스트 wrap 방지) */
+[data-testid="stSidebar"] .stButton > button {
+  font-size: 10px !important;
+  padding: 5px 4px !important;
+  letter-spacing: 0.03em !important;
+  min-height: 26px !important;
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-testid="stSidebar"] .stButton > button p {
+  font-size: 10px !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+[data-testid="stSidebar"] [data-testid="column"] {
+  padding: 0 2px;
+}
+
 /* ── st.metric (fallback용 — 가능하면 metric_panel 사용) ── */
 [data-testid="stMetric"] {
   background: var(--bg-panel);

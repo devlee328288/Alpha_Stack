@@ -14,12 +14,27 @@ from theme import (
 )
 theme.inject()
 
-import traceback
-
 from components import sidebar_controls
 from services import model_service, comparison_service
+from state import ctx, get_result, set_result
 
 sidebar_controls()
+c = ctx()
+scope = c["scope"]
+ticker = c["ticker"]
+
+# ── UNIVERSE scope 는 전용 페이지에서 ──
+if scope == "UNIVERSE":
+    st.markdown('<div class="as-title">전용 페이지로 이동</div>', unsafe_allow_html=True)
+    st.info(
+        "**UNIVERSE scope 는 Universe 페이지에서만 사용합니다.**  \n"
+        "사이드바에서 **UNIVERSE** 버튼을 다시 누르거나, "
+        "페이지 목록의 **Universe** 를 여세요."
+    )
+    if st.button("▶  Universe 페이지로", type="primary"):
+        # 사이드바 페이지 이름이 파일명에 따라 다를 수 있음 — 안내만
+        st.switch_page("pages/8_Universe.py")
+    st.stop()
 
 # ═══════════════════════════════════════════════════════════
 # HEADER
@@ -28,17 +43,17 @@ st.markdown('<div class="as-title">Model Lab</div>', unsafe_allow_html=True)
 
 _err = model_service.engine_status()
 if _err:
-    top_strip(["REPO ENGINE"], status_text="IMPORT FAIL", status_tone="warn")
+    top_strip([scope, ticker], status_text="IMPORT FAIL", status_tone="warn")
     st.error(f"repo engine import 실패: {_err}")
     st.stop()
 
 top_strip(
-    ["KOSPI200", "COMBINATION E", "RETURN · 5DAY", "12-FOLD EXPANDING"],
+    [scope, ticker, "COMBINATION E", "RETURN · 5DAY", "12-FOLD EXPANDING"],
     status_text="READY", status_tone="neutral",
 )
 
 # ═══════════════════════════════════════════════════════════
-# ① CONFIG
+# CONFIG
 # ═══════════════════════════════════════════════════════════
 section_header("CONFIG")
 with panel():
@@ -53,17 +68,15 @@ with panel():
         run = st.button("▶  RUN", type="primary", use_container_width=True)
 
     st.caption(
-        "⚠️ 모델 1개당 5~10분, 4모델 전체 20~40분 소요. "
-        "빠른 테스트는 RandomForest 하나만 선택하세요."
+        "⚠️ 모델 1개당 1~10분 (종목/데이터 크기에 따라), "
+        "4모델 전체는 오래 걸립니다. 빠른 테스트는 RandomForest 하나만."
     )
 
 # ═══════════════════════════════════════════════════════════
-# ② RUN
+# RUN
 # ═══════════════════════════════════════════════════════════
 if run and selected:
-    import contextlib
-    import io
-
+    import traceback
     progress = st.progress(0.0)
     status = st.empty()
 
@@ -72,37 +85,33 @@ if run and selected:
             progress.progress(min(i / total, 1.0))
         status.caption(f"[{i}/{total}] {name}")
 
-    # ★ repo 코드의 모든 print 를 StringIO 로 흡수 (Streamlit stream 우회)
-    _sink = io.StringIO()
     try:
-        with contextlib.redirect_stdout(_sink), contextlib.redirect_stderr(_sink):
-            results = model_service.run_all_models(
-                models=tuple(selected),
-                progress_cb=_cb,
-            )
-        model_service.save_results(results)
+        results = model_service.run_all_models(
+            scope=scope,
+            ticker=ticker,
+            models=tuple(selected),
+            progress_cb=_cb,
+        )
+        set_result("model_lab", scope, ticker, results)
         progress.progress(1.0)
         status.caption(f"완료 · {len(results)} 모델")
     except Exception as e:
         st.error(f"실행 실패: {type(e).__name__}: {e}")
-        with st.expander("🔍 Traceback"):
-            st.code(traceback.format_exc(), language="text")
-        with st.expander("🔍 Captured stdout/stderr"):
-            st.text(_sink.getvalue()[-3000:] or "(empty)")
+        with st.expander("Traceback", expanded=True):
+            st.code(traceback.format_exc())
 
 # ═══════════════════════════════════════════════════════════
-# ③ RESULT
+# RESULT
 # ═══════════════════════════════════════════════════════════
-results = model_service.load_results()
+results = get_result("model_lab", scope, ticker)
 if not results:
-    st.caption("모델을 선택하고 RUN을 누르세요. (12폴드 walk-forward, 수 분 소요)")
+    st.caption(f"{scope}:{ticker} 에 대한 결과가 아직 없습니다.")
     st.stop()
 
 kpi = comparison_service.build_summary_kpis(results)
 cmp_df = comparison_service.build_comparison_table(results)
 
-# ── SUMMARY ────────────────────────────────────────────────
-section_header("SUMMARY")
+section_header(f"SUMMARY · {scope}:{ticker}")
 metric_row([
     dict(label="BEST MODEL",  value=kpi["best_model"], tone="up", accent=True),
     dict(label="HARMONIC",    value=f"{kpi['best_harmonic']:.4f}", tone="up"),
@@ -113,7 +122,6 @@ metric_row([
          tone="up" if kpi['best_delta_sharpe'] > 0 else "down"),
 ], cols=6)
 
-# ── MODEL COMPARISON ───────────────────────────────────────
 section_header(f"MODEL COMPARISON · {len(cmp_df)} MODELS")
 with panel(
     "12-FOLD OOS · SORT BY HARMONIC",
@@ -129,7 +137,7 @@ with panel(
         highlight_row=0,
     )
 
-# ── MODEL DETAIL ───────────────────────────────────────────
+# MODEL DETAIL
 section_header("MODEL DETAIL")
 pick = st.selectbox("Inspect model", list(results.keys()), index=0)
 r = results[pick]
@@ -144,7 +152,6 @@ metric_row([
     dict(label="UP REC",     value=f"{s['up_recall']:.4f}"),
 ], cols=6)
 
-# ── FOLD RESULTS ───────────────────────────────────────────
 fold_df = pd.DataFrame(r["fold_results"])
 if not fold_df.empty:
     section_header("FOLD RESULTS")
@@ -157,7 +164,6 @@ if not fold_df.empty:
             precision=4,
         )
 
-# ── CLASS WEIGHT SELECTION ─────────────────────────────────
 wc = pd.DataFrame(r["weight_counts"])
 if not wc.empty:
     section_header("CLASS WEIGHT SELECTION")

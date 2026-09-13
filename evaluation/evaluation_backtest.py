@@ -1,4 +1,4 @@
-# 백테스트 평가 지표
+# 백테스트 평가 지표 (module-level HF download 제거)
 
 import os
 import sys
@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
 import pandas as pd
-from huggingface_hub import hf_hub_download
 from scipy.stats import pearsonr, spearmanr
 from sklearn.metrics import (
     average_precision_score,
@@ -16,29 +15,6 @@ from sklearn.metrics import (
     matthews_corrcoef,
     recall_score,
 )
-
-from config.features import get_features
-
-# 실제 데이터 불러오기
-
-path = hf_hub_download(
-    repo_id="qurious-quant/alphastack-krx-dev",
-    filename="small/features_labels_kospi200_dev.csv",
-    repo_type="dataset",
-)
-df = pd.read_csv(path)
-
-FEATURES = get_features(df)
-X = df[FEATURES]
-
-# 실제 분류 정답
-# 데이터의 label 값:
-#   상승 / 중립 / 하락
-y_class = df["label"]
-
-# 실제 회귀 정답
-# 5일 후 미래수익률
-y_return = df["fwd_return_5d"]
 
 # ============================================================
 # 백테스트 / AI 모델 성과평가 지표 계산 모듈
@@ -1382,16 +1358,23 @@ def calculate_all_classification_metrics(
 
 
 if __name__ == "__main__":
+    from huggingface_hub import hf_hub_download
+    from config.features import get_features
 
     print("📊 실제 데이터 기반 성과 지표 계산을 시작합니다.")
     print("=" * 60)
 
-    # ========================================================
-    # 0. 실제 데이터 확인
-    # ========================================================
-
-    print("\n[실제 데이터]")
-    print("-" * 60)
+    _path = hf_hub_download(
+        repo_id="qurious-quant/alphastack-krx-dev",
+        filename="small/features_labels_kospi200_dev.csv",
+        repo_type="dataset",
+    )
+    
+    df = pd.read_csv(_path)
+    FEATURES = get_features(df)
+    X = df[FEATURES]
+    y_class = df["label"]
+    y_return = df["fwd_return_5d"]
 
     print(f"전체 데이터 개수 : {len(df):,}")
     print(f"Feature 개수     : {len(FEATURES):,}")

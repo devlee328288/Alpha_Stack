@@ -137,3 +137,17 @@ docs/프로젝트계획서양식_*.docx
 
 # 🎭 Playwright MCP 가 남기는 페이지 스냅샷·콘솔 로그. 조사 과정의 부산물이다.
 .playwright-mcp/
+
+# dashboard - streamlit cloud 배포를 위하여
+# Streamlit Cloud secrets (로컬 테스트용)
+.streamlit/secrets.toml
+.streamlit/secrets.toml.*
+!streamlit/secrets.toml.example
+
+# HuggingFace 캐시 (클라우드에서 런타임 생성)
+.hf_cache/
+hf_cache/
+
+# Streamlit 런타임 캐시
+.streamlit/cache/
+.cache/
