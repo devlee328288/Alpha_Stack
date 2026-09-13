@@ -4,200 +4,305 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit as st
 
 st.set_page_config(page_title="AlphaStack", page_icon="📈", layout="wide")
 
 import theme
 from theme import (
-    metric_row,
-    panel,
-    section_header,
-    top_strip,
-    verdict_row,
+    metric_row, section_header, top_strip, panel,
+    show_table, plotly_chart, status_dot,
 )
-
 theme.inject()
 
-import charts
-from components import kpi_row, sidebar_controls
-from services import (
-    backtest_service,
-    data_service,
-    evaluation_service,
-    feature_service,
-    model_service,
-)
-from state import ctx, fingerprint
+from components import sidebar_controls
+from services import baseline_service, model_service, comparison_service
 
-# ── 사이드바 ──────────────────────────────────────────────────
-run = sidebar_controls()
-c = ctx()
+sidebar_controls()
 
-# ── 헤더 ──────────────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════
+# HEADER
+# ═══════════════════════════════════════════════════════════
 st.markdown('<div class="as-title">Overview</div>', unsafe_allow_html=True)
 
-_cur_fp = fingerprint()
-_res_fp = st.session_state.get("latest_fingerprint")
+baseline = baseline_service.load_results()
+models = model_service.load_results()
+bt = st.session_state.get("_bt_results")
+cost_grid = st.session_state.get("_cost_grid")
 
-if _res_fp is None:
-    _status_text, _status_tone = "IDLE", "neutral"
-elif _res_fp != _cur_fp:
-    _status_text, _status_tone = "STALE · RUN ANALYSIS", "warn"
-else:
-    _status_text = "LIVE"
-    _status_tone = "up"
-
-# top strip — 대문자 + 상태 dot
-_feature = str(c.get("feature_set", "")).upper()
+_ready = bool(baseline and models)
 top_strip(
-    [
-        str(c["dataset"]).upper(),
-        str(c["model"]).upper(),
-        f"FEATURE {_feature}" if _feature else "FEATURE -",
-        f"{c['start']} – {c['end']}",
-        f"COST {c['cost']*100:.2f}%",
-    ],
-    status_text=_status_text,
-    status_tone=_status_tone,
+    ["ALPHASTACK", "KOSPI200", "COMBINATION E"],
+    status_text="READY" if _ready else "INCOMPLETE",
+    status_tone="up" if _ready else "warn",
 )
 
-if _res_fp is not None and _res_fp != _cur_fp:
-    st.warning("⚠ 사이드바 조건이 바뀌었습니다. **RUN ANALYSIS** 를 누르세요.")
+# ═══════════════════════════════════════════════════════════
+# ① STATUS ROW
+# ═══════════════════════════════════════════════════════════
+section_header("PIPELINE")
 
-# ── 데이터 → 피처 → 라벨 ───────────────────────────────────────
-prices = data_service.load_market_data(c["dataset"], c["start"], c["end"])
-X, y = feature_service.build_dataset(prices, c["feature_set"])
+def _status_dot_line(label: str, ready: bool, detail: str = "") -> str:
+    tone = "up" if ready else "neutral"
+    status = "ready" if ready else "empty"
+    return (
+        f'<div style="display:flex;justify-content:space-between;'
+        f'align-items:baseline;padding:4px 0;">'
+        f'<span style="font-family:var(--font-ui);font-size:11px;'
+        f'color:var(--text-secondary);">{label}</span>'
+        f'<span style="font-family:var(--font-num);font-size:11px;'
+        f'color:var(--text-primary);">{status_dot(tone)} {status}'
+        f'  <span style="color:var(--text-muted);margin-left:6px;">{detail}</span>'
+        f'</span>'
+        f'</div>'
+    )
 
-# ── 학습 ───────────────────────────────────────────────────────
-if run or st.session_state.latest_model_result is None:
-    with st.spinner(f"Training {c['model']}..."):
-        res = model_service.train(c["model"], X, y, seed=c["seed"])
+with panel("4 STAGES", status_text="LIVE" if _ready else "PARTIAL",
+           status_tone="up" if _ready else "warn"):
+    def _ready(v) -> bool:
+        if v is None:
+            return False
+        if hasattr(v, "empty") and hasattr(v, "shape"):
+            try:
+                return not bool(v.empty)
+            except Exception:
+                return False
+        if hasattr(v, "__len__"):
+            try:
+                return len(v) > 0
+            except Exception:
+                return False
+        return bool(v)
 
-        # 인덱스 방어
-        ti = res.test_index
-        if not isinstance(ti, pd.DatetimeIndex):
-            n = len(ti)
-            ti = prices.index[-n:]
-            res.test_index = ti
+    _cost_n = len(cost_grid) if cost_grid is not None and hasattr(cost_grid, "__len__") else 0
 
-        sig = pd.Series(res.y_pred, index=ti)
-        bt = backtest_service.run_backtest(
-            prices.loc[ti, "close"], sig, c["cost"])
-        st.session_state.latest_model_result = res
-        st.session_state.latest_backtest = bt
-        st.session_state.latest_fingerprint = _cur_fp
-        st.session_state.latest_run_at = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.markdown(
+        _status_dot_line("Baseline", _ready(baseline),
+                         f"{baseline['total_folds']} folds" if baseline else "") +
+        _status_dot_line("Model Lab", _ready(models),
+                         f"{len(models)} models" if models else "") +
+        _status_dot_line("Backtest", _ready(bt),
+                         "A/B/C" if _ready(bt) else "") +
+        _status_dot_line("Cost Sens", _ready(cost_grid),
+                         f"{_cost_n} grid" if _ready(cost_grid) else ""),
+        unsafe_allow_html=True,
+    )
 
-res = st.session_state.latest_model_result
-bt = st.session_state.latest_backtest
-m = bt.metrics
+if not _ready:
+    st.info(
+        "**Baseline 과 Model Lab 페이지에서 각각 RUN 을 실행하세요.**  \n"
+        "두 결과가 준비되면 이 Overview 가 자동으로 채워집니다."
+    )
+    st.stop()
 
-# ── 엔진 fallback 경고 ─────────────────────────────────────────
-_issues = []
-if feature_service.engine_status():
-    _issues.append(f"feature: {feature_service.engine_status()}")
-_issues += [f"eval: {e}" for e in evaluation_service.engine_status()]
-_issues += [f"backtest: {e}" for e in backtest_service.engine_status()]
+# ═══════════════════════════════════════════════════════════
+# ② TOP LINE
+# ═══════════════════════════════════════════════════════════
+best_name = comparison_service.best_model(models)
+best_summary = models[best_name]["summary"]
+b_perf = baseline.get("perf_metrics", {})
+b_cls = baseline.get("cls_metrics", {})
 
-if _issues:
-    with st.expander(f"⚠ engine fallback {len(_issues)}건", expanded=False):
-        for msg in _issues:
-            st.write(f"- {msg}")
+section_header("TOP LINE · BEST MODEL vs BASELINE")
 
-# ── 런 정보 서브라인 ───────────────────────────────────────────
-section_header("RUN INFO")
-metric_row([
-    dict(label="ENGINE",  value=str(res.engine)),
-    dict(label="X SHAPE", value=str(X.shape), variant="compact"),
-    dict(label="Y CLASSES",
-         value=str(sorted(pd.unique(res.y_true).tolist())),
-         variant="compact"),
-    dict(label="TEST RANGE",
-         value=f"{res.test_index[0].date()} → {res.test_index[-1].date()}",
-         variant="compact"),
-], cols=4)
+col_b, col_m = st.columns(2, gap="small")
 
-# ── KPI ────────────────────────────────────────────────────────
-section_header("KEY METRICS")
-kpi_row([
-    ("Accuracy",     f"{res.accuracy*100:.1f}%", None),
-    ("Balanced Acc", f"{res.balanced_accuracy*100:.1f}%", None),
-    ("MCC",          f"{res.mcc:.2f}", None),
-    ("Sharpe",       f"{m.get('Sharpe', 0.0):.2f}", None),
-    ("CAGR",         f"{m.get('CAGR', 0.0)*100:.1f}%", None),
-    ("MDD",          f"{-abs(m.get('MDD', 0.0))*100:.1f}%", None),
-    ("Calmar",       f"{m.get('Calmar', 0.0):.2f}", None),
-])
-
-# ── Baseline 비교 ─────────────────────────────────────────────
-bl = None
-try:
-    _ytr = y.loc[y.index < res.test_index[0]]
-    _yvl = pd.Series(res.y_true, index=res.test_index)
-    if len(_ytr) > 0 and len(_yvl) > 0:
-        bl = evaluation_service.baseline_comparison(
-            _ytr.values, _yvl.values, res.y_pred)
-
-        section_header("BASELINE COMPARISON")
-        _edge = bl["edge_vs_best"] * 100
+with col_b:
+    _age = baseline.get("run_at", "—")
+    with panel(
+        f"BASELINE · 6-PARAM · {baseline['threshold']*100:.0f}%",
+        status_text=f"{baseline['total_folds']} FOLDS · {_age}",
+        status_tone="accent",
+    ):
         metric_row([
-            dict(label="MODEL",          value=f"{bl['model']*100:.1f}%"),
-            dict(label="MAJORITY",       value=f"{bl['majority']*100:.1f}%"),
-            dict(label="ALWAYS UP",      value=f"{bl['always_up']*100:.1f}%"),
-            dict(label="PREV DIRECTION", value=f"{bl['previous_direction']*100:.1f}%"),
-            dict(label="EDGE VS BEST",
-                 value=f"{_edge:+.1f}%p",
-                 tone="up" if _edge > 0 else "down",
-                 accent=True),
-        ], cols=5)
-except Exception as e:
-    st.warning(f"baseline 계산 실패: {e}")
-    bl = None
+            dict(label="SHARPE", value=f"{b_perf.get('sharpe', 0):.4f}",
+                 tone="up" if b_perf.get("sharpe", 0) > 0 else "down"),
+            dict(label="CAGR", value=f"{b_perf.get('cagr', 0)*100:.2f}%",
+                 tone="up" if b_perf.get("cagr", 0) > 0 else "down"),
+            dict(label="MDD", value=f"{-abs(b_perf.get('mdd', 0))*100:.2f}%",
+                 tone="down"),
+            dict(label="MACRO F1", value=f"{b_cls.get('f1_macro', 0):.4f}"),
+        ], cols=4)
 
-# ── Equity Curve + Verdict ─────────────────────────────────────
-col1, col2 = st.columns([2, 1], gap="small")
+with col_m:
+    _age = models[best_name].get("run_at", "—")
+    with panel(
+        f"BEST MODEL · {best_name}",
+        status_text=f"BEST · {_age}", status_tone="up",
+    ):
+        _ds = best_summary.get("delta_sharpe_net_median", 0)
+        metric_row([
+            dict(label="ACC", value=f"{best_summary['accuracy']:.4f}"),
+            dict(label="MACRO F1", value=f"{best_summary['macro_f1']:.4f}"),
+            dict(label="DOWN REC", value=f"{best_summary['down_recall']:.4f}"),
+            dict(label="ΔSHARPE", value=f"{_ds:+.4f}",
+                 tone="up" if _ds > 0 else "down"),
+        ], cols=4)
 
-with col1:
-    prices_test = prices.loc[res.test_index, "close"]
-    bh = (1 + prices_test.pct_change().fillna(0)).cumprod()
-    with panel("EQUITY CURVE · OUT-OF-SAMPLE", "LIVE", "up"):
-        fig = charts.equity_curve(
-            {"Strategy": bt.equity, "Buy & Hold": bh}, "")
-        # A안 색상 강제 (Strategy=cyan, Buy&Hold=gray)
-        fig.data[0].line.color = "#7fd1ff"
-        fig.data[0].line.width = 1.6
-        if len(fig.data) > 1:
-            fig.data[1].line.color = "#9aa0a6"
-            fig.data[1].line.width = 1.0
-            fig.data[1].line.dash = "dot"
-        st.plotly_chart(fig, use_container_width=True)
+# ═══════════════════════════════════════════════════════════
+# ③ FOLD TIMELINE · ΔSHARPE per fold
+# ═══════════════════════════════════════════════════════════
+section_header(f"FOLD TIMELINE · {best_name}")
 
-with col2:
-    with panel("MODEL VERDICT"):
-        _edge = bl["edge_vs_best"] if bl else 0.0
-
-        verdict = [
-            ("Prediction skill",          "PASS" if res.mcc > 0.05 else "WEAK"),
-            ("Beats best baseline",
-             "PASS" if _edge > 0.005 else ("MODERATE" if _edge > 0 else "FAIL")),
-            ("Risk-adjusted performance",
-             "GOOD" if m.get("Sharpe", 0.0) > 0.8 else "MODERATE"),
-            ("Down-class recall",
-             "PASS" if res.recalls["down"] > 0.4 else "WEAK"),
-            ("Out-of-sample consistency", "PASS"),
+fold_df = pd.DataFrame(models[best_name]["fold_results"])
+if not fold_df.empty and "delta_sharpe_net" in fold_df.columns:
+    with panel(f"{len(fold_df)} FOLDS · ΔSHARPE (STRATEGY − BUY&HOLD)"):
+        colors = [
+            "#4ade80" if v > 0 else "#ff5c5c"
+            for v in fold_df["delta_sharpe_net"]
         ]
+        hover_text = [
+            f"{row['valid_start']} ~ {row['valid_end']}"
+            if "valid_start" in fold_df.columns else f"fold {int(row['fold'])}"
+            for _, row in fold_df.iterrows()
+        ]
+        fig = go.Figure(go.Bar(
+            x=[f"F{int(i)}" for i in fold_df["fold"]],
+            y=fold_df["delta_sharpe_net"],
+            marker=dict(color=colors),
+            text=[f"{v:+.2f}" for v in fold_df["delta_sharpe_net"]],
+            textposition="outside",
+            hovertext=hover_text,
+            hovertemplate="%{x}<br>%{hovertext}<br>ΔSharpe=%{y:.3f}<extra></extra>",
+        ))
+        fig.update_layout(
+            height=280,
+            showlegend=False,
+            xaxis=dict(title=""),
+            yaxis=dict(title="ΔSharpe", zeroline=True,
+                       zerolinecolor="rgba(255,255,255,0.15)"),
+            margin=dict(l=8, r=8, t=28, b=8),
+        )
+        plotly_chart(fig)
 
-        # 태그 → (mark, tone) 매핑
-        _mark_map = {
-            "PASS": ("✓", "pass"),
-            "GOOD": ("✓", "pass"),
-            "MODERATE": ("△", "warn"),
-            "WEAK": ("✕", "fail"),
-            "FAIL": ("✕", "fail"),
-        }
+        # fold 요약 통계
+        _pos = int((fold_df["delta_sharpe_net"] > 0).sum())
+        _tot = len(fold_df)
+        _med = float(fold_df["delta_sharpe_net"].median())
+        _max = float(fold_df["delta_sharpe_net"].max())
+        _min = float(fold_df["delta_sharpe_net"].min())
 
-        for name, tag in verdict:
-            mark, tone = _mark_map[tag]
-            verdict_row(mark, f"{name} — {tag}", tone)
+        metric_row([
+            dict(label="POSITIVE FOLDS", value=f"{_pos}/{_tot}",
+                 tone="up" if _pos > _tot / 2 else "warn"),
+            dict(label="MEDIAN ΔSHP", value=f"{_med:+.4f}",
+                 tone="up" if _med > 0 else "down"),
+            dict(label="MAX", value=f"{_max:+.4f}", tone="up"),
+            dict(label="MIN", value=f"{_min:+.4f}", tone="down"),
+        ], cols=4)
+
+# ═══════════════════════════════════════════════════════════
+# ④ MODEL COMPARISON
+# ═══════════════════════════════════════════════════════════
+section_header(f"MODEL COMPARISON · {len(models)} MODELS")
+cmp_df = comparison_service.build_comparison_table(models)
+
+with panel(
+    "12-FOLD OOS · SORT BY HARMONIC",
+    status_text=f"BEST · {best_name}", status_tone="up",
+):
+    display = cmp_df.rename(columns=comparison_service.COMPARISON_COLUMNS)
+    show_table(
+        display,
+        num_cols=["ACC", "MACRO F1", "DOWN RECALL", "HARMONIC",
+                  "BAL ACC", "MAJORITY", "ΔSHARPE"],
+        precision=4,
+        highlight_row=0,
+    )
+
+# ═══════════════════════════════════════════════════════════
+# ⑤ BACKTEST + COST (있을 때만)
+# ═══════════════════════════════════════════════════════════
+if bt:
+    section_header("BACKTEST · A/B/C")
+    with panel("3 STRATEGIES"):
+        bt_rows = []
+        for s, r in bt.items():
+            m = r["metrics"]
+            bt_rows.append({
+                "STRATEGY": s,
+                "TOTAL RETURN": m["total_return"],
+                "ANNUAL RETURN": m["annual_return"],
+                "SHARPE": m["sharpe_ratio"],
+                "MDD": -abs(m["max_drawdown"]),
+                "TRADES": m["num_trades"],
+                "FINAL VALUE": m["final_portfolio_value"],
+            })
+        show_table(
+            pd.DataFrame(bt_rows),
+            num_cols=["TOTAL RETURN", "ANNUAL RETURN", "SHARPE",
+                      "MDD", "FINAL VALUE"],
+            precision=4,
+        )
+
+if cost_grid is not None:
+    section_header("COST · BREAKEVEN")
+    be = st.session_state.get("_cost_be")
+    if be is not None and not be.empty:
+        be_rows = be.to_dict("records")
+        metric_row([
+            dict(label=f"STRATEGY {r['strategy']}",
+                 value=f"{r['breakeven_cost']*100:.3f}%",
+                 tone="up" if r["breakeven_cost"] > 0.002 else "warn",
+                 accent=True)
+            for r in be_rows
+        ], cols=len(be_rows))
+    else:
+        st.caption("Cost Sensitivity 페이지에서 RUN 한 후 표시됩니다.")
+
+# ═══════════════════════════════════════════════════════════
+# ⑥ RECENT OOS PREDICTIONS · BEST MODEL
+# ═══════════════════════════════════════════════════════════
+_oos = models[best_name].get("oos_predictions")
+if _oos:
+    oos_df = pd.DataFrame(_oos).tail(20).copy()
+    # 라벨 변환
+    label_map = {-1: "DOWN", 0: "NEUTRAL", 1: "UP"}
+    oos_df["actual_label"] = oos_df["actual"].map(label_map)
+    oos_df["pred_label"] = oos_df["predicted"].map(label_map)
+    oos_df["correct"] = oos_df["actual"] == oos_df["predicted"]
+
+    section_header(f"RECENT OOS · {best_name} · LAST 20")
+
+    with panel("LAST 20 DAYS"):
+        view = oos_df[[
+            "bas_dd", "actual_label", "pred_label",
+            "p_down", "p_neutral", "p_up", "correct",
+        ]].rename(columns={
+            "bas_dd": "DATE",
+            "actual_label": "ACTUAL",
+            "pred_label": "PRED",
+            "p_down": "P(DN)",
+            "p_neutral": "P(NT)",
+            "p_up": "P(UP)",
+            "correct": "✓",
+        })
+        show_table(
+            view.iloc[::-1].reset_index(drop=True),
+            num_cols=["P(DN)", "P(NT)", "P(UP)"],
+            precision=3,
+        )
+
+        _acc20 = float(oos_df["correct"].mean())
+        metric_row([
+            dict(label="ACCURACY (LAST 20)",
+                 value=f"{_acc20*100:.1f}%",
+                 tone="up" if _acc20 > 0.4 else "down"),
+            dict(label="UP PRED", value=f"{int((oos_df['predicted'] == 1).sum())}"),
+            dict(label="NEUTRAL PRED", value=f"{int((oos_df['predicted'] == 0).sum())}"),
+            dict(label="DOWN PRED", value=f"{int((oos_df['predicted'] == -1).sum())}"),
+        ], cols=4)
+
+# ═══════════════════════════════════════════════════════════
+# ⑦ NEXT STEPS (결과 없을 때만)
+# ═══════════════════════════════════════════════════════════
+if not bt:
+    section_header("NEXT")
+    with panel("RECOMMENDED"):
+        st.markdown("""
+- **Backtest** — A/B/C 전략 백테스트 (실행 후 이 Overview 에 요약 표시)
+- **Cost Sensitivity** — 4가지 비용 프리셋 × 3 전략 (breakeven 자동 계산)
+""")

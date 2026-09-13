@@ -30,3 +30,23 @@ FEATURE_SET_LABELS = {
 }
 
 HORIZON = 5
+
+# ── Scope / Ticker (V2 개별종목 확장 대비) ──────────────────
+SCOPES = ["MARKET", "STOCK"]     # STOCK 은 V2 에서 활성화
+
+DEFAULT_SCOPE = "MARKET"
+DEFAULT_TICKER = "KOSPI200"
+
+# MARKET scope 의 ticker 들
+MARKET_TICKERS = ["KOSPI200"]
+
+# STOCK scope 의 ticker 들 (V2 에서 채워짐)
+STOCK_TICKERS: list[str] = []    # 예: ["005930", "000660", ...]
+
+# scope 별 ticker 소스
+def tickers_for(scope: str) -> list[str]:
+    if scope == "MARKET":
+        return MARKET_TICKERS
+    if scope == "STOCK":
+        return STOCK_TICKERS
+    return []

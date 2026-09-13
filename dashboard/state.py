@@ -10,6 +10,8 @@ _DEFAULTS = {
     "end": Defaults.END,
     "cost": Defaults.COST,
     "seed": Defaults.SEED,
+    "scope": "MARKET",
+    "ticker": "KOSPI200",  
     "latest_model_result": None,
     "latest_backtest": None,
     "experiments": [],
@@ -33,9 +35,10 @@ def init_state():
 
 def ctx() -> dict:
     return {k: st.session_state[k] for k in
-            ["dataset", "model", "feature_set", "start", "end", "cost", "seed"]}
+            ["dataset", "model", "feature_set", "start", "end", "cost", "seed",
+             "scope", "ticker"]}
 
 
 def fingerprint() -> str:
     c = ctx()
-    return f"{c['dataset']}|{c['model']}|{c['feature_set']}|{c['start']}|{c['end']}|{c['seed']}"
+    return f"{c['scope']}|{c['ticker']}"
