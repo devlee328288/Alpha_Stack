@@ -369,7 +369,7 @@ a:hover { text-decoration: underline; }
   justify-content: space-between;
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-subtle);
-  margin-bottom: 8px;
+  margin-bottom: 16px;
 }
 .as-panel-title {
   font-size: 11px;
@@ -564,6 +564,7 @@ def inject() -> None:
 # 2. 컴포넌트 헬퍼 (저수준 HTML)
 # ─────────────────────────────────────────────────────────────
 
+
 def _html(html: str) -> None:
     st.markdown(html, unsafe_allow_html=True)
 
@@ -597,8 +598,8 @@ def metric_panel(
         f'<div class="{cls}">'
         f'  <div class="as-mp-label">{label}</div>'
         f'  <div class="as-mp-value">{value}</div>'
-        f'  {delta_html}'
-        f'</div>'
+        f"  {delta_html}"
+        f"</div>"
     )
 
 
@@ -625,7 +626,7 @@ def metric_row(metrics: list[dict], cols: int = 4, fill_empty: bool = True) -> N
 def metric_grid(metrics: list[dict], cols: int = 4) -> None:
     """여러 행으로 metric 배치."""
     for i in range(0, len(metrics), cols):
-        metric_row(metrics[i:i + cols], cols=cols)
+        metric_row(metrics[i : i + cols], cols=cols)
 
 
 def section_header(title: str) -> None:
@@ -633,8 +634,9 @@ def section_header(title: str) -> None:
     _html(f'<div class="as-section">{title}</div>')
 
 
-def panel_header(title: str, status_text: str | None = None,
-                 status_tone: str = "neutral") -> None:
+def panel_header(
+    title: str, status_text: str | None = None, status_tone: str = "neutral"
+) -> None:
     """
     st.container(border=True) 안쪽 첫 요소로 사용.
     우측에 상태 dot + 라벨 표시.
@@ -644,14 +646,14 @@ def panel_header(title: str, status_text: str | None = None,
         status_html = (
             f'<span class="as-panel-status">'
             f'  <span class="as-dot as-dot--{status_tone}"></span>'
-            f'  {status_text}'
-            f'</span>'
+            f"  {status_text}"
+            f"</span>"
         )
     _html(
         f'<div class="as-panel-header">'
         f'  <span class="as-panel-title">{title}</span>'
-        f'  {status_html}'
-        f'</div>'
+        f"  {status_html}"
+        f"</div>"
     )
 
 
@@ -664,9 +666,9 @@ def status_line(label: str, value: str, tone: str = "neutral") -> None:
     """'Data Ingestion    ● OK    KOSPI200 · HF' 한 줄."""
     _html(
         f'<div class="as-status-line">'
-        f'  <span>{label}</span>'
+        f"  <span>{label}</span>"
         f'  <span class="as-status-val">{status_dot(tone)} {value}</span>'
-        f'</div>'
+        f"</div>"
     )
 
 
@@ -689,25 +691,24 @@ def signal_chip(signal: str, prob: float | None = None) -> str:
     return f'<span class="as-chip {cls}">{text}</span>'
 
 
-def top_strip(parts: list[str], status_text: str = "LIVE",
-              status_tone: str = "up") -> None:
+def top_strip(
+    parts: list[str], status_text: str = "LIVE", status_tone: str = "up"
+) -> None:
     """
     페이지 타이틀 아래 컨텍스트 한 줄.
     Example:
         theme.top_strip(["KOSPI200","LGBM","F","2018-2024","COST 0.10%"])
     """
-    left = '<span class="as-ts-sep">·</span>'.join(
-        f'<span>{p}</span>' for p in parts
-    )
+    left = '<span class="as-ts-sep">·</span>'.join(f"<span>{p}</span>" for p in parts)
     right = (
         f'<span class="as-dot as-dot--{status_tone}"></span>'
-        f'<span>{status_text}</span>'
+        f"<span>{status_text}</span>"
     )
     _html(
         f'<div class="as-topstrip">'
         f'  <div class="as-ts-left">{left}</div>'
         f'  <div class="as-ts-right">{right}</div>'
-        f'</div>'
+        f"</div>"
     )
 
 
@@ -727,13 +728,16 @@ def verdict_row(mark: str, text: str, tone: str = "info") -> None:
     _html(
         f'<div class="as-verdict-row">'
         f'  <span class="as-verdict-mark {cls}">{mark}</span>'
-        f'  <span>{text}</span>'
-        f'</div>'
+        f"  <span>{text}</span>"
+        f"</div>"
     )
 
 
-def panel(title: str | None = None, status_text: str | None = None,
-          status_tone: str = "neutral"):
+def panel(
+    title: str | None = None,
+    status_text: str | None = None,
+    status_tone: str = "neutral",
+):
     """
     컨텍스트 매니저. st.container(border=True) + 헤더.
 
@@ -757,6 +761,7 @@ def panel(title: str | None = None, status_text: str | None = None,
 # ─────────────────────────────────────────────────────────────
 # 3. 포맷 헬퍼
 # ─────────────────────────────────────────────────────────────
+
 
 def fmt_pct(x: float, digits: int = 1, signed: bool = False) -> str:
     if x is None:
@@ -786,6 +791,7 @@ def tone_from_sign(x: float) -> str:
 # 4. DataFrame Styler (숫자 우측 정렬 + 부호 색상 + 행 강조)
 # ─────────────────────────────────────────────────────────────
 
+
 def styled_df(
     df,
     precision: int = 2,
@@ -811,18 +817,23 @@ def styled_df(
     fmt = {}
     for c in num_cols:
         if c in df.columns:
-            fmt[c] = (lambda p: lambda x: f"{x:.{p}f}"
-                      if isinstance(x, (int, float)) and pd.notna(x) else "—")(precision)
+            fmt[c] = (
+                lambda p: lambda x: (
+                    f"{x:.{p}f}" if isinstance(x, (int, float)) and pd.notna(x) else "—"
+                )
+            )(precision)
     for c in pct_cols:
         if c in df.columns:
-            fmt[c] = lambda x: (f"{x*100:+.2f}%"
-                                if isinstance(x, (int, float)) and pd.notna(x) else "—")
+            fmt[c] = lambda x: (
+                f"{x*100:+.2f}%" if isinstance(x, (int, float)) and pd.notna(x) else "—"
+            )
 
     styler = df.style.format(fmt, na_rep="—")
 
     def _num_cell(v):
-        base = ("font-family:'JetBrains Mono',monospace;"
-                "font-size:12px;text-align:right;")
+        base = (
+            "font-family:'JetBrains Mono',monospace;" "font-size:12px;text-align:right;"
+        )
         if not isinstance(v, (int, float)) or pd.isna(v):
             return base + "color:#5c6470;"
         if signed_color:
@@ -837,15 +848,18 @@ def styled_df(
             continue
         try:
             styler = styler.map(_num_cell, subset=[c])
-        except AttributeError:      # pandas < 2.1
+        except AttributeError:  # pandas < 2.1
             styler = styler.applymap(_num_cell, subset=[c])
 
     if highlight_row is not None:
+
         def _hl(row):
             if row.name == highlight_row:
-                return [f"background:{highlight_color};"
-                        f"border-left:2px solid #7fd1ff;"] * len(row)
+                return [
+                    f"background:{highlight_color};" f"border-left:2px solid #7fd1ff;"
+                ] * len(row)
             return [""] * len(row)
+
         styler = styler.apply(_hl, axis=1)
 
     return styler
@@ -854,6 +868,7 @@ def styled_df(
 # ─────────────────────────────────────────────────────────────
 # 5. 자동화 헬퍼 (Phase 3)
 # ─────────────────────────────────────────────────────────────
+
 
 def auto_top_strip(
     c: dict,
@@ -897,16 +912,16 @@ def sidebar_header(subtitle: str = "QUANT RESEARCH TERMINAL") -> None:
     st.sidebar.markdown(
         f'<div style="padding:14px 14px 10px 14px;">'
         f'  <div style="font-family:var(--font-ui);font-size:14px;'
-        f'              font-weight:600;letter-spacing:0.14em;'
+        f"              font-weight:600;letter-spacing:0.14em;"
         f'              color:var(--text-primary);line-height:1;">'
-        f'    ALPHASTACK'
-        f'  </div>'
+        f"    ALPHASTACK"
+        f"  </div>"
         f'  <div style="font-family:var(--font-ui);font-size:9px;'
-        f'              font-weight:500;letter-spacing:0.18em;'
+        f"              font-weight:500;letter-spacing:0.18em;"
         f'              color:var(--text-muted);margin-top:4px;">'
-        f'    {subtitle}'
-        f'  </div>'
-        f'</div>',
+        f"    {subtitle}"
+        f"  </div>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -924,23 +939,25 @@ def sidebar_meta(rows: list[tuple[str, str]]) -> None:
             ("COST",    f"{c['cost']:.2%}"),
         ])
     """
-    html = ('<div style="padding:8px 14px 10px 14px;'
-            'border-top:1px solid var(--border-subtle);">')
+    html = (
+        '<div style="padding:8px 14px 10px 14px;'
+        'border-top:1px solid var(--border-subtle);">'
+    )
     for k, v in rows:
         html += (
             f'<div style="display:flex;justify-content:space-between;'
             f'align-items:baseline;padding:3px 0;gap:8px;">'
             f'  <span style="font-family:var(--font-ui);font-size:9px;'
-            f'               font-weight:500;letter-spacing:0.1em;'
-            f'               color:var(--text-muted);text-transform:uppercase;'
+            f"               font-weight:500;letter-spacing:0.1em;"
+            f"               color:var(--text-muted);text-transform:uppercase;"
             f'               flex-shrink:0;">{k}</span>'
             f'  <span style="font-family:var(--font-num);font-size:11px;'
-            f'               color:var(--text-primary);text-align:right;'
-            f'               overflow:hidden;text-overflow:ellipsis;'
+            f"               color:var(--text-primary);text-align:right;"
+            f"               overflow:hidden;text-overflow:ellipsis;"
             f'               white-space:nowrap;">{v}</span>'
-            f'</div>'
+            f"</div>"
         )
-    html += '</div>'
+    html += "</div>"
     st.sidebar.markdown(html, unsafe_allow_html=True)
 
 
@@ -948,10 +965,10 @@ def sidebar_section(label: str) -> None:
     """사이드바 소제목 — '───────── LABELS' 톤."""
     st.sidebar.markdown(
         f'<div style="padding:10px 14px 4px 14px;font-family:var(--font-ui);'
-        f'            font-size:9px;font-weight:500;letter-spacing:0.14em;'
+        f"            font-size:9px;font-weight:500;letter-spacing:0.14em;"
         f'            color:var(--text-muted);text-transform:uppercase;">'
-        f'  {label}'
-        f'</div>',
+        f"  {label}"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
