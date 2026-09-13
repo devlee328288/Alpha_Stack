@@ -1,11 +1,6 @@
 """
 AlphaStack Terminal (A안) — 디자인 시스템.
-CSS 주입 + 컴포넌트 헬퍼.
-
-사용법:
-    import theme
-    theme.inject()                      # 페이지 최상단에서 1회
-    theme.metric_panel("SHARPE", "1.08", "+0.24 vs base", tone="up")
+...
 """
 
 from __future__ import annotations
@@ -958,4 +953,41 @@ def sidebar_section(label: str) -> None:
         f'  {label}'
         f'</div>',
         unsafe_allow_html=True,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# 8. Streamlit 테마 우회 헬퍼 (Phase 4)
+# ─────────────────────────────────────────────────────────────
+
+
+def plotly_chart(fig, **kwargs) -> None:
+    """
+    Streamlit 기본 테마 강제를 끄고 우리 terminal 템플릿 사용.
+    `st.plotly_chart` 대신 이걸 쓸 것.
+    """
+    kwargs.setdefault("use_container_width", True)
+    kwargs.setdefault("theme", None)
+    st.plotly_chart(fig, **kwargs)
+
+
+def show_table(
+    df,
+    num_cols: list[str] | None = None,
+    pct_cols: list[str] | None = None,
+    precision: int = 3,
+    highlight_row=None,
+) -> None:
+    """
+    st.dataframe 대체. st.table은 iframe 없이 순수 HTML 렌더 → CSS 100% 적용.
+    다크/라이트 테마 자동 반영.
+    """
+    st.table(
+        styled_df(
+            df.reset_index(drop=True),
+            num_cols=num_cols or [],
+            pct_cols=pct_cols or [],
+            precision=precision,
+            highlight_row=highlight_row,
+        )
     )
