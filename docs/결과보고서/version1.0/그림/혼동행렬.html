@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>결과 보고서 그림 — 홀드아웃 혼동행렬</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     결과 보고서 v1.0 그림. 이 HTML 이 정본이고 PNG 는 여기서 굽는다:
+       node scripts/render_html.mjs docs/결과보고서/version1.0/그림/혼동행렬.html
+     숫자 원본 — reports/final_holdout/final-holdout-20260911_report.json 의 confusion_matrix (2026-09-14 재확인)
+     색 — 칸의 색은 크기(그 행 안에서의 비율)라 순차형 한 색상(파랑 100 → 700)이다.
+       칸 안 숫자 색은 램프 단계별 대비를 재서 정했다 — 450 까지 검은 글자, 500 부터 흰 글자(dataviz contrast()).
+     docx 에 넣는 정적 그림이라 라이트 한 벌만 둔다. 모든 값이 칸 안에 적혀 있다.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --surface: #ffffff;
+    --ink:     #0b0b0b;
+    --ink-2:   #52514e;
+    --muted:   #898781;
+    --grid:    #e1e0d9;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--surface); }
+  .sheet {
+    width: 960px; padding: 28px 32px 22px; background: var(--surface); color: var(--ink);
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui, sans-serif;
+    word-break: keep-all; line-break: strict; -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
+  .sub { font-size: 14.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.55; }
+  svg { display: block; margin-top: 16px; }
+  svg text { font-family: inherit; }
+  .foot { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>KOSPI200 은 실제 하락 138일 중 104일(75.4%)을 상승으로 예측했다</h1>
+  <p class="sub">홀드아웃 2년 혼동행렬. 행은 실제 클래스, 열은 모델의 예측이고 대각선이 맞힌 칸이다. 칸의 색은 그 행 안에서의 비율이다 — 개별종목은 실제 하락 8,217건 중 3,696건(45.0%)을 하락으로 맞혔다.</p>
+  <svg id="chart" width="896" height="420" role="img"
+       aria-label="혼동행렬 두 개. KOSPI200 실제 하락 138 예측 하락 15 중립 19 상승 104, 실제 중립 79 예측 18 16 45, 실제 상승 261 예측 25 60 176. 개별종목 실제 하락 8217 예측 3696 1335 3186, 실제 중립 6736 예측 2593 1856 2287, 실제 상승 8614 예측 3741 1453 3420."></svg>
+  <p class="foot">원본 — reports/final_holdout/final-holdout-20260911_report.json (run final-holdout-20260911 · 설정 지문 5299a08f…) · 2026-09-14 재확인</p>
+</div>
+<script>
+  const PANELS = [
+    { title: 'KOSPI200 · 조합 C', n: '478거래일', cm: [[15, 19, 104], [18, 16, 45], [25, 60, 176]] },
+    { title: '개별종목 · 조합 K', n: '23,567건', cm: [[3696, 1335, 3186], [2593, 1856, 2287], [3741, 1453, 3420]] },
+  ]
+  const CLS = ['하락', '중립', '상승']
+  // 파랑 순차 램프 100 → 700 (13단계). 인덱스 8(단계 500)부터 흰 글자가 대비를 더 얻는다.
+  const RAMP = ['#cde2fb', '#b7d3f6', '#9ec5f4', '#86b6ef', '#6da7ec', '#5598e7', '#3987e5',
+                '#2a78d6', '#256abf', '#1c5cab', '#184f95', '#104281', '#0d366b']
+  const WHITE_FROM = 8
+  const NS = 'http://www.w3.org/2000/svg'
+  const fmt = (v) => v.toLocaleString('en-US')
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag)
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v)
+    if (text !== undefined) e.textContent = text
+    return e
+  }
+
+  const svg = document.getElementById('chart')
+  const PANEL_W = 430, ROW_LABEL = 112, CELL_W = 104, CELL_H = 78, GAP = 2
+  const TOP = 80
+
+  PANELS.forEach((panel, pi) => {
+    const ox = pi * (PANEL_W + 36)
+    svg.appendChild(el('text', { x: ox, y: 20, style: 'font-size:16px;font-weight:700;fill:var(--ink)' }, panel.title))
+    svg.appendChild(el('text', { x: ox, y: 40, style: 'font-size:13.5px;fill:var(--ink-2)' }, `평가 ${panel.n} · 행 = 실제 · 열 = 예측`))
+
+    CLS.forEach((c, j) => {
+      svg.appendChild(el('text', {
+        x: ox + ROW_LABEL + j * CELL_W + CELL_W / 2, y: TOP - 8, 'text-anchor': 'middle',
+        style: 'font-size:13.5px;fill:var(--ink-2)',
+      }, `예측 ${c}`))
+    })
+
+    const colTotals = [0, 0, 0]
+    panel.cm.forEach((row, i) => {
+      const total = row.reduce((a, b) => a + b, 0)
+      const y = TOP + i * CELL_H
+      svg.appendChild(el('text', { x: ox, y: y + CELL_H / 2 - 2, style: 'font-size:14px;font-weight:700;fill:var(--ink)' }, `실제 ${CLS[i]}`))
+      svg.appendChild(el('text', { x: ox, y: y + CELL_H / 2 + 17, style: 'font-size:12.5px;fill:var(--ink-2)' }, `${fmt(total)}`))
+
+      row.forEach((v, j) => {
+        colTotals[j] += v
+        const share = v / total
+        const idx = Math.min(RAMP.length - 1, Math.round(share * (RAMP.length - 1)))
+        const x = ox + ROW_LABEL + j * CELL_W
+        // 칸 사이는 테두리가 아니라 2px 바탕색 틈으로 가른다
+        svg.appendChild(el('rect', { x, y, width: CELL_W - GAP, height: CELL_H - GAP, rx: 3, style: `fill:${RAMP[idx]}` }))
+        const ink = idx >= WHITE_FROM ? '#ffffff' : 'var(--ink)'
+        svg.appendChild(el('text', {
+          x: x + (CELL_W - GAP) / 2, y: y + 34, 'text-anchor': 'middle',
+          style: `font-size:19px;font-weight:700;fill:${ink}`,
+        }, fmt(v)))
+        svg.appendChild(el('text', {
+          x: x + (CELL_W - GAP) / 2, y: y + 55, 'text-anchor': 'middle',
+          style: `font-size:13px;fill:${ink}`,
+        }, `${(share * 100).toFixed(1)}%`))
+      })
+    })
+
+    const yT = TOP + 3 * CELL_H + 20
+    svg.appendChild(el('text', { x: ox, y: yT, style: 'font-size:12.5px;fill:var(--ink-2)' }, '예측 합계'))
+    colTotals.forEach((t, j) => {
+      svg.appendChild(el('text', {
+        x: ox + ROW_LABEL + j * CELL_W + CELL_W / 2, y: yT, 'text-anchor': 'middle',
+        style: 'font-size:13px;fill:var(--ink-2)',
+      }, fmt(t)))
+    })
+  })
+
+  // 색 눈금 — 순차형은 눈금 범례가 있어야 색이 무엇을 뜻하는지 읽힌다
+  const LY = TOP + 3 * CELL_H + 52
+  svg.appendChild(el('text', { x: 0, y: LY + 13, style: 'font-size:13px;fill:var(--ink-2)' }, '행 안 비율'))
+  const LX = 90, STEP = 22
+  RAMP.forEach((hex, k) => {
+    svg.appendChild(el('rect', { x: LX + k * STEP, y: LY, width: STEP - 2, height: 16, rx: 2, style: `fill:${hex}` }))
+  })
+  ;[['0%', 0], ['50%', 6], ['100%', 12]].forEach(([label, k]) => {
+    svg.appendChild(el('text', {
+      x: LX + k * STEP + (STEP - 2) / 2, y: LY + 34, 'text-anchor': 'middle',
+      style: 'font-size:12px;fill:var(--muted)',
+    }, label))
+  })
+  svg.setAttribute('height', LY + 42)
+</script>
+</body>
+</html>
