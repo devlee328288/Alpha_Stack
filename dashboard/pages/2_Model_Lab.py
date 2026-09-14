@@ -21,6 +21,7 @@ theme.inject()
 
 from components import sidebar_controls
 from services import model_service, comparison_service
+from services.combo_config import combo_label, return_features_of
 from state import ctx, get_result, set_result
 
 sidebar_controls()
@@ -53,8 +54,10 @@ if _err:
     st.error(f"repo engine import 실패: {_err}")
     st.stop()
 
+_rf_list = return_features_of(scope)
+_rf_disp = " · ".join(_rf_list) if _rf_list else "NO RETURN FEAT"
 top_strip(
-    [scope, ticker, "COMBINATION E", "RETURN · 5DAY", "12-FOLD EXPANDING"],
+    [scope, ticker, combo_label(scope), _rf_disp, "12-FOLD"],
     status_text="READY",
     status_tone="neutral",
 )
@@ -325,76 +328,3 @@ if not wc.empty:
     section_header("CLASS WEIGHT SELECTION")
     with panel():
         show_table(wc, num_cols=["선택 폴드 수"], precision=0)
-
-
-# ═══════════════════════════════════════════════════════════
-# ADAPTIVE LABELS (per-fold 파라미터로 라벨 생성)
-# ═══════════════════════════════════════════════════════════
-def make_adaptive_labels_from_baseline(scope: str, ticker: str, fold_details):
-    """
-    Baseline 의 fold_details (per-fold 파라미터) 로 전체 df 라벨 생성.
-
-    각 row 의 시점에 따라 "가장 최근에 학습된 fold" 의 파라미터를 사용.
-    Walk-forward 정신에 맞음 (미래 정보 누설 없음).
-
-    Returns
-    -------
-    dict : {"labels": list[float], "n_valid": int, "n_total": int}
-        labels 값은 {0.0=하락, 1.0=중립, 2.0=상승} 또는 NaN
-    """
-    import numpy as np
-    import pandas as pd
-    from services import data_loader
-    from step5_optimize_6params import make_baseline_labels
-
-    _IMPORT_ERR = None
-
-    if _IMPORT_ERR:
-        raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
-
-    df = data_loader.load_market_data(scope, ticker)
-    n = len(df)
-
-    fold_df = pd.DataFrame(fold_details)
-    if fold_df.empty:
-        raise ValueError("fold_details 비어있음")
-    if "train_end" not in fold_df.columns:
-        raise ValueError("train_end 컬럼 없음")
-
-    fold_df = fold_df.sort_values("train_end").reset_index(drop=True)
-    train_ends = fold_df["train_end"].astype(int).tolist()
-
-    # 각 row 에 어느 fold 파라미터를 배정할지
-    fold_assign = np.full(n, -1, dtype=int)
-    for i, te in enumerate(train_ends):
-        next_te = train_ends[i + 1] if i + 1 < len(train_ends) else n
-        fold_assign[te:next_te] = i
-    # 앞부분 (train_end 이전) 은 -1 유지 → NaN
-
-    # fold 별 라벨 생성
-    labels = np.full(n, np.nan, dtype=float)
-    for i in range(len(fold_df)):
-        mask = fold_assign == i
-        if not mask.any():
-            continue
-        row = fold_df.iloc[i]
-        try:
-            params = {
-                "alpha_up": float(row["alpha_up"]),
-                "alpha_down": float(row["alpha_down"]),
-                "beta_up": float(row["beta_up"]),
-                "beta_down": float(row["beta_down"]),
-                "vol_period": int(round(float(row["vol_period"]))),
-                "volume_period": int(round(float(row["volume_period"]))),
-            }
-            fold_labels = make_baseline_labels(df, params)
-            labels[mask] = fold_labels[mask]
-        except Exception:
-            continue
-
-    valid_mask = np.isfinite(labels)
-    return {
-        "labels": labels.tolist(),
-        "n_valid": int(valid_mask.sum()),
-        "n_total": n,
-    }
