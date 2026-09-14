@@ -120,6 +120,23 @@ COMBINATION_FEATURES = {
         "rsi_14",
         "hv_20",
     ),
+    # ── 개별종목/유니버스용 K (14 features) ──
+    "K": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "macd_hist_ratio",
+        "bb_position",
+        "hv_20",
+        "vol_ratio_20",
+        "obv_slope_20",
+        "daily_return",
+    ),
 }
 
 RETURN_FEATURES = {"daily_return", "five_day_return", "monthly_return"}
@@ -237,7 +254,10 @@ def build_kospi200_feature_frame(
     exit_open = target["open"].shift(-(horizon + 1))
     target["fwd_return_5d"] = exit_open / entry_open - 1.0
     target["label"] = np.select(
-        [target["fwd_return_5d"] > neutral_band, target["fwd_return_5d"] < -neutral_band],
+        [
+            target["fwd_return_5d"] > neutral_band,
+            target["fwd_return_5d"] < -neutral_band,
+        ],
         ["상승", "하락"],
         default="중립",
     )
@@ -273,6 +293,14 @@ def _add_derived_features(frame: pd.DataFrame) -> pd.DataFrame:
     # 월간 = 20거래일. 새 숫자를 고른 게 아니라 이 파일이 이미 쓰는 관례(sma_20·hv_20 등)를
     # 그대로 따른다.
     out["monthly_return"] = n_day_return(close, 20)
+
+    # ── K조합 fallback ──
+    # relative_ret_5_market = 종목 5일 수익률 − 시장(KOSPI200) 5일 수익률.
+    # 개별종목 단독 로드 시엔 시장 데이터가 없으므로 0으로 근사.
+    # (K 14 피처 중 1개만 영향, 나머지 13개는 정상 계산)
+    if "relative_ret_5_market" not in out.columns:
+        out["relative_ret_5_market"] = 0.0
+
     return out.replace([np.inf, -np.inf], np.nan)
 
 
@@ -297,7 +325,9 @@ def build_model_dataset(
         raise ValueError("수익률 피처가 중복되었습니다.")
     duplicated = set(COMBINATION_FEATURES[key]) & set(returns)
     if duplicated:
-        raise ValueError(f"조합 기본 피처와 수익률 피처가 중복되었습니다: {sorted(duplicated)}")
+        raise ValueError(
+            f"조합 기본 피처와 수익률 피처가 중복되었습니다: {sorted(duplicated)}"
+        )
 
     raw = build_kospi200_feature_frame(
         index_prices,
@@ -306,7 +336,9 @@ def build_model_dataset(
     )
     derived = _add_derived_features(raw)
     feature_columns = (*COMBINATION_FEATURES[key], *returns)
-    finite = np.isfinite(derived.loc[:, feature_columns].to_numpy(dtype=float)).all(axis=1)
+    finite = np.isfinite(derived.loc[:, feature_columns].to_numpy(dtype=float)).all(
+        axis=1
+    )
     usable = finite & derived["label_numeric"].notna().to_numpy()
     model_frame = derived.loc[usable].copy().reset_index(drop=True)
     if model_frame.empty:
@@ -314,7 +346,9 @@ def build_model_dataset(
     if not allow_unsealed and model_frame["bas_dd"].max() >= holdout_start:
         raise RuntimeError("모델 입력에 홀드아웃 행이 들어왔습니다.")
     if model_frame["raw_position"].iloc[-1] + LABEL_HORIZON + 1 >= len(raw):
-        raise RuntimeError("마지막 모델 행의 5거래일 청산 시가가 개발구간 밖에 있습니다.")
+        raise RuntimeError(
+            "마지막 모델 행의 5거래일 청산 시가가 개발구간 밖에 있습니다."
+        )
 
     return ModelDataset(
         frame=model_frame,
