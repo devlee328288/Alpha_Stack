@@ -536,7 +536,7 @@ PACF(Durbin-Levinson) · ARIMA(Hannan-Rissanen)를 직접 구현해 둔 도구 �
 | [ERD v2.7](docs/erd/version2.7/ERD.md) | 데이터 모델 (v16 · 표 23개) · 정문 지도 |
 | [핵심코드 v1.4](docs/핵심코드/version1.4/) | 줄 단위 해설 7편 — 코드를 안 열어 본 팀원용 |
 | [발표 v1.0](docs/발표/README.md) | 🆕 발표 통합본 · 데이터 파트 예상 질문 · 결과 보고서 초안(6.3 홀드아웃) |
-| [계획서 v5.3](docs/계획서/) | 강사님께 내는 계획서 (정본은 `scripts/build_project_plan.py`) |
+| [계획서 v6.0](docs/계획서/version6.0/) | 🆕 강사님께 내는 계획서 **최종본** — 범위와 달성 · 최종 결과 요약 (정본은 `scripts/build_project_plan.py`) |
 
 **파트별**
 
