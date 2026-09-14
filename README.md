@@ -119,7 +119,7 @@
 | 홀드아웃 끝을 2026-09-01 로 당김 | 09-02 ~ 09-04 수정주가 계산 전 8,294행 | 마지막 사흘을 평가에서 뺐다 | [개봉 절차 §8.2](docs/데이터파트/version4.6/홀드아웃_개봉_절차.md) |
 | 대시보드가 **화면 안에서 학습** | Baseline CMA-ES · Model Lab 4모델 | 무료 CPU 에서 제한 · 재시작하면 캐시 소실 | [#271](https://github.com/devlee328288/Alpha_Stack/issues/271) · [평가파트 v1.3](docs/평가파트/version1.3/대시보드_9페이지와_배포.md) |
 | 대시보드 비교 기준 · 비용 규격 미정 | 논의 5건 — #263 고정 분류기는 제외 결정(09-14 · 코드 제거 대기) · 4건 논의 중 | Comparison 의 `—` 칸 · Baseline 과 ML 라벨 밴드가 다르다 | [#263](https://github.com/devlee328288/Alpha_Stack/issues/263) · [#264](https://github.com/devlee328288/Alpha_Stack/issues/264) · [#265](https://github.com/devlee328288/Alpha_Stack/issues/265) · [#267](https://github.com/devlee328288/Alpha_Stack/issues/267) · [#268](https://github.com/devlee328288/Alpha_Stack/issues/268) |
-| 백테스트 결과 (비용 차감 수익률 · Sharpe · MDD) | 결과 보고서 6.4 빈칸 | 최종 결과가 분류 지표까지만 있다 | [보고서 초안](docs/발표/version1.0/최종결과보고서_초안.html) |
+| 백테스트 결과 (비용 차감 수익률 · Sharpe · MDD) | 결과 보고서 4.5절 빈자리 · 사전등록 주 검정 미수행 | 최종 결과가 분류 지표까지만 있다 · 공식 예측 파일은 봉인 폴더에 있다 | [결과 보고서 v1.1](docs/결과보고서/version1.1/) 9.2절 ① (연결 뒤 확인할 것) |
 | `ruff` 209건 | `dashboard/` 199 · 그 밖 10(PR #262 의 네 파일) | 형식만 · 기능 영향 없음 | [평가파트 v1.3 §5](docs/평가파트/version1.3/대시보드_9페이지와_배포.md) |
 | 점 조회 `universe_rows` 가 상장 구간을 건넌다 | `036220` · `101970` 상장 다음 날 | 공식 경로는 안 쓴다 — 닫음(고치지 않음) | [#252](https://github.com/devlee328288/Alpha_Stack/issues/252) |
 
