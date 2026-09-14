@@ -5,15 +5,16 @@ from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from datasets import Dataset
-from huggingface_hub import hf_hub_download
 
 warnings.filterwarnings("ignore")
 
 # backtest_strategies.py
 # ============================================================
 # KRX 실제 데이터 + 가상 예측(랜덤)을 이용한
-# A / B / C 3가지 포지션 운용 전략 백테스트
+# A / B / C / D / E / F 전략 백테스트
+#
+#   A / B / C : 기존 (매일 매매 가능)
+#   D / E / F : A / B / C + 5거래일 락 (그 사이 모든 거래 금지)
 #
 # 지수(KOSPI200) / 개별종목(stocks30) 둘 다 지원.
 # ============================================================
@@ -35,26 +36,25 @@ def load_data(ticker=None) -> pd.DataFrame:
     Parameters
     ----------
     ticker : None | "KOSPI200" | "<code>"
-        None / "KOSPI200" : KOSPI200 지수 (기본, 기존 동작)
+        None / "KOSPI200" : KOSPI200 지수 (기본)
         "<code>"          : stocks30 개별종목 (예 "005930")
-
-    Returns
-    -------
-    pd.DataFrame
-        날짜를 DatetimeIndex 로 갖는 정렬된 시장 데이터
     """
+    from huggingface_hub import hf_hub_download
+
     if ticker is None or ticker == "KOSPI200":
         path = hf_hub_download(
-            repo_id=_REPO_ID, filename=_KOSPI200_CSV, repo_type="dataset",
+            repo_id=_REPO_ID,
+            filename=_KOSPI200_CSV,
+            repo_type="dataset",
         )
         df = pd.read_csv(path)
     else:
         path = hf_hub_download(
-            repo_id=_REPO_ID, filename=_STOCKS30_CSV, repo_type="dataset",
+            repo_id=_REPO_ID,
+            filename=_STOCKS30_CSV,
+            repo_type="dataset",
         )
-        df_all = pd.read_csv(
-            path, dtype={"code": str}, low_memory=False,
-        )
+        df_all = pd.read_csv(path, dtype={"code": str}, low_memory=False)
 
         code_str = str(ticker).strip()
         candidates = [code_str]
@@ -76,7 +76,7 @@ def load_data(ticker=None) -> pd.DataFrame:
     df.set_index("date", inplace=True)
 
     required_columns = ["open", "close"]
-    missing_columns = [col for col in required_columns if col not in df.columns]
+    missing_columns = [c for c in required_columns if c not in df.columns]
     if missing_columns:
         raise ValueError(f"데이터에 필요한 컬럼이 없습니다: {missing_columns}")
 
@@ -92,15 +92,17 @@ def predict_5d_after(
     base_date: pd.Timestamp,
     market_data: pd.DataFrame,
 ) -> Tuple[str, Dict[str, float]]:
+    """5영업일 후 방향 예측 (구조 테스트용 랜덤).
+
+    재현성을 위해 timestamp를 정수로 변환한 값을 시드로 사용.
+    (Python hash()는 PYTHONHASHSEED에 따라 프로세스마다 다름)
     """
-    5영업일 후 방향을 예측 (구조 테스트용 랜덤).
-    실제 AI 모델로 교체 시 이 함수만 바꾸면 됩니다.
-    """
-    np.random.seed(hash(base_date) % 2**32)
+    ts = pd.Timestamp(base_date)
+    seed = int(ts.value) % (2**32)  # 나노초 정수 → 안정적
+    np.random.seed(seed)
 
     labels = ["상승", "중립", "하락"]
     probs = [0.33, 0.34, 0.33]
-
     chosen_label = np.random.choice(labels, p=probs)
 
     prob_map = {
@@ -108,7 +110,6 @@ def predict_5d_after(
         "p_flat": probs[labels.index("중립")],
         "p_down": probs[labels.index("하락")],
     }
-
     return chosen_label, prob_map
 
 
@@ -159,14 +160,20 @@ def get_trade_ratio_c(signal: str) -> float:
 # ============================================================
 
 
+# D/E/F → A/B/C 기본 규칙 매핑
+_BASE_OF = {"D": "A", "E": "B", "F": "C"}
+
+
 def get_trade_ratio(
     strategy: str, signal: str, consecutive_up: int, consecutive_down: int
 ) -> float:
-    if strategy == "A":
+    """A~F 전략의 매매 비율. D/E/F는 A/B/C 규칙을 그대로 사용 (락은 run_backtest에서)."""
+    base = _BASE_OF.get(strategy, strategy)
+    if base == "A":
         return get_trade_ratio_a(signal, consecutive_up, consecutive_down)
-    elif strategy == "B":
+    elif base == "B":
         return get_trade_ratio_b(signal)
-    elif strategy == "C":
+    elif base == "C":
         return get_trade_ratio_c(signal)
     else:
         raise ValueError(f"알 수 없는 전략입니다: {strategy}")
@@ -198,6 +205,10 @@ def update_signal_streak(signal: str, consecutive_up: int, consecutive_down: int
 # ============================================================
 
 
+# D/E/F 기본 락 일수
+_DEFAULT_COOLDOWN = {"D": 5, "E": 5, "F": 5}
+
+
 def run_backtest(
     market_data: pd.DataFrame,
     start_date: pd.Timestamp,
@@ -208,24 +219,43 @@ def run_backtest(
     trade_cost: float = 0.001,
     model_id: str = "baseline-v0",
     run_id: Optional[str] = None,
-    asset_code: Optional[str] = None,  # 🆕 ticker 지원
+    asset_code: Optional[str] = None,
+    cooldown_days: int = 0,
 ) -> Dict:
     """
-    A / B / C 전략 백테스트.
+    A / B / C / D / E / F 전략 백테스트.
+
+    - A / B / C : 매일 매매 가능
+    - D / E / F : A / B / C + 5거래일 락 (그 사이 신규/청산 모두 금지)
+      락은 실제 거래가 발생한 시점부터 5거래일. 6거래일째부터 다시 자유.
 
     Parameters
     ----------
+    strategy : str
+        "A"~"F"
+    cooldown_days : int
+        0이면 D/E/F는 기본 5일 락. A/B/C는 0으로 처리.
     asset_code : str | None
-        None 이면 "KOSPI200" 로 표기. 개별종목이면 종목코드 전달.
+        None이면 "KOSPI200"으로 표기.
     """
-    if strategy not in ["A", "B", "C"]:
-        raise ValueError("strategy는 'A', 'B', 'C' 중 하나여야 합니다.")
+    # ── 전략 정규화 (D/E/F → A/B/C + 락) ──────────────
+    original_strategy = strategy
+    if strategy in _DEFAULT_COOLDOWN:
+        if cooldown_days <= 0:
+            cooldown_days = _DEFAULT_COOLDOWN[strategy]
+        base_strategy = _BASE_OF[strategy]
+    elif strategy in ("A", "B", "C"):
+        base_strategy = strategy
+        cooldown_days = 0
+    else:
+        raise ValueError("strategy는 'A','B','C','D','E','F' 중 하나여야 합니다.")
+    strategy = base_strategy
 
     if run_id is None:
         run_id = (
-            f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{str(uuid.uuid4())[:8]}"
+            f"run_{datetime.now().strftime('%Y%m%d_%H%M%S')}_"
+            f"{str(uuid.uuid4())[:8]}"
         )
-
     if asset_code is None:
         asset_code = "KOSPI200"
 
@@ -236,7 +266,6 @@ def run_backtest(
     close_prices = market_data["close"].copy()
 
     all_days = close_prices.index
-
     trading_days = all_days[(all_days >= start_date) & (all_days <= end_date)]
 
     if len(trading_days) < 2:
@@ -250,6 +279,7 @@ def run_backtest(
     position_ratio = 0.0
     consecutive_up = 0
     consecutive_down = 0
+    last_trade_pred_idx = -(10**9)  # ★ 마지막 실제 거래의 예측 인덱스
 
     portfolio_values = []
     daily_returns = []
@@ -278,75 +308,92 @@ def run_backtest(
             execution_date = trading_days[i + 1]
             execution_price = open_prices.loc[execution_date]
 
-            trade_ratio = get_trade_ratio(
-                strategy=strategy,
-                signal=signal,
-                consecutive_up=consecutive_up,
-                consecutive_down=consecutive_down,
+            # ── 5거래일 락 체크 ──────────────────────────
+            # 락 규칙: 마지막 실제 거래 예측일 i_last 로부터
+            #         i_last+1 ~ i_last+5 (5거래일) 동안 모든 거래 금지.
+            #         i_last+6 부터 자유.
+            in_cooldown = (cooldown_days > 0) and (
+                (i - last_trade_pred_idx) <= cooldown_days
             )
 
-            portfolio_value_before = cash + position_quantity * execution_price
-            requested_trade_value = portfolio_value_before * trade_ratio
-
             actual_trade_value = 0.0
-            action = "hold"
             cost = 0.0
             quantity = 0.0
+            trade_ratio = 0.0
+            portfolio_value_before = cash + position_quantity * execution_price
 
-            # 상승 → 매수
-            if requested_trade_value > 0:
-                current_investment = position_quantity * execution_price
-                current_ratio = (
-                    current_investment / portfolio_value_before
-                    if portfolio_value_before > 0
-                    else 0.0
+            if in_cooldown:
+                # 락 중: 신규/청산 전부 스킵, 포지션 유지
+                action = "cooldown"
+            else:
+                trade_ratio = get_trade_ratio(
+                    strategy=strategy,
+                    signal=signal,
+                    consecutive_up=consecutive_up,
+                    consecutive_down=consecutive_down,
                 )
-                max_additional_investment = portfolio_value_before * max(
-                    0.0, 1.0 - current_ratio
-                )
-                actual_trade_value = min(
-                    requested_trade_value, max_additional_investment
-                )
-                cost = actual_trade_value * trade_cost
 
-                available_cash = cash
-                if available_cash <= cost:
-                    actual_trade_value = 0.0
-                    cost = 0.0
-                else:
-                    max_trade_by_cash = available_cash / (1.0 + trade_cost)
-                    actual_trade_value = min(actual_trade_value, max_trade_by_cash)
+                requested_trade_value = portfolio_value_before * trade_ratio
+                action = "hold"
+
+                # 상승 → 매수
+                if requested_trade_value > 0:
+                    current_investment = position_quantity * execution_price
+                    current_ratio = (
+                        current_investment / portfolio_value_before
+                        if portfolio_value_before > 0
+                        else 0.0
+                    )
+                    max_additional_investment = portfolio_value_before * max(
+                        0.0, 1.0 - current_ratio
+                    )
+                    actual_trade_value = min(
+                        requested_trade_value, max_additional_investment
+                    )
                     cost = actual_trade_value * trade_cost
 
-                if actual_trade_value > 0:
-                    quantity = actual_trade_value / execution_price
-                    cash -= actual_trade_value + cost
-                    position_quantity += quantity
-                    action = "buy"
+                    available_cash = cash
+                    if available_cash <= cost:
+                        actual_trade_value = 0.0
+                        cost = 0.0
+                    else:
+                        max_trade_by_cash = available_cash / (1.0 + trade_cost)
+                        actual_trade_value = min(actual_trade_value, max_trade_by_cash)
+                        cost = actual_trade_value * trade_cost
+
+                    if actual_trade_value > 0:
+                        quantity = actual_trade_value / execution_price
+                        cash -= actual_trade_value + cost
+                        position_quantity += quantity
+                        action = "buy"
+                    else:
+                        quantity = 0.0
+
+                # 하락 → 매도
+                elif requested_trade_value < 0:
+                    requested_sell_value = abs(requested_trade_value)
+                    current_investment = position_quantity * execution_price
+                    actual_trade_value = min(requested_sell_value, current_investment)
+                    cost = actual_trade_value * trade_cost
+
+                    if actual_trade_value > 0:
+                        quantity = actual_trade_value / execution_price
+                        position_quantity -= quantity
+                        cash += actual_trade_value - cost
+                        action = "sell"
+                    else:
+                        quantity = 0.0
+
+                # 중립
                 else:
+                    actual_trade_value = 0.0
+                    cost = 0.0
                     quantity = 0.0
+                    action = "hold"
 
-            # 하락 → 매도
-            elif requested_trade_value < 0:
-                requested_sell_value = abs(requested_trade_value)
-                current_investment = position_quantity * execution_price
-                actual_trade_value = min(requested_sell_value, current_investment)
-                cost = actual_trade_value * trade_cost
-
-                if actual_trade_value > 0:
-                    quantity = actual_trade_value / execution_price
-                    position_quantity -= quantity
-                    cash += actual_trade_value - cost
-                    action = "sell"
-                else:
-                    quantity = 0.0
-
-            # 중립
-            else:
-                actual_trade_value = 0.0
-                cost = 0.0
-                quantity = 0.0
-                action = "hold"
+                # ★ 실제 거래 발생 시 락 시작점 갱신
+                if action in ("buy", "sell"):
+                    last_trade_pred_idx = i
 
             portfolio_value_after = cash + position_quantity * execution_price
             if portfolio_value_after > 0:
@@ -364,44 +411,15 @@ def run_backtest(
                 if entry_open != 0:
                     realized_return_5d = (exit_open - entry_open) / entry_open
 
-            signal_log.append({
-                "prediction_date": date,
-                "execution_date": execution_date,
-                "signal": signal,
-                "consecutive_up": consecutive_up,
-                "consecutive_down": consecutive_down,
-                "requested_trade_ratio": trade_ratio,
-                "actual_trade_value": actual_trade_value,
-                "position_ratio_after": position_ratio,
-                "code": asset_code,
-                "p_up": probs["p_up"],
-                "p_flat": probs["p_flat"],
-                "p_down": probs["p_down"],
-                "realized_return_5d": realized_return_5d,
-                "model_id": model_id,
-                "model_rev": "v0",
-                "run_id": run_id,
-                "cost_rate": trade_cost,
-            })
-
-            if action != "hold":
-                trade_log.append({
+            signal_log.append(
+                {
                     "prediction_date": date,
                     "execution_date": execution_date,
                     "signal": signal,
                     "consecutive_up": consecutive_up,
                     "consecutive_down": consecutive_down,
-                    "action": action,
                     "requested_trade_ratio": trade_ratio,
-                    "actual_trade_ratio": (
-                        actual_trade_value / portfolio_value_before
-                        if portfolio_value_before > 0
-                        else 0.0
-                    ),
-                    "price": execution_price,
-                    "quantity": quantity,
-                    "trade_value": actual_trade_value,
-                    "cost": cost,
+                    "actual_trade_value": actual_trade_value,
                     "position_ratio_after": position_ratio,
                     "code": asset_code,
                     "p_up": probs["p_up"],
@@ -412,7 +430,42 @@ def run_backtest(
                     "model_rev": "v0",
                     "run_id": run_id,
                     "cost_rate": trade_cost,
-                })
+                    "action": action,  # ★ buy/sell/hold/cooldown
+                    "in_cooldown": in_cooldown,  # ★ 락 여부
+                }
+            )
+
+            if action in ("buy", "sell"):
+                trade_log.append(
+                    {
+                        "prediction_date": date,
+                        "execution_date": execution_date,
+                        "signal": signal,
+                        "consecutive_up": consecutive_up,
+                        "consecutive_down": consecutive_down,
+                        "action": action,
+                        "requested_trade_ratio": trade_ratio,
+                        "actual_trade_ratio": (
+                            actual_trade_value / portfolio_value_before
+                            if portfolio_value_before > 0
+                            else 0.0
+                        ),
+                        "price": execution_price,
+                        "quantity": quantity,
+                        "trade_value": actual_trade_value,
+                        "cost": cost,
+                        "position_ratio_after": position_ratio,
+                        "code": asset_code,
+                        "p_up": probs["p_up"],
+                        "p_flat": probs["p_flat"],
+                        "p_down": probs["p_down"],
+                        "realized_return_5d": realized_return_5d,
+                        "model_id": model_id,
+                        "model_rev": "v0",
+                        "run_id": run_id,
+                        "cost_rate": trade_cost,
+                    }
+                )
 
         current_close = close_prices.loc[date]
         portfolio_value = cash + position_quantity * current_close
@@ -444,12 +497,14 @@ def run_backtest(
     years = len(portfolio_series) / 252
     annual_return = (
         ((portfolio_series.iloc[-1] / initial_cash) ** (1 / years)) - 1
-        if years > 0 else np.nan
+        if years > 0
+        else np.nan
     )
 
     volatility = (
         daily_returns_series.std(ddof=1) * np.sqrt(252)
-        if len(daily_returns_series) > 1 else np.nan
+        if len(daily_returns_series) > 1
+        else np.nan
     )
 
     if len(daily_returns_series) > 1 and daily_returns_series.std(ddof=1) != 0:
@@ -499,12 +554,14 @@ def run_backtest(
     max_loss_streak = get_max_streak(daily_returns_series < 0)
 
     num_trades = len(trade_log)
-    buy_trades = sum(1 for trade in trade_log if trade["action"] == "buy")
-    sell_trades = sum(1 for trade in trade_log if trade["action"] == "sell")
-    total_transaction_cost = sum(trade["cost"] for trade in trade_log)
+    buy_trades = sum(1 for t in trade_log if t["action"] == "buy")
+    sell_trades = sum(1 for t in trade_log if t["action"] == "sell")
+    total_transaction_cost = sum(t["cost"] for t in trade_log)
 
     return {
-        "strategy": strategy,
+        "strategy": original_strategy,  # ★ D/E/F 원본
+        "base_strategy": strategy,  # ★ A/B/C
+        "cooldown_days": int(cooldown_days),  # ★ 5 또는 0
         "asset_code": asset_code,
         "portfolio_series": portfolio_series,
         "daily_returns": daily_returns_series,
@@ -536,26 +593,21 @@ def run_backtest(
 
 
 # ============================================================
-# 12. 메인 실행
+# 6. 메인 실행
 # ============================================================
 
 
 if __name__ == "__main__":
-
     print("=" * 100)
-    print("🚀 KRX 데이터 기반 A / B / C 전략 백테스트")
+    print("🚀 KRX 데이터 기반 A / B / C / D / E / F 전략 백테스트")
     print("=" * 100)
-
     print("\n[전략 구조]")
     print("A : 연속 시그널 기반 20% → 30% → 50%")
     print("B : 매 시그널마다 25%")
     print("C : 상승 100% / 하락 100%")
-    print("\n공통:")
-    print("  • t일 예측 → t+1 시가 매매")
-    print("  • 예측 대상은 t+5 영업일")
-    print("  • 만기 강제청산 없음")
-    print("  • 중립 → 관망 + 연속성 초기화")
-    print("  • 포지션 최대 100%")
+    print("D = A + 5거래일 락 (그 사이 신규/청산 모두 금지)")
+    print("E = B + 5거래일 락")
+    print("F = C + 5거래일 락")
     print("=" * 100)
 
     df = load_data()
@@ -564,18 +616,9 @@ if __name__ == "__main__":
     start_date = pd.Timestamp("2023-01-01")
     end_date = pd.Timestamp("2024-08-22")
 
-    strategies = ["A", "B", "C"]
-    strategy_names = {
-        "A": "A - 단계적 분할매매 (20-30-50%)",
-        "B": "B - 고정 비중 (25%)",
-        "C": "C - 올인/올아웃 (100%)",
-    }
-
-    results = {}
-
+    strategies = ["A", "B", "C", "D", "E", "F"]
     for strategy in strategies:
-        print(f"\n🔄 전략 실행 중: " f"{strategy_names[strategy]}")
-        results[strategy] = run_backtest(
+        r = run_backtest(
             market_data=df,
             start_date=start_date,
             end_date=end_date,
@@ -586,82 +629,7 @@ if __name__ == "__main__":
             model_id="random-v0",
         )
         print(
-            f"   ✅ 완료"
-            f" | 거래 {results[strategy]['num_trades']}회"
-            f" | 최종자산 "
-            f"{results[strategy]['final_portfolio_value']:.2f}"
+            f"[{strategy}] base={r['base_strategy']} lock={r['cooldown_days']}"
+            f" | trades={r['num_trades']}"
+            f" | final={r['final_portfolio_value']:.2f}"
         )
-
-    print("\n")
-    print("=" * 110)
-    print("📊 A / B / C 전략 백테스트 결과 비교")
-    print("=" * 110)
-
-    metric_defs = [
-        ("최종 포트폴리오", "final_portfolio_value", "{:.2f}", False),
-        ("총 수익률", "total_return", "{:.2f}%", True),
-        ("연환산 수익률", "annual_return", "{:.2f}%", True),
-        ("연환산 변동성", "volatility", "{:.2f}%", True),
-        ("Sharpe Ratio", "sharpe_ratio", "{:.2f}", False),
-        ("MDD", "max_drawdown", "{:.2f}%", True),
-        ("일간 승률", "win_rate_daily", "{:.2f}%", True),
-        ("평균 수익률", "avg_win", "{:.4f}%", True),
-        ("평균 손실률", "avg_loss", "{:.4f}%", True),
-        ("Profit Factor", "profit_factor", "{:.2f}", False),
-        ("최대 연속 승리", "max_win_streak", "{:.0f}", False),
-        ("최대 연속 패배", "max_loss_streak", "{:.0f}", False),
-        ("총 거래 횟수", "num_trades", "{:.0f}", False),
-        ("매수 거래", "buy_trades", "{:.0f}", False),
-        ("매도 거래", "sell_trades", "{:.0f}", False),
-        ("거래비용 합계", "total_transaction_cost", "{:.4f}", False),
-        ("최종 투자비율", "final_position_ratio", "{:.2f}%", True),
-    ]
-
-    print(
-        f"\n{'지표':<25} | " f"{'A 전략':>22} | " f"{'B 전략':>22} | " f"{'C 전략':>22}"
-    )
-    print("-" * 110)
-
-    for label, key, fmt, is_pct in metric_defs:
-        row = f"{label:<25} | "
-        for strategy in strategies:
-            value = results[strategy][key]
-            if is_pct:
-                value *= 100
-            row += f"{fmt.format(value):>22} | "
-        print(row)
-
-    print("=" * 110)
-
-    # 결과 업로드
-    all_results = []
-    for strategy in strategies:
-        result = results[strategy]
-        all_results.append({
-            "strategy": strategy,
-            "total_return": result["total_return"],
-            "annual_return": result["annual_return"],
-            "volatility": result["volatility"],
-            "sharpe_ratio": result["sharpe_ratio"],
-            "max_drawdown": result["max_drawdown"],
-            "win_rate_daily": result["win_rate_daily"],
-            "profit_factor": result["profit_factor"],
-            "num_trades": result["num_trades"],
-            "final_portfolio_value": result["final_portfolio_value"],
-        })
-
-    df_results = pd.DataFrame(all_results)
-    dataset_results = Dataset.from_pandas(df_results)
-    dataset_results.push_to_hub("qurious-quant/alphastack-backtest-results")
-    print("\n✅ 백테스트 결과가 업로드되었습니다!")
-
-    daily_returns_dict = {}
-    for strategy in strategies:
-        daily_returns_dict[f"{strategy}_daily_return"] = results[strategy]["daily_returns"]
-
-    df_daily = pd.DataFrame(daily_returns_dict).reset_index()
-    df_daily.rename(columns={"index": "date"}, inplace=True)
-
-    dataset_daily = Dataset.from_pandas(df_daily)
-    dataset_daily.push_to_hub("qurious-quant/alphastack-backtest-kospi200")
-    print("✅ 일별 수익률 데이터도 업로드되었습니다!")
