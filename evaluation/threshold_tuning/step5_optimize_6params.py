@@ -167,6 +167,113 @@ def get_positions_6params(
 
 
 # ============================================================
+# 1-B. Adaptive 라벨 헬퍼 (신규)
+# ============================================================
+def make_band_labels(
+    df: pd.DataFrame,
+    alpha_up: float,
+    alpha_down: float,
+    beta_up: float,
+    beta_down: float,
+    vol_period: int,
+    volume_period: int,
+) -> np.ndarray:
+    """
+    주어진 6-param 밴드로 상승/중립/하락 판정 (adaptive 라벨).
+
+    - close > upper → 2.0 (상승)
+    - close < lower → 0.0 (하락)
+    - 그 외         → 1.0 (중립)
+    - 밴드 계산 불가(NaN) → NaN 유지
+    """
+    bands = compute_bands_flexible(
+        df,
+        vol_period=int(vol_period),
+        volume_period=int(volume_period),
+        alpha_up=float(alpha_up),
+        alpha_down=float(alpha_down),
+        beta_up=float(beta_up),
+        beta_down=float(beta_down),
+    )
+    close = df["close"].values
+    upper = bands["upper"].values
+    lower = bands["lower"].values
+
+    labels = np.where(
+        np.isnan(close) | np.isnan(upper) | np.isnan(lower),
+        np.nan,
+        np.where(close > upper, 2.0, np.where(close < lower, 0.0, 1.0)),
+    )
+    return labels
+
+
+def make_adaptive_labels(
+    df: pd.DataFrame,
+    fold_details: pd.DataFrame,
+) -> np.ndarray:
+    """
+    12폴드 각각의 최적 파라미터로 시점별 라벨 생성.
+
+    각 시점 t 는 "그 시점 직전 폴드의 파라미터"로 판정 (look-ahead 없음).
+    - 첫 폴드: [0 ~ 첫 val_end] 를 첫 폴드 파라미터로 라벨링
+    - 이후 폴드: [이전 val_end+1 ~ 이번 val_end] 를 이번 폴드 파라미터로 라벨링
+
+    Returns: np.ndarray {0.0, 1.0, 2.0} 또는 NaN
+    """
+    if fold_details is None or len(fold_details) == 0:
+        return np.full(len(df), np.nan)
+
+    # fold_details 가 DataFrame 아닌 list of dicts 일 수도 있음
+    if not isinstance(fold_details, pd.DataFrame):
+        fold_details = pd.DataFrame(fold_details)
+
+    labels = np.full(len(df), np.nan, dtype=float)
+    date_to_idx = {d: i for i, d in enumerate(df.index)}
+
+    prev_end = 0
+    for _, row in fold_details.iterrows():
+        try:
+            val_end = pd.Timestamp(row["val_end"])
+        except Exception:
+            continue
+
+        end_idx = date_to_idx.get(val_end)
+        if end_idx is None:
+            continue
+
+        params = {
+            "alpha_up": float(row["alpha_up"]),
+            "alpha_down": float(row["alpha_down"]),
+            "beta_up": float(row["beta_up"]),
+            "beta_down": float(row["beta_down"]),
+            "vol_period": int(round(row["vol_period"])),
+            "volume_period": int(round(row["volume_period"])),
+        }
+
+        seg_start = prev_end
+        seg_end = end_idx + 1
+        if seg_end <= seg_start:
+            continue
+
+        # causal 계산 (그 시점까지 데이터로만 밴드 계산)
+        df_calc = df.iloc[:seg_end].copy()
+        seg_labels = make_band_labels(
+            df_calc,
+            params["alpha_up"],
+            params["alpha_down"],
+            params["beta_up"],
+            params["beta_down"],
+            params["vol_period"],
+            params["volume_period"],
+        )
+        labels[seg_start:seg_end] = seg_labels[seg_start:seg_end]
+
+        prev_end = seg_end
+
+    return labels
+
+
+# ============================================================
 # 2. 성과 지표 계산 (변경 없음)
 # ============================================================
 def calculate_metrics(returns: np.ndarray) -> dict:
@@ -310,14 +417,35 @@ def run_walkforward_6params(
     val_months: int = 3,
     step_months: int = 1,
     max_evals: int = 300,
-    threshold: float = 0.02,
+    threshold=0.02,  # float | "adaptive"
+    label_kind: str = "fwd_return",  # "fwd_return" | "adaptive"
 ) -> dict:
     """
     Expanding Window (12폴드)
-    - 라벨: ADR-AS-0002 (open 5일 수익률, T+1 시가 → T+6 시가)
-    - 학습/검증 동일 threshold
+    - 라벨 소스:
+        * "fwd_return": ADR-AS-0002 (open 5일 수익률, T+1 시가 → T+6 시가)
+        * "adaptive"  : 각 폴드의 최적 6-param 밴드로 판정 (close vs upper/lower)
+    - threshold:
+        * label_kind="fwd_return" 이면 float (0.01/0.02)
+        * label_kind="adaptive" 이면 무시 (라벨은 밴드로 결정)
     - 미래값 없는 행 NaN 유지 & 평가 제외
+
+    Parameters
+    ----------
+    threshold : float | "adaptive"
+        - float: fwd_return 라벨 임계값
+        - "adaptive": 자동으로 label_kind="adaptive" 로 강제
+    label_kind : str
+        - "fwd_return": fwd_return ± threshold
+        - "adaptive": 각 폴드의 best params 밴드로 라벨
     """
+    # threshold="adaptive" 로 넘어오면 label_kind 도 자동 전환
+    if isinstance(threshold, str) and threshold == "adaptive":
+        label_kind = "adaptive"
+        threshold_float = 0.01  # ARIMA/objective 용 기본값
+    else:
+        threshold_float = float(threshold)
+
     # ===== 기본 설정 =====
     INITIAL_TRAIN = train_years * 252  # 504일
     VAL_DAYS = val_months * 21  # 63일
@@ -349,12 +477,20 @@ def run_walkforward_6params(
     last_date = df.index[last_train_end - 1].strftime("%Y-%m-%d")
     print(f"   - 마지막 학습 종료일: {last_train_end}일 (약 {last_date})")
     print(f"🔹 Gap: {GAP}일, 검증(horizon): {VAL_DAYS}일")
-    print(f"🔹 라벨: ADR-AS-0002 (T+1 시가 → T+6 시가, ±{threshold*100:.0f}%)")
+    if label_kind == "adaptive":
+        print("🔹 라벨: ADAPTIVE (각 폴드의 best 6-param 밴드 판정)")
+    else:
+        print(
+            f"🔹 라벨: ADR-AS-0002 (T+1 시가 → T+6 시가, ±{threshold_float*100:.0f}%)"
+        )
     print("🔹 신호: 상단돌파=상승(2), 하단돌파=하락(0)")
     print("🔍 최적화 파라미터: α_up, α_down, β_up, β_down, Vol_Period, Volume_Period")
 
-    # ADR-AS-0002 라벨을 전체 df에 대해 1회 사전 계산 (마지막 6행은 NaN)
-    labels_full = make_labels(df, threshold=threshold)
+    # fwd_return 라벨을 전체 df에 대해 1회 사전 계산 (adaptive 아닐 때 사용)
+    if label_kind == "fwd_return":
+        labels_full = make_labels(df, threshold=threshold_float)
+    else:
+        labels_full = None
 
     all_oos_returns = []
     all_oos_y_true = []
@@ -390,7 +526,7 @@ def run_walkforward_6params(
         bounds_low = [0.05, 0.05, 0.0, 0.0, 10.0, 10.0]
         bounds_high = [2.0, 2.0, 2.0, 2.0, 30.0, 30.0]
 
-        def obj_func(p, df_train=df_train, th=threshold):
+        def obj_func(p, df_train=df_train, th=threshold_float):
             p_8 = list(p) + [0.01, -0.01]
             return objective_6params(p_8, df_train, threshold=th)
 
@@ -437,8 +573,22 @@ def run_walkforward_6params(
         positions = positions_full[oos_offset : oos_offset + VAL_DAYS]
         preds = preds_full[oos_offset : oos_offset + VAL_DAYS]
 
-        # ADR-AS-0002 라벨 (전체 df 기준으로 계산 후 슬라이스)
-        y_true = labels_full[val_start:val_end]
+        # ── 라벨 결정 (adaptive vs fwd_return) ──────────────
+        if label_kind == "adaptive":
+            # 각 폴드의 best params 밴드로 val 구간 라벨 생성
+            # calc_start 부터 이어지는 밴드라 df_calc 전체에 대해 계산 후 슬라이스
+            band_labels_full = make_band_labels(
+                df_calc,
+                alpha_up,
+                alpha_down,
+                beta_up,
+                beta_down,
+                vol_period,
+                volume_period,
+            )
+            y_true = band_labels_full[oos_offset : oos_offset + VAL_DAYS]
+        else:
+            y_true = labels_full[val_start:val_end]
 
         # ============================================================
         # [ARIMA 기준선 평가 - ADR-AS-0002 시간축 정렬]
@@ -463,11 +613,9 @@ def run_walkforward_6params(
                     arima_pred_5d_cum = []
 
                     for i in range(len(df_val)):
-                        # 현재 시점(i)까지의 실제 open 수익률을 history에 반영
                         actual_ret = df_val["open"].pct_change().values[i]
                         history.append(actual_ret if not np.isnan(actual_ret) else 0.0)
 
-                        # i+1 ~ i+6 6-step 예측
                         temp_hist = history.copy()
                         step_returns = []
                         for _step in range(6):
@@ -478,7 +626,6 @@ def run_walkforward_6params(
                             step_returns.append(next_val)
                             temp_hist.append(next_val)
 
-                        # T+1 → T+6 누적 = step[1:] (0-indexed 1..5)
                         cum_ret = 1.0
                         for r in step_returns[1:]:
                             cum_ret *= 1 + r
@@ -486,11 +633,11 @@ def run_walkforward_6params(
 
                     arima_pred_5d_cum = np.array(arima_pred_5d_cum)
 
-                    # ARIMA 예측 라벨도 동일 threshold
+                    # ARIMA 예측 라벨도 fwd_return threshold_float 기준 (adaptive와 무관)
                     arima_preds = np.where(
-                        arima_pred_5d_cum > threshold,
+                        arima_pred_5d_cum > threshold_float,
                         2,
-                        np.where(arima_pred_5d_cum < -threshold, 0, 1),
+                        np.where(arima_pred_5d_cum < -threshold_float, 0, 1),
                     )
 
                     valid_arima = ~np.isnan(y_true) & ~np.isnan(arima_pred_5d_cum)
@@ -501,7 +648,8 @@ def run_walkforward_6params(
                         all_arima_accs.append(fold_acc_arima)
                         if total_folds == 0:
                             print(
-                                f"   ✅ ARIMA T+1→T+6 누적 예측 (정확도: {fold_acc_arima:.4f})"
+                                f"   ✅ ARIMA T+1→T+6 누적 예측 "
+                                f"(정확도: {fold_acc_arima:.4f})"
                             )
                     else:
                         if total_folds == 0:
@@ -521,8 +669,6 @@ def run_walkforward_6params(
 
         # ============================================================
         # 포지션 수익률 계산 (ADR-AS-0002: T+1 시가 체결 → T+2 시가 청산)
-        # signal[i] (close i 신호) → open i+1 체결 → open i+2 청산
-        # strategy_ret[j] = positions[j-2] * market_ret[j]
         # ============================================================
         market_ret = df_val["open"].pct_change().values
 
@@ -538,7 +684,6 @@ def run_walkforward_6params(
 
         strategy_ret = pos_shifted * market_ret
 
-        # 미래값 없는 행(NaN 라벨)도 평가에서 제외
         valid_mask = ~(np.isnan(strategy_ret) | np.isnan(market_ret) | np.isnan(y_true))
 
         if valid_mask.sum() > 0:
@@ -583,11 +728,7 @@ def run_walkforward_6params(
 
     if len(y_true_arr) > 0:
         acc_current = accuracy_score(y_true_arr, y_pred_arr)
-        print(f"\n🔍 [진단] ADR-AS-0002 라벨 기준 정확도: {acc_current:.4f}")
-        invert_back = {0: 2, 1: 1, 2: 0}
-        y_pred_reversed = np.array([invert_back[p] for p in y_pred_arr])
-        acc_reversed = accuracy_score(y_true_arr, y_pred_reversed)
-        print(f"   (참고) 만약 신호를 반전했다면: {acc_reversed:.4f}")
+        print(f"\n🔍 [진단] 라벨 기준 정확도: {acc_current:.4f}")
 
     # ---- 연결된 OOS 최종 평가 ----
     oos_returns = np.array(all_oos_returns)
@@ -607,6 +748,25 @@ def run_walkforward_6params(
     if len(y_true_arr) > 0:
         cls_metrics["f1_macro"] = f1_score(y_true_arr, y_pred_arr, average="macro")
         cls_metrics["balanced_acc"] = balanced_accuracy_score(y_true_arr, y_pred_arr)
+        cls_metrics["accuracy"] = float(accuracy_score(y_true_arr, y_pred_arr))
+
+        # ★ Down Recall (라벨 0)
+        _down_rec = recall_score(
+            y_true_arr, y_pred_arr, labels=[0], average=None, zero_division=0
+        )
+        _down_rec = float(_down_rec[0]) if len(_down_rec) > 0 else 0.0
+        cls_metrics["down_recall"] = _down_rec
+
+        # ★ HARMONIC = ACC·F1·Down Recall 조화평균 (ML과 동일 정의)
+        _vals = [
+            float(cls_metrics["accuracy"]),
+            float(cls_metrics["f1_macro"]),
+            _down_rec,
+        ]
+        cls_metrics["harmonic"] = (
+            float(3 / sum(1.0 / v for v in _vals)) if all(v > 0 for v in _vals) else 0.0
+        )
+
         unique, counts = np.unique(y_pred_arr, return_counts=True)
         ratio_dict = dict(zip(unique, counts / len(y_pred_arr), strict=False))
         cls_metrics["ratio_up"] = ratio_dict.get(2, 0.0)
@@ -615,6 +775,9 @@ def run_walkforward_6params(
     else:
         cls_metrics["f1_macro"] = np.nan
         cls_metrics["balanced_acc"] = np.nan
+        cls_metrics["accuracy"] = np.nan
+        cls_metrics["down_recall"] = np.nan
+        cls_metrics["harmonic"] = np.nan
         cls_metrics["ratio_up"] = np.nan
         cls_metrics["ratio_neutral"] = np.nan
         cls_metrics["ratio_down"] = np.nan
@@ -641,221 +804,19 @@ def run_walkforward_6params(
         "cls_metrics": cls_metrics,
         "fold_details": fold_df,
         "params_median": params_median,
+        "label_kind": label_kind,
+        "threshold": (
+            "adaptive" if label_kind == "adaptive" else float(threshold_float)
+        ),
     }
 
 
 # ============================================================
-# 4-B. FROZEN CLASSIFIER (문제 1) — 전체 구간 1회 최적화
-# ============================================================
-# Baseline은 "판단기"(지금이 상승/중립/하락?). 미래 예측이 아니므로
-# train/test split 없이 전체 구간에서 CMA-ES로 최적 α/β 세트를 찾는다.
-# ============================================================
-
-
-def make_baseline_labels(df: pd.DataFrame, params: dict) -> np.ndarray:
-    """
-    고정 6-param으로 상승/중립/하락 판정.
-
-    Returns
-    -------
-    np.ndarray, {0.0=하락, 1.0=중립, 2.0=상승} 또는 NaN
-    """
-    bands = compute_bands_flexible(
-        df,
-        vol_period=int(params["vol_period"]),
-        volume_period=int(params["volume_period"]),
-        alpha_up=float(params["alpha_up"]),
-        alpha_down=float(params["alpha_down"]),
-        beta_up=float(params["beta_up"]),
-        beta_down=float(params["beta_down"]),
-    )
-    close = df["close"].values
-    upper = bands["upper"].values
-    lower = bands["lower"].values
-
-    labels = np.full(len(df), 1.0, dtype=float)  # 기본 = 중립
-    valid = ~(np.isnan(close) | np.isnan(upper) | np.isnan(lower))
-    labels[valid & (close > upper)] = 2.0
-    labels[valid & (close < lower)] = 0.0
-    labels[~valid] = np.nan
-    return labels
-
-
-def _evaluate_frozen(
-    df: pd.DataFrame,
-    params: dict,
-    threshold: float = 0.01,
-) -> dict:
-    """고정 파라미터로 성능 계산."""
-    preds = make_baseline_labels(df, params)
-    y_true = make_labels(df, threshold=threshold)
-
-    valid = ~(np.isnan(preds) | np.isnan(y_true))
-    if valid.sum() < 10:
-        return {"n_valid": int(valid.sum()), "note": "표본 부족"}
-
-    y_t = y_true[valid].astype(int)
-    y_p = preds[valid].astype(int)
-
-    acc = float(accuracy_score(y_t, y_p))
-    f1 = float(f1_score(y_t, y_p, average="macro", zero_division=0))
-    bal = float(balanced_accuracy_score(y_t, y_p))
-    down_rec = float(
-        recall_score(y_t, y_p, labels=[0], average=None, zero_division=0)[0]
-    )
-    neut_rec = float(
-        recall_score(y_t, y_p, labels=[1], average=None, zero_division=0)[0]
-    )
-    up_rec = float(recall_score(y_t, y_p, labels=[2], average=None, zero_division=0)[0])
-
-    # 조화평균 (ACC, F1, Down Recall)
-    vals = [acc, f1, down_rec]
-    if any(v == 0 for v in vals):
-        harmonic = 0.0
-    else:
-        harmonic = float(3 / sum(1.0 / v for v in vals))
-
-    return {
-        "n_valid": int(valid.sum()),
-        "accuracy": acc,
-        "macro_f1": f1,
-        "balanced_acc": bal,
-        "down_recall": down_rec,
-        "neutral_recall": neut_rec,
-        "up_recall": up_rec,
-        "harmonic": harmonic,
-    }
-
-
-def find_frozen_6params(
-    df: pd.DataFrame,
-    threshold: float = 0.01,
-    max_evals: int = 300,
-    objective: str = "harmonic",
-) -> dict:
-    """
-    전체 구간에서 한 번 최적화 → 최적 α/β 세트 획득.
-
-    Baseline은 판단기(미래 예측 X) → train/test split 불필요.
-    "역사 전체를 가장 잘 설명하는 판정 기준"을 찾는다.
-
-    Returns
-    -------
-    dict: frozen_params, metrics, labels, per_year, range, n_days, ...
-    """
-    if len(df) < 500:
-        raise ValueError(f"데이터 부족: {len(df)}일")
-
-    # ── 목적함수 (전체 구간) ────────────────────────
-    def _obj(p):
-        try:
-            params = {
-                "alpha_up": float(p[0]),
-                "alpha_down": float(p[1]),
-                "beta_up": float(p[2]),
-                "beta_down": float(p[3]),
-                "vol_period": int(np.clip(round(p[4]), 10, 30)),
-                "volume_period": int(np.clip(round(p[5]), 10, 30)),
-            }
-        except Exception:
-            return 1.0
-
-        try:
-            m = _evaluate_frozen(df, params, threshold)
-        except Exception:
-            return 1.0
-
-        if m.get("note") == "표본 부족":
-            return 1.0
-
-        if objective == "f1":
-            return -float(m.get("macro_f1", 0.0))
-        return -float(m.get("harmonic", 0.0))
-
-    # ── CMA-ES ─────────────────────────────────────
-    x0 = [0.5, 0.5, 0.0, 0.0, 14.0, 20.0]
-    bounds_low = [0.05, 0.05, 0.0, 0.0, 10.0, 10.0]
-    bounds_high = [2.0, 2.0, 2.0, 2.0, 30.0, 30.0]
-
-    es = cma.CMAEvolutionStrategy(
-        x0,
-        0.5,
-        {
-            "maxfevals": max_evals,
-            "bounds": [bounds_low, bounds_high],
-            "verbose": -1,
-            "CMA_diagonal": True,
-        },
-    )
-
-    best_params = x0
-    best_fit = np.inf
-    while not es.stop():
-        sols = es.ask()
-        fits = [_obj(p) for p in sols]
-        es.tell(sols, fits)
-        if es.result.fbest < best_fit:
-            best_fit = es.result.fbest
-            best_params = es.result.xbest
-
-    frozen = {
-        "alpha_up": float(best_params[0]),
-        "alpha_down": float(best_params[1]),
-        "beta_up": float(best_params[2]),
-        "beta_down": float(best_params[3]),
-        "vol_period": int(np.clip(round(best_params[4]), 10, 30)),
-        "volume_period": int(np.clip(round(best_params[5]), 10, 30)),
-    }
-
-    # ── 전체 구간 성능 ─────────────────────────────
-    metrics = _evaluate_frozen(df, frozen, threshold)
-    labels = make_baseline_labels(df, frozen)
-    y_true = make_labels(df, threshold=threshold)
-
-    # ── per-year 안정성 ────────────────────────────
-    per_year = []
-    years = sorted(set(df.index.year.tolist()))
-    for y in years:
-        mask = df.index.year == y
-        y_t = y_true[mask]
-        y_p = labels[mask]
-        valid = ~(np.isnan(y_t) | np.isnan(y_p))
-        if valid.sum() < 20:
-            continue
-        yt = y_t[valid].astype(int)
-        yp = y_p[valid].astype(int)
-        per_year.append(
-            {
-                "year": int(y),
-                "n": int(valid.sum()),
-                "accuracy": float(accuracy_score(yt, yp)),
-                "macro_f1": float(f1_score(yt, yp, average="macro", zero_division=0)),
-                "down_recall": float(
-                    recall_score(yt, yp, labels=[0], average=None, zero_division=0)[0]
-                ),
-                "balanced_acc": float(balanced_accuracy_score(yt, yp)),
-            }
-        )
-
-    return {
-        "frozen_params": frozen,
-        "threshold": float(threshold),
-        "objective": objective,
-        "max_evals": int(max_evals),
-        "metrics": metrics,
-        "labels": labels.tolist(),
-        "per_year": per_year,
-        "range": [str(df.index[0]), str(df.index[-1])],
-        "n_days": int(len(df)),
-    }
-
-
-# ============================================================
-# 5. 메인 실행 (1%와 2% 비교)
+# 5. 메인 실행 (1% / 2% / adaptive 비교)
 # ============================================================
 if __name__ == "__main__":
     print("=" * 60)
-    print("🚀 5단계: Expanding + ADR-AS-0002(T+1→T+6) + 1% vs 2% 비교")
+    print("🚀 5단계: Expanding + 라벨 소스별 비교 (fwd_return 1%/2% / adaptive)")
     print("=" * 60)
 
     # 라벨 회귀 테스트 먼저 수행
@@ -866,9 +827,10 @@ if __name__ == "__main__":
 
     results = {}
 
+    # 1%, 2%
     for thresh in [0.01, 0.02]:
         print("\n" + "=" * 60)
-        print(f"📌 [실험 시작] Threshold = {thresh*100:.0f}% (상승/하락 기준)")
+        print(f"📌 [실험 시작] Label = fwd_return, Threshold = {thresh*100:.0f}%")
         print("=" * 60)
 
         result = run_walkforward_6params(
@@ -878,16 +840,34 @@ if __name__ == "__main__":
             step_months=1,
             max_evals=300,
             threshold=thresh,
+            label_kind="fwd_return",
         )
-        results[thresh] = result
+        results[f"fwd_{thresh*100:.0f}%"] = result
+
+    # adaptive
+    print("\n" + "=" * 60)
+    print("📌 [실험 시작] Label = ADAPTIVE (per-fold band)")
+    print("=" * 60)
+
+    result_ad = run_walkforward_6params(
+        df,
+        train_years=2,
+        val_months=3,
+        step_months=1,
+        max_evals=300,
+        threshold="adaptive",
+        label_kind="adaptive",
+    )
+    results["adaptive"] = result_ad
 
     # ============================================================
     # 최종 비교 결과 출력
     # ============================================================
-    print("\n\n" + "=" * 70)
-    print("📊 [최종 비교] 1% 기준 vs 2% 기준 Walk-Forward 성능 (ADR-AS-0002)")
-    print("=" * 70)
+    print("\n\n" + "=" * 80)
+    print("📊 [최종 비교] 1% vs 2% vs Adaptive")
+    print("=" * 80)
 
+    keys = list(results.keys())
     compare_df = pd.DataFrame(
         {
             "Metric": [
@@ -899,40 +879,25 @@ if __name__ == "__main__":
                 "Macro-F1",
                 "Balanced Acc",
             ],
-            "1% Threshold": [
-                results[0.01]["perf_metrics"]["sharpe"],
-                results[0.01]["perf_metrics"]["cagr"],
-                results[0.01]["perf_metrics"]["mdd"],
-                results[0.01]["perf_metrics"]["calmar"],
-                results[0.01]["perf_metrics"]["win_rate"],
-                results[0.01]["cls_metrics"]["f1_macro"],
-                results[0.01]["cls_metrics"]["balanced_acc"],
-            ],
-            "2% Threshold": [
-                results[0.02]["perf_metrics"]["sharpe"],
-                results[0.02]["perf_metrics"]["cagr"],
-                results[0.02]["perf_metrics"]["mdd"],
-                results[0.02]["perf_metrics"]["calmar"],
-                results[0.02]["perf_metrics"]["win_rate"],
-                results[0.02]["cls_metrics"]["f1_macro"],
-                results[0.02]["cls_metrics"]["balanced_acc"],
-            ],
+            **{
+                k: [
+                    results[k]["perf_metrics"]["sharpe"],
+                    results[k]["perf_metrics"]["cagr"],
+                    results[k]["perf_metrics"]["mdd"],
+                    results[k]["perf_metrics"]["calmar"],
+                    results[k]["perf_metrics"]["win_rate"],
+                    results[k]["cls_metrics"]["f1_macro"],
+                    results[k]["cls_metrics"]["balanced_acc"],
+                ]
+                for k in keys
+            },
         }
     )
 
-    for col in ["1% Threshold", "2% Threshold"]:
-        compare_df[col] = compare_df[col].apply(
+    for k in keys:
+        compare_df[k] = compare_df[k].apply(
             lambda x: f"{x:.4f}" if pd.notna(x) else "NaN"
         )
 
     print(compare_df.to_string(index=False))
-
-    if (
-        results[0.01]["perf_metrics"]["sharpe"]
-        > results[0.02]["perf_metrics"]["sharpe"]
-    ):
-        print("\n🏆 1% 기준의 Sharpe Ratio가 더 높습니다.")
-    else:
-        print("\n🏆 2% 기준의 Sharpe Ratio가 더 높습니다.")
-
     print("\n✅ 전체 비교 실험 완료!")

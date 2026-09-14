@@ -11,15 +11,23 @@ st.set_page_config(page_title="Universe · AlphaStack", layout="wide")
 
 import theme
 from theme import (
-    metric_row, section_header, top_strip, panel, show_table, plotly_chart,
+    metric_row,
+    section_header,
+    top_strip,
+    panel,
+    show_table,
+    plotly_chart,
 )
+
 theme.inject()
 
 from components import sidebar_controls
 from services import universe_service
 from state import (
     ctx,
-    universe_get, universe_set, universe_clear,
+    universe_get,
+    universe_set,
+    universe_clear,
 )
 
 sidebar_controls()
@@ -72,17 +80,24 @@ if source == "full":
         c1, c2, c3 = st.columns(3, gap="small")
         with c1:
             market = st.selectbox(
-                "Market", ["KOSPI", "KOSPI+KOSDAQ", "ALL"], index=0,
+                "Market",
+                ["KOSPI", "KOSPI+KOSDAQ", "ALL"],
+                index=0,
             )
             filter_kwargs["market"] = market
 
         with c2:
             top_n_options = {
-                "Top 50": 50, "Top 100": 100, "Top 200": 200,
-                "Top 500": 500, "전체 (None)": None,
+                "Top 50": 50,
+                "Top 100": 100,
+                "Top 200": 200,
+                "Top 500": 500,
+                "전체 (None)": None,
             }
             top_n_sel = st.selectbox(
-                "Market Cap Top-N", list(top_n_options), index=2,
+                "Market Cap Top-N",
+                list(top_n_options),
+                index=2,
             )
             filter_kwargs["top_n"] = top_n_options[top_n_sel]
 
@@ -109,7 +124,11 @@ if source == "full":
         c1, c2 = st.columns(2, gap="small")
         with c1:
             min_cap_eok = st.number_input(
-                "최소 시가총액 (억원)", 0, 100000, 0, 100,
+                "최소 시가총액 (억원)",
+                0,
+                100000,
+                0,
+                100,
                 help="0 이면 필터 없음",
             )
             filter_kwargs["min_market_cap"] = float(min_cap_eok) * 1e8
@@ -127,8 +146,12 @@ except Exception as e:
     st.stop()
 
 top_strip(
-    [source.upper(), f"{len(codes_all)} TICKERS",
-     f"BASELINE {len(baseline_u)}", f"MODEL {len(model_u)}"],
+    [
+        source.upper(),
+        f"{len(codes_all)} TICKERS",
+        f"BASELINE {len(baseline_u)}",
+        f"MODEL {len(model_u)}",
+    ],
     status_text="READY" if baseline_u else "IDLE",
     status_tone="up" if baseline_u else "neutral",
 )
@@ -145,43 +168,63 @@ with panel():
         subset_options = ["전체", "앞 5", "앞 10", "앞 20", "앞 50", "앞 100"]
         subset_mode = st.selectbox("Subset", subset_options, index=0)
         n_map = {
-            "전체": len(codes_all), "앞 5": 5, "앞 10": 10,
-            "앞 20": 20, "앞 50": 50, "앞 100": 100,
+            "전체": len(codes_all),
+            "앞 5": 5,
+            "앞 10": 10,
+            "앞 20": 20,
+            "앞 50": 50,
+            "앞 100": 100,
         }
         n_take = min(n_map[subset_mode], len(codes_all))
         tickers_sel = codes_all[:n_take]
 
     with c2:
-        threshold = st.selectbox(
-            "Threshold", [0.01, 0.02],
-            format_func=lambda v: f"{v*100:.0f}%", index=0,
+        # ── Threshold · 라벨 정의 (1% / 2%) ──
+        threshold_choice = st.selectbox(
+            "Threshold · 라벨 정의",
+            ["0.01", "0.02"],
+            index=0,
+            format_func=lambda v: {
+                "0.01": "1%",
+                "0.02": "2%",
+            }[v],
+            help=(
+                "fwd_return ± 임계값으로 UP/NEUTRAL/DOWN 라벨 생성  \n"
+                "1% = ±0.01, 2% = ±0.02"
+            ),
         )
+        threshold_val = float(threshold_choice)
+
         max_evals = st.selectbox(
             "CMA-ES",
             ["QUICK (10)", "MED (30)", "FULL (100)", "MAX (300)"],
             index=0,
         )
         max_evals_n = {
-            "QUICK (10)": 10, "MED (30)": 30,
-            "FULL (100)": 100, "MAX (300)": 300,
+            "QUICK (10)": 10,
+            "MED (30)": 30,
+            "FULL (100)": 100,
+            "MAX (300)": 300,
         }[max_evals]
 
     with c3:
         n_jobs = st.selectbox(
-            "Parallel jobs", [1, 2, 4, 6, 8], index=2,
+            "Parallel jobs",
+            [1, 2, 4, 6, 8],
+            index=2,
             help="1 = 순차 (느림, 안전) · 8 = 전체 코어 (메모리 주의)",
         )
 
     with c4:
         skip_existing = st.checkbox(
-            "Skip done", value=True,
+            "Skip done",
+            value=True,
             help="이미 실행된 종목/모델은 건너뜀 (중단 후 재개)",
         )
 
     # 예상 시간 계산
     _baseline_per_item = 3 if max_evals_n >= 100 else 0.5
     _model_per_item = 5
-    _n_models_est = 1
     _baseline_min = int(n_take * _baseline_per_item / max(n_jobs, 1))
     _model_min = int(n_take * _model_per_item / max(n_jobs, 1))
 
@@ -194,10 +237,12 @@ with panel():
     cA, cB = st.columns([1, 3], gap="small")
     with cA:
         run_baseline_btn = st.button(
-            "▶  RUN BASELINE", type="primary", use_container_width=True,
+            "▶  RUN BASELINE",
+            type="primary",
+            use_container_width=True,
         )
     with cB:
-        if n_take > 50 or n_jobs == 1 and n_take > 20:
+        if n_take > 50 or (n_jobs == 1 and n_take > 20):
             st.warning(f"⚠️ {n_take}종목 · 시간 오래 걸림. 백그라운드로 두세요.")
         else:
             st.caption("")
@@ -212,13 +257,16 @@ with panel():
         )
     with cD:
         run_model_btn = st.button(
-            "▶  RUN MODEL(S)", type="secondary", use_container_width=True,
+            "▶  RUN MODEL(S)",
+            type="secondary",
+            use_container_width=True,
         )
 
     total_runs = len(model_names_sel) * n_take
     if total_runs > 100:
         st.error(
-            f"🚨 **{total_runs}회 실행** · 예상 **{int(total_runs * _model_per_item / max(n_jobs,1))}분**. "
+            f"🚨 **{total_runs}회 실행** · 예상 "
+            f"**{int(total_runs * _model_per_item / max(n_jobs,1))}분**. "
             f"Subset을 줄이거나 n_jobs를 늘리세요."
         )
     else:
@@ -256,7 +304,7 @@ if run_baseline_btn:
     with st.spinner(f"Baseline · {n_take}종목 · n_jobs={n_jobs}…"):
         results = universe_service.run_universe_baseline_parallel(
             tickers=tickers_sel,
-            threshold=float(threshold),
+            threshold=threshold_val,  # float (0.01 / 0.02)
             max_evals=int(max_evals_n),
             source=source,
             n_jobs=int(n_jobs),
@@ -286,7 +334,9 @@ if run_model_btn and model_names_sel:
 
     skip = model_u if skip_existing else None
 
-    with st.spinner(f"Model · {len(model_names_sel)}개 × {n_take}종목 · n_jobs={n_jobs}…"):
+    with st.spinner(
+        f"Model · {len(model_names_sel)}개 × {n_take}종목 · n_jobs={n_jobs}…"
+    ):
         results = universe_service.run_universe_models_multi_parallel(
             tickers=tickers_sel,
             model_names=model_names_sel,
@@ -317,49 +367,77 @@ if baseline_u:
                 return "—"
             return f"{v:+.{digits}f}" if signed else f"{v:.{digits}f}"
 
-        _mean_mf1 = valid["MACRO F1"].mean() if "MACRO F1" in valid.columns else None
+        _mean_hrm = valid["HARMONIC"].mean() if "HARMONIC" in valid.columns else None
         _mean_shp = valid["SHARPE"].mean() if "SHARPE" in valid.columns else None
 
-        metric_row([
-            dict(label="TOP STOCK",
-                 value=f"{_top['CODE']} · {_top['NAME']}",
-                 tone="up", accent=True),
-            dict(label="TOP MACRO F1", value=_fmt(_top.get("MACRO F1")),
-                 tone="up"),
-            dict(label="TOP BAL ACC", value=_fmt(_top.get("BAL ACC"))),
-            dict(label="MEAN MACRO F1", value=_fmt(_mean_mf1)),
-            dict(label="MEAN SHARPE", value=_fmt(_mean_shp),
-                 tone="up" if (_mean_shp or 0) > 0 else "down"),
-        ], cols=5)
+        metric_row(
+            [
+                dict(
+                    label="TOP STOCK",
+                    value=f"{_top['CODE']} · {_top['NAME']}",
+                    tone="up",
+                    accent=True,
+                ),
+                dict(label="MACRO F1", value=_fmt(_top.get("MACRO F1")), tone="up"),
+                dict(label="BAL ACC", value=_fmt(_top.get("BAL ACC"))),
+                dict(label="MEAN HARMONIC", value=_fmt(_mean_hrm)),
+                dict(
+                    label="MEAN SHARPE",
+                    value=_fmt(_mean_shp),
+                    tone="up" if (_mean_shp or 0) > 0 else "down",
+                ),
+            ],
+            cols=5,
+        )
 
-    with panel(f"{len(rank_df)} STOCKS · SORT BY MACRO F1",
-               status_text=f"BEST · {valid.iloc[0]['CODE']}" if not valid.empty else "",
-               status_tone="up"):
+    with panel(
+        f"{len(rank_df)} STOCKS · SORT BY MACRO F1",
+        status_text=f"BEST · {valid.iloc[0]['CODE']}" if not valid.empty else "",
+        status_tone="up",
+    ):
         show_table(
             rank_df,
-            num_cols=["MACRO F1", "BAL ACC",
-                      "SHARPE", "CAGR", "MDD", "WIN RATE"],
+            num_cols=[
+                "ACC",
+                "MACRO F1",
+                "DOWN REC",
+                "HARMONIC",
+                "BAL ACC",
+                "SHARPE",
+                "CAGR",
+                "MDD",
+                "WIN RATE",
+            ],
             precision=4,
             highlight_row=0,
         )
 
-    section_header("TOP 15 · MACRO F1")
+    section_header("TOP 15 · HARMONIC")
     top15 = rank_df[rank_df["ERROR"] == ""].head(15)
     if not top15.empty:
-        with panel("MACRO F1 (SORTED DESC)"):
-            fig = go.Figure(go.Bar(
-                x=top15["MACRO F1"],
-                y=[f"{r['CODE']} · {r['NAME']}" for _, r in top15.iterrows()],
-                orientation="h",
-                marker=dict(color=["#4ade80" if i == 0 else "#7fd1ff"
-                                    for i in range(len(top15))]),
-                text=[f"{v:.4f}" for v in top15["MACRO F1"]],
-                textposition="outside",
-            ))
+        with panel("HARMONIC (ACC·F1·DOWN RECALL 조화평균)"):
+            fig = go.Figure(
+                go.Bar(
+                    x=top15["HARMONIC"],
+                    y=[f"{r['CODE']} · {r['NAME']}" for _, r in top15.iterrows()],
+                    orientation="h",
+                    marker=dict(
+                        color=[
+                            "#4ade80" if i == 0 else "#7fd1ff"
+                            for i in range(len(top15))
+                        ]
+                    ),
+                    text=[f"{v:.4f}" for v in top15["HARMONIC"]],
+                    textposition="outside",
+                )
+            )
             fig.update_layout(
                 height=max(300, 32 * len(top15)),
                 showlegend=False,
-                xaxis=dict(title="", range=[0, float(top15["MACRO F1"].max()) * 1.15]),
+                xaxis=dict(
+                    title="",
+                    range=[0, float(top15["HARMONIC"].max()) * 1.15],
+                ),
                 yaxis=dict(title="", autorange="reversed"),
             )
             plotly_chart(fig)
@@ -373,8 +451,7 @@ if model_u:
 
     matrix = universe_service.build_universe_models_matrix(model_u)
     if not matrix.empty:
-        model_cols = [c for c in matrix.columns
-                      if c not in ("RANK", "CODE", "NAME")]
+        model_cols = [c for c in matrix.columns if c not in ("RANK", "CODE", "NAME")]
 
         section_header("MATRIX · HARMONIC (TICKER × MODEL)")
         with panel(f"{len(matrix)} STOCKS × {len(model_cols)} MODELS"):
@@ -412,12 +489,17 @@ if baseline_u:
                 f"{r['CODE']} · {r['NAME']} · MACRO F1 {r['MACRO F1']:.4f}"
                 for _, r in top10.iterrows()
             ]
-            picked = st.selectbox("종목 선택 (baseline TOP 10)",
-                                  options, index=0, key="_drill_pick")
+            picked = st.selectbox(
+                "종목 선택 (baseline TOP 10)", options, index=0, key="_drill_pick"
+            )
         with c2:
             st.write("")
-            if st.button("▶  STOCK 모드", type="primary",
-                         use_container_width=True, key="_drill_btn"):
+            if st.button(
+                "▶  STOCK 모드",
+                type="primary",
+                use_container_width=True,
+                key="_drill_btn",
+            ):
                 code = picked.split(" · ")[0]
                 st.session_state["scope"] = "STOCK"
                 st.session_state["ticker"] = code
@@ -438,6 +520,9 @@ if not baseline_u and not model_u:
 - Market: KOSPI / KOSPI+KOSDAQ / ALL
 - Top-N: 시가총액 상위 (권장 200)
 - 잡음 제외: 거래정지·상장폐지·신규상장
+
+**Threshold (라벨 정의)**
+- `1%` / `2%` — fwd_return ± 임계값으로 UP/NEUTRAL/DOWN 판정
 
 **실행**
 1. Subset, Threshold, CMA-ES, n_jobs 설정
