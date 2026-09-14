@@ -1,8 +1,12 @@
 # dashboard/services/model_service.py
 """
 4모델 nested walk-forward 실행 서비스.
-label_source: "fwd_return" (기본) | "adaptive" (per-fold baseline 판정)
-combination: scope 별 자동 선택 (combo_config)
+
+- combination: scope 별 자동 선택 (combo_config)
+  · MARKET   → C
+  · STOCK    → K
+  · UNIVERSE → K
+- label_source: "fwd_return" (기본) | "adaptive" (per-fold baseline 판정)
 """
 
 from __future__ import annotations
@@ -89,7 +93,12 @@ def _apply_label_override(dataset, df, label_array):
 
 
 def _load_dataset(
-    scope, ticker, combination, return_features, source="stocks30", label_override=None
+    scope,
+    ticker,
+    combination,
+    return_features,
+    source="stocks30",
+    label_override=None,
 ):
     from services import data_loader
 
@@ -117,8 +126,8 @@ def run_single_model(
     scope: str,
     ticker: str,
     model_name: str,
-    combination: str | None = None,
-    return_features: tuple | None = None,
+    combination: str | None = None,  # None → combo_config 자동
+    return_features: tuple | None = None,  # None → combo_config 자동
     source: str = "stocks30",
     label_source: str = "fwd_return",
     adaptive_labels=None,

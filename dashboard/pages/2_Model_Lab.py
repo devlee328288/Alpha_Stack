@@ -21,7 +21,7 @@ theme.inject()
 
 from components import sidebar_controls
 from services import model_service, comparison_service
-from services.combo_config import combo_label, return_features_of
+from services.combo_config import combo_label, return_features_of, n_features_of
 from state import ctx, get_result, set_result
 
 sidebar_controls()
@@ -56,8 +56,9 @@ if _err:
 
 _rf_list = return_features_of(scope)
 _rf_disp = " · ".join(_rf_list) if _rf_list else "NO RETURN FEAT"
+_n_feat = n_features_of(scope)
 top_strip(
-    [scope, ticker, combo_label(scope), _rf_disp, "12-FOLD"],
+    [scope, ticker, combo_label(scope), f"{_n_feat} FEAT", "12-FOLD"],
     status_text="READY",
     status_tone="neutral",
 )
@@ -66,6 +67,16 @@ top_strip(
 # CONFIG
 # ═══════════════════════════════════════════════════════════
 section_header("CONFIG")
+
+# ── 조합 안내 ──
+if scope == "STOCK":
+    st.caption(
+        "ℹ️ **K조합**: 14-feature panel. 노트북(`scripts/run_stock_model_experiment.py`)은 "
+        "157종목 panel로 학습하지만, 여기서는 **단일 종목**만 실행 → 수치가 다를 수 있음."
+    )
+elif scope == "MARKET":
+    st.caption("ℹ️ **C조합**: KOSPI200 지수, 6-feature, no return_features.")
+
 with panel():
     c1, c2 = st.columns([3, 1], gap="small")
     with c1:
