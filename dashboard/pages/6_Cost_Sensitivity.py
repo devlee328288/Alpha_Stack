@@ -23,6 +23,7 @@ theme.inject()
 
 from components import sidebar_controls
 from services import backtest_service
+from services.experiment_config import ExperimentConfig
 from state import ctx, get_result, set_result
 
 sidebar_controls()
@@ -38,57 +39,61 @@ if not backtest_service.cost_available():
     st.stop()
 
 # ═══════════════════════════════════════════════════════════
-# CONFIG
+# CONFIG · SSOT (Backtest 에서 넘어옴)
 # ═══════════════════════════════════════════════════════════
-section_header("CONFIG")
+section_header("CONFIG · SSOT (from Backtest)")
 
-with panel():
-    # ── Row 1: Predictor ────────────────────────────
-    c1, c2 = st.columns([3, 1], gap="small")
-    with c1:
-        predictor = st.selectbox(
-            "Predictor",
-            list(backtest_service.PREDICTOR_OPTIONS),
-            index=1,  # RandomForest default
-            help=(
-                "Random = 랜덤 (구조 검증용)  \n"
-                "모델명 = Model Lab 의 12-fold OOS 예측 "
-                "(첫 실행 시 학습 5~10분)"
-            ),
-        )
-    with c2:
-        st.write("")
-        run = st.button("▶  RUN", type="primary", use_container_width=True)
+_cfg_key = f"_bt_cfg_{scope}:{ticker}"
+_cfg_dict = st.session_state.get(_cfg_key)
 
-    if predictor != "Random":
-        st.warning(
-            f"⚠️ **{predictor}** predictor 사용 · 첫 실행 시 학습 5~10분. "
-            f"이후엔 캐시."
-        )
+if _cfg_dict is None:
+    top_strip([scope, ticker], status_text="NO CONFIG", status_tone="warn")
+    st.warning(
+        f"⚠️ **{scope}:{ticker}** 에 대한 Backtest 설정이 없습니다.\n\n"
+        "**Backtest 페이지에서 RUN ALL 을 먼저 실행하세요.**  \n"
+        "Cost Sens 는 Backtest 와 **동일 조건**에서 비용만 바꿔 실행하는 페이지입니다."
+    )
+    if st.button("▶  Backtest 페이지로", type="primary"):
+        st.switch_page("pages/4_Backtest.py")
+    st.stop()
 
-    # ── Row 2: Period ────────────────────────────────
-    c1, c2 = st.columns([1.2, 1.2], gap="small")
-    with c1:
-        start = st.date_input(
-            "Start",
-            value=pd.Timestamp("2010-01-01"),
-        ).strftime("%Y-%m-%d")
-    with c2:
-        end = st.date_input(
-            "End",
-            value=pd.Timestamp("2025-01-01"),
-        ).strftime("%Y-%m-%d")
+try:
+    exp_config = ExperimentConfig(**_cfg_dict)
+except Exception as e:
+    st.error(f"Config 복원 실패: {type(e).__name__}: {e}")
+    st.stop()
 
-# ═══════════════════════════════════════════════════════════
-# HEADER STRIP (결과 반영)
-# ═══════════════════════════════════════════════════════════
-_prev = get_result("cost_grid", scope, ticker)
-_prev_pred = "—"
-if _prev is not None and hasattr(_prev, "attrs"):
-    _prev_pred = _prev.attrs.get("predictor", "—")
+with panel("EXPERIMENT CONFIG (Backtest 와 동일)"):
+    show_table(
+        pd.DataFrame(exp_config.summary_rows()),
+        num_cols=[],
+        precision=4,
+    )
+    st.caption(
+        "ℹ️ Backtest 와 **동일한 예측·신호**를 사용합니다. "
+        "비용(`trade_cost`) 프리셋만 여러 값으로 바꿔 체결·회계를 재계산합니다."
+    )
 
+# ── RUN ──────────────────────────────────────────────
+c1, c2 = st.columns([1, 3], gap="small")
+with c1:
+    run = st.button("▶  RUN Cost Grid", type="primary", use_container_width=True)
+with c2:
+    st.caption(
+        f"대상: **4 COST PRESETS × {len(backtest_service.STRATEGIES)} STRATEGIES** "
+        f"· predictor **{exp_config.predictor}** "
+        f"· baseline **{exp_config.baseline_kind}**"
+    )
+
+# ── HEADER STRIP ─────────────────────────────────────
 top_strip(
-    [scope, ticker, "4 COST PRESETS × 3 STRATEGIES", f"PREDICTOR {_prev_pred}"],
+    [
+        scope,
+        ticker,
+        f"4 PRESETS × {len(backtest_service.STRATEGIES)} STRATEGIES",
+        f"PRED {exp_config.predictor}",
+        f"BASE {exp_config.baseline_kind}",
+    ],
     status_text="READY",
     status_tone="neutral",
 )
@@ -99,33 +104,20 @@ top_strip(
 if run:
     import traceback
 
-    msg = f"cost grid · {scope}:{ticker} · {predictor}"
-    if predictor != "Random":
-        msg += " · 학습 포함"
+    msg = f"cost grid · {scope}:{ticker} · {exp_config.predictor}"
+    if exp_config.predictor != "Random":
+        msg += " · 학습 캐시 사용"
 
     with st.spinner(msg):
         try:
-            grid = backtest_service.run_cost_grid(
-                scope,
-                ticker,
-                start,
-                end,
-                predictor=predictor,
-            )
-            be = backtest_service.run_breakeven(
-                scope,
-                ticker,
-                start,
-                end,
-                predictor=predictor,
-            )
-            # predictor 정보 metadata 로 부착
-            grid.attrs["predictor"] = predictor
-            be.attrs["predictor"] = predictor
+            grid = backtest_service.run_cost_grid(exp_config)
+            be = backtest_service.run_breakeven(exp_config)
 
             set_result("cost_grid", scope, ticker, grid)
             set_result("cost_be", scope, ticker, be)
-            st.success(f"✅ 완료 · {scope}:{ticker} · {predictor}")
+            # 결과가 어떤 config 로 만들어졌는지 기록
+            st.session_state[f"_cost_cfg_{scope}:{ticker}"] = exp_config.to_dict()
+            st.success(f"✅ 완료 · {scope}:{ticker} · {exp_config.predictor}")
             st.rerun()
         except Exception as e:
             st.error(f"실행 실패: {type(e).__name__}: {e}")
@@ -139,8 +131,15 @@ grid = get_result("cost_grid", scope, ticker)
 be = get_result("cost_be", scope, ticker)
 
 if grid is None or be is None:
-    st.caption(f"{scope}:{ticker} 결과가 아직 없습니다. RUN 을 누르세요.")
+    st.caption(f"{scope}:{ticker} Cost Sens 결과가 아직 없습니다. RUN 을 누르세요.")
     st.stop()
+
+# ── 결과가 오래된 config 로 만들어졌는지 체크 ────────
+_cost_cfg = st.session_state.get(f"_cost_cfg_{scope}:{ticker}")
+if _cost_cfg is not None and _cost_cfg != exp_config.to_dict():
+    st.warning(
+        "⚠️ Backtest 설정이 변경되었습니다. " "**RUN Cost Grid 를 다시 실행**해 주세요."
+    )
 
 # ═══════════════════════════════════════════════════════════
 # BREAKEVEN
@@ -151,9 +150,14 @@ be_rows = be.to_dict("records") if hasattr(be, "to_dict") else be
 metric_row(
     [
         dict(
-            label=f"STRATEGY {r['strategy']}",
-            value=f"{r['breakeven_cost']*100:.3f}%",
-            tone="up" if r["breakeven_cost"] > 0.002 else "warn",
+            label=f"STRATEGY {r['strategy']}"
+            + (f" ({r['base_strategy']}+🔒)" if r.get("cooldown_days", 0) > 0 else ""),
+            value=(
+                f"{r['breakeven_cost']*100:.3f}%"
+                if pd.notna(r.get("breakeven_cost"))
+                else "—"
+            ),
+            tone="up" if (r.get("breakeven_cost") or 0) > 0.002 else "warn",
             accent=True,
         )
         for r in be_rows
@@ -164,13 +168,15 @@ metric_row(
 # ═══════════════════════════════════════════════════════════
 # GRID TABLE
 # ═══════════════════════════════════════════════════════════
-section_header("COST GRID · 4 PRESETS × 3 STRATEGIES")
+section_header(f"COST GRID · 4 PRESETS × {len(backtest_service.STRATEGIES)} STRATEGIES")
 with panel("SHARPE · CAGR · MDD"):
     disp = grid.copy()
     disp["cost_pct"] = (disp["cost_rate"] * 100).round(3).astype(str) + "%"
     disp = disp[
         [
             "strategy",
+            "base_strategy",
+            "cooldown_days",
             "cost_label",
             "cost_pct",
             "sharpe",
@@ -182,7 +188,7 @@ with panel("SHARPE · CAGR · MDD"):
     ]
     show_table(
         disp,
-        num_cols=["sharpe", "cagr", "mdd", "total_return"],
+        num_cols=["cooldown_days", "sharpe", "cagr", "mdd", "total_return"],
         precision=4,
     )
 
@@ -191,9 +197,25 @@ with panel("SHARPE · CAGR · MDD"):
 # ═══════════════════════════════════════════════════════════
 section_header("SHARPE vs COST")
 
-with panel("STRATEGY A / B / C"):
+_colors = {
+    "A": "#7fd1ff",
+    "B": "#4ade80",
+    "C": "#fbbf24",
+    "D": "#7fd1ff",
+    "E": "#4ade80",
+    "F": "#fbbf24",
+}
+_dash = {
+    "A": "solid",
+    "B": "solid",
+    "C": "solid",
+    "D": "dash",
+    "E": "dash",
+    "F": "dash",
+}
+
+with panel("STRATEGY A~F  ·  A/B/C 실선 · D/E/F 점선 (5일 락)"):
     fig = go.Figure()
-    colors = {"A": "#7fd1ff", "B": "#4ade80", "C": "#fbbf24"}
     for s in sorted(grid["strategy"].unique()):
         sub = grid[grid["strategy"] == s].sort_values("cost_rate")
         fig.add_trace(
@@ -202,19 +224,27 @@ with panel("STRATEGY A / B / C"):
                 y=sub["sharpe"],
                 name=f"Strategy {s}",
                 mode="lines+markers",
-                line=dict(color=colors.get(s, "#9aa0a6"), width=2),
+                line=dict(
+                    color=_colors.get(s, "#9aa0a6"),
+                    width=2,
+                    dash=_dash.get(s, "solid"),
+                ),
                 marker=dict(size=8),
             )
         )
+    # breakeven 수직선 (점선, 전략별 색)
     for r in be_rows:
+        bc = r.get("breakeven_cost")
+        if bc is None or pd.isna(bc):
+            continue
         fig.add_vline(
-            x=r["breakeven_cost"] * 100,
-            line_dash="dash",
-            line_color=colors.get(r["strategy"], "#9aa0a6"),
-            opacity=0.5,
+            x=bc * 100,
+            line_dash="dot",
+            line_color=_colors.get(r["strategy"], "#9aa0a6"),
+            opacity=0.4,
         )
     fig.update_layout(
-        height=380,
+        height=420,
         xaxis=dict(title="Cost (%)"),
         yaxis=dict(title="Sharpe"),
         hovermode="x unified",
@@ -228,6 +258,14 @@ section_header("DETAIL BY STRATEGY")
 pick = st.selectbox("Strategy", sorted(grid["strategy"].unique()), index=0)
 sub = grid[grid["strategy"] == pick].sort_values("cost_rate").copy()
 sub["cost_pct"] = (sub["cost_rate"] * 100).round(3).astype(str) + "%"
+
+_pick_row = next((r for r in be_rows if r["strategy"] == pick), None)
+if _pick_row and _pick_row.get("cooldown_days", 0) > 0:
+    st.info(
+        f"🔒 Strategy {pick} = Strategy {_pick_row['base_strategy']} + "
+        f"**{_pick_row['cooldown_days']}거래일 락**"
+    )
+
 with panel(f"STRATEGY {pick}"):
     show_table(
         sub[
