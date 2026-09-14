@@ -170,39 +170,35 @@ def get_positions_6params(
 # 1-B. Adaptive 라벨 헬퍼 (신규)
 # ============================================================
 def make_band_labels(
-    df: pd.DataFrame,
-    alpha_up: float,
-    alpha_down: float,
-    beta_up: float,
-    beta_down: float,
-    vol_period: int,
-    volume_period: int,
-) -> np.ndarray:
+    df, alpha_up, alpha_down, beta_up, beta_down, vol_period, volume_period
+):
     """
-    주어진 6-param 밴드로 상승/중립/하락 판정 (adaptive 라벨).
+    변동 임계값으로 미래 실현 수익률을 분류.
+    - upper = +[alpha_up + beta_up · logRV] · ATR
+    - lower = -[alpha_down + beta_down · logRV] · ATR
+    - label = fwd_return 기준으로 판정
+    """
+    close = df["close"]
+    # 미래 5일 실현 수익률 (t+1 시가 → t+6 시가)
+    fwd = close.shift(-6) / close.shift(-1) - 1.0
 
-    - close > upper → 2.0 (상승)
-    - close < lower → 0.0 (하락)
-    - 그 외         → 1.0 (중립)
-    - 밴드 계산 불가(NaN) → NaN 유지
-    """
     bands = compute_bands_flexible(
         df,
-        vol_period=int(vol_period),
-        volume_period=int(volume_period),
-        alpha_up=float(alpha_up),
-        alpha_down=float(alpha_down),
-        beta_up=float(beta_up),
-        beta_down=float(beta_down),
+        vol_period=vol_period,
+        volume_period=volume_period,
+        alpha_up=alpha_up,
+        alpha_down=alpha_down,
+        beta_up=beta_up,
+        beta_down=beta_down,
     )
-    close = df["close"].values
-    upper = bands["upper"].values
-    lower = bands["lower"].values
+    # 임계값 = 밴드의 폭(현재 시점 t에서 계산)
+    upper = (bands["upper"] - bands["base"]) / bands["base"]  # 상대 임계값
+    lower = (bands["base"] - bands["lower"]) / bands["base"]
 
     labels = np.where(
-        np.isnan(close) | np.isnan(upper) | np.isnan(lower),
+        fwd.isna() | np.isnan(upper) | np.isnan(lower),
         np.nan,
-        np.where(close > upper, 2.0, np.where(close < lower, 0.0, 1.0)),
+        np.where(fwd > upper, 2.0, np.where(fwd < -lower, 0.0, 1.0)),
     )
     return labels
 

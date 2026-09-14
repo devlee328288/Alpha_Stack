@@ -253,7 +253,9 @@ cmp_df = comparison_service.build_comparison_table(results)
 section_header(f"SUMMARY · {scope}:{ticker} · {_view}")
 metric_row(
     [
-        dict(label="BEST MODEL", value=kpi["best_model"], tone="up", accent=True),
+        dict(
+            label="BEST HARMONIC MODEL", value=kpi["best_model"], tone="up", accent=True
+        ),
         dict(label="HARMONIC", value=f"{kpi['best_harmonic']:.4f}", tone="up"),
         dict(label="ACCURACY", value=f"{kpi['best_accuracy']:.4f}"),
         dict(label="MACRO F1", value=f"{kpi['best_macro_f1']:.4f}"),
