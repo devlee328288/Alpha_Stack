@@ -206,6 +206,7 @@ docs/TIL/<작성자>/YYYY-MM-DD-짧은-제목.md
 | 2026-09-11 | [가장 최근 기록은 얼마나 오래됐든 붙었다 — 코드 재사용이 상장 구간을 건넜다](이동원/2026-09-11-가장-최근-기록은-얼마나-오래됐든-붙었다.md) | [#240](https://github.com/devlee328288/Alpha_Stack/issues/240) · [#252](https://github.com/devlee328288/Alpha_Stack/issues/252) |
 | 2026-09-11 | [발표 자료 초안 — 통합본 · 데이터 파트 예상 질문 · 결과 보고서](이동원/2026-09-11-발표자료-초안.md) | [#254](https://github.com/devlee328288/Alpha_Stack/pull/254) · [docs/발표/](../발표/) |
 | 2026-09-11 | [홀드아웃은 한 번 열었다 — 끝을 당긴 사흘과 두 벌의 입력](이동원/2026-09-11-홀드아웃은-한-번-열었다.md) | [#255](https://github.com/devlee328288/Alpha_Stack/pull/255) · [#256](https://github.com/devlee328288/Alpha_Stack/pull/256) |
+| 2026-09-14 | [배포는 두 번 막혔고, 문서는 결과를 따라갔다 — 요구사항 파일 · 토큰 이름 · Space · 기준선](이동원/2026-09-14-배포는-두-번-막히고-문서는-결과를-따라갔다.md) | [#266](https://github.com/devlee328288/Alpha_Stack/pull/266) · [#272](https://github.com/devlee328288/Alpha_Stack/pull/272) · [#271](https://github.com/devlee328288/Alpha_Stack/issues/271) |
 
 ### 신장환/ — 피처 · 품질 (폴더 미생성)
 
