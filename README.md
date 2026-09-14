@@ -92,7 +92,7 @@
 |---|---|---|---|
 | **이동원** | 팀장 · **데이터** 수집·저장·정제·전처리 · 문서화 | [ingest/](ingest/) · [common/](common/) · [supply/](supply/) · [scripts/](scripts/) · [docs/](docs/) | `as_of` 정문 · 기업행위 사건 표(v16) · 총수익 축 · 원천 정문 셋 · 상장 구간 · **홀드아웃 개봉 통제** · 대시보드 배포 |
 | **오준영** | **모델** — 표 → 등락 방향 분류기 | [models/](models/) | 조합 A~K · 최종 C · K LogisticRegression · 최종 홀드아웃 실행기 · 마지막 구간(ADR 0010) |
-| **강민석** | **백테스팅 · 성과지표 · 화면** | [evaluation/](evaluation/) · [backtest/](backtest/) · [dashboard/](dashboard/) | 동적 기준선(CMA-ES) · A·B·C 분할매매 · 비용 민감도 · **대시보드 9페이지** · Baseline 고정 분류기 |
+| **강민석** | **백테스팅 · 성과지표 · 화면** | [evaluation/](evaluation/) · [backtest/](backtest/) · [dashboard/](dashboard/) | 동적 기준선(CMA-ES) · A·B·C 분할매매 · 비용 민감도 · **대시보드 9페이지** |
 | **신장환** | **피처 · 품질** — 지표 계산 | [features/](features/) | 원자 지표 · 파생 피처 넷 · 유동 임계값 · 발표 03·04번 |
 
 **각자의 기록**
@@ -118,7 +118,7 @@
 | **gap 5 와 T+6 라벨 하루 겹침** | 학습 마지막 T=2024-08-23 의 청산일 = 평가 첫날 2024-09-02 | 평가 라벨을 보지는 않는다 · 개봉 뒤라 바꾸지 않는다 | [개봉 절차 §8.6](docs/데이터파트/version4.6/홀드아웃_개봉_절차.md) |
 | 홀드아웃 끝을 2026-09-01 로 당김 | 09-02 ~ 09-04 수정주가 계산 전 8,294행 | 마지막 사흘을 평가에서 뺐다 | [개봉 절차 §8.2](docs/데이터파트/version4.6/홀드아웃_개봉_절차.md) |
 | 대시보드가 **화면 안에서 학습** | Baseline CMA-ES · Model Lab 4모델 | 무료 CPU 에서 제한 · 재시작하면 캐시 소실 | [#271](https://github.com/devlee328288/Alpha_Stack/issues/271) · [평가파트 v1.3](docs/평가파트/version1.3/대시보드_9페이지와_배포.md) |
-| 대시보드 비교 기준 · 비용 규격 미정 | 논의 5건 | Comparison 의 `—` 칸 · Baseline 과 ML 라벨 밴드가 다르다 | [#263](https://github.com/devlee328288/Alpha_Stack/issues/263) · [#264](https://github.com/devlee328288/Alpha_Stack/issues/264) · [#265](https://github.com/devlee328288/Alpha_Stack/issues/265) · [#267](https://github.com/devlee328288/Alpha_Stack/issues/267) · [#268](https://github.com/devlee328288/Alpha_Stack/issues/268) |
+| 대시보드 비교 기준 · 비용 규격 미정 | 논의 5건 — #263 고정 분류기는 제외 결정(09-14 · 코드 제거 대기) · 4건 논의 중 | Comparison 의 `—` 칸 · Baseline 과 ML 라벨 밴드가 다르다 | [#263](https://github.com/devlee328288/Alpha_Stack/issues/263) · [#264](https://github.com/devlee328288/Alpha_Stack/issues/264) · [#265](https://github.com/devlee328288/Alpha_Stack/issues/265) · [#267](https://github.com/devlee328288/Alpha_Stack/issues/267) · [#268](https://github.com/devlee328288/Alpha_Stack/issues/268) |
 | 백테스트 결과 (비용 차감 수익률 · Sharpe · MDD) | 결과 보고서 6.4 빈칸 | 최종 결과가 분류 지표까지만 있다 | [보고서 초안](docs/발표/version1.0/최종결과보고서_초안.html) |
 | `ruff` 209건 | `dashboard/` 199 · 그 밖 10(PR #262 의 네 파일) | 형식만 · 기능 영향 없음 | [평가파트 v1.3 §5](docs/평가파트/version1.3/대시보드_9페이지와_배포.md) |
 | 점 조회 `universe_rows` 가 상장 구간을 건넌다 | `036220` · `101970` 상장 다음 날 | 공식 경로는 안 쓴다 — 닫음(고치지 않음) | [#252](https://github.com/devlee328288/Alpha_Stack/issues/252) |
@@ -510,7 +510,7 @@ PACF(Durbin-Levinson) · ARIMA(Hannan-Rissanen)를 직접 구현해 둔 도구 �
 ### 개선하고 싶은 것
 
 - 대시보드가 **미리 계산한 결과를 읽기만** 하게 — 배포 CPU 제한과 캐시 소실을 함께 푼다
-- 공통 평가 지표 스펙 · 비용 규격 (#263 · #264 · #265 · #267 · #268)
+- 공통 평가 지표 스펙 · 비용 규격 (#264 · #265 · #267 · #268 — #263 고정 분류기는 09-14 제외로 결정)
 - 2차에서 새로 봉인할 때는 gap 을 라벨 지평(6)과 맞춘다
 - CI — 버튼 갱신 게이트를 사람이 누르고 있다 (팀 합의 후)
 
