@@ -385,7 +385,7 @@ pre .c { color: var(--on-panel-faint); }
 
   <!-- ─────────────────────────── 06 ─────────────────────────── -->
   <section class="chap" aria-labelledby="c6">
-    <div class="chap-head"><span class="chap-no">06</span><h2 id="c6">결과</h2><p class="who"><span class="st st-fixed">확정</span>개발구간 · <span class="st st-blank">빈칸</span>홀드아웃 · 백테스트</p></div>
+    <div class="chap-head"><span class="chap-no">06</span><h2 id="c6">결과</h2><p class="who"><span class="st st-fixed">확정</span>개발구간 · 홀드아웃 · <span class="st st-blank">빈칸</span>백테스트</p></div>
     <h3>6.1 개발구간 표본 밖</h3>
     <div class="tablewrap">
       <table>
@@ -409,20 +409,46 @@ pre .c { color: var(--on-panel-faint); }
       <li>개별종목 — 후보 44개. Bonferroni 보정 뒤 통과한 후보가 없습니다.</li>
       <li>따라서 개발구간 1위는 운영 기준에 따른 선택이지 통계적 우위가 확정된 모델이 아닙니다.</li>
     </ul>
-    <h3>6.3 홀드아웃 2024-09-01 ~ 2026-09-04</h3>
+    <h3>6.3 홀드아웃 2024-09-01 ~ 2026-09-01 — 개봉 1회 · 확증 가능</h3>
+    <p>2026-09-11 16:18 KST 팀 합의로 <b>한 번</b> 열고(<code>reports/unseal.log</code> 1줄), ADR 0009 설정 그대로 <b>한 번</b> 돌렸습니다(run_id <code>final-holdout-20260911</code> · 설정 지문 <code>5299a08f…</code> · 판정 <b>확증 가능</b>). 끝을 09-04 가 아니라 09-01 로 둔 것은 09-02 ~ 09-04 사흘의 수정주가가 아직 계산 전이었기 때문입니다. 결과를 본 뒤 모델·피처·임계값을 다시 고르지 않습니다.</p>
+    <p><b>① 2년 전체 — 평가 478거래일 (2024-09-02 ~ 2026-08-24)</b></p>
     <div class="tablewrap">
       <table>
-        <thead><tr><th>지표</th><th class="r">KOSPI200</th><th class="r">개별종목</th></tr></thead>
+        <thead><tr><th>지표</th><th class="r">KOSPI200 · 조합 C</th><th class="r">개별종목 · 조합 K</th></tr></thead>
         <tbody>
-          <tr><td>정확도</td><td class="r"><span class="blank">개봉 후</span></td><td class="r"><span class="blank">개봉 후</span></td></tr>
-          <tr><td>기준선 · 기준선 대비</td><td class="r"><span class="blank">개봉 후</span></td><td class="r"><span class="blank">개봉 후</span></td></tr>
-          <tr><td>Macro F1</td><td class="r"><span class="blank">개봉 후</span></td><td class="r"><span class="blank">개봉 후</span></td></tr>
-          <tr><td>매수 신호</td><td class="r"><span class="blank">개봉 후</span></td><td class="r"><span class="blank">개봉 후</span></td></tr>
-          <tr><td>비용 차감 수익률 · Sharpe · MDD</td><td class="r"><span class="blank">개봉 후</span></td><td class="r"><span class="blank">개봉 후</span></td></tr>
-          <tr><td><code>unseal.log</code> 줄 수 · 사전등록 커밋 · 결과 지문</td><td class="r" colspan="2"><span class="blank">개봉 후 · 이동원</span></td></tr>
+          <tr><td>정확도</td><td class="r num">0.4331</td><td class="r num">0.3807</td></tr>
+          <tr><td>개발구간 표본 밖 정확도 대비 (6.1)</td><td class="r num">−2.11%p</td><td class="r num">−4.04%p</td></tr>
+          <tr><td>홀드아웃 기준선 <small>평가구간 최빈 클래스(두 트랙 모두 상승) · 개별종목 0.3655 는 오준영 확인 2026-09-14</small></td><td class="r num">0.5460</td><td class="r num">0.3655</td></tr>
+          <tr><td>기준선 대비</td><td class="r num">−11.55%p</td><td class="r num">+1.52%p</td></tr>
+          <tr><td>참고 · 학습구간 최빈 클래스(중립)를 평가 전체에 <small>개발구간 6.1 과 같은 방식 — 기간이 달라 위 기준선과 섞지 않음</small></td><td class="r num">0.1653</td><td class="r num">0.2858</td></tr>
+          <tr><td>Macro F1</td><td class="r num">0.3126</td><td class="r num">0.3740</td></tr>
+          <tr><td>하락 재현율</td><td class="r num">0.1087</td><td class="r num">0.4498</td></tr>
+          <tr><td>Balanced accuracy</td><td class="r num">0.3285</td><td class="r num">0.3741</td></tr>
+          <tr><td>MCC</td><td class="r num">−0.0114</td><td class="r num">0.0585</td></tr>
+          <tr><td>상승 Precision</td><td class="r num">0.5415</td><td class="r num">0.3846</td></tr>
+          <tr><td>매수 신호</td><td class="r num">상승 예측 325 / 478일</td><td class="r num">상승 예측 8,893건 · 두 트랙 모두 상승(매수 후보) 7,397 / 23,567건</td></tr>
+          <tr><td>비용 차감 수익률 · Sharpe · MDD</td><td class="r" colspan="2"><span class="blank">강민석 — 6.4</span></td></tr>
+          <tr><td><code>unseal.log</code> 줄 수 · 사전등록 커밋 · 결과 지문</td><td class="r" colspan="2">1줄 · <code>0d5bd5b</code>(ADR 0009) · 입력 넷 SHA-256 은 <code>reports/holdout_authorization.json</code> · 결과 <code>reports/final_holdout/final-holdout-20260911_report.json</code></td></tr>
         </tbody>
       </table>
     </div>
+    <p><b>② 마지막 한 구간 — ADR 0010 (판단일 2026-08-24 → 진입 08-25 → 청산 09-01)</b></p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>지표</th><th class="r">KOSPI200</th><th class="r">개별종목 (업종 10 × 5)</th></tr></thead>
+        <tbody>
+          <tr><td>예측 · 실제</td><td class="r">상승 · 상승 (적중 · 1일)</td><td class="r num">50종목 · 정확도 0.5200</td></tr>
+          <tr><td>Macro F1 · MCC</td><td class="r">—</td><td class="r num">0.3837 · 0.2451</td></tr>
+          <tr><td>매수 후보</td><td class="r" colspan="2">33건 <small>notebooks/04-모델/최종결과/README.md</small></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="dots">
+      <li>② 는 개봉 뒤 모델 파트가 최종 산출물을 “마지막 5거래일 보유 구간 하나”로 바로잡은 결과입니다. 표본이 1일·50종목이라 장기 성능으로 읽지 않고, ① 과 직접 비교하거나 확증이라 부르지 않습니다.</li>
+      <li>기준선은 <b>같은 기간 안에서</b> 잽니다(오준영 확인 2026-09-14 · PR #270). 홀드아웃 구간의 최빈 클래스는 두 트랙 모두 상승이고, 그 기준으로 개별종목은 +1.52%p 위, KOSPI200 은 −11.55%p 아래입니다. KOSPI200 MCC 도 0 에 가깝습니다. 개발구간 기준선(0.3972 · 0.3969)과 직접 비교하지 않습니다.</li>
+      <li>기준선 줄은 공식 입력의 라벨 분포(평가 상승 261 / 478 · 8,614 / 23,567 · 개발 최빈 중립 1,383 · 60,837)로 계산했습니다. 나머지는 report.json 값입니다(2026-09-14 재확인).</li>
+      <li>알려진 한계 — 학습 마지막 행(2024-08-23)의 라벨 청산일 T+6 이 평가 첫날(2024-09-02)과 같습니다(gap 5 가 라벨 지평 6 보다 하루 짧음).</li>
+    </ul>
     <h3>6.4 백테스트와 성과</h3>
     <p><span class="blank">강민석 작성</span> 동적 기준선 · 요일별 5트랙 중첩 운용 결과. 성과지표는 MDD · Sharpe · Sortino · Calmar · Deflated Sharpe로 적습니다(<code>notebooks/05-백테스트·성과</code>).</p>
   </section>
