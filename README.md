@@ -15,6 +15,12 @@
 > 🖥️ **대시보드 (공개)** — 둘러보기 [Streamlit Cloud](https://alphastack-qurious.streamlit.app/) ·
 > 시연 [Hugging Face Space](https://huggingface.co/spaces/data-student/alphastack-qurious) (Docker · 정본 [`deploy/hf-space/`](deploy/hf-space/))
 > 버튼을 누르면 서버에서 학습이 돕니다 — 무료 CPU 에서는 느리거나 제한에 걸릴 수 있습니다([#271](https://github.com/devlee328288/Alpha_Stack/issues/271)).
+> 반영 방식 — Streamlit Cloud 는 `main` 머지마다 자동, HF Space 는 수동(Factory rebuild) · 사용설명서 [#274](https://github.com/devlee328288/Alpha_Stack/issues/274)
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/devlee328288/Alpha_Stack/main/docs/media/dashboard-overview.png" alt="AlphaStack 대시보드 Overview — Hugging Face Space 에서 RUN 한 화면" width="820">
+  <br><sub>대시보드 Overview · HF Space(cpu-basic)에서 Baseline QUICK + Model Lab 2모델(LogisticRegression · LightGBM)을 RUN 한 화면 · KOSPI200 개발구간 12-fold · 2026-09-14 10:58 KST<br>화면 예시입니다 — 공식 성적은 아래 <b>Impact · 최종 홀드아웃</b> 절</sub>
+</p>
 
 <!-- 🔴 절대 URL 인 이유: GitLab 은 마크다운 이미지 문법의 상대경로만 저장소 경로로 리라이트하고,
      raw HTML <img src="상대경로"> 는 그대로 이미지 프록시에 넘겨 404 가 난다 (2026-09-09 실측).
