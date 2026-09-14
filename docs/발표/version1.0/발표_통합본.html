@@ -907,30 +907,30 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
     <div class="slide">
       <div class="sl">
         <header class="meta"><span>04 결과 — 종목 트랙</span><span>QURIOUS · 2 / 3</span></header>
-        <h2 class="thesis">개발구간에서 기준선을 2.43%p 이겼던 조합 K가,<br>실제 2년 홀드아웃에서는 기준선 아래로 내려왔습니다</h2>
+        <h2 class="thesis">개발구간에서 기준선을 2.43%p 이겼던 조합 K는,<br>홀드아웃에서도 그 구간 자체 기준선을 1.52%p 이겼습니다</h2>
         <div class="body s1">
           <table class="inv">
             <thead><tr><th>구간</th><th class="r">Accuracy</th><th class="r">Macro F1</th><th>비고</th></tr></thead>
             <tbody>
               <tr><td>개발구간 OOS (12폴드)</td><td class="r num">0.4211</td><td class="r num">0.3781</td><td>기준선 0.3969 대비 <b>+2.43%p</b> · 10/12승</td></tr>
-              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num"><b>0.3807</b></td><td class="r num">0.3740</td><td>기준선(0.3969)보다 낮음</td></tr>
-              <tr><td>마지막 판단일 (2026-08-24 · 50종목)</td><td class="r num">0.5200</td><td class="r num">0.3837</td><td>단일 판단일 — 통계적 의미 없음</td></tr>
+              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num"><b>0.3807</b></td><td class="r num">0.3740</td><td>홀드아웃 기준선 0.3655 대비 <b>+1.52%p</b></td></tr>
+              <tr><td>마지막 판단일 (2026-08-24 · 50종목)</td><td class="r num">0.5200</td><td class="r num">0.3837</td><td>단일 판단일 — 장기 OOS 성능으로 해석 안 함</td></tr>
             </tbody>
           </table>
           <div class="facts">
-            <div class="fact"><p class="fv">0.3969<small>→ 0.3807</small></p><p class="fk">기준선 대비 +2.43%p였던 개발구간이, 홀드아웃에서는 기준선보다 낮게 나왔다</p></div>
+            <div class="fact"><p class="fv">0.3655<small>→ 0.3807</small></p><p class="fk">홀드아웃 자체 기준선 대비 +1.52%p — 개발구간 기준선(0.3969)과는 다른 기간이라 직접 비교 불가</p></div>
             <div class="fact"><p class="fv">33<small>/ 50종목</small></p><p class="fk">2026-08-25 진입 예측 매수 후보 — 삼성전자·SK하이닉스 등 상승 예측 적중</p></div>
             <div class="fact"><p class="fv">44<small>후보</small></p><p class="fk">Bonferroni 보정 통과 0개 — 개발구간 우위 자체가 통계적으로 확정된 적은 없었다</p></div>
           </div>
           <div class="found">
-            <p class="eyebrow">44개 후보 중 최댓값 — 홀드아웃에서 원인 확인 중</p>
+            <p class="eyebrow">개발구간 기준선과 비교하면 틀린 비교였다</p>
             <dl class="case">
+              <div><dt>기준선 (개발구간 → 홀드아웃)</dt><dd>0.3969 → 0.3655 · 서로 다른 기간</dd></div>
               <div><dt>MCC<small>−1~+1 · 0=우연</small> 개발→홀드아웃</dt><dd>0.0994 → 0.0585</dd></div>
-              <div><dt>홀드아웃 자체 기준선</dt><dd>아직 계산 안 됨</dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/개별종목 · notebooks/04-모델/최종결과 · 확인 오준영</span></footer>
+        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/개별종목 · notebooks/04-모델/최종결과 · 확인 오준영 2026-09-14</span></footer>
       </div>
     </div>
   </section>
@@ -947,7 +947,7 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
             <tbody>
               <tr><td>개발구간 OOS (12폴드)</td><td class="r num">0.4542</td><td class="r num">0.4167</td><td>기준선 0.3972 대비 <b>+5.69%p</b> · 7/12승</td></tr>
               <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num">0.4330</td><td class="r num">0.3126</td><td>MCC <b>−0.0114</b> · 하락 재현율 0.109</td></tr>
-              <tr><td>마지막 판단일 (2026-08-25 진입 → 09-01 청산)</td><td class="r" colspan="2">예측 상승 · 실제 상승 · 적중 O</td><td>단일 판단일</td></tr>
+              <tr><td>마지막 판단일 (2026-08-25 진입 → 09-01 청산)</td><td class="r" colspan="2">예측 상승 · 실제 상승 · 적중 O</td><td>단일 판단일 — 장기 OOS 성능으로 해석 안 함</td></tr>
             </tbody>
           </table>
           <div class="facts">
@@ -956,7 +956,7 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
             <div class="fact"><p class="fv">261<small>/ 478일</small></p><p class="fk">실제로 '상승'이었던 날 — 55%, 이 2년 자체가 강세장이었다</p></div>
           </div>
           <div class="found">
-            <p class="eyebrow">정확도는 이겼지만 MCC는 거의 0 — 강세장 편향 가능성</p>
+            <p class="eyebrow">정확도는 이겼지만 MCC는 거의 0 — 상승 예측편향과 강세장이 겹쳤을 가능성</p>
             <dl class="case">
               <div><dt>원인</dt><dd>예측상승 68% ≈ 실제상승 55% → 방향만 맞아떨어짐</dd></div>
               <div><dt>상승 Recall</dt><dd>0.674</dd></div>
@@ -964,7 +964,7 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/KOSPI200 · notebooks/04-모델/최종결과 · 확인 오준영</span></footer>
+        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/KOSPI200 · notebooks/04-모델/최종결과 · 확인 오준영 2026-09-14</span></footer>
       </div>
     </div>
   </section>

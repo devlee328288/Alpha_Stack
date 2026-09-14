@@ -71,9 +71,9 @@ def _regression_test_make_labels() -> None:
     labels = make_labels(df_test, threshold=0.02)
 
     # 1) 마지막 6행 NaN
-    assert np.all(np.isnan(labels[-6:])), (
-        f"마지막 6행은 NaN이어야 함. 실제: {labels[-6:]}"
-    )
+    assert np.all(
+        np.isnan(labels[-6:])
+    ), f"마지막 6행은 NaN이어야 함. 실제: {labels[-6:]}"
 
     # 2) 시간축 정확성
     for i in [0, 1, 5, 10, n - 7]:
@@ -85,8 +85,7 @@ def _regression_test_make_labels() -> None:
         else:
             expected = 1.0
         assert labels[i] == expected, (
-            f"labels[{i}]: expected {expected}, got {labels[i]} "
-            f"(fwd_ret={fwd:.6f})"
+            f"labels[{i}]: expected {expected}, got {labels[i]} " f"(fwd_ret={fwd:.6f})"
         )
 
     # 3) 하락 추세 → 하락 라벨
@@ -466,9 +465,7 @@ def run_walkforward_6params(
                     for i in range(len(df_val)):
                         # 현재 시점(i)까지의 실제 open 수익률을 history에 반영
                         actual_ret = df_val["open"].pct_change().values[i]
-                        history.append(
-                            actual_ret if not np.isnan(actual_ret) else 0.0
-                        )
+                        history.append(actual_ret if not np.isnan(actual_ret) else 0.0)
 
                         # i+1 ~ i+6 6-step 예측
                         temp_hist = history.copy()
@@ -484,7 +481,7 @@ def run_walkforward_6params(
                         # T+1 → T+6 누적 = step[1:] (0-indexed 1..5)
                         cum_ret = 1.0
                         for r in step_returns[1:]:
-                            cum_ret *= (1 + r)
+                            cum_ret *= 1 + r
                         arima_pred_5d_cum.append(cum_ret - 1)
 
                     arima_pred_5d_cum = np.array(arima_pred_5d_cum)
@@ -542,9 +539,7 @@ def run_walkforward_6params(
         strategy_ret = pos_shifted * market_ret
 
         # 미래값 없는 행(NaN 라벨)도 평가에서 제외
-        valid_mask = ~(
-            np.isnan(strategy_ret) | np.isnan(market_ret) | np.isnan(y_true)
-        )
+        valid_mask = ~(np.isnan(strategy_ret) | np.isnan(market_ret) | np.isnan(y_true))
 
         if valid_mask.sum() > 0:
             all_oos_returns.extend(strategy_ret[valid_mask].tolist())
@@ -610,12 +605,8 @@ def run_walkforward_6params(
 
     cls_metrics = {}
     if len(y_true_arr) > 0:
-        cls_metrics["f1_macro"] = f1_score(
-            y_true_arr, y_pred_arr, average="macro"
-        )
-        cls_metrics["balanced_acc"] = balanced_accuracy_score(
-            y_true_arr, y_pred_arr
-        )
+        cls_metrics["f1_macro"] = f1_score(y_true_arr, y_pred_arr, average="macro")
+        cls_metrics["balanced_acc"] = balanced_accuracy_score(y_true_arr, y_pred_arr)
         unique, counts = np.unique(y_pred_arr, return_counts=True)
         ratio_dict = dict(zip(unique, counts / len(y_pred_arr), strict=False))
         cls_metrics["ratio_up"] = ratio_dict.get(2, 0.0)
@@ -650,6 +641,212 @@ def run_walkforward_6params(
         "cls_metrics": cls_metrics,
         "fold_details": fold_df,
         "params_median": params_median,
+    }
+
+
+# ============================================================
+# 4-B. FROZEN CLASSIFIER (문제 1) — 전체 구간 1회 최적화
+# ============================================================
+# Baseline은 "판단기"(지금이 상승/중립/하락?). 미래 예측이 아니므로
+# train/test split 없이 전체 구간에서 CMA-ES로 최적 α/β 세트를 찾는다.
+# ============================================================
+
+
+def make_baseline_labels(df: pd.DataFrame, params: dict) -> np.ndarray:
+    """
+    고정 6-param으로 상승/중립/하락 판정.
+
+    Returns
+    -------
+    np.ndarray, {0.0=하락, 1.0=중립, 2.0=상승} 또는 NaN
+    """
+    bands = compute_bands_flexible(
+        df,
+        vol_period=int(params["vol_period"]),
+        volume_period=int(params["volume_period"]),
+        alpha_up=float(params["alpha_up"]),
+        alpha_down=float(params["alpha_down"]),
+        beta_up=float(params["beta_up"]),
+        beta_down=float(params["beta_down"]),
+    )
+    close = df["close"].values
+    upper = bands["upper"].values
+    lower = bands["lower"].values
+
+    labels = np.full(len(df), 1.0, dtype=float)  # 기본 = 중립
+    valid = ~(np.isnan(close) | np.isnan(upper) | np.isnan(lower))
+    labels[valid & (close > upper)] = 2.0
+    labels[valid & (close < lower)] = 0.0
+    labels[~valid] = np.nan
+    return labels
+
+
+def _evaluate_frozen(
+    df: pd.DataFrame,
+    params: dict,
+    threshold: float = 0.01,
+) -> dict:
+    """고정 파라미터로 성능 계산."""
+    preds = make_baseline_labels(df, params)
+    y_true = make_labels(df, threshold=threshold)
+
+    valid = ~(np.isnan(preds) | np.isnan(y_true))
+    if valid.sum() < 10:
+        return {"n_valid": int(valid.sum()), "note": "표본 부족"}
+
+    y_t = y_true[valid].astype(int)
+    y_p = preds[valid].astype(int)
+
+    acc = float(accuracy_score(y_t, y_p))
+    f1 = float(f1_score(y_t, y_p, average="macro", zero_division=0))
+    bal = float(balanced_accuracy_score(y_t, y_p))
+    down_rec = float(
+        recall_score(y_t, y_p, labels=[0], average=None, zero_division=0)[0]
+    )
+    neut_rec = float(
+        recall_score(y_t, y_p, labels=[1], average=None, zero_division=0)[0]
+    )
+    up_rec = float(recall_score(y_t, y_p, labels=[2], average=None, zero_division=0)[0])
+
+    # 조화평균 (ACC, F1, Down Recall)
+    vals = [acc, f1, down_rec]
+    if any(v == 0 for v in vals):
+        harmonic = 0.0
+    else:
+        harmonic = float(3 / sum(1.0 / v for v in vals))
+
+    return {
+        "n_valid": int(valid.sum()),
+        "accuracy": acc,
+        "macro_f1": f1,
+        "balanced_acc": bal,
+        "down_recall": down_rec,
+        "neutral_recall": neut_rec,
+        "up_recall": up_rec,
+        "harmonic": harmonic,
+    }
+
+
+def find_frozen_6params(
+    df: pd.DataFrame,
+    threshold: float = 0.01,
+    max_evals: int = 300,
+    objective: str = "harmonic",
+) -> dict:
+    """
+    전체 구간에서 한 번 최적화 → 최적 α/β 세트 획득.
+
+    Baseline은 판단기(미래 예측 X) → train/test split 불필요.
+    "역사 전체를 가장 잘 설명하는 판정 기준"을 찾는다.
+
+    Returns
+    -------
+    dict: frozen_params, metrics, labels, per_year, range, n_days, ...
+    """
+    if len(df) < 500:
+        raise ValueError(f"데이터 부족: {len(df)}일")
+
+    # ── 목적함수 (전체 구간) ────────────────────────
+    def _obj(p):
+        try:
+            params = {
+                "alpha_up": float(p[0]),
+                "alpha_down": float(p[1]),
+                "beta_up": float(p[2]),
+                "beta_down": float(p[3]),
+                "vol_period": int(np.clip(round(p[4]), 10, 30)),
+                "volume_period": int(np.clip(round(p[5]), 10, 30)),
+            }
+        except Exception:
+            return 1.0
+
+        try:
+            m = _evaluate_frozen(df, params, threshold)
+        except Exception:
+            return 1.0
+
+        if m.get("note") == "표본 부족":
+            return 1.0
+
+        if objective == "f1":
+            return -float(m.get("macro_f1", 0.0))
+        return -float(m.get("harmonic", 0.0))
+
+    # ── CMA-ES ─────────────────────────────────────
+    x0 = [0.5, 0.5, 0.0, 0.0, 14.0, 20.0]
+    bounds_low = [0.05, 0.05, 0.0, 0.0, 10.0, 10.0]
+    bounds_high = [2.0, 2.0, 2.0, 2.0, 30.0, 30.0]
+
+    es = cma.CMAEvolutionStrategy(
+        x0,
+        0.5,
+        {
+            "maxfevals": max_evals,
+            "bounds": [bounds_low, bounds_high],
+            "verbose": -1,
+            "CMA_diagonal": True,
+        },
+    )
+
+    best_params = x0
+    best_fit = np.inf
+    while not es.stop():
+        sols = es.ask()
+        fits = [_obj(p) for p in sols]
+        es.tell(sols, fits)
+        if es.result.fbest < best_fit:
+            best_fit = es.result.fbest
+            best_params = es.result.xbest
+
+    frozen = {
+        "alpha_up": float(best_params[0]),
+        "alpha_down": float(best_params[1]),
+        "beta_up": float(best_params[2]),
+        "beta_down": float(best_params[3]),
+        "vol_period": int(np.clip(round(best_params[4]), 10, 30)),
+        "volume_period": int(np.clip(round(best_params[5]), 10, 30)),
+    }
+
+    # ── 전체 구간 성능 ─────────────────────────────
+    metrics = _evaluate_frozen(df, frozen, threshold)
+    labels = make_baseline_labels(df, frozen)
+    y_true = make_labels(df, threshold=threshold)
+
+    # ── per-year 안정성 ────────────────────────────
+    per_year = []
+    years = sorted(set(df.index.year.tolist()))
+    for y in years:
+        mask = df.index.year == y
+        y_t = y_true[mask]
+        y_p = labels[mask]
+        valid = ~(np.isnan(y_t) | np.isnan(y_p))
+        if valid.sum() < 20:
+            continue
+        yt = y_t[valid].astype(int)
+        yp = y_p[valid].astype(int)
+        per_year.append(
+            {
+                "year": int(y),
+                "n": int(valid.sum()),
+                "accuracy": float(accuracy_score(yt, yp)),
+                "macro_f1": float(f1_score(yt, yp, average="macro", zero_division=0)),
+                "down_recall": float(
+                    recall_score(yt, yp, labels=[0], average=None, zero_division=0)[0]
+                ),
+                "balanced_acc": float(balanced_accuracy_score(yt, yp)),
+            }
+        )
+
+    return {
+        "frozen_params": frozen,
+        "threshold": float(threshold),
+        "objective": objective,
+        "max_evals": int(max_evals),
+        "metrics": metrics,
+        "labels": labels.tolist(),
+        "per_year": per_year,
+        "range": [str(df.index[0]), str(df.index[-1])],
+        "n_days": int(len(df)),
     }
 
 

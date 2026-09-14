@@ -124,10 +124,15 @@ metric_row([
 
 section_header(f"MODEL COMPARISON · {len(cmp_df)} MODELS")
 with panel(
-    "12-FOLD OOS · SORT BY HARMONIC",
+    "12-FOLD OOS · SORT BY HARMONIC (ACC · F1 · DOWN RECALL 조화평균)",
     status_text=f"BEST · {kpi['best_model']}",
     status_tone="up",
 ):
+    st.caption(
+        "⚠️ **HARMONIC = ACC·Macro F1·하락 Recall의 조화평균**  \n"
+        "세 지표 중 하나라도 낮으면 전체가 급락 → **하락 예측을 못 하는 모델은 후순위**.  "
+        "단순 정확도(ACC) 1위와 다를 수 있음."
+    )
     display = cmp_df.rename(columns=comparison_service.COMPARISON_COLUMNS)
     show_table(
         display,
