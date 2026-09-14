@@ -155,7 +155,7 @@ kbd { font-family: var(--mono); font-size: .75rem; color: var(--ink); background
 /* ── 데이터 1 · 무엇을 모았나 ─────────────────────────────────── */
 .s1 { display: grid; grid-template-columns: 1.1fr 1fr; grid-template-rows: auto auto; gap: 1.7cqi 3.4cqi; }
 .inv { border-collapse: collapse; width: 100%; font-size: 1.15cqi; }
-.inv th { font-family: var(--mono); font-weight: 500; font-size: .9cqi; letter-spacing: .05em; color: var(--muted); text-align: left; padding: 0 .6cqi .45cqi; border-bottom: 1px solid var(--rule); }
+.inv th { font-family: var(--mono); font-weight: 500; font-size: .9cqi; letter-spacing: .05em; color: var(--muted); text-align: left; padding: 0 .6cqi .45cqi; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 .inv td { padding: .36cqi .6cqi; border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
 .inv tr:last-child td { border-bottom: 0; }
 .inv .r { text-align: right; }
@@ -436,10 +436,10 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
           <div class="ag-col">
             <p class="ag-who">신장환<span>약 9분 30초</span></p>
             <ol class="ag-list">
-              <li><span class="ag-no">01</span><span class="ag-t">배경 · 팀 소개<span class="dt-tag has draft-only">초안</span><small>정확도의 함정 · 2026년 한국 시장 · 네 사람</small></span><span class="ag-min">2:00</span></li>
-              <li><span class="ag-no">02</span><span class="ag-t">데이터 수집 · 품질 게이트<span class="dt-tag has draft-only">초안</span><small>16년치 시장 · 미래 정보 차단 · 막는 검사와 적는 검사</small></span><span class="ag-min">2:25</span></li>
-              <li><span class="ag-no">03</span><span class="ag-t">피처 · 라벨 설계<span class="dt-tag todo draft-only">일부 채울 자리</span><small>전처리 판단 · 유동 임계값 포함</small></span><span class="ag-min">2:00</span></li>
-              <li><span class="ag-no">04</span><span class="ag-t">결과 · 모델 비교 방법론<span class="dt-tag todo draft-only">채울 자리</span><small>모델 4종 비교 · 종목 트랙 · KOSPI200 지수 트랙</small></span><span class="ag-min">3:00</span></li>
+              <li><span class="ag-no">01</span><span class="ag-t">배경 · 팀 소개<small>정확도의 함정 · 2026년 한국 시장 · 네 사람</small></span><span class="ag-min">2:00</span></li>
+              <li><span class="ag-no">02</span><span class="ag-t">데이터 수집 · 품질 게이트<small>16년치 시장 · 미래 정보 차단 · 막는 검사와 적는 검사</small></span><span class="ag-min">2:25</span></li>
+              <li><span class="ag-no">03</span><span class="ag-t">피처 · 라벨 설계<small>전처리 판단 · 유동 임계값 포함</small></span><span class="ag-min">2:00</span></li>
+              <li><span class="ag-no">04</span><span class="ag-t">결과 · 모델 비교 방법론<small>모델 4종 비교 · 종목 트랙 · KOSPI200 지수 트랙</small></span><span class="ag-min">3:00</span></li>
             </ol>
           </div>
           <div class="ag-col">
@@ -462,7 +462,7 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
 
 
   <!-- ═══════════════════════ 신장환 1 · 배경 · 팀 소개 ═══ 시작 ═══════════════════════ -->
-  <h2 class="part"><span class="no">01</span>배경 · 팀 소개<span class="meta-r">발표 신장환 · 약 2분 · 3장</span><span class="st st--has">초안 들어감 · 신장환 확인</span></h2>
+  <h2 class="part"><span class="no">01</span>배경 · 팀 소개<span class="meta-r">발표 신장환 · 약 2분 · 3장</span></h2>
 
   <section class="slot" aria-label="01 배경 — 정확도의 함정">
     <p class="slot-cap"><b>신장환 1 · 1/3</b><span>배경 — 정확도 숫자만으로는 아무것도 말할 수 없다</span><span>약 45초</span></p>
@@ -567,7 +567,7 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
 
 
   <!-- ═══════════════════════ 신장환 2 · 데이터 수집 · 품질 게이트 ═══ 시작 (내용 이동원) ═══════════════════════ -->
-  <h2 class="part"><span class="no">02</span>데이터 수집 · 품질 게이트<span class="meta-r">발표 신장환 · 약 2분 25초 · 4장 · 내용 이동원</span><span class="st st--has">초안 들어감</span></h2>
+  <h2 class="part"><span class="no">02</span>데이터 수집 · 품질 게이트<span class="meta-r">발표 신장환 · 약 2분 25초 · 4장 · 내용 이동원</span></h2>
 
   <section class="slot" aria-label="02 데이터 — 무엇을 모았나">
     <p class="slot-cap"><b>신장환 2 · 1/4</b><span>무엇을 모았나</span><span>약 35초</span></p>
@@ -634,25 +634,25 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
           <div class="seal">
             <p class="eyebrow">홀드아웃은 한 번만 연다</p>
             <div class="tl-wrap">
-              <p class="tl-top">2024-09-01부터 봉인</p>
-              <div class="tl" role="img" aria-label="개발구간 2010-01-04부터 2024-08-30까지, 봉인 2024-09-01부터 2026-09-04까지">
+              <p class="tl-top">2024-09-01부터 봉인 · 2026-09-11 16:18 개봉</p>
+              <div class="tl" role="img" aria-label="개발구간 2010-01-04부터 2024-08-30까지, 봉인 2024-09-01부터 2026-09-01까지, 2026-09-11에 개봉">
                 <div class="tl-dev" style="flex:1466">개발구간 · 모델은 여기서만 고른다</div>
-                <div class="tl-hold" style="flex:201">봉인</div>
+                <div class="tl-hold" style="flex:197">개봉함</div>
               </div>
-              <div class="tl-ends"><span>2010-01-04</span><span>2026-09-04</span></div>
+              <div class="tl-ends"><span>2010-01-04</span><span>2026-09-01<small>평가 끝</small></span></div>
             </div>
             <table class="unseal">
               <thead><tr><th><code>reports/unseal.log</code></th><th>판정</th></tr></thead>
               <tbody>
-                <tr class="now"><td>0줄</td><td>미개봉<span class="when">2026-09-11 현재</span></td></tr>
-                <tr><td>1줄</td><td>개봉 1회 — 확증 가능</td></tr>
+                <tr><td>0줄</td><td>미개봉</td></tr>
+                <tr class="now"><td>1줄</td><td>개봉 1회 — 확증 가능<span class="when">2026-09-11 16:18 · 이동원</span></td></tr>
                 <tr class="bad"><td>2줄 이상</td><td>보고서 표지에 “확증 불가”</td></tr>
               </tbody>
             </table>
-            <p class="note">두 번째 개봉은 반출하기 전에 거부한다. 모델 · 임계값 · class weight는 개봉 전에 커밋으로 고정했다(ADR 0009). 팀원 반출본은 매번 파일을 다시 열어 봉인 구간이 없는지 확인한다.</p>
+            <p class="note">두 번째 개봉은 반출하기 전에 거부한다. 모델 · 임계값 · class weight는 개봉 전에 커밋으로 고정했다(ADR 0009). 실제로 정확히 1줄로 열렸고, 평가 끝을 09-04에서 <b>09-01로 당겼다</b> — 09-02~04 사흘치가 그때는 수정주가 계산 전이라 관문이 막았다(개발구간 행은 그대로 두기 위해 데이터를 다시 만들지 않고 평가만 사흘 줄였다).</p>
           </div>
         </div>
-        <footer class="foot"><span>실측 2026-09-11 · 노트북 01/09 정문 음성 대조군</span><span>supply/financial.py · supply/holdout.py · scripts/unseal_holdout.py</span></footer>
+        <footer class="foot"><span>실측 2026-09-11 · PR #255 · PR #256 · run_id final-holdout-20260911</span><span>reports/unseal.log · reports/holdout_authorization.json · scripts/unseal_holdout.py</span></footer>
       </div>
     </div>
   </section>
@@ -739,74 +739,78 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
 
 
   <!-- ═══════════════════════ 신장환 3 · 피처 · 라벨 설계 ═══ 시작 ═══════════════════════ -->
-  <h2 class="part"><span class="no">03</span>피처 · 라벨 설계<span class="meta-r">발표 신장환 · 약 2분 · 3장</span><span class="st st--todo">채울 자리 2 · 전처리 판단은 초안(이동원)</span></h2>
+  <h2 class="part"><span class="no">03</span>피처 · 라벨 설계<span class="meta-r">발표 신장환 · 약 2분 · 3장</span></h2>
 
-  <section class="slot todo" aria-label="03 피처 설계 — 채울 자리">
-    <p class="slot-cap"><b>신장환 3 · 1/3</b><span>피처 설계</span><span class="todo-tag">채울 자리</span><span>약 45초</span></p>
+  <section class="slot" aria-label="03 피처 설계">
+    <p class="slot-cap"><b>신장환 3 · 1/3</b><span>피처 설계</span><span>약 45초</span></p>
     <div class="slide">
       <div class="sl">
-        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 담당 신장환</span></header>
-        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 피처는 개수가 아니라 어떤 축을 담았는지가 성적을 가른다]</h2>
-        <div class="body todo-body">
-          <div>
-            <p class="eyebrow">넣을 것</p>
-            <ul class="checks">
-              <li>지표 함수(원자 층)와 조합 A~K(조립 층)가 어떻게 나뉘나</li>
-              <li>조합 K 피처 14개가 담은 축 — 변동성 · 수익률 · 추세 · 과매수와 과매도 · 거래량</li>
-              <li>파생 피처 넷(<code>atr_ratio</code> · <code>hv_regime</code> · <code>obv_slope_20</code> · <code>macd_hist_atr</code>)이 미래를 보지 않는 근거</li>
-              <li>지표마다 붙인 손계산 테스트</li>
-            </ul>
+        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 1 / 3</span></header>
+        <h2 class="thesis">피처는 개수가 아니라<br>어떤 축을 담았는지가 성적을 가릅니다</h2>
+        <div class="body s1">
+          <table class="inv">
+            <thead><tr><th>축</th><th>조합 K의 대표 피처</th></tr></thead>
+            <tbody>
+              <tr><td>단기 위치</td><td><code>bb_position</code> · <code>rsi_14</code> · <code>sma_gap_5_20</code></td></tr>
+              <tr><td>중기 추세</td><td><code>sma_gap_20_60</code> · <code>macd_hist_ratio</code></td></tr>
+              <tr><td>변동성</td><td><code>atr_ratio</code> · <code>bb_bandwidth</code> · <code>hv_regime</code> · <code>hv_20</code></td></tr>
+              <tr><td>거래량 크기 · 방향</td><td><code>vol_ratio_20</code> · <code>obv_slope_20</code></td></tr>
+              <tr><td>수익률</td><td><code>daily_return</code> · <code>five_day_return</code> · <code>relative_ret_5_market</code></td></tr>
+            </tbody>
+          </table>
+          <div class="facts">
+            <div class="fact"><p class="fv">18<small>개</small></p><p class="fk">numpy로 직접 짠 원자 함수(1층). 손계산 테스트를 하나씩 붙였다</p></div>
+            <div class="fact"><p class="fv">8<small>개</small></p><p class="fk">아직 한 트랙만 쓰는 계산은 조립 층(2층)에 인라인으로 남겼다 — 재사용될 때 함수로 뺀다</p></div>
+            <div class="fact"><p class="fv">ρ = −0.05<small>p=0.88</small></p><p class="fk">피처 개수와 성적은 관계가 없었다 — 14개인 K가 1위, 9개인 F는 기준선 아래</p></div>
           </div>
-          <div>
-            <p class="eyebrow">참고 자료</p>
-            <ul class="refs">
-              <li><code>docs/피처파트/version1.2/피처_두_층과_중장기_수익률.md</code> — 원자 층과 조립 층</li>
-              <li><code>docs/피처파트/version1.2/파생_피처_4개와_시점_규칙.md</code> — 파생 피처 넷의 시점 근거</li>
-              <li><code>notebooks/04-모델/최종모델/개별종목/README.md</code> — 피처 14개의 뜻</li>
-            </ul>
-            <dl class="known">
-              <div><dt>피처 수 ↔ 성적</dt><dd>ρ = −0.0506 · p = 0.8826 (관계 없음)</dd></div>
-              <div><dt>피처 4개 · 조합 I</dt><dd>기준선 대비 +2.10%p</dd></div>
-              <div><dt>피처 14개 · 조합 K</dt><dd>기준선 대비 +2.43%p</dd></div>
-              <div><dt>피처 9개 · 조합 F</dt><dd>기준선 대비 −0.28%p</dd></div>
+          <div class="found">
+            <p class="eyebrow"><code>bb_position</code>이 한 종목에서 42라는 값을 냈다</p>
+            <dl class="case">
+              <div><dt>NHN 035420 · 2013-08-28</dt><dd>밴드 폭 5.82e-11 (거래정지 구간)</dd></div>
+              <div><dt>원인</dt><dd>거래정지 → 분산 이론상 0 → 부동소수 잡음이 가드 통과</dd></div>
+              <div><dt>고친 가드</dt><dd><code>width &gt; eps × mid</code></dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>숫자 출처 docs/모델파트/version1.2/조합-A부터-K-성적표.md</span></footer>
+        <footer class="foot"><span>실측 2026-09-09 · PR #207 · features/indicators.py</span><span>docs/모델파트/version1.2/조합-A부터-K-성적표.md</span></footer>
       </div>
     </div>
   </section>
 
-  <section class="slot todo" aria-label="03 라벨 설계와 유동 임계값 — 채울 자리">
-    <p class="slot-cap"><b>신장환 3 · 2/3</b><span>라벨 설계 · 유동 임계값</span><span class="todo-tag">채울 자리</span><span>약 40초</span></p>
+  <section class="slot" aria-label="03 라벨 설계와 유동 임계값">
+    <p class="slot-cap"><b>신장환 3 · 2/3</b><span>라벨 설계 · 유동 임계값</span><span>약 40초</span></p>
     <div class="slide">
       <div class="sl">
-        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 담당 신장환</span></header>
-        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 라벨은 실제로 사고팔 수 있는 시점으로 정의했다]</h2>
-        <div class="body todo-body">
-          <div>
-            <p class="eyebrow">넣을 것</p>
-            <ul class="checks">
-              <li>T일 종가까지 보고 → T+1 시가에 사고 → T+6 시가에 판다. 신호 · 체결 · 라벨 세 시점이 같다</li>
-              <li>중립대 — KOSPI200 ±1.0% · 개별종목 ±2.0%</li>
-              <li>포지션 <code>{0, +1}</code> — 하락과 중립은 둘 다 현금이라 주문이 같다</li>
-              <li>유동 임계값 — 변동성에 맞춰 경계를 바꾸는 방식과, 고정 밴드와 비교한 결과</li>
-            </ul>
-          </div>
-          <div>
-            <p class="eyebrow">참고 자료</p>
-            <ul class="refs">
-              <li><code>docs/decisions/0002-예측대상과-레이블.md</code> — 왜 5거래일 · 시가 기준 · 3분류인가</li>
-              <li><code>docs/decisions/0006-개별종목-중립대와-평가기준선.md</code> — 개별종목 ±2.0%와 기준선</li>
-              <li>계획서 목표 ⑤ 유동 임계값 — <code>scripts/build_project_plan.py</code></li>
-            </ul>
-            <dl class="known">
-              <div><dt>KOSPI200 ±1.0%</dt><dd>5거래일 σ의 약 ±0.40σ</dd></div>
-              <div><dt>개별종목 변동성</dt><dd>지수의 약 2.1배 → ±2.1~2.2%</dd></div>
-            </dl>
-          </div>
+        <header class="meta"><span>03 피처 · 라벨 설계</span><span>QURIOUS · 2 / 3</span></header>
+        <h2 class="thesis">신호 · 체결 · 라벨의 시점을 하나로 맞추고,<br>경계는 변동성에 맞춰 움직입니다</h2>
+        <div class="body s4">
+          <ul class="hand">
+            <li>
+              <p class="hk">T</p>
+              <p class="hvv">신호</p>
+              <p class="hn">종가까지</p>
+              <p class="hd">그날 종가까지의 정보로만 판단한다. 미래 행은 보지 않는다</p>
+            </li>
+            <li>
+              <p class="hk">T+1</p>
+              <p class="hvv">체결</p>
+              <p class="hn">시가 매수</p>
+              <p class="hd">신호가 나온 다음 거래일 시가에 체결한다고 가정한다</p>
+            </li>
+            <li>
+              <p class="hk">T+6</p>
+              <p class="hvv">평가</p>
+              <p class="hn">시가 청산</p>
+              <p class="hd">5거래일 보유 뒤 시가로 라벨을 매긴다 — 신호·체결·평가가 같은 축이다</p>
+            </li>
+          </ul>
+          <dl class="known">
+            <div><dt>중립대</dt><dd>KOSPI200 ±1.0% · 개별종목 ±2.0%</dd></div>
+            <div><dt>포지션</dt><dd><code>{0, +1}</code> — 하락 · 중립 둘 다 현금이라 주문이 같다</dd></div>
+          </dl>
+          <p class="next"><span class="pill pill--so">유동 임계값</span>고정값이 아니다 — 최근 변동성에 맞춰 넓어지고 좁아진다.</p>
         </div>
-        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>ADR 0002 · ADR 0006</span></footer>
+        <footer class="foot"><span>확인 2026-09-09 · ADR 0002(2026-08-26) · ADR 0006(2026-09-07)</span><span>features/dynamic_threshold.py · 계획서 목표 ⑤ 유동 임계값</span></footer>
       </div>
     </div>
   </section>
@@ -860,113 +864,107 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
 
 
   <!-- ═══════════════════════ 신장환 4 · 결과 · 모델 비교 방법론 ═══ 시작 ═══════════════════════ -->
-  <h2 class="part"><span class="no">04</span>결과 · 모델 비교 방법론<span class="meta-r">발표 신장환 · 약 3분 · 3장 · 순서는 가안</span><span class="st st--todo">채울 자리 3 · 숫자는 채워 둠</span></h2>
+  <h2 class="part"><span class="no">04</span>결과 · 모델 비교 방법론<span class="meta-r">발표 신장환 · 약 3분 · 3장</span></h2>
 
-  <section class="slot todo" aria-label="04 모델 4종 비교 방법론 — 채울 자리">
-    <p class="slot-cap"><b>신장환 4 · 1/3</b><span>모델 4종 비교 방법론</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+  <section class="slot" aria-label="04 모델 4종 비교 방법론">
+    <p class="slot-cap"><b>신장환 4 · 1/3</b><span>모델 4종 비교 방법론</span><span>약 1분</span></p>
     <div class="slide">
       <div class="sl">
-        <header class="meta"><span>04 결과 · 모델 비교 방법론</span><span>QURIOUS · 담당 신장환</span></header>
-        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 예: 모델 넷을 같은 자로 쟀고, 몇 번 시도했는지까지 적었다]</h2>
-        <div class="body todo-body">
-          <div>
-            <p class="eyebrow">넣을 것</p>
-            <ul class="checks">
-              <li>LogisticRegression · RandomForest · XGBoost · LightGBM을 같은 자료 · 같은 분할 · 같은 시드로</li>
-              <li>날짜 단위 expanding 12폴드 · 최초 학습 750거래일 · 검증 60거래일 · gap 5 — 폴드 그림 한 장</li>
-              <li>기준선은 폴드마다 학습구간의 최빈 클래스를 찍은 정확도 (검증 정답을 본 값이 아니다)</li>
-              <li>시도 횟수와 다중검정 결과를 함께 — 무엇으로 고를지를 먼저 정한 이유</li>
-            </ul>
+        <header class="meta"><span>04 결과 · 모델 비교 방법론</span><span>QURIOUS · 1 / 3</span></header>
+        <h2 class="thesis">넷을 같은 폴드로 쟀고,<br>축을 바꾸면 1위가 바뀐다는 사실까지 같이 쟀습니다</h2>
+        <div class="body s1">
+          <table class="inv">
+            <thead><tr><th>항목</th><th>개별종목 트랙</th><th>KOSPI200 트랙</th></tr></thead>
+            <tbody>
+              <tr><td>후보 수</td><td>44 (11조합 × 모델 4종)</td><td>100 (조합 A~G × 모델 4종 × 수익률변형)</td></tr>
+              <tr><td>공통 표본</td><td>159,900행 · 3,343거래일</td><td>720거래일 공통 OOS</td></tr>
+              <tr><td>폴드 설계</td><td colspan="2">날짜 단위 expanding 12폴드 · 최초 학습 750거래일 · 검증 60거래일 · gap 5 (양 트랙 동일)</td></tr>
+              <tr><td>최우수 모델</td><td>LogisticRegression (11개 중 8개)</td><td>LogisticRegression (운영 기준 1위)</td></tr>
+              <tr><td>선정 순서</td><td>기준선 → F1 → 승리 폴드</td><td>관문 → PR-AUC → ΔSharpe → Precision</td></tr>
+            </tbody>
+          </table>
+          <div class="facts">
+            <div class="fact"><p class="fv">8<small>/ 11조합</small></p><p class="fk">로지스틱 회귀가 최우수였다 — 나머지 셋(D·E·C)은 XGBoost</p></div>
+            <div class="fact"><p class="fv">ρ = 0.960</p><p class="fk">KOSPI200 축 후보 100개에서, 기존 조화평균 순위와 하락 Recall 순위의 스피어만 상관</p></div>
+            <div class="fact"><p class="fv">1위<small>→</small>93위</p><p class="fk">같은 100개 실험, 줄 세우는 축만 바꿔도 1위가 뒤집힌다(E LogisticRegression)</p></div>
           </div>
-          <div>
-            <p class="eyebrow">참고 자료</p>
-            <ul class="refs">
-              <li><code>docs/decisions/0007-최종-모델-선정과-홀드아웃.md</code> — 고르는 순서</li>
-              <li><code>docs/모델파트/version1.2/선정축-비교.md</code> — 축을 바꾸면 1위가 바뀐다</li>
-              <li><code>notebooks/04-모델/최종모델/</code> — 두 트랙 최종 모델</li>
-            </ul>
-            <dl class="known">
-              <div><dt>표본 밖 검증</dt><dd>2014-02-17 ~ 2024-08-22 · 720거래일</dd></div>
-              <div><dt>후보 수</dt><dd>KOSPI200 100 · 개별종목 44</dd></div>
-              <div><dt>선정 축의 힘</dt><dd>같은 100개 실험 · 축만 바꾸면 1위 → 93위</dd></div>
+          <div class="found">
+            <p class="eyebrow">조화평균 1위는 사실상 '하락 Recall 순위표'였다</p>
+            <dl class="case">
+              <div><dt>조화평균 1위 · E RandomForest</dt><dd>기준선 대비 −2.08%p · 5/12승</dd></div>
+              <div><dt>원인</dt><dd>하락Recall이 조화평균을 지배 → {0,+1}에서 하락·중립은 같은 주문</dd></div>
+              <div><dt>축 재정의 뒤 1위</dt><dd>조합 C · LogisticRegression</dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>채울 자리 · 다 채우면 이 줄을 출처와 날짜로 바꾼다</span><span>reports/index_long_only_selection.json · ADR 0007</span></footer>
+        <footer class="foot"><span>실측 2026-09-09 생성 보고서 기준 · reports/model_sweep.json 100개 실험</span><span>docs/모델파트/version1.2/선정축-비교.md · 이슈 #203 · #216 · ADR 0007</span></footer>
       </div>
     </div>
   </section>
 
-  <section class="slot todo" aria-label="04 종목 트랙 결과 — 채울 자리">
-    <p class="slot-cap"><b>신장환 4 · 2/3</b><span>종목 트랙 결과</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+  <section class="slot" aria-label="04 종목 트랙 결과">
+    <p class="slot-cap"><b>신장환 4 · 2/3</b><span>종목 트랙 결과</span><span>약 1분</span></p>
     <div class="slide">
       <div class="sl">
-        <header class="meta"><span>04 결과 — 종목 트랙</span><span>QURIOUS · 담당 신장환</span></header>
-        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 개발구간 표본 밖 결과를 한 줄로]</h2>
-        <div class="body todo-body">
-          <div>
-            <p class="eyebrow">넣을 것</p>
-            <ul class="checks">
-              <li>유니버스 — 매 거래일 업종 시총 상위 10 × 업종별 KOSPI 보통주 상위 5 (하루 최대 50종목)</li>
-              <li>조합 K 로지스틱 회귀의 정확도와 기준선 대비 — 폴드별 이긴 폴드 · 진 폴드 그림</li>
-              <li>상승 Precision과 실제 매수 신호 — 매수는 KOSPI200도 상승일 때만</li>
-              <li>다중검정을 통과하지 못했다는 사실과 그 뜻</li>
-            </ul>
+        <header class="meta"><span>04 결과 — 종목 트랙</span><span>QURIOUS · 2 / 3</span></header>
+        <h2 class="thesis">개발구간에서 기준선을 2.43%p 이겼던 조합 K가,<br>실제 2년 홀드아웃에서는 기준선 아래로 내려왔습니다</h2>
+        <div class="body s1">
+          <table class="inv">
+            <thead><tr><th>구간</th><th class="r">Accuracy</th><th class="r">Macro F1</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>개발구간 OOS (12폴드)</td><td class="r num">0.4211</td><td class="r num">0.3781</td><td>기준선 0.3969 대비 <b>+2.43%p</b> · 10/12승</td></tr>
+              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num"><b>0.3807</b></td><td class="r num">0.3740</td><td>기준선(0.3969)보다 낮음</td></tr>
+              <tr><td>마지막 판단일 (2026-08-24 · 50종목)</td><td class="r num">0.5200</td><td class="r num">0.3837</td><td>단일 판단일 — 통계적 의미 없음</td></tr>
+            </tbody>
+          </table>
+          <div class="facts">
+            <div class="fact"><p class="fv">0.3969<small>→ 0.3807</small></p><p class="fk">기준선 대비 +2.43%p였던 개발구간이, 홀드아웃에서는 기준선보다 낮게 나왔다</p></div>
+            <div class="fact"><p class="fv">33<small>/ 50종목</small></p><p class="fk">2026-08-25 진입 예측 매수 후보 — 삼성전자·SK하이닉스 등 상승 예측 적중</p></div>
+            <div class="fact"><p class="fv">44<small>후보</small></p><p class="fk">Bonferroni 보정 통과 0개 — 개발구간 우위 자체가 통계적으로 확정된 적은 없었다</p></div>
           </div>
-          <div>
-            <p class="eyebrow">참고 자료</p>
-            <ul class="refs">
-              <li><code>notebooks/04-모델/최종모델/개별종목/README.md</code></li>
-              <li><code>docs/모델파트/version1.2/조합-A부터-K-성적표.md</code> — 조합 열한 개</li>
-            </ul>
-            <dl class="known">
-              <div><dt>정확도 · 기준선</dt><dd>0.4211 · 0.3969 (+2.43%p)</dd></div>
-              <div><dt>이긴 폴드</dt><dd>10 / 12</dd></div>
-              <div><dt>Macro F1 · MCC</dt><dd>0.3781 · 0.0994</dd></div>
-              <div><dt>상승 Precision</dt><dd>0.3695</dd></div>
-              <div><dt>매수 신호</dt><dd>3,825건 · 기본 출력 34,544행</dd></div>
-              <div><dt>다중검정</dt><dd>후보 44 · Bonferroni 통과 0</dd></div>
+          <div class="found">
+            <p class="eyebrow">44개 후보 중 최댓값 — 홀드아웃에서 원인 확인 중</p>
+            <dl class="case">
+              <div><dt>MCC<small>−1~+1 · 0=우연</small> 개발→홀드아웃</dt><dd>0.0994 → 0.0585</dd></div>
+              <div><dt>홀드아웃 자체 기준선</dt><dd>아직 계산 안 됨</dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>채울 자리 · 숫자는 2026-09-09 생성 보고서 기준</span><span>담당 신장환 · 확인 오준영</span></footer>
+        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/개별종목 · notebooks/04-모델/최종결과 · 확인 오준영</span></footer>
       </div>
     </div>
   </section>
 
-  <section class="slot todo" aria-label="04 KOSPI200 지수 트랙 결과 — 채울 자리">
-    <p class="slot-cap"><b>신장환 4 · 3/3</b><span>KOSPI200 지수 트랙 결과</span><span class="todo-tag">채울 자리</span><span>약 1분</span></p>
+  <section class="slot" aria-label="04 KOSPI200 지수 트랙 결과">
+    <p class="slot-cap"><b>신장환 4 · 3/3</b><span>KOSPI200 지수 트랙 결과</span><span>약 1분</span></p>
     <div class="slide">
       <div class="sl">
-        <header class="meta"><span>04 결과 — KOSPI200 지수 트랙</span><span>QURIOUS · 담당 신장환</span></header>
-        <h2 class="thesis todo-t">[이 장의 주장 한 문장 — 개발구간 표본 밖 결과를 한 줄로]</h2>
-        <div class="body todo-body">
-          <div>
-            <p class="eyebrow">넣을 것</p>
-            <ul class="checks">
-              <li>조합 C 로지스틱 회귀 · 피처 6개</li>
-              <li>고르는 순서 — 운영 기준선 관문(7/12) → 상승 PR-AUC → 비용 차감 ΔSharpe → 상승 Precision</li>
-              <li>정확도 · 기준선 대비 · 매수 신호 · 비용 차감 ΔSharpe</li>
-              <li>상승 임계 0.3375를 어떻게 골랐나 — 학습구간 안의 내부 60거래일 검증에서만</li>
-            </ul>
+        <header class="meta"><span>04 결과 — KOSPI200 지수 트랙</span><span>QURIOUS · 3 / 3</span></header>
+        <h2 class="thesis">홀드아웃에서도 기준선을 이겼지만,<br>MCC가 거의 0이라 방향만 맞춘 결과일 수 있습니다</h2>
+        <div class="body s1">
+          <table class="inv">
+            <thead><tr><th>구간</th><th class="r">Accuracy</th><th class="r">Macro F1</th><th>비고</th></tr></thead>
+            <tbody>
+              <tr><td>개발구간 OOS (12폴드)</td><td class="r num">0.4542</td><td class="r num">0.4167</td><td>기준선 0.3972 대비 <b>+5.69%p</b> · 7/12승</td></tr>
+              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num">0.4330</td><td class="r num">0.3126</td><td>MCC <b>−0.0114</b> · 하락 재현율 0.109</td></tr>
+              <tr><td>마지막 판단일 (2026-08-25 진입 → 09-01 청산)</td><td class="r" colspan="2">예측 상승 · 실제 상승 · 적중 O</td><td>단일 판단일</td></tr>
+            </tbody>
+          </table>
+          <div class="facts">
+            <div class="fact"><p class="fv">0.4542<small>→ 0.4330</small></p><p class="fk">Accuracy · 기준선을 이기는 방향은 홀드아웃에서도 유지됐다</p></div>
+            <div class="fact"><p class="fv">325<small>/ 478일</small></p><p class="fk">홀드아웃에서 '상승'으로 예측한 날 — 68%</p></div>
+            <div class="fact"><p class="fv">261<small>/ 478일</small></p><p class="fk">실제로 '상승'이었던 날 — 55%, 이 2년 자체가 강세장이었다</p></div>
           </div>
-          <div>
-            <p class="eyebrow">참고 자료</p>
-            <ul class="refs">
-              <li><code>notebooks/04-모델/최종모델/KOSPI200/README.md</code></li>
-              <li><code>reports/index_long_only_selection.json</code> — 후보 100개 전체</li>
-            </ul>
-            <dl class="known">
-              <div><dt>정확도 · 기준선</dt><dd>0.4542 · 0.3972 (+5.69%p)</dd></div>
-              <div><dt>이긴 폴드</dt><dd>7 / 12</dd></div>
-              <div><dt>상승 PR-AUC</dt><dd>0.3965</dd></div>
-              <div><dt>매수 신호</dt><dd>308 / 720일</dd></div>
-              <div><dt>ΔSharpe 중앙값</dt><dd>0.2332 (비용 차감)</dd></div>
-              <div><dt>다중검정</dt><dd>t = 1.0092 · p = 0.1673 · 통과 못 함</dd></div>
+          <div class="found">
+            <p class="eyebrow">정확도는 이겼지만 MCC는 거의 0 — 강세장 편향 가능성</p>
+            <dl class="case">
+              <div><dt>원인</dt><dd>예측상승 68% ≈ 실제상승 55% → 방향만 맞아떨어짐</dd></div>
+              <div><dt>상승 Recall</dt><dd>0.674</dd></div>
+              <div><dt>하락 Recall</dt><dd>0.109</dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>채울 자리 · 숫자는 2026-09-09 생성 보고서 기준</span><span>담당 신장환 · 확인 오준영</span></footer>
+        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/KOSPI200 · notebooks/04-모델/최종결과 · 확인 오준영</span></footer>
       </div>
     </div>
   </section>
