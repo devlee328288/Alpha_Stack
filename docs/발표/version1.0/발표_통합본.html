@@ -940,31 +940,31 @@ html.presenting .pager { display: block; position: fixed; right: 1rem; bottom: .
     <div class="slide">
       <div class="sl">
         <header class="meta"><span>04 결과 — KOSPI200 지수 트랙</span><span>QURIOUS · 3 / 3</span></header>
-        <h2 class="thesis">홀드아웃에서도 기준선을 이겼지만,<br>MCC가 거의 0이라 방향만 맞춘 결과일 수 있습니다</h2>
+        <h2 class="thesis">개발구간에서 기준선을 5.69%p 이겼던 조합 C는,<br>홀드아웃에서는 그 구간 자체 기준선에 11.3%p 못 미쳤습니다</h2>
         <div class="body s1">
           <table class="inv">
             <thead><tr><th>구간</th><th class="r">Accuracy</th><th class="r">Macro F1</th><th>비고</th></tr></thead>
             <tbody>
               <tr><td>개발구간 OOS (12폴드)</td><td class="r num">0.4542</td><td class="r num">0.4167</td><td>기준선 0.3972 대비 <b>+5.69%p</b> · 7/12승</td></tr>
-              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num">0.4330</td><td class="r num">0.3126</td><td>MCC <b>−0.0114</b> · 하락 재현율 0.109</td></tr>
+              <tr><td>확증 홀드아웃 (2년 · 478일)</td><td class="r num"><b>0.4331</b></td><td class="r num">0.3126</td><td>홀드아웃 기준선 0.5460 대비 <b>−11.3%p</b></td></tr>
               <tr><td>마지막 판단일 (2026-08-25 진입 → 09-01 청산)</td><td class="r" colspan="2">예측 상승 · 실제 상승 · 적중 O</td><td>단일 판단일 — 장기 OOS 성능으로 해석 안 함</td></tr>
             </tbody>
           </table>
           <div class="facts">
-            <div class="fact"><p class="fv">0.4542<small>→ 0.4330</small></p><p class="fk">Accuracy · 기준선을 이기는 방향은 홀드아웃에서도 유지됐다</p></div>
+            <div class="fact"><p class="fv">0.5460<small>→ 0.4331</small></p><p class="fk">홀드아웃 자체 기준선 대비 −11.3%p — 개발구간 기준선(0.3972)과는 다른 기간이라 직접 비교 불가</p></div>
             <div class="fact"><p class="fv">325<small>/ 478일</small></p><p class="fk">홀드아웃에서 '상승'으로 예측한 날 — 68%</p></div>
-            <div class="fact"><p class="fv">261<small>/ 478일</small></p><p class="fk">실제로 '상승'이었던 날 — 55%, 이 2년 자체가 강세장이었다</p></div>
+            <div class="fact"><p class="fv">261<small>/ 478일</small></p><p class="fk">실제로 '상승'이었던 날 — 55%, 이게 바로 홀드아웃 기준선(0.5460)이다</p></div>
           </div>
           <div class="found">
-            <p class="eyebrow">정확도는 이겼지만 MCC는 거의 0 — 상승 예측편향과 강세장이 겹쳤을 가능성</p>
+            <p class="eyebrow">강세장인데도 '항상 상승'보다 못 맞혔다 — MCC도 거의 0</p>
             <dl class="case">
-              <div><dt>원인</dt><dd>예측상승 68% ≈ 실제상승 55% → 방향만 맞아떨어짐</dd></div>
-              <div><dt>상승 Recall</dt><dd>0.674</dd></div>
-              <div><dt>하락 Recall</dt><dd>0.109</dd></div>
+              <div><dt>기준선 (개발구간 → 홀드아웃)</dt><dd>0.3972 → 0.5460 · 서로 다른 기간</dd></div>
+              <div><dt>원인</dt><dd>예측상승 68% vs 실제상승 55% → 초과예측분이 틀려서 기준선 밑돎</dd></div>
+              <div><dt>상승 Recall · 하락 Recall</dt><dd>0.674 · 0.109</dd></div>
             </dl>
           </div>
         </div>
-        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>notebooks/04-모델/최종모델/KOSPI200 · notebooks/04-모델/최종결과 · 확인 오준영 2026-09-14</span></footer>
+        <footer class="foot"><span>개발구간 2026-09-09 · 홀드아웃 2026-09-11 PR #256 · 마지막 판단일 2026-09-12 PR #259</span><span>docs/모델파트/version1.3/최종결과-2년과-마지막-구간.md · 확인 오준영 2026-09-14</span></footer>
       </div>
     </div>
   </section>
