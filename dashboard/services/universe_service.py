@@ -6,12 +6,10 @@ Progressive: 종목별 완료 즉시 callback → session_state 저장.
 Skip: 이미 결과가 있으면 건너뜀.
 Parallel: joblib loky backend (Windows 안전).
 """
+
 from __future__ import annotations
 
-import contextlib
-import io
 import sys
-from datetime import datetime
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +39,9 @@ def list_universe(source: str = "stocks30", **filter_kwargs) -> list[dict]:
 def _name_map(source: str = "stocks30", **filter_kwargs) -> dict:
     """{code: name} 매핑."""
     try:
-        return {m["code"]: m.get("name", "") for m in list_universe(source, **filter_kwargs)}
+        return {
+            m["code"]: m.get("name", "") for m in list_universe(source, **filter_kwargs)
+        }
     except Exception:
         return {}
 
@@ -217,99 +217,84 @@ def run_universe_models_multi(
 
 
 # ═══════════════════════════════════════════════════════════
-# 랭킹 DataFrame 빌더
+# 랭킹 DataFrame 빌더 — HARMONIC 기준 정렬
 # ═══════════════════════════════════════════════════════════
 def build_universe_ranking(baseline_results: dict) -> pd.DataFrame:
-    """{ticker: baseline result} → 랭킹 DataFrame."""
+    """{ticker: baseline result} → 랭킹 DataFrame. HARMONIC 기준 정렬."""
     rows = []
     for ticker, r in baseline_results.items():
         _name = r.get("name", "")
 
         if r.get("error"):
-            rows.append({
-                "RANK": None, "CODE": ticker, "NAME": _name,
-                "MACRO F1": None, "BAL ACC": None,
-                "SHARPE": None, "CAGR": None, "MDD": None, "WIN RATE": None,
-                "FOLDS": None,
-                "ERROR": r["error"][:40],
-            })
+            rows.append(
+                {
+                    "RANK": None,
+                    "CODE": ticker,
+                    "NAME": _name,
+                    "ACC": None,
+                    "MACRO F1": None,
+                    "DOWN REC": None,
+                    "HARMONIC": None,
+                    "BAL ACC": None,
+                    "SHARPE": None,
+                    "CAGR": None,
+                    "MDD": None,
+                    "WIN RATE": None,
+                    "FOLDS": None,
+                    "ERROR": r["error"][:40],
+                }
+            )
             continue
 
         perf = r.get("perf_metrics", {})
         cls = r.get("cls_metrics", {})
-        rows.append({
-            "RANK": None,
-            "CODE": ticker,
-            "NAME": _name,
-            "MACRO F1": cls.get("f1_macro"),
-            "BAL ACC": cls.get("balanced_acc"),
-            "SHARPE": perf.get("sharpe"),
-            "CAGR": perf.get("cagr"),
-            "MDD": -abs(perf.get("mdd", 0)) if perf.get("mdd") is not None else None,
-            "WIN RATE": perf.get("win_rate"),
-            "FOLDS": r.get("total_folds"),
-            "ERROR": "",
-        })
-
-    df = pd.DataFrame(rows)
-    if "MACRO F1" in df.columns:
-        df = df.sort_values(
-            by=["MACRO F1", "SHARPE"],
-            ascending=[False, False],
-            na_position="last",
-            kind="stable",
-        ).reset_index(drop=True)
-        df["RANK"] = range(1, len(df) + 1)
-
-    cols = ["RANK", "CODE", "NAME", "MACRO F1", "BAL ACC",
-            "SHARPE", "CAGR", "MDD", "WIN RATE", "FOLDS", "ERROR"]
-    cols = [c for c in cols if c in df.columns]
-    return df[cols]
-
-
-def build_universe_model_ranking(model_results: dict) -> pd.DataFrame:
-    """{ticker: run_single_model dict} → 랭킹."""
-    rows = []
-    for ticker, r in model_results.items():
-        _name = r.get("name", "")
-
-        if r.get("error"):
-            rows.append({
-                "RANK": None, "CODE": ticker, "NAME": _name,
-                "ACC": None, "MACRO F1": None, "DOWN RECALL": None,
-                "HARMONIC": None, "BAL ACC": None,
-                "ΔSHARPE": None, "CASH FOLDS": None,
-                "ERROR": r["error"][:40],
-            })
-            continue
-
-        s = r.get("summary", {})
-        rows.append({
-            "RANK": None,
-            "CODE": ticker,
-            "NAME": _name,
-            "ACC": s.get("accuracy"),
-            "MACRO F1": s.get("macro_f1"),
-            "DOWN RECALL": s.get("down_recall"),
-            "HARMONIC": s.get("core_harmonic_mean"),
-            "BAL ACC": s.get("balanced_accuracy"),
-            "ΔSHARPE": s.get("delta_sharpe_net_median"),
-            "CASH FOLDS": s.get("all_cash_folds"),
-            "ERROR": "",
-        })
+        rows.append(
+            {
+                "RANK": None,
+                "CODE": ticker,
+                "NAME": _name,
+                "ACC": cls.get("accuracy"),
+                "MACRO F1": cls.get("f1_macro"),
+                "DOWN REC": cls.get("down_recall"),
+                "HARMONIC": cls.get("harmonic"),
+                "BAL ACC": cls.get("balanced_acc"),
+                "SHARPE": perf.get("sharpe"),
+                "CAGR": perf.get("cagr"),
+                "MDD": (
+                    -abs(perf.get("mdd", 0)) if perf.get("mdd") is not None else None
+                ),
+                "WIN RATE": perf.get("win_rate"),
+                "FOLDS": r.get("total_folds"),
+                "ERROR": "",
+            }
+        )
 
     df = pd.DataFrame(rows)
     if "HARMONIC" in df.columns:
         df = df.sort_values(
-            by=["HARMONIC"],
-            ascending=False,
+            by=["HARMONIC", "MACRO F1", "SHARPE"],
+            ascending=[False, False, False],
             na_position="last",
             kind="stable",
         ).reset_index(drop=True)
         df["RANK"] = range(1, len(df) + 1)
 
-    cols = ["RANK", "CODE", "NAME", "ACC", "MACRO F1", "DOWN RECALL",
-            "HARMONIC", "BAL ACC", "ΔSHARPE", "CASH FOLDS", "ERROR"]
+    cols = [
+        "RANK",
+        "CODE",
+        "NAME",
+        "ACC",
+        "MACRO F1",
+        "DOWN REC",
+        "HARMONIC",
+        "BAL ACC",
+        "SHARPE",
+        "CAGR",
+        "MDD",
+        "WIN RATE",
+        "FOLDS",
+        "ERROR",
+    ]
     cols = [c for c in cols if c in df.columns]
     return df[cols]
 
@@ -352,14 +337,13 @@ def build_universe_models_matrix(
         return df
 
     # 유효 모델 컬럼 (빈 이름/`?` 제거)
-    model_cols = [
-        c for c in df.columns
-        if c not in ("CODE", "NAME") and c and c != "?"
-    ]
+    model_cols = [c for c in df.columns if c not in ("CODE", "NAME") and c and c != "?"]
 
     if model_cols:
         df["_MEAN"] = df[model_cols].mean(axis=1)
-        df = df.sort_values("_MEAN", ascending=False, kind="stable").reset_index(drop=True)
+        df = df.sort_values("_MEAN", ascending=False, kind="stable").reset_index(
+            drop=True
+        )
         df["RANK"] = range(1, len(df) + 1)
         df = df.drop(columns=["_MEAN"])
 
@@ -386,31 +370,41 @@ def build_models_by_ticker_table(
         _name = r.get("name") or fallback_name_map.get(ticker, "")
 
         if r.get("error"):
-            rows.append({
-                "TICKER": ticker, "NAME": _name, "MODEL": m_name,
-                "ACC": None, "MACRO F1": None, "HARMONIC": None,
-                "DOWN RECALL": None, "ΔSHARPE": None,
-                "ERROR": r["error"][:40],
-            })
+            rows.append(
+                {
+                    "TICKER": ticker,
+                    "NAME": _name,
+                    "MODEL": m_name,
+                    "ACC": None,
+                    "MACRO F1": None,
+                    "HARMONIC": None,
+                    "DOWN RECALL": None,
+                    "ΔSHARPE": None,
+                    "ERROR": r["error"][:40],
+                }
+            )
             continue
 
         s = r.get("summary", {})
-        rows.append({
-            "TICKER": ticker,
-            "NAME": _name,
-            "MODEL": m_name,
-            "ACC": s.get("accuracy"),
-            "MACRO F1": s.get("macro_f1"),
-            "HARMONIC": s.get("core_harmonic_mean"),
-            "DOWN RECALL": s.get("down_recall"),
-            "ΔSHARPE": s.get("delta_sharpe_net_median"),
-            "ERROR": "",
-        })
+        rows.append(
+            {
+                "TICKER": ticker,
+                "NAME": _name,
+                "MODEL": m_name,
+                "ACC": s.get("accuracy"),
+                "MACRO F1": s.get("macro_f1"),
+                "HARMONIC": s.get("core_harmonic_mean"),
+                "DOWN RECALL": s.get("down_recall"),
+                "ΔSHARPE": s.get("delta_sharpe_net_median"),
+                "ERROR": "",
+            }
+        )
 
     df = pd.DataFrame(rows)
     if "HARMONIC" in df.columns and not df.empty:
-        df = df.sort_values("HARMONIC", ascending=False,
-                            na_position="last", kind="stable").reset_index(drop=True)
+        df = df.sort_values(
+            "HARMONIC", ascending=False, na_position="last", kind="stable"
+        ).reset_index(drop=True)
     return df
 
 
@@ -450,12 +444,16 @@ def _worker_model(ticker, model_name, source, name):
         r["_ticker"] = ticker
         return ticker, model_name, r
     except Exception as e:
-        return ticker, model_name, {
-            "error": f"{type(e).__name__}: {e}",
-            "ticker": ticker,
-            "name": name,
-            "_model_name": model_name,
-        }
+        return (
+            ticker,
+            model_name,
+            {
+                "error": f"{type(e).__name__}: {e}",
+                "ticker": ticker,
+                "name": name,
+                "_model_name": model_name,
+            },
+        )
 
 
 # ═══════════════════════════════════════════════════════════
@@ -485,40 +483,48 @@ def run_universe_baseline_parallel(
     if n_jobs <= 1:
         for i, tk in enumerate(todo):
             _, r = _worker_baseline(
-                tk, threshold, max_evals, source, name_map.get(tk, ""),
+                tk,
+                threshold,
+                max_evals,
+                source,
+                name_map.get(tk, ""),
             )
             results[tk] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk,
-                            "done" if "error" not in r else "error")
+                progress_cb(i + 1, total, tk, "done" if "error" not in r else "error")
         return results
 
     # 병렬
     try:
-        gen = Parallel(n_jobs=n_jobs, backend="loky",
-                       return_as="generator_unordered")(
+        gen = Parallel(n_jobs=n_jobs, backend="loky", return_as="generator_unordered")(
             delayed(_worker_baseline)(
-                tk, threshold, max_evals, source, name_map.get(tk, ""),
+                tk,
+                threshold,
+                max_evals,
+                source,
+                name_map.get(tk, ""),
             )
             for tk in todo
         )
         for i, (tk, r) in enumerate(gen):
             results[tk] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk,
-                            "done" if "error" not in r else "error")
+                progress_cb(i + 1, total, tk, "done" if "error" not in r else "error")
     except Exception:
         # 폴백: 순차
         for i, tk in enumerate(todo):
             if tk in results and not results[tk].get("error"):
                 continue
             _, r = _worker_baseline(
-                tk, threshold, max_evals, source, name_map.get(tk, ""),
+                tk,
+                threshold,
+                max_evals,
+                source,
+                name_map.get(tk, ""),
             )
             results[tk] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk,
-                            "done" if "error" not in r else "error")
+                progress_cb(i + 1, total, tk, "done" if "error" not in r else "error")
 
     return results
 
@@ -556,28 +562,35 @@ def run_universe_models_multi_parallel(
     if n_jobs <= 1:
         for i, (tk, m_name) in enumerate(tasks):
             _, mname, r = _worker_model(
-                tk, m_name, source, name_map.get(tk, ""),
+                tk,
+                m_name,
+                source,
+                name_map.get(tk, ""),
             )
             results[f"{tk}::{mname}"] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk, m_name,
-                            "done" if "error" not in r else "error")
+                progress_cb(
+                    i + 1, total, tk, m_name, "done" if "error" not in r else "error"
+                )
         return results
 
     # 병렬
     try:
-        gen = Parallel(n_jobs=n_jobs, backend="loky",
-                       return_as="generator_unordered")(
+        gen = Parallel(n_jobs=n_jobs, backend="loky", return_as="generator_unordered")(
             delayed(_worker_model)(
-                tk, m_name, source, name_map.get(tk, ""),
+                tk,
+                m_name,
+                source,
+                name_map.get(tk, ""),
             )
             for tk, m_name in tasks
         )
         for i, (tk, m_name, r) in enumerate(gen):
             results[f"{tk}::{m_name}"] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk, m_name,
-                            "done" if "error" not in r else "error")
+                progress_cb(
+                    i + 1, total, tk, m_name, "done" if "error" not in r else "error"
+                )
     except Exception:
         # 폴백: 순차
         for i, (tk, m_name) in enumerate(tasks):
@@ -585,12 +598,16 @@ def run_universe_models_multi_parallel(
             if ck in results and not results[ck].get("error"):
                 continue
             _, mname, r = _worker_model(
-                tk, m_name, source, name_map.get(tk, ""),
+                tk,
+                m_name,
+                source,
+                name_map.get(tk, ""),
             )
             results[f"{tk}::{mname}"] = r
             if progress_cb:
-                progress_cb(i + 1, total, tk, m_name,
-                            "done" if "error" not in r else "error")
+                progress_cb(
+                    i + 1, total, tk, m_name, "done" if "error" not in r else "error"
+                )
 
     return results
 

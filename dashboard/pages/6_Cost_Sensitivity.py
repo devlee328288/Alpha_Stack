@@ -11,8 +11,14 @@ st.set_page_config(page_title="Cost Sensitivity · AlphaStack", layout="wide")
 
 import theme
 from theme import (
-    metric_row, section_header, top_strip, panel, show_table, plotly_chart,
+    metric_row,
+    section_header,
+    top_strip,
+    panel,
+    show_table,
+    plotly_chart,
 )
+
 theme.inject()
 
 from components import sidebar_controls
@@ -43,7 +49,7 @@ with panel():
         predictor = st.selectbox(
             "Predictor",
             list(backtest_service.PREDICTOR_OPTIONS),
-            index=1,   # RandomForest default
+            index=1,  # RandomForest default
             help=(
                 "Random = 랜덤 (구조 검증용)  \n"
                 "모델명 = Model Lab 의 12-fold OOS 예측 "
@@ -64,11 +70,13 @@ with panel():
     c1, c2 = st.columns([1.2, 1.2], gap="small")
     with c1:
         start = st.date_input(
-            "Start", value=pd.Timestamp("2023-01-01"),
+            "Start",
+            value=pd.Timestamp("2010-01-01"),
         ).strftime("%Y-%m-%d")
     with c2:
         end = st.date_input(
-            "End", value=pd.Timestamp("2024-08-22"),
+            "End",
+            value=pd.Timestamp("2025-01-01"),
         ).strftime("%Y-%m-%d")
 
 # ═══════════════════════════════════════════════════════════
@@ -80,9 +88,9 @@ if _prev is not None and hasattr(_prev, "attrs"):
     _prev_pred = _prev.attrs.get("predictor", "—")
 
 top_strip(
-    [scope, ticker, "4 COST PRESETS × 3 STRATEGIES",
-     f"PREDICTOR {_prev_pred}"],
-    status_text="READY", status_tone="neutral",
+    [scope, ticker, "4 COST PRESETS × 3 STRATEGIES", f"PREDICTOR {_prev_pred}"],
+    status_text="READY",
+    status_tone="neutral",
 )
 
 # ═══════════════════════════════════════════════════════════
@@ -98,10 +106,18 @@ if run:
     with st.spinner(msg):
         try:
             grid = backtest_service.run_cost_grid(
-                scope, ticker, start, end, predictor=predictor,
+                scope,
+                ticker,
+                start,
+                end,
+                predictor=predictor,
             )
             be = backtest_service.run_breakeven(
-                scope, ticker, start, end, predictor=predictor,
+                scope,
+                ticker,
+                start,
+                end,
+                predictor=predictor,
             )
             # predictor 정보 metadata 로 부착
             grid.attrs["predictor"] = predictor
@@ -132,13 +148,18 @@ if grid is None or be is None:
 section_header("BREAKEVEN COST · SHARPE = 0")
 be_rows = be.to_dict("records") if hasattr(be, "to_dict") else be
 
-metric_row([
-    dict(label=f"STRATEGY {r['strategy']}",
-         value=f"{r['breakeven_cost']*100:.3f}%",
-         tone="up" if r["breakeven_cost"] > 0.002 else "warn",
-         accent=True)
-    for r in be_rows
-], cols=len(be_rows))
+metric_row(
+    [
+        dict(
+            label=f"STRATEGY {r['strategy']}",
+            value=f"{r['breakeven_cost']*100:.3f}%",
+            tone="up" if r["breakeven_cost"] > 0.002 else "warn",
+            accent=True,
+        )
+        for r in be_rows
+    ],
+    cols=len(be_rows),
+)
 
 # ═══════════════════════════════════════════════════════════
 # GRID TABLE
@@ -147,8 +168,18 @@ section_header("COST GRID · 4 PRESETS × 3 STRATEGIES")
 with panel("SHARPE · CAGR · MDD"):
     disp = grid.copy()
     disp["cost_pct"] = (disp["cost_rate"] * 100).round(3).astype(str) + "%"
-    disp = disp[["strategy", "cost_label", "cost_pct",
-                 "sharpe", "cagr", "mdd", "total_return", "num_trades"]]
+    disp = disp[
+        [
+            "strategy",
+            "cost_label",
+            "cost_pct",
+            "sharpe",
+            "cagr",
+            "mdd",
+            "total_return",
+            "num_trades",
+        ]
+    ]
     show_table(
         disp,
         num_cols=["sharpe", "cagr", "mdd", "total_return"],
@@ -165,12 +196,16 @@ with panel("STRATEGY A / B / C"):
     colors = {"A": "#7fd1ff", "B": "#4ade80", "C": "#fbbf24"}
     for s in sorted(grid["strategy"].unique()):
         sub = grid[grid["strategy"] == s].sort_values("cost_rate")
-        fig.add_trace(go.Scatter(
-            x=sub["cost_rate"] * 100, y=sub["sharpe"],
-            name=f"Strategy {s}", mode="lines+markers",
-            line=dict(color=colors.get(s, "#9aa0a6"), width=2),
-            marker=dict(size=8),
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=sub["cost_rate"] * 100,
+                y=sub["sharpe"],
+                name=f"Strategy {s}",
+                mode="lines+markers",
+                line=dict(color=colors.get(s, "#9aa0a6"), width=2),
+                marker=dict(size=8),
+            )
+        )
     for r in be_rows:
         fig.add_vline(
             x=r["breakeven_cost"] * 100,
@@ -195,8 +230,17 @@ sub = grid[grid["strategy"] == pick].sort_values("cost_rate").copy()
 sub["cost_pct"] = (sub["cost_rate"] * 100).round(3).astype(str) + "%"
 with panel(f"STRATEGY {pick}"):
     show_table(
-        sub[["cost_pct", "cost_label", "sharpe", "cagr", "mdd",
-             "total_return", "num_trades"]],
+        sub[
+            [
+                "cost_pct",
+                "cost_label",
+                "sharpe",
+                "cagr",
+                "mdd",
+                "total_return",
+                "num_trades",
+            ]
+        ],
         num_cols=["sharpe", "cagr", "mdd", "total_return"],
         precision=4,
     )
