@@ -1,4 +1,4 @@
-# weekly_predictor.py
+# collector_5days.py
 # 영업일 기준 5일 후 예측을 위한 배치 실행기 (KRX 캘린더 + ML 모델 통합)
 # - 한국 공휴일을 반영한 KRX 영업일 캘린더 사용
 # - 입력일 기준으로 5영업일 후를 예측일로 설정

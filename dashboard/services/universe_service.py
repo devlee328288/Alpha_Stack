@@ -2,9 +2,9 @@
 """
 UNIVERSE 랭킹 서비스 — stocks30 / full 유니버스 × baseline / models.
 
-Progressive: 종목별 완료 즉시 callback → session_state 저장.
-Skip: 이미 결과가 있으면 건너뜀.
-Parallel: joblib loky backend (Windows 안전).
+- Baseline : threshold 기반 6-param walk-forward (조합 무관)
+- Model    : combination 은 combo_config(STOCK=K) 자동. 하드코딩 금지.
+- Progressive / Skip / Parallel(joblib loky)
 """
 
 from __future__ import annotations
@@ -21,23 +21,19 @@ from typing import Callable
 import pandas as pd
 
 from services import data_loader, baseline_service, model_service
+from services.combo_config import combination_of, return_features_of
 
 
 # ═══════════════════════════════════════════════════════════
 # 유니버스 목록
 # ═══════════════════════════════════════════════════════════
 def list_universe(source: str = "stocks30", **filter_kwargs) -> list[dict]:
-    """
-    source : "stocks30" | "full"
-    filter_kwargs (full 일 때): market, top_n, exclude_halted, ...
-    """
     if source == "full":
         return data_loader.list_full_universe(**filter_kwargs)
     return data_loader.list_universe_tickers()
 
 
 def _name_map(source: str = "stocks30", **filter_kwargs) -> dict:
-    """{code: name} 매핑."""
     try:
         return {
             m["code"]: m.get("name", "") for m in list_universe(source, **filter_kwargs)
@@ -57,12 +53,6 @@ def run_universe_baseline(
     skip_existing: dict | None = None,
     progress_cb: Callable[[int, int, str, str], None] | None = None,
 ) -> dict:
-    """
-    종목 리스트 순차 실행.
-
-    progress_cb(i, total, ticker, phase)
-      phase ∈ {"skip", "running", "done", "error"}
-    """
     results = dict(skip_existing or {})
     total = len(tickers)
     name_map = _name_map(source)
@@ -107,13 +97,17 @@ def run_universe_baseline(
 def run_universe_model(
     tickers: list[str],
     model_name: str = "RandomForest",
-    combination: str = "E",
-    return_features: tuple = ("five_day_return",),
+    combination: str | None = None,  # None → combo_config(STOCK)
+    return_features: tuple | None = None,  # None → combo_config(STOCK)
     source: str = "stocks30",
     skip_existing: dict | None = None,
     progress_cb: Callable[[int, int, str, str], None] | None = None,
 ) -> dict:
-    """종목 × 단일 모델. 결과 {ticker: result}."""
+    if combination is None:
+        combination = combination_of("STOCK")
+    if return_features is None:
+        return_features = return_features_of("STOCK")
+
     results = dict(skip_existing or {})
     total = len(tickers)
     name_map = _name_map(source)
@@ -158,16 +152,17 @@ def run_universe_model(
 def run_universe_models_multi(
     tickers: list[str],
     model_names: list[str],
-    combination: str = "E",
-    return_features: tuple = ("five_day_return",),
+    combination: str | None = None,  # None → combo_config(STOCK)
+    return_features: tuple | None = None,  # None → combo_config(STOCK)
     source: str = "stocks30",
     skip_existing: dict | None = None,
     progress_cb: Callable[[int, int, str, str, str], None] | None = None,
 ) -> dict:
-    """
-    종목 × N개 모델. 결과 키 = f"{ticker}::{model_name}".
-    progress_cb(done, total_steps, ticker, model_name, phase)
-    """
+    if combination is None:
+        combination = combination_of("STOCK")
+    if return_features is None:
+        return_features = return_features_of("STOCK")
+
     results = dict(skip_existing or {})
     name_map = _name_map(source)
     total_steps = len(tickers) * len(model_names)
@@ -217,10 +212,9 @@ def run_universe_models_multi(
 
 
 # ═══════════════════════════════════════════════════════════
-# 랭킹 DataFrame 빌더 — HARMONIC 기준 정렬
+# 랭킹 DataFrame 빌더
 # ═══════════════════════════════════════════════════════════
 def build_universe_ranking(baseline_results: dict) -> pd.DataFrame:
-    """{ticker: baseline result} → 랭킹 DataFrame. HARMONIC 기준 정렬."""
     rows = []
     for ticker, r in baseline_results.items():
         _name = r.get("name", "")
@@ -299,16 +293,9 @@ def build_universe_ranking(baseline_results: dict) -> pd.DataFrame:
     return df[cols]
 
 
-# ═══════════════════════════════════════════════════════════
-# Multi-model Matrix / Long
-# ═══════════════════════════════════════════════════════════
 def build_universe_models_matrix(
-    model_results: dict,
-    source: str = "stocks30",
+    model_results: dict, source: str = "stocks30"
 ) -> pd.DataFrame:
-    """
-    키가 "ticker::model" 인 dict → wide matrix (ticker × model harmonic).
-    """
     fallback_name_map = _name_map(source)
 
     rows = {}
@@ -316,7 +303,6 @@ def build_universe_models_matrix(
         if "::" not in composite_key:
             continue
         ticker, m_name = composite_key.split("::", 1)
-
         if not m_name or m_name == "?":
             continue
 
@@ -336,7 +322,6 @@ def build_universe_models_matrix(
     if df.empty:
         return df
 
-    # 유효 모델 컬럼 (빈 이름/`?` 제거)
     model_cols = [c for c in df.columns if c not in ("CODE", "NAME") and c and c != "?"]
 
     if model_cols:
@@ -352,18 +337,14 @@ def build_universe_models_matrix(
 
 
 def build_models_by_ticker_table(
-    model_results: dict,
-    source: str = "stocks30",
+    model_results: dict, source: str = "stocks30"
 ) -> pd.DataFrame:
-    """키가 "ticker::model" 인 dict → long format."""
     fallback_name_map = _name_map(source)
-
     rows = []
     for composite_key, r in model_results.items():
         if "::" not in composite_key:
             continue
         ticker, m_name = composite_key.split("::", 1)
-
         if not m_name or m_name == "?":
             continue
 
@@ -432,6 +413,7 @@ def _worker_baseline(ticker, threshold, max_evals, source, name):
 
 
 def _worker_model(ticker, model_name, source, name):
+    """combination 은 model_service 가 combo_config(STOCK=K) 로 자동 선택."""
     try:
         r = model_service.run_single_model(
             scope="STOCK",
@@ -468,7 +450,6 @@ def run_universe_baseline_parallel(
     skip_existing: dict | None = None,
     progress_cb=None,
 ) -> dict:
-    """병렬. n_jobs=1 이면 순차."""
     from joblib import Parallel, delayed
 
     results = dict(skip_existing or {})
@@ -479,30 +460,20 @@ def run_universe_baseline_parallel(
 
     name_map = _name_map(source)
 
-    # 순차
     if n_jobs <= 1:
         for i, tk in enumerate(todo):
             _, r = _worker_baseline(
-                tk,
-                threshold,
-                max_evals,
-                source,
-                name_map.get(tk, ""),
+                tk, threshold, max_evals, source, name_map.get(tk, "")
             )
             results[tk] = r
             if progress_cb:
                 progress_cb(i + 1, total, tk, "done" if "error" not in r else "error")
         return results
 
-    # 병렬
     try:
         gen = Parallel(n_jobs=n_jobs, backend="loky", return_as="generator_unordered")(
             delayed(_worker_baseline)(
-                tk,
-                threshold,
-                max_evals,
-                source,
-                name_map.get(tk, ""),
+                tk, threshold, max_evals, source, name_map.get(tk, "")
             )
             for tk in todo
         )
@@ -511,16 +482,11 @@ def run_universe_baseline_parallel(
             if progress_cb:
                 progress_cb(i + 1, total, tk, "done" if "error" not in r else "error")
     except Exception:
-        # 폴백: 순차
         for i, tk in enumerate(todo):
             if tk in results and not results[tk].get("error"):
                 continue
             _, r = _worker_baseline(
-                tk,
-                threshold,
-                max_evals,
-                source,
-                name_map.get(tk, ""),
+                tk, threshold, max_evals, source, name_map.get(tk, "")
             )
             results[tk] = r
             if progress_cb:
@@ -540,7 +506,6 @@ def run_universe_models_multi_parallel(
     skip_existing: dict | None = None,
     progress_cb=None,
 ) -> dict:
-    """병렬. 결과 키 = f"{ticker}::{model_name}"."""
     from joblib import Parallel, delayed
 
     results = dict(skip_existing or {})
@@ -558,15 +523,9 @@ def run_universe_models_multi_parallel(
     if total == 0:
         return results
 
-    # 순차
     if n_jobs <= 1:
         for i, (tk, m_name) in enumerate(tasks):
-            _, mname, r = _worker_model(
-                tk,
-                m_name,
-                source,
-                name_map.get(tk, ""),
-            )
+            _, mname, r = _worker_model(tk, m_name, source, name_map.get(tk, ""))
             results[f"{tk}::{mname}"] = r
             if progress_cb:
                 progress_cb(
@@ -574,15 +533,9 @@ def run_universe_models_multi_parallel(
                 )
         return results
 
-    # 병렬
     try:
         gen = Parallel(n_jobs=n_jobs, backend="loky", return_as="generator_unordered")(
-            delayed(_worker_model)(
-                tk,
-                m_name,
-                source,
-                name_map.get(tk, ""),
-            )
+            delayed(_worker_model)(tk, m_name, source, name_map.get(tk, ""))
             for tk, m_name in tasks
         )
         for i, (tk, m_name, r) in enumerate(gen):
@@ -592,17 +545,11 @@ def run_universe_models_multi_parallel(
                     i + 1, total, tk, m_name, "done" if "error" not in r else "error"
                 )
     except Exception:
-        # 폴백: 순차
         for i, (tk, m_name) in enumerate(tasks):
             ck = f"{tk}::{m_name}"
             if ck in results and not results[ck].get("error"):
                 continue
-            _, mname, r = _worker_model(
-                tk,
-                m_name,
-                source,
-                name_map.get(tk, ""),
-            )
+            _, mname, r = _worker_model(tk, m_name, source, name_map.get(tk, ""))
             results[f"{tk}::{mname}"] = r
             if progress_cb:
                 progress_cb(
@@ -612,8 +559,5 @@ def run_universe_models_multi_parallel(
     return results
 
 
-# ═══════════════════════════════════════════════════════════
-# 캐시
-# ═══════════════════════════════════════════════════════════
 def clear_cache() -> None:
     pass  # session_state 로 관리

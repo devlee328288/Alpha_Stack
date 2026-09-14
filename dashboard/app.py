@@ -13,13 +13,20 @@ st.set_page_config(page_title="AlphaStack", page_icon="📈", layout="wide")
 
 import theme
 from theme import (
-    metric_row, section_header, top_strip, panel,
-    show_table, plotly_chart, status_dot,
+    metric_row,
+    section_header,
+    top_strip,
+    panel,
+    show_table,
+    plotly_chart,
+    status_dot,
 )
+
 theme.inject()
 
 from components import sidebar_controls
 from services import comparison_service
+from services.combo_config import combo_label
 from state import ctx, get_result, has_result
 
 sidebar_controls()
@@ -40,7 +47,7 @@ cost_be = get_result("cost_be", scope, ticker)
 
 _ready = bool(baseline and models)
 top_strip(
-    ["ALPHASTACK", scope, ticker, "COMBINATION E"],
+    ["ALPHASTACK", scope, ticker, combo_label(scope)],
     status_text="READY" if _ready else "INCOMPLETE",
     status_tone="up" if _ready else "warn",
 )
@@ -62,8 +69,8 @@ def _status_dot_line(label: str, ready: bool, detail: str = "") -> str:
         f'<span style="font-family:var(--font-num);font-size:11px;'
         f'color:var(--text-primary);">{status_dot(tone)} {status}'
         f'  <span style="color:var(--text-muted);margin-left:6px;">{detail}</span>'
-        f'</span>'
-        f'</div>'
+        f"</span>"
+        f"</div>"
     )
 
 
@@ -83,19 +90,28 @@ def _is_ready(v) -> bool:
     return bool(v)
 
 
-with panel("4 STAGES", status_text="LIVE" if _ready else "PARTIAL",
-           status_tone="up" if _ready else "warn"):
+with panel(
+    "4 STAGES",
+    status_text="LIVE" if _ready else "PARTIAL",
+    status_tone="up" if _ready else "warn",
+):
     _cost_n = len(cost_grid) if _is_ready(cost_grid) else 0
 
     st.markdown(
-        _status_dot_line("Baseline", _is_ready(baseline),
-                         f"{baseline['total_folds']} folds" if baseline else "") +
-        _status_dot_line("Model Lab", _is_ready(models),
-                         f"{len(models)} models" if models else "") +
-        _status_dot_line("Backtest", _is_ready(bt),
-                         "A/B/C" if _is_ready(bt) else "") +
-        _status_dot_line("Cost Sens", _is_ready(cost_grid),
-                         f"{_cost_n} grid" if _is_ready(cost_grid) else ""),
+        _status_dot_line(
+            "Baseline",
+            _is_ready(baseline),
+            f"{baseline['total_folds']} folds" if baseline else "",
+        )
+        + _status_dot_line(
+            "Model Lab", _is_ready(models), f"{len(models)} models" if models else ""
+        )
+        + _status_dot_line("Backtest", _is_ready(bt), "A/B/C" if _is_ready(bt) else "")
+        + _status_dot_line(
+            "Cost Sens",
+            _is_ready(cost_grid),
+            f"{_cost_n} grid" if _is_ready(cost_grid) else "",
+        ),
         unsafe_allow_html=True,
     )
 
@@ -124,30 +140,49 @@ with col_b:
         status_text=f"{baseline['total_folds']} FOLDS · {_age}",
         status_tone="accent",
     ):
-        metric_row([
-            dict(label="SHARPE", value=f"{b_perf.get('sharpe', 0):.4f}",
-                 tone="up" if b_perf.get("sharpe", 0) > 0 else "down"),
-            dict(label="CAGR", value=f"{b_perf.get('cagr', 0)*100:.2f}%",
-                 tone="up" if b_perf.get("cagr", 0) > 0 else "down"),
-            dict(label="MDD", value=f"{-abs(b_perf.get('mdd', 0))*100:.2f}%",
-                 tone="down"),
-            dict(label="MACRO F1", value=f"{b_cls.get('f1_macro', 0):.4f}"),
-        ], cols=4)
+        metric_row(
+            [
+                dict(
+                    label="SHARPE",
+                    value=f"{b_perf.get('sharpe', 0):.4f}",
+                    tone="up" if b_perf.get("sharpe", 0) > 0 else "down",
+                ),
+                dict(
+                    label="CAGR",
+                    value=f"{b_perf.get('cagr', 0)*100:.2f}%",
+                    tone="up" if b_perf.get("cagr", 0) > 0 else "down",
+                ),
+                dict(
+                    label="MDD",
+                    value=f"{-abs(b_perf.get('mdd', 0))*100:.2f}%",
+                    tone="down",
+                ),
+                dict(label="MACRO F1", value=f"{b_cls.get('f1_macro', 0):.4f}"),
+            ],
+            cols=4,
+        )
 
 with col_m:
     _age = models[best_name].get("run_at", "—")
     with panel(
         f"BEST MODEL · {best_name}",
-        status_text=f"BEST · {_age}", status_tone="up",
+        status_text=f"BEST · {_age}",
+        status_tone="up",
     ):
         _ds = best_summary.get("delta_sharpe_net_median", 0)
-        metric_row([
-            dict(label="ACC", value=f"{best_summary['accuracy']:.4f}"),
-            dict(label="MACRO F1", value=f"{best_summary['macro_f1']:.4f}"),
-            dict(label="DOWN REC", value=f"{best_summary['down_recall']:.4f}"),
-            dict(label="ΔSHARPE", value=f"{_ds:+.4f}",
-                 tone="up" if _ds > 0 else "down"),
-        ], cols=4)
+        metric_row(
+            [
+                dict(label="ACC", value=f"{best_summary['accuracy']:.4f}"),
+                dict(label="MACRO F1", value=f"{best_summary['macro_f1']:.4f}"),
+                dict(label="DOWN REC", value=f"{best_summary['down_recall']:.4f}"),
+                dict(
+                    label="ΔSHARPE",
+                    value=f"{_ds:+.4f}",
+                    tone="up" if _ds > 0 else "down",
+                ),
+            ],
+            cols=4,
+        )
 
 # ═══════════════════════════════════════════════════════════
 # ③ FOLD TIMELINE
@@ -158,28 +193,34 @@ fold_df = pd.DataFrame(models[best_name]["fold_results"])
 if not fold_df.empty and "delta_sharpe_net" in fold_df.columns:
     with panel(f"{len(fold_df)} FOLDS · ΔSHARPE (STRATEGY − BUY&HOLD)"):
         colors = [
-            "#4ade80" if v > 0 else "#ff5c5c"
-            for v in fold_df["delta_sharpe_net"]
+            "#4ade80" if v > 0 else "#ff5c5c" for v in fold_df["delta_sharpe_net"]
         ]
         hover_text = [
-            f"{row['valid_start']} ~ {row['valid_end']}"
-            if "valid_start" in fold_df.columns else f"fold {int(row['fold'])}"
+            (
+                f"{row['valid_start']} ~ {row['valid_end']}"
+                if "valid_start" in fold_df.columns
+                else f"fold {int(row['fold'])}"
+            )
             for _, row in fold_df.iterrows()
         ]
-        fig = go.Figure(go.Bar(
-            x=[f"F{int(i)}" for i in fold_df["fold"]],
-            y=fold_df["delta_sharpe_net"],
-            marker=dict(color=colors),
-            text=[f"{v:+.2f}" for v in fold_df["delta_sharpe_net"]],
-            textposition="outside",
-            hovertext=hover_text,
-            hovertemplate="%{x}<br>%{hovertext}<br>ΔSharpe=%{y:.3f}<extra></extra>",
-        ))
+        fig = go.Figure(
+            go.Bar(
+                x=[f"F{int(i)}" for i in fold_df["fold"]],
+                y=fold_df["delta_sharpe_net"],
+                marker=dict(color=colors),
+                text=[f"{v:+.2f}" for v in fold_df["delta_sharpe_net"]],
+                textposition="outside",
+                hovertext=hover_text,
+                hovertemplate="%{x}<br>%{hovertext}<br>ΔSharpe=%{y:.3f}<extra></extra>",
+            )
+        )
         fig.update_layout(
-            height=280, showlegend=False,
+            height=280,
+            showlegend=False,
             xaxis=dict(title=""),
-            yaxis=dict(title="ΔSharpe", zeroline=True,
-                       zerolinecolor="rgba(255,255,255,0.15)"),
+            yaxis=dict(
+                title="ΔSharpe", zeroline=True, zerolinecolor="rgba(255,255,255,0.15)"
+            ),
             margin=dict(l=8, r=8, t=28, b=8),
         )
         plotly_chart(fig)
@@ -190,14 +231,23 @@ if not fold_df.empty and "delta_sharpe_net" in fold_df.columns:
         _max = float(fold_df["delta_sharpe_net"].max())
         _min = float(fold_df["delta_sharpe_net"].min())
 
-        metric_row([
-            dict(label="POSITIVE FOLDS", value=f"{_pos}/{_tot}",
-                 tone="up" if _pos > _tot / 2 else "warn"),
-            dict(label="MEDIAN ΔSHP", value=f"{_med:+.4f}",
-                 tone="up" if _med > 0 else "down"),
-            dict(label="MAX", value=f"{_max:+.4f}", tone="up"),
-            dict(label="MIN", value=f"{_min:+.4f}", tone="down"),
-        ], cols=4)
+        metric_row(
+            [
+                dict(
+                    label="POSITIVE FOLDS",
+                    value=f"{_pos}/{_tot}",
+                    tone="up" if _pos > _tot / 2 else "warn",
+                ),
+                dict(
+                    label="MEDIAN ΔSHP",
+                    value=f"{_med:+.4f}",
+                    tone="up" if _med > 0 else "down",
+                ),
+                dict(label="MAX", value=f"{_max:+.4f}", tone="up"),
+                dict(label="MIN", value=f"{_min:+.4f}", tone="down"),
+            ],
+            cols=4,
+        )
 
 # ═══════════════════════════════════════════════════════════
 # ④ MODEL COMPARISON
@@ -207,13 +257,21 @@ cmp_df = comparison_service.build_comparison_table(models)
 
 with panel(
     "12-FOLD OOS · SORT BY HARMONIC",
-    status_text=f"BEST · {best_name}", status_tone="up",
+    status_text=f"BEST · {best_name}",
+    status_tone="up",
 ):
     display = cmp_df.rename(columns=comparison_service.COMPARISON_COLUMNS)
     show_table(
         display,
-        num_cols=["ACC", "MACRO F1", "DOWN RECALL", "HARMONIC",
-                  "BAL ACC", "MAJORITY", "ΔSHARPE"],
+        num_cols=[
+            "ACC",
+            "MACRO F1",
+            "DOWN RECALL",
+            "HARMONIC",
+            "BAL ACC",
+            "MAJORITY",
+            "ΔSHARPE",
+        ],
         precision=4,
         highlight_row=0,
     )
@@ -227,32 +285,38 @@ if _is_ready(bt):
         bt_rows = []
         for s, r in bt.items():
             m = r["metrics"]
-            bt_rows.append({
-                "STRATEGY": s,
-                "TOTAL RETURN": m["total_return"],
-                "ANNUAL RETURN": m["annual_return"],
-                "SHARPE": m["sharpe_ratio"],
-                "MDD": -abs(m["max_drawdown"]),
-                "TRADES": m["num_trades"],
-                "FINAL VALUE": m["final_portfolio_value"],
-            })
+            bt_rows.append(
+                {
+                    "STRATEGY": s,
+                    "TOTAL RETURN": m["total_return"],
+                    "ANNUAL RETURN": m["annual_return"],
+                    "SHARPE": m["sharpe_ratio"],
+                    "MDD": -abs(m["max_drawdown"]),
+                    "TRADES": m["num_trades"],
+                    "FINAL VALUE": m["final_portfolio_value"],
+                }
+            )
         show_table(
             pd.DataFrame(bt_rows),
-            num_cols=["TOTAL RETURN", "ANNUAL RETURN", "SHARPE",
-                      "MDD", "FINAL VALUE"],
+            num_cols=["TOTAL RETURN", "ANNUAL RETURN", "SHARPE", "MDD", "FINAL VALUE"],
             precision=4,
         )
 
 if _is_ready(cost_be):
     section_header("COST · BREAKEVEN")
     be_rows = cost_be.to_dict("records") if hasattr(cost_be, "to_dict") else cost_be
-    metric_row([
-        dict(label=f"STRATEGY {r['strategy']}",
-             value=f"{r['breakeven_cost']*100:.3f}%",
-             tone="up" if r["breakeven_cost"] > 0.002 else "warn",
-             accent=True)
-        for r in be_rows
-    ], cols=len(be_rows))
+    metric_row(
+        [
+            dict(
+                label=f"STRATEGY {r['strategy']}",
+                value=f"{r['breakeven_cost']*100:.3f}%",
+                tone="up" if r["breakeven_cost"] > 0.002 else "warn",
+                accent=True,
+            )
+            for r in be_rows
+        ],
+        cols=len(be_rows),
+    )
 
 # ═══════════════════════════════════════════════════════════
 # ⑥ RECENT OOS PREDICTIONS
@@ -268,18 +332,27 @@ if _oos:
     section_header(f"RECENT OOS · {best_name} · LAST 20")
 
     with panel("LAST 20 DAYS"):
-        view = oos_df[[
-            "bas_dd", "actual_label", "pred_label",
-            "p_down", "p_neutral", "p_up", "correct",
-        ]].rename(columns={
-            "bas_dd": "DATE",
-            "actual_label": "ACTUAL",
-            "pred_label": "PRED",
-            "p_down": "P(DN)",
-            "p_neutral": "P(NT)",
-            "p_up": "P(UP)",
-            "correct": "✓",
-        })
+        view = oos_df[
+            [
+                "bas_dd",
+                "actual_label",
+                "pred_label",
+                "p_down",
+                "p_neutral",
+                "p_up",
+                "correct",
+            ]
+        ].rename(
+            columns={
+                "bas_dd": "DATE",
+                "actual_label": "ACTUAL",
+                "pred_label": "PRED",
+                "p_down": "P(DN)",
+                "p_neutral": "P(NT)",
+                "p_up": "P(UP)",
+                "correct": "✓",
+            }
+        )
         show_table(
             view.iloc[::-1].reset_index(drop=True),
             num_cols=["P(DN)", "P(NT)", "P(UP)"],
@@ -287,14 +360,24 @@ if _oos:
         )
 
         _acc20 = float(oos_df["correct"].mean())
-        metric_row([
-            dict(label="ACCURACY (LAST 20)",
-                 value=f"{_acc20*100:.1f}%",
-                 tone="up" if _acc20 > 0.4 else "down"),
-            dict(label="UP PRED", value=f"{int((oos_df['predicted'] == 1).sum())}"),
-            dict(label="NEUTRAL PRED", value=f"{int((oos_df['predicted'] == 0).sum())}"),
-            dict(label="DOWN PRED", value=f"{int((oos_df['predicted'] == -1).sum())}"),
-        ], cols=4)
+        metric_row(
+            [
+                dict(
+                    label="ACCURACY (LAST 20)",
+                    value=f"{_acc20*100:.1f}%",
+                    tone="up" if _acc20 > 0.4 else "down",
+                ),
+                dict(label="UP PRED", value=f"{int((oos_df['predicted'] == 1).sum())}"),
+                dict(
+                    label="NEUTRAL PRED",
+                    value=f"{int((oos_df['predicted'] == 0).sum())}",
+                ),
+                dict(
+                    label="DOWN PRED", value=f"{int((oos_df['predicted'] == -1).sum())}"
+                ),
+            ],
+            cols=4,
+        )
 
 # ═══════════════════════════════════════════════════════════
 # ⑦ NEXT STEPS

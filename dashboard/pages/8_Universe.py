@@ -22,7 +22,9 @@ from theme import (
 theme.inject()
 
 from components import sidebar_controls
+
 from services import universe_service
+from services.combo_config import combo_label, n_features_of
 from state import (
     ctx,
     universe_get,
@@ -149,7 +151,8 @@ top_strip(
     [
         source.upper(),
         f"{len(codes_all)} TICKERS",
-        f"BASELINE {len(baseline_u)}",
+        combo_label("UNIVERSE"),  # ← COMBINATION K
+        f"{n_features_of('UNIVERSE')} FEAT",  # ← 14 FEAT
         f"MODEL {len(model_u)}",
     ],
     status_text="READY" if baseline_u else "IDLE",
@@ -160,6 +163,12 @@ top_strip(
 # CONFIG — RUN
 # ═══════════════════════════════════════════════════════════
 section_header("RUN CONFIG")
+
+# ── 조합 안내 ──
+st.caption(
+    f"ℹ️ **{combo_label('UNIVERSE')}** — {n_features_of('UNIVERSE')} features · "
+    f"Baseline은 threshold 기반이라 조합과 무관, Model은 K조합 자동 적용."
+)
 
 with panel():
     c1, c2, c3, c4 = st.columns([1.4, 1.4, 1.2, 1.2], gap="small")
@@ -179,22 +188,12 @@ with panel():
         tickers_sel = codes_all[:n_take]
 
     with c2:
-        # ── Threshold · 라벨 정의 (1% / 2%) ──
-        threshold_choice = st.selectbox(
-            "Threshold · 라벨 정의",
-            ["0.01", "0.02"],
+        threshold = st.selectbox(
+            "Threshold",
+            [0.01, 0.02],
+            format_func=lambda v: f"{v*100:.0f}%",
             index=0,
-            format_func=lambda v: {
-                "0.01": "1%",
-                "0.02": "2%",
-            }[v],
-            help=(
-                "fwd_return ± 임계값으로 UP/NEUTRAL/DOWN 라벨 생성  \n"
-                "1% = ±0.01, 2% = ±0.02"
-            ),
         )
-        threshold_val = float(threshold_choice)
-
         max_evals = st.selectbox(
             "CMA-ES",
             ["QUICK (10)", "MED (30)", "FULL (100)", "MAX (300)"],
@@ -225,6 +224,7 @@ with panel():
     # 예상 시간 계산
     _baseline_per_item = 3 if max_evals_n >= 100 else 0.5
     _model_per_item = 5
+    _n_models_est = 1
     _baseline_min = int(n_take * _baseline_per_item / max(n_jobs, 1))
     _model_min = int(n_take * _model_per_item / max(n_jobs, 1))
 
@@ -242,7 +242,7 @@ with panel():
             use_container_width=True,
         )
     with cB:
-        if n_take > 50 or (n_jobs == 1 and n_take > 20):
+        if n_take > 50 or n_jobs == 1 and n_take > 20:
             st.warning(f"⚠️ {n_take}종목 · 시간 오래 걸림. 백그라운드로 두세요.")
         else:
             st.caption("")
@@ -265,8 +265,7 @@ with panel():
     total_runs = len(model_names_sel) * n_take
     if total_runs > 100:
         st.error(
-            f"🚨 **{total_runs}회 실행** · 예상 "
-            f"**{int(total_runs * _model_per_item / max(n_jobs,1))}분**. "
+            f"🚨 **{total_runs}회 실행** · 예상 **{int(total_runs * _model_per_item / max(n_jobs,1))}분**. "
             f"Subset을 줄이거나 n_jobs를 늘리세요."
         )
     else:
@@ -304,7 +303,7 @@ if run_baseline_btn:
     with st.spinner(f"Baseline · {n_take}종목 · n_jobs={n_jobs}…"):
         results = universe_service.run_universe_baseline_parallel(
             tickers=tickers_sel,
-            threshold=threshold_val,  # float (0.01 / 0.02)
+            threshold=float(threshold),
             max_evals=int(max_evals_n),
             source=source,
             n_jobs=int(n_jobs),
@@ -367,7 +366,7 @@ if baseline_u:
                 return "—"
             return f"{v:+.{digits}f}" if signed else f"{v:.{digits}f}"
 
-        _mean_hrm = valid["HARMONIC"].mean() if "HARMONIC" in valid.columns else None
+        _mean_mf1 = valid["MACRO F1"].mean() if "MACRO F1" in valid.columns else None
         _mean_shp = valid["SHARPE"].mean() if "SHARPE" in valid.columns else None
 
         metric_row(
@@ -378,9 +377,9 @@ if baseline_u:
                     tone="up",
                     accent=True,
                 ),
-                dict(label="MACRO F1", value=_fmt(_top.get("MACRO F1")), tone="up"),
-                dict(label="BAL ACC", value=_fmt(_top.get("BAL ACC"))),
-                dict(label="MEAN HARMONIC", value=_fmt(_mean_hrm)),
+                dict(label="TOP MACRO F1", value=_fmt(_top.get("MACRO F1")), tone="up"),
+                dict(label="TOP BAL ACC", value=_fmt(_top.get("BAL ACC"))),
+                dict(label="MEAN MACRO F1", value=_fmt(_mean_mf1)),
                 dict(
                     label="MEAN SHARPE",
                     value=_fmt(_mean_shp),
@@ -397,28 +396,18 @@ if baseline_u:
     ):
         show_table(
             rank_df,
-            num_cols=[
-                "ACC",
-                "MACRO F1",
-                "DOWN REC",
-                "HARMONIC",
-                "BAL ACC",
-                "SHARPE",
-                "CAGR",
-                "MDD",
-                "WIN RATE",
-            ],
+            num_cols=["MACRO F1", "BAL ACC", "SHARPE", "CAGR", "MDD", "WIN RATE"],
             precision=4,
             highlight_row=0,
         )
 
-    section_header("TOP 15 · HARMONIC")
+    section_header("TOP 15 · MACRO F1")
     top15 = rank_df[rank_df["ERROR"] == ""].head(15)
     if not top15.empty:
-        with panel("HARMONIC (ACC·F1·DOWN RECALL 조화평균)"):
+        with panel("MACRO F1 (SORTED DESC)"):
             fig = go.Figure(
                 go.Bar(
-                    x=top15["HARMONIC"],
+                    x=top15["MACRO F1"],
                     y=[f"{r['CODE']} · {r['NAME']}" for _, r in top15.iterrows()],
                     orientation="h",
                     marker=dict(
@@ -427,17 +416,14 @@ if baseline_u:
                             for i in range(len(top15))
                         ]
                     ),
-                    text=[f"{v:.4f}" for v in top15["HARMONIC"]],
+                    text=[f"{v:.4f}" for v in top15["MACRO F1"]],
                     textposition="outside",
                 )
             )
             fig.update_layout(
                 height=max(300, 32 * len(top15)),
                 showlegend=False,
-                xaxis=dict(
-                    title="",
-                    range=[0, float(top15["HARMONIC"].max()) * 1.15],
-                ),
+                xaxis=dict(title="", range=[0, float(top15["MACRO F1"].max()) * 1.15]),
                 yaxis=dict(title="", autorange="reversed"),
             )
             plotly_chart(fig)
@@ -520,9 +506,6 @@ if not baseline_u and not model_u:
 - Market: KOSPI / KOSPI+KOSDAQ / ALL
 - Top-N: 시가총액 상위 (권장 200)
 - 잡음 제외: 거래정지·상장폐지·신규상장
-
-**Threshold (라벨 정의)**
-- `1%` / `2%` — fwd_return ± 임계값으로 UP/NEUTRAL/DOWN 판정
 
 **실행**
 1. Subset, Threshold, CMA-ES, n_jobs 설정

@@ -1,7 +1,7 @@
 # dashboard/services/baseline_service.py
 """
 Baseline 서비스 — 6-param threshold walk-forward.
-scope/ticker 지원 (MARKET | STOCK).
+scope/ticker 지원 (MARKET | STOCK | UNIVERSE).
 Streamlit @st.cache_data 안 씀 (stdout ASCII 캡처 문제 회피).
 """
 
@@ -34,10 +34,24 @@ import pandas as pd
 
 _IMPORT_ERR: str | None = None
 _HAS_FOCAL = False
+_HAS_BAND_LABELS = False
 try:
     from step1_core_features import load_data  # type: ignore
     from step5_optimize_6params import run_walkforward_6params  # type: ignore
     from focal_classifier import FocalConfig, make_labels  # type: ignore
+
+    # ── band label 함수명 호환 (둘 중 존재하는 것 사용) ──
+    try:
+        from step5_optimize_6params import make_band_labels as _make_band_labels  # type: ignore
+
+        _HAS_BAND_LABELS = True
+    except Exception:
+        try:
+            from step5_optimize_6params import make_baseline_labels as _make_band_labels  # type: ignore
+
+            _HAS_BAND_LABELS = True
+        except Exception:
+            _HAS_BAND_LABELS = False
 
     try:
         from step7_focal_walkforward import (  # type: ignore
@@ -58,6 +72,10 @@ def engine_status() -> str | None:
 
 def focal_available() -> bool:
     return _HAS_FOCAL
+
+
+def band_labels_available() -> bool:
+    return _HAS_BAND_LABELS
 
 
 # ═══════════════════════════════════════════════════════════
@@ -94,10 +112,10 @@ def run_baseline(
     if _IMPORT_ERR:
         raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
 
-    # ── threshold 정규화 ("adaptive" 지원) ────────────
-    if isinstance(threshold, str) and threshold == "adaptive":
-        threshold_key = "adaptive"
-        threshold_float = 0.01  # focal/metrics 용 (adaptive에선 미사용)
+    # ── threshold 정규화 ──────────────────────────────
+    if isinstance(threshold, str):
+        threshold_key = str(threshold)  # "adaptive" 등
+        threshold_float = 0.01  # step5 에는 숫자만 전달
     else:
         threshold_key = float(threshold)
         threshold_float = float(threshold)
@@ -113,7 +131,7 @@ def run_baseline(
     if cache_key in _BASELINE_CACHE:
         return _BASELINE_CACHE[cache_key]
 
-    # 데이터 로드 (scope/ticker/source 별)
+    # 데이터 로드
     from services import data_loader
 
     if source == "full":
@@ -129,13 +147,13 @@ def run_baseline(
             val_months=3,
             step_months=1,
             max_evals=max_evals,
-            threshold=threshold,  # ★ "adaptive" or float 그대로 전달
+            threshold=threshold_float,  # ★ 숫자만 넘김
         )
 
     out: dict = {
         "scope": scope,
         "ticker": ticker,
-        "threshold": threshold_key,  # ★ "adaptive" or float 저장
+        "threshold": threshold_key,
         "max_evals": int(max_evals),
         "include_focal": bool(include_focal),
         "total_folds": int(step5["total_folds"]),
@@ -159,7 +177,6 @@ def run_baseline(
                 )
                 y_true = make_labels(df, threshold=float(threshold_float)).to_numpy()
                 metrics = evaluate_signals(signals, y_true)
-
             out["focal"] = _sanitize_metrics(metrics)
             out["focal_signals_tail"] = (
                 signals.tail(30)
@@ -178,6 +195,9 @@ def clear_cache() -> None:
     _BASELINE_CACHE.clear()
 
 
+# ═══════════════════════════════════════════════════════════
+# Adaptive 라벨 생성 (per-fold 파라미터로 전체 df 라벨)
+# ═══════════════════════════════════════════════════════════
 def make_adaptive_labels_from_baseline(
     scope: str | None = None,
     ticker: str = "KOSPI200",
@@ -187,31 +207,34 @@ def make_adaptive_labels_from_baseline(
 ):
     """
     Baseline 의 fold_details (per-fold 파라미터) 로 전체 df 라벨 생성.
-
-    시그니처 유연화:
-      - scope: "MARKET" | "STOCK"  (권장)
-      - source: "MARKET"/"STOCK" 이면 scope 로 해석
-                "stocks30"/"full"   이면 session_state['scope'] 폴백
+    각 row 의 시점에 따라 "가장 최근에 학습된 fold" 파라미터 사용.
+    walk-forward 정신 — 미래 정보 누설 없음.
 
     Returns
     -------
-    dict : {"labels": list[float], "dates": list[str], "n_valid": int, "n_total": int}
+    dict : {
+        "labels": list[float],  # {0.0=하락, 1.0=중립, 2.0=상승} 또는 NaN
+        "dates": list[str],
+        "n_valid": int,
+        "n_total": int,
+    }
     """
     import numpy as np
     import pandas as pd
     from services import data_loader
-    from step5_optimize_6params import make_band_labels
 
     if _IMPORT_ERR:
         raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
+    if not _HAS_BAND_LABELS:
+        raise RuntimeError(
+            "make_band_labels / make_baseline_labels 를 "
+            "step5_optimize_6params 에서 찾을 수 없습니다."
+        )
 
     # ── scope 정규화 ─────────────────────────────
-    # 1) scope 우선
     _resolved_scope = scope
-    # 2) source 가 MARKET/STOCK 이면 그걸 scope 로
-    if _resolved_scope is None and source in ("MARKET", "STOCK"):
+    if _resolved_scope is None and source in ("MARKET", "STOCK", "UNIVERSE"):
         _resolved_scope = source
-    # 3) 그 외엔 session_state 폴백
     if _resolved_scope is None:
         try:
             import streamlit as st
@@ -231,9 +254,8 @@ def make_adaptive_labels_from_baseline(
     if "train_end" not in fold_df.columns:
         raise ValueError("train_end 컬럼 없음")
 
-    # ── train_end Timestamp → index 위치 매핑 ────
+    # ── train_end → index 위치 매핑 ──────────────
     date_to_idx = {d: i for i, d in enumerate(df.index)}
-
     fold_positions = []
     for _, row in fold_df.iterrows():
         try:
@@ -261,6 +283,7 @@ def make_adaptive_labels_from_baseline(
     fold_positions.sort(key=lambda x: x[0])
     train_ends = [p[0] for p in fold_positions]
 
+    # 각 row → fold 인덱스 배정
     fold_assign = np.full(n, -1, dtype=int)
     for i, te in enumerate(train_ends):
         next_te = train_ends[i + 1] if i + 1 < len(train_ends) else n
@@ -272,7 +295,7 @@ def make_adaptive_labels_from_baseline(
         if not mask.any():
             continue
         try:
-            fold_labels = make_band_labels(
+            fold_labels = _make_band_labels(
                 df,
                 float(row["alpha_up"]),
                 float(row["alpha_down"]),
