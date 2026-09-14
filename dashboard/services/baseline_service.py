@@ -4,6 +4,7 @@ Baseline 서비스 — 6-param threshold walk-forward.
 scope/ticker 지원 (MARKET | STOCK).
 Streamlit @st.cache_data 안 씀 (stdout ASCII 캡처 문제 회피).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -34,12 +35,15 @@ import pandas as pd
 _IMPORT_ERR: str | None = None
 _HAS_FOCAL = False
 try:
-    from step5_optimize_6params import run_walkforward_6params   # type: ignore
-    from focal_classifier import FocalConfig, make_labels        # type: ignore
+    from step5_optimize_6params import run_walkforward_6params  # type: ignore
+    from focal_classifier import FocalConfig, make_labels  # type: ignore
+
     try:
-        from step7_focal_walkforward import (                     # type: ignore
-            evaluate_signals, generate_signals_rolling,
+        from step7_focal_walkforward import (  # type: ignore
+            evaluate_signals,
+            generate_signals_rolling,
         )
+
         _HAS_FOCAL = True
     except Exception:
         pass
@@ -89,13 +93,20 @@ def run_baseline(
     if _IMPORT_ERR:
         raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
 
-    cache_key = (scope, ticker, float(threshold), int(max_evals),
-                 bool(include_focal), source)
+    cache_key = (
+        scope,
+        ticker,
+        float(threshold),
+        int(max_evals),
+        bool(include_focal),
+        source,
+    )
     if cache_key in _BASELINE_CACHE:
         return _BASELINE_CACHE[cache_key]
 
     # 데이터 로드 (scope/ticker/source 별)
     from services import data_loader
+
     if source == "full":
         df = data_loader.load_market_data_full(ticker, price_col="adj_close")
     else:
@@ -132,7 +143,9 @@ def run_baseline(
             with _out2, _err2:
                 cfg = FocalConfig(threshold=float(threshold))
                 signals = generate_signals_rolling(
-                    df, step5["fold_details"], focal_config=cfg,
+                    df,
+                    step5["fold_details"],
+                    focal_config=cfg,
                 )
                 y_true = make_labels(df, threshold=float(threshold)).to_numpy()
                 metrics = evaluate_signals(signals, y_true)
@@ -153,3 +166,65 @@ def run_baseline(
 
 def clear_cache() -> None:
     _BASELINE_CACHE.clear()
+
+
+# ═══════════════════════════════════════════════════════════
+# FROZEN CLASSIFIER (문제 1)
+# ═══════════════════════════════════════════════════════════
+_FROZEN_CACHE: dict = {}
+
+
+def run_frozen_classifier(
+    scope: str,
+    ticker: str,
+    threshold: float = 0.01,
+    max_evals: int = 300,
+    objective: str = "harmonic",
+    source: str = "stocks30",
+) -> dict:
+    """
+    고정 분류기 실행. 전체 구간에서 한 번 최적화 → 최적 α/β 세트.
+
+    Baseline은 판단기 (미래 예측 X) → train/test split 없이
+    역사 전체를 가장 잘 설명하는 기준을 찾음.
+    """
+    from services import data_loader
+
+    if _IMPORT_ERR:
+        raise RuntimeError(f"repo engine import 실패: {_IMPORT_ERR}")
+
+    key = (scope, ticker, float(threshold), int(max_evals), objective, source)
+    if key in _FROZEN_CACHE:
+        return _FROZEN_CACHE[key]
+
+    # 데이터 로드
+    if source == "full" and scope == "STOCK":
+        df = data_loader.load_market_data_full(ticker)
+    else:
+        df = data_loader.load_market_data(scope, ticker)
+
+    _out, _err = _silence()
+    with _out, _err:
+        from step5_optimize_6params import find_frozen_6params
+
+        result = find_frozen_6params(
+            df,
+            threshold=threshold,
+            max_evals=max_evals,
+            objective=objective,
+        )
+
+    # 메타 정보 추가
+    import datetime as _dt
+
+    result["scope"] = scope
+    result["ticker"] = ticker
+    result["source"] = source
+    result["run_at"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    _FROZEN_CACHE[key] = result
+    return result
+
+
+def clear_frozen_cache() -> None:
+    _FROZEN_CACHE.clear()

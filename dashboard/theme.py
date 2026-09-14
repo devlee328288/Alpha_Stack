@@ -140,15 +140,54 @@ a:hover { text-decoration: underline; }
   font-weight: 500;
 }
 
-/* 사이드바 본문 텍스트 (커스텀 메타) */
+/* 사이드바 본문 텍스트 — 대비 강화 */
 [data-testid="stSidebar"] .stMarkdown,
 [data-testid="stSidebar"] label {
   font-size: 12px;
-  color: var(--text-secondary);
+  color: var(--text-primary) !important;
+}
+[data-testid="stSidebar"] p,
+[data-testid="stSidebar"] span,
+[data-testid="stSidebar"] div {
+  color: var(--text-primary);
+}
+[data-testid="stSidebar"] .stMarkdown p {
+  color: var(--text-primary) !important;
+}
+[data-testid="stSidebar"] label p {
+  color: var(--text-primary) !important;
 }
 [data-testid="stSidebar"] hr {
-  border-color: var(--border-subtle);
+  border-color: var(--border-base);
   margin: 8px 0;
+}
+
+/* 사이드바 위젯 라벨 (selectbox, number_input 등) */
+[data-testid="stSidebar"] .stSelectbox label,
+[data-testid="stSidebar"] .stNumberInput label,
+[data-testid="stSidebar"] .stDateInput label,
+[data-testid="stSidebar"] .stMultiSelect label {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+/* 사이드바 caption */
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
+[data-testid="stSidebar"] [data-testid="stCaptionContainer"] * {
+  color: var(--text-primary) !important;
+}
+
+/* 사이드바 네비 — 비활성/활성 대비 강화 */
+[data-testid="stSidebarNav"] a {
+  color: var(--text-secondary) !important;
+}
+[data-testid="stSidebarNav"] a span {
+  color: inherit !important;
+}
+[data-testid="stSidebarNav"] a[aria-current="page"],
+[data-testid="stSidebarNav"] a[aria-current="page"] span {
+  color: #ffffff !important;
+  font-weight: 600 !important;
 }
 
 /* 사이드바 버튼 압축 (SCOPE 버튼 텍스트 wrap 방지) */
@@ -287,9 +326,46 @@ a:hover { text-decoration: underline; }
   border-color: var(--border-base) !important;
   border-radius: var(--radius) !important;
   font-size: 12px;
+  color: var(--text-primary) !important;
 }
+
+/* Selectbox 선택된 값 — 대비 강제 */
+.stSelectbox div[data-baseweb="select"] > div {
+  background: var(--bg-elevated) !important;
+  color: var(--text-primary) !important;
+}
+.stSelectbox div[data-baseweb="select"] span,
+.stSelectbox div[data-baseweb="select"] div {
+  color: var(--text-primary) !important;
+}
+.stSelectbox svg {
+  fill: var(--text-secondary) !important;
+}
+
+/* Number input 값 */
+.stNumberInput input {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+}
+.stNumberInput button {
+  color: var(--text-primary) !important;
+}
+.stNumberInput button svg {
+  fill: var(--text-primary) !important;
+}
+
+/* Date input 값 */
+.stDateInput input {
+  color: var(--text-primary) !important;
+  -webkit-text-fill-color: var(--text-primary) !important;
+}
+
+/* Slider */
 .stSlider [data-baseweb="slider"] div[role="slider"] {
   background: var(--color-accent);
+}
+.stSlider [data-testid="stSliderThumbValue"] {
+  color: var(--text-primary) !important;
 }
 
 /* ── Plotly 컨테이너 배경 투명 ─────────────── */
