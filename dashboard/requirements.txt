@@ -6,3 +6,17 @@ scikit-learn>=1.3
 # optional (있으면 자동 사용)
 xgboost>=2.0
 lightgbm>=4.0
+
+# ── Streamlit Community Cloud 배포용 (2026-09-14 추가) ─────────────
+# Cloud 는 진입점(dashboard/app.py) 폴더의 이 파일을 루트 requirements.txt 보다 먼저 쓴다.
+# 아래가 빠지면 첫 화면이 `No module named 'huggingface_hub'` 로 멈춘다.
+huggingface-hub>=0.20   # services/data_loader.py · hf_service.py — HF private 데이터셋
+datasets>=2.18          # backtest/backtest_strategies.py · run_cost_sensitivity.py
+cma>=3.3                # evaluation/threshold_tuning/step5_optimize_6params.py (Baseline)
+tqdm>=4.66              # 같은 파일
+
+# torch — Baseline 페이지가 focal_classifier 를 같은 import 묶음으로 불러 없으면 페이지 전체가 멈춘다.
+# 기본 PyPI 리눅스 wheel 은 CUDA 포함(555MB+)이라 CPU 전용 wheel 목록에서 받는다.
+# --extra-index-url 로 두면 uv 가 다른 패키지까지 그 인덱스에서 찾아 datasets 가 2.19 로 내려간다.
+--find-links https://download.pytorch.org/whl/cpu/torch/
+torch>=2.1

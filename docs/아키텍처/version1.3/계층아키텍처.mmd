@@ -1,0 +1,59 @@
+%% AlphaStack 계층 아키텍처 v1.3 — supply 정문과 홀드아웃 봉인 입구를 강조한다 (2026-09-14)
+%% 굽기: mmdc -i 계층아키텍처.mmd -o 계층아키텍처.png -b white -s 2
+flowchart TD
+    EXT["외부 세계<br/>KRX · DART · ECOS · FRED · KOSIS · 공공데이터포털 · 예탁결제원"]
+    MAN["사람이 받은 표<br/>업종 스냅샷 36장"]
+
+    subgraph INTERNAL["ingest/ — internal · 소비 계층은 직접 부르지 않는다"]
+        CLI["clients/<br/>응답을 정규화한다"]
+        STORE["store/<br/>SQLite 하나 v16 · 표 23개 · 원문 bytes 보존"]
+    end
+
+    GATE{{"supply/ — as_of 정문<br/><br/>행 T 에 보이는 것은 known_at 이 T 이하인 것뿐<br/>시세 · 원천 정문 셋 · 업종·주권종류는 같은 상장 구간만"}}
+    SEAL{{"supply.holdout — 봉인 입구<br/>unseal.log 정확히 1줄일 때만"}}
+
+    FEAT["features/<br/>기술적 지표 → X, y · 조합 A~K"]
+    MODEL["models/<br/>LogReg · RF · XGBoost · LightGBM<br/>최종 C · K LogReg"]
+    EVAL["evaluation/<br/>워크포워드 gap · 동적 기준선 · MDD · Sharpe"]
+    BT["backtest/<br/>A · B · C 분할매매 · 비용 민감도"]
+    OUT[("결과<br/>reports/ · HF private 두 레포")]
+    UI["dashboard/ Streamlit 9페이지<br/>HF 개발본을 받아 화면 안에서 학습"]
+
+    COMMON["common/<br/>설정 · 경로 · 자격증명 · 거래일 · 기업행위 판정"]
+    TS["timeseries/<br/>ARIMA · ADF · ACF/PACF<br/>분류기와 겨루는 기준선"]
+    PIPE["pipelines.refresh<br/>8단계 버튼 갱신 · 잠금"]
+
+    EXT -->|"수집"| CLI
+    MAN -->|"반입"| STORE
+    CLI --> STORE
+    STORE --> GATE
+    STORE -.->|"봉인 반출 · 한 번만"| SEAL
+    GATE -->|"as_of 통과분"| FEAT
+    SEAL -->|"개봉 뒤 공식 입력 넷"| FEAT
+    FEAT -->|"X, y"| MODEL
+    MODEL -->|"positions, returns"| EVAL
+    MODEL -->|"예측"| BT
+    GATE --> TS
+    TS -->|"기준선"| EVAL
+    EVAL --> OUT
+    BT --> OUT
+    OUT -->|"HF 개발본"| UI
+    PIPE -.->|"수집 → 게이트 → 반출 → HF"| STORE
+
+    COMMON -.->|"모든 층이 쓴다"| CLI
+    COMMON -.-> STORE
+    COMMON -.-> GATE
+
+    BAD["features · models · evaluation 이<br/>ingest 를 직접 import"]
+    BAD -.->|"시험이 막는다<br/>test_supply_boundary.py"| STORE
+
+    classDef gate fill:#fff3cd,stroke:#b8860b,stroke-width:4px,color:#000
+    classDef seal fill:#fff1f2,stroke:#9f1239,stroke-width:3px,color:#000
+    classDef internal fill:#f2f2f2,stroke:#888,color:#000
+    classDef star fill:#e8f4ff,stroke:#1f6feb,stroke-width:3px,color:#000
+    classDef bad fill:#ffe0e0,stroke:#c00,stroke-dasharray:5 5,color:#000
+    class GATE gate
+    class SEAL seal
+    class CLI,STORE internal
+    class EVAL star
+    class BAD bad

@@ -1,0 +1,65 @@
+# 결과 보고서 — 버전 목록
+
+> 최신 버전 폴더가 정본입니다. 옛 버전은 **발전 과정의 기록**이라 지우지 않습니다.
+> 규약 전문은 [docs/README.md](../README.md).
+>
+> 🆕 **2026-09-14 — v1.0 이 1차 프로젝트의 결과 보고서입니다.** 강사님 계획서 양식(구분 · 내용 · 비고)을
+> 요약서로 두고, 본문은 장으로 서술했습니다. 표 · 숫자는 [계획서 v6.0](../계획서/version6.0/) 과 **한 벌**을 씁니다.
+> 발표 전에 쓴 초안(`docs/발표/version1.0/최종결과보고서_초안.html`)은 발표 자료와 함께 동결했습니다.
+
+| 버전 | 날짜 | 무엇이 담겼나 |
+|---|---|---|
+| [**version1.0**](version1.0/) ⭐ | 2026-09-14 | **처음 만든 판.** 요약서 + 본문 10장 + 부록 4(재현 · 근거 문서 · 용어 · 참고문헌) · 그림 4. 뼈대는 국가연구개발 최종보고서 서식(목표 달성도) · CRISP-DM(계획 대비 변경 · 겪은 함정) · 퀀트 보고 기준(시도 공개)을 합쳤다. 홀드아웃 2년은 학습 최빈 기준선(ADR 0006) 대비 KOSPI200 +26.78%p · 개별종목 +9.49%p 이지만 중립 비율이 줄어 부풀어 보이며 MCC −0.0114 · 0.0585. 🔴 홀드아웃 **비용 차감 성과와 사전등록 주 검정은 빈자리** · [변경사항](version1.0/변경사항.md) |
+
+---
+
+## 정본은 docx 가 아니라 **코드**입니다
+
+⚠️ 이 폴더의 `.docx` · `.html` 은 **산출물**입니다. 손으로 고치지 마세요.
+
+내용의 정본은 [`scripts/build_final_report.py`](../../scripts/build_final_report.py) 이고, 계획서와 겹치는 표
+(자료 규모 · 시점 규칙 · 라벨 · 피처 · 설계 · 홀드아웃 결과 · QFRS · 한계 · 로드맵)는
+[`scripts/build_project_plan.py`](../../scripts/build_project_plan.py) 의 상수를 **import** 합니다.
+같은 숫자를 두 파일에 적으면 언젠가 한쪽만 고쳐지기 때문입니다.
+
+```bash
+# 저장소 루트에서 — scripts/ 가 import 경로에 들어가야 계획서 빌더를 가져온다
+python scripts/build_final_report.py           # docx + html
+python scripts/build_final_report.py --word    # + Word 로 목차 · 쪽 번호를 채우고 쪽수를 센다
+```
+
+`--word` 는 Windows 에 Word 와 pywin32 가 있어야 합니다. 없으면 docx 는 그대로 만들어지고, 목차는 Word 에서
+열어 오른쪽 클릭 → 필드 업데이트(F9)로 채울 수 있습니다.
+
+### 그림은 HTML 이 정본입니다
+
+이 보고서에만 있는 그림 셋(`version1.0/그림/*.html`)은 [`scripts/render_html.mjs`](../../scripts/render_html.mjs) 로
+PNG 를 굽습니다. 숫자 원본과 색 검증 결과는 각 HTML 머리 주석에 있습니다. 시스템 구성도는
+[아키텍처 v1.3](../아키텍처/version1.3/) 의 PNG 를 그대로 씁니다.
+
+```bash
+node scripts/render_html.mjs docs/결과보고서/version1.0/그림/라벨분포.html
+node scripts/render_html.mjs docs/결과보고서/version1.0/그림/혼동행렬.html
+node scripts/render_html.mjs docs/결과보고서/version1.0/그림/폴드별_기준선대비.html
+```
+
+---
+
+## 다음 버전을 팔 때
+
+```bash
+# ① scripts/build_final_report.py 의 내용을 고치고 OUT_DOCX 를 새 버전으로 올린다 (예: version1.1)
+# ② 바뀐 그림만 새 버전의 그림/ 에 HTML 을 두고 굽는다
+python scripts/build_final_report.py --word
+# ③ versionN.N/변경사항.md 에 무엇이 왜 바뀌었는지 적는다
+python scripts/check_doc_links.py
+```
+
+⚠️ **옛 버전의 docx 를 다시 굽지 마세요.** 내용이 같아도 zip 타임스탬프 때문에 바이트가 달라집니다.
+
+### Major(+1.0) 인가 Minor(+0.1) 인가
+
+| | 언제 | 예 |
+|---|---|---|
+| **Major** | 요약서의 **핵심 결과 · 결론** 칸이 바뀐다 | 홀드아웃 비용 차감 성과 · 사전등록 주 검정 결과가 들어온다 |
+| **Minor** | 숫자 재측정 · 문구 · 그림 · 캡처 교체 | 대시보드 Model Lab 수정 뒤 화면 캡처 교체 · 근거 문서 경로 갱신 |

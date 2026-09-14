@@ -215,6 +215,17 @@ def bollinger_bands(
     }
 
 
+# `percent_b`의 밴드 폭 판정에만 쓰는 임계값(#194) — 다른 0-나눗셈 가드는 전부 `> 0`을
+# 그대로 쓰고, 여기만 예외로 상대 eps를 둔다. 거래정지 등으로 window 안이 전부 같은
+# 종가면 표준편차가 이론상 0인데, 부동소수 잡음으로 미세하게 양수가 남아 `width > 0`을
+# 통과해 버린다 — NHN(035420) 2013-08-28, 인적분할 직전 20거래일 정지로 폭이
+# 5.82e-11(종가 대비 6.3e-16)까지 깎였는데도 통과해 `percent_b`가 42.0으로 나왔다.
+# 절대 폭이 아니라 종가 수준(mid) 대비 **상대** 폭으로 재야 저가주·고가주 모두에서
+# 같은 기준이 된다. KOSPI 전수 대조(329만 행)에서 이 문턱으로 갈리는 행은 1,991개고
+# 폭 고유값이 20개뿐(전부 1e-10~1e-11대)이라 문턱과 3~6자릿수 여유가 있다.
+_PERCENT_B_WIDTH_EPS = 1e-9
+
+
 def percent_b(prices: Sequence, window: int = 20, num_std: float = 2.0) -> np.ndarray:
     """%B — 볼린저밴드 **안에서 가격의 위치**. `bandwidth`(밴드의 폭)와는 다른 것을 잰다.
 
@@ -223,12 +234,19 @@ def percent_b(prices: Sequence, window: int = 20, num_std: float = 2.0) -> np.nd
     1에 가까우면 상단선 근접(과열·상승 강도), 0에 가까우면 하단선 근접(과매도·하락
     강도). 급등락으로 밴드를 뚫고 나가면 0~1 범위를 벗어날 수 있다 — 그것도 정보다
     (밴드 폭 대비 얼마나 세게 뚫었는지).
+
+    다만 그건 "폭이 있는데 세게 뚫은" 경우다. window 전체가 거래정지 등으로
+    무변동이면 폭 자체가 없다 — 그건 뚫은 게 아니라 잴 것이 없는 것이라 뜻이 다르다.
+    밴드 폭 판정은 `width > 0`이 아니라 `width > _PERCENT_B_WIDTH_EPS * mid`를 쓴다
+    — 이유는 그 상수 정의 주석 참고(#194). `bb_bandwidth`(폭이 0이면 이미 무의미하다고
+    보는 자매 지표)와 판정 기준이 짝을 맞춘다.
     """
     x = _to_array(prices)
     bands = bollinger_bands(x, window=window, num_std=num_std)
     with np.errstate(divide="ignore", invalid="ignore"):
         width = bands["upper"] - bands["lower"]
-        result = np.where(width > 0, (x - bands["lower"]) / width, np.nan)
+        has_width = width > _PERCENT_B_WIDTH_EPS * np.abs(bands["mid"])
+        result = np.where(has_width, (x - bands["lower"]) / width, np.nan)
     return result
 
 

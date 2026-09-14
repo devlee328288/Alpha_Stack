@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>결과 보고서 그림 — 라벨 분포 개발구간 대 평가구간</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     결과 보고서 v1.0 그림. 이 HTML 이 정본이고 PNG 는 여기서 굽는다:
+       node scripts/render_html.mjs docs/결과보고서/version1.0/그림/라벨분포.html
+     숫자 원본 (2026-09-14 재확인)
+       개발구간 — data/sealed/official_inputs_20260911_final/index_dev.parquet · stock_dev.parquet 의 label 칸
+       평가구간 — reports/final_holdout/final-holdout-20260911_report.json 혼동행렬의 행 합
+     색 — 하락 · 중립 · 상승은 극성이라 발산형(파랑 ↔ 빨강 + 회색 중간)이다. 상승이 빨강인 것은 한국 시장 표기 관례.
+       dataviz 검증기(흰 바탕 · 인접 쌍): 색각 이상 ΔE 8.7 · 일반 시각 17.8 · 대비 3:1 이상 PASS.
+       채도 FAIL 은 중간값이 회색이어야 해서 설계상 나온다.
+     docx 에 넣는 정적 그림이라 라이트 한 벌만 둔다. 값은 막대 아래 숫자와 보고서 표에 함께 있다.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --surface: #ffffff;
+    --ink:     #0b0b0b;
+    --ink-2:   #52514e;
+    --muted:   #898781;
+    --grid:    #e1e0d9;
+    --down:    #2a78d6;
+    --neutral: #898781;
+    --up:      #e34948;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--surface); }
+  .sheet {
+    width: 960px; padding: 28px 32px 22px; background: var(--surface); color: var(--ink);
+    font-family: "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo", system-ui, sans-serif;
+    /* 한글은 기본값이면 단어 한가운데서 끊긴다 — 어절 단위로 끊게 강제한다 */
+    word-break: keep-all; line-break: strict; -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 23px; font-weight: 700; letter-spacing: -0.4px; }
+  .sub { font-size: 14.5px; color: var(--ink-2); margin-top: 7px; line-height: 1.55; }
+  .legend { display: flex; gap: 20px; margin: 18px 0 10px; font-size: 14px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .sw { width: 14px; height: 14px; border-radius: 3px; display: inline-block; }
+  svg { display: block; }
+  svg text { font-family: inherit; }
+  .foot { font-size: 12.5px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>평가구간에서 중립이 줄었다 — KOSPI200 38.6% → 16.5%</h1>
+  <p class="sub">5거래일 라벨(T+1 시가 → T+6 시가)의 클래스 비율. 개발구간은 최종 학습에 쓴 입력이고, 평가구간은 봉인했다가 한 번 연 <span style="white-space:nowrap">2년(2024-09-02 ~ 2026-08-24)</span>이다.</p>
+  <div class="legend">
+    <span><i class="sw" style="background:var(--down)"></i>하락</span>
+    <span><i class="sw" style="background:var(--neutral)"></i>중립</span>
+    <span><i class="sw" style="background:var(--up)"></i>상승</span>
+  </div>
+  <svg id="chart" width="896" height="300" role="img"
+       aria-label="트랙과 구간별 하락 중립 상승 비율 막대. KOSPI200 개발 27.7 38.6 33.6, 평가 28.9 16.5 54.6. 개별종목 개발 31.9 38.0 30.1, 평가 34.9 28.6 36.6 퍼센트."></svg>
+  <p class="foot">원본 — 개발구간: data/sealed/official_inputs_20260911_final/{index,stock}_dev.parquet 의 label · 평가구간: reports/final_holdout/final-holdout-20260911_report.json 혼동행렬 행 합 · 2026-09-14 재확인</p>
+</div>
+<script>
+  // 개수는 원본에서 옮겼고 비율은 여기서 계산한다 — 비율을 손으로 적으면 반올림이 어긋난다
+  const DATA = [
+    { track: 'KOSPI200', period: '개발구간', n: '3,580거래일', counts: [993, 1383, 1204] },
+    { track: 'KOSPI200', period: '평가구간', n: '478거래일', counts: [138, 79, 261] },
+    { track: '개별종목', period: '개발구간', n: '160,002건', counts: [50971, 60837, 48194] },
+    { track: '개별종목', period: '평가구간', n: '23,567건', counts: [8217, 6736, 8614] },
+  ]
+  const COLORS = ['var(--down)', 'var(--neutral)', 'var(--up)']
+  const NS = 'http://www.w3.org/2000/svg'
+  const W = 896, LABEL = 200, BAR_W = W - LABEL - 6, BAR_H = 24, GAP = 2, R = 4
+
+  function el(tag, attrs, text) {
+    const e = document.createElementNS(NS, tag)
+    for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v)
+    if (text !== undefined) e.textContent = text
+    return e
+  }
+
+  const svg = document.getElementById('chart')
+  let y = 4
+  DATA.forEach((row, i) => {
+    if (i === 2) {
+      // 트랙이 바뀌는 자리 — 두 트랙을 한 눈금으로 비교하지 않게 가른다
+      svg.appendChild(el('line', { x1: 0, x2: W, y1: y + 2, y2: y + 2, style: 'stroke:var(--grid);stroke-width:1' }))
+      y += 20
+    }
+    const total = row.counts.reduce((a, b) => a + b, 0)
+    svg.appendChild(el('text', { x: 0, y: y + 15, style: 'font-size:15.5px;font-weight:700;fill:var(--ink)' }, row.track))
+    svg.appendChild(el('text', { x: 0, y: y + 36, style: 'font-size:13.5px;fill:var(--ink-2)' }, `${row.period} · ${row.n}`))
+
+    let x = LABEL
+    row.counts.forEach((c, k) => {
+      const w = (c / total) * BAR_W
+      const drawW = k < 2 ? w - GAP : w
+      if (k < 2) {
+        svg.appendChild(el('rect', { x, y, width: drawW, height: BAR_H, style: `fill:${COLORS[k]}` }))
+      } else {
+        // 끝 막대만 바깥 끝을 4px 둥글린다 — 시작점(0%)은 각지게 둔다
+        const x2 = x + drawW
+        const d = `M${x},${y} H${x2 - R} Q${x2},${y} ${x2},${y + R} V${y + BAR_H - R} Q${x2},${y + BAR_H} ${x2 - R},${y + BAR_H} H${x} Z`
+        svg.appendChild(el('path', { d, style: `fill:${COLORS[k]}` }))
+      }
+      const pct = ((c / total) * 100).toFixed(1) + '%'
+      const strong = k === 1
+      svg.appendChild(el('text', {
+        x: x + w / 2, y: y + BAR_H + 20, 'text-anchor': 'middle',
+        style: `font-size:14.5px;fill:${strong ? 'var(--ink)' : 'var(--ink-2)'};font-weight:${strong ? 700 : 400}`,
+      }, pct))
+      x += w
+    })
+    y += 68
+  })
+  svg.setAttribute('height', y - 6)
+</script>
+</body>
+</html>

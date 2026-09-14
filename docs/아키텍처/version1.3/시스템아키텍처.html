@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>Qurious 시스템 아키텍처 v1.3</title>
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Qurious 시스템 아키텍처 — 발표용 구성도 v1.3
+     이 HTML 이 정본이고 PNG 는 여기서 굽는다:
+       node scripts/render_html.mjs docs/아키텍처/version1.3/시스템아키텍처.html
+     ⚠️ 실선 = 지금 서 있는 것 · 점선 = 계획. 둘을 섞으면 그림이 사실보다 앞선다.
+     숫자는 2026-09-14 실측 (DB 읽기 전용 · 작업트리 줄 수 · main c9cb120).
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --ink:       #10243f;
+    --ink-soft:  #5b7290;
+    --line:      #d5deea;
+    --bg:        #f6f9fc;
+    --panel:     #ffffff;
+
+    --brand:     #1b4f9c;   /* Qurious 파랑 */
+    --brand-bg:  #eaf1fb;
+    --teal:      #0e8f84;   /* 저장·산출 */
+    --teal-bg:   #e6f5f3;
+    --gate:      #b45309;   /* as_of 정문 */
+    --gate-bg:   #fff5e6;
+    --seal:      #9f1239;   /* 홀드아웃 봉인 — 한 번만 */
+    --seal-bg:   #fff1f2;
+    --plan:      #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); }
+  .sheet {
+    width: 1680px; padding: 40px 44px 34px; background: var(--bg);
+    font-family: "Pretendard", "Malgun Gothic", "맑은 고딕", "Apple SD Gothic Neo",
+                 system-ui, sans-serif;
+    color: var(--ink); -webkit-font-smoothing: antialiased;
+    /* 한글은 기본값이면 단어 한가운데서 끊긴다 — 어절 단위로 끊게 강제한다 */
+    word-break: keep-all; line-break: strict;
+  }
+
+  .head { display: flex; align-items: flex-end; gap: 20px; margin-bottom: 22px; }
+  .brand { font-size: 40px; font-weight: 800; letter-spacing: -1px; color: var(--brand); }
+  .brand em { font-style: normal; color: var(--teal); }
+  .title { font-size: 29px; font-weight: 750; letter-spacing: -0.6px; }
+  .sub { font-size: 14.5px; color: var(--ink-soft); padding-bottom: 4px; }
+  .legend { margin-left: auto; display: flex; gap: 8px; padding-bottom: 4px; }
+  .lg { display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+        color: var(--ink-soft); background: #fff; border: 1px solid var(--line);
+        border-radius: 999px; padding: 5px 12px; }
+  .swatch { width: 22px; height: 0; border-top: 3px solid var(--brand); }
+  .swatch.plan { border-top: 3px dashed var(--plan); }
+  .swatch.seal { border-top: 3px solid var(--seal); }
+
+  .auto { display: flex; align-items: center; gap: 12px; background: var(--panel);
+          border: 1px solid var(--line); border-radius: 14px;
+          padding: 13px 18px; margin-bottom: 20px; }
+  .auto .tag { background: var(--gate-bg); color: var(--gate); font-weight: 750;
+               font-size: 13px; border-radius: 8px; padding: 6px 13px;
+               border: 1px solid #f0d7ac; white-space: nowrap; }
+  .step { display: flex; flex-direction: column; gap: 1px; font-size: 13.2px; }
+  .step b { font-weight: 700; }
+  .step span { color: var(--ink-soft); font-size: 11.8px; }
+  .arw { color: var(--plan); font-size: 17px; line-height: 1; }
+  .auto .note { margin-left: auto; font-size: 12px; color: var(--ink-soft); text-align: right; line-height: 1.5; }
+
+  .body { display: grid; grid-template-columns: 276px 1fr 300px;
+          gap: 18px; align-items: start; }
+  .panel { background: var(--panel); border: 1px solid var(--line);
+           border-radius: 16px; padding: 15px 15px 16px; }
+  .panel > h3 { font-size: 13px; font-weight: 750; color: #fff; background: var(--brand);
+                display: inline-block; border-radius: 8px; padding: 5px 12px;
+                margin-bottom: 13px; letter-spacing: -0.2px; }
+  .panel.mid > h3 { background: var(--teal); }
+  .panel.out > h3 { background: #475569; }
+
+  .card { border: 1px solid var(--line); border-radius: 12px; padding: 11px 13px;
+          margin-bottom: 9px; background: #fff; }
+  .card:last-child { margin-bottom: 0; }
+  .card.plan { border-style: dashed; border-color: var(--plan); background: #fbfcfe; }
+  .card.seal { border: 2px solid var(--seal); background: var(--seal-bg); }
+  .ct { display: flex; align-items: baseline; gap: 7px; flex-wrap: wrap; }
+  .ct b { font-size: 14.5px; font-weight: 750; letter-spacing: -0.3px; }
+  .ct .badge { font-size: 10.5px; font-weight: 700; border-radius: 5px;
+               padding: 2px 6px; white-space: nowrap; }
+  .badge.done { background: var(--teal-bg); color: var(--teal); }
+  .badge.plan { background: #eef2f7; color: var(--plan); }
+  .badge.seal { background: #ffe4e6; color: var(--seal); }
+  .badge.warn { background: #fef3c7; color: #92400e; }
+  .cs { font-size: 11.8px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .chip { font-size: 11px; background: var(--brand-bg); color: var(--brand);
+          border-radius: 6px; padding: 3px 8px; font-weight: 600; }
+  .chip.t { background: var(--teal-bg); color: var(--teal); }
+  .chip.g { background: #f1f5f9; color: #64748b; }
+  .chip.s { background: #ffe4e6; color: var(--seal); }
+
+  .stack { display: flex; flex-direction: column; gap: 0; }
+  .flowarrow { text-align: center; color: var(--plan); font-size: 19px;
+               line-height: 1; margin: 5px 0; }
+  .flowarrow em { font-style: normal; font-size: 11.5px; color: var(--ink-soft);
+                  display: block; margin-top: 1px; }
+
+  .gate { border: 3px solid var(--gate); background: var(--gate-bg);
+          border-radius: 14px; padding: 14px 16px; }
+  .gate .gt { display: flex; align-items: baseline; gap: 9px; }
+  .gate .gt b { font-size: 17px; font-weight: 800; color: var(--gate); }
+  .gate .gt span { font-size: 12px; color: #8a5a12; font-weight: 600; }
+  .gate .gl { font-size: 12.3px; color: #7c4a09; margin-top: 6px; line-height: 1.6; }
+  .gate .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 10px; }
+  .gate .three > div { background: #fff; border: 1px solid #f0d7ac; border-radius: 9px;
+                       padding: 9px 11px; }
+  .gate .three b { font-size: 12.8px; display: block; }
+  .gate .three i { font-style: normal; font-size: 11.2px; color: var(--ink-soft);
+                   display: block; margin-top: 2px; line-height: 1.45; }
+  .gate .holdout { margin-top: 9px; background: var(--seal-bg); border: 2px solid var(--seal);
+                   border-radius: 9px; padding: 8px 11px; display: flex; gap: 10px; align-items: baseline; }
+  .gate .holdout b { font-size: 12.8px; color: var(--seal); white-space: nowrap; }
+  .gate .holdout i { font-style: normal; font-size: 11.4px; color: #7f1d1d; line-height: 1.45; }
+
+  .duo { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+           margin-top: 18px; }
+  .rule { background: var(--panel); border: 1px solid var(--line);
+          border-left: 4px solid var(--brand); border-radius: 12px; padding: 12px 15px; }
+  .rule b { font-size: 13.2px; }
+  .rule p { font-size: 11.8px; color: var(--ink-soft); margin-top: 4px; line-height: 1.55; }
+  .rule.gate-rule { border-left-color: var(--gate); }
+  .rule.teal-rule { border-left-color: var(--teal); }
+  .rule.seal-rule { border-left-color: var(--seal); }
+
+  .foot { margin-top: 16px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+          font-size: 11.6px; color: var(--ink-soft); }
+  .foot .dot { width: 4px; height: 4px; border-radius: 50%; background: #c3cedd; }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <div class="head">
+    <div class="brand">Qurious<em>.</em></div>
+    <div>
+      <div class="title">시스템 아키텍처</div>
+      <div class="sub">주가 방향 예측 — 수집부터 봉인 평가 · 화면까지 · v1.3 (2026-09-14 · 홀드아웃 개봉 뒤)</div>
+    </div>
+    <div class="legend">
+      <div class="lg"><span class="swatch"></span>서 있는 것</div>
+      <div class="lg"><span class="swatch seal"></span>한 번만 여는 것</div>
+      <div class="lg"><span class="swatch plan"></span>계획</div>
+    </div>
+  </div>
+
+  <!-- 버튼 갱신 파이프라인 -->
+  <div class="auto">
+    <div class="tag">python -m pipelines.refresh</div>
+    <div class="step"><b>수집 · 달력</b><span>ingest · calendar</span></div>
+    <div class="arw">→</div>
+    <div class="step"><b>기업행위 · 수정주가</b><span>action · adj (필요할 때만)</span></div>
+    <div class="arw">→</div>
+    <div class="step"><b>품질 게이트</b><span>gate · 원장 5축</span></div>
+    <div class="arw">→</div>
+    <div class="step"><b>재배포 판정기</b><span>verify — 바뀐 행이 있을 때만</span></div>
+    <div class="arw">→</div>
+    <div class="step"><b>반출 · HF 업로드</b><span>export · upload (검증기 4종)</span></div>
+    <div class="note">8단계 · 잠금으로 두 번 눌러도 한 번만<br>CI 는 계획 (.github/workflows 없음)</div>
+  </div>
+
+  <div class="body">
+
+    <!-- 왼쪽: 외부 출처 -->
+    <div class="panel">
+      <h3>외부 출처</h3>
+
+      <div class="card">
+        <div class="ct"><b>KRX</b><span class="badge done">적재</span></div>
+        <div class="cs">시세 · 지수 · 거래일 달력 · 종목기본정보</div>
+        <div class="chips"><span class="chip">시세 9,231,938행</span><span class="chip">4,105거래일</span>
+          <span class="chip">기본정보 9,229,173행</span><span class="chip">지수 196,272행</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>DART</b><span class="badge done">적재</span></div>
+        <div class="cs">공시 목록 · 재무. <b>접수일 다음 거래일</b>이 known_at</div>
+        <div class="chips"><span class="chip">공시 1,555,556행</span><span class="chip">재무 662,933행</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>통계 3종</b><span class="badge done">적재</span></div>
+        <div class="cs">ECOS · FRED · KOSIS — 발표 규칙으로 계산한 known_at</div>
+        <div class="chips"><span class="chip">거시 17,864행</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>공공데이터포털 · 예탁결제원</b><span class="badge done">적재</span></div>
+        <div class="cs">종목코드 ↔ 법인번호 ↔ ISIN · 배당</div>
+        <div class="chips"><span class="chip">식별 4,197,242행</span><span class="chip">배당 71,681행</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>업종 스냅샷</b><span class="badge done">사람 손</span></div>
+        <div class="cs">KRX 약관이 자동 수집을 막아 받은 날의 표만 쓴다</div>
+        <div class="chips"><span class="chip">36장 · 40,874행</span></div>
+      </div>
+
+      <div class="card plan">
+        <div class="ct"><b>뉴스 · 동영상</b><span class="badge plan">2·3차</span></div>
+        <div class="cs">1차는 공시 제목 감성만 — 5일 방향과 관계 없음(V 0.026)</div>
+      </div>
+    </div>
+
+    <!-- 가운데: 내부 파이프라인 -->
+    <div class="panel mid">
+      <h3>내부 파이프라인 — 의존은 아래로만 흐른다</h3>
+
+      <div class="stack">
+        <div class="card">
+          <div class="ct"><b>ingest/</b><span class="badge done">12,720줄</span>
+            <span class="badge plan">internal</span></div>
+          <div class="cs">받은 것을 <b>빠짐없이</b> 쌓는다 · as_of 를 모른다</div>
+          <div class="chips">
+            <span class="chip">clients</span><span class="chip t">SQLite 하나 · v16 · 표 23개</span>
+            <span class="chip t">6,685 MB</span><span class="chip t">원문 bytes 보존</span>
+            <span class="chip t">수집 대장 · 호출 예산</span>
+          </div>
+        </div>
+
+        <div class="flowarrow">↓<em>저장소는 표에 있는 것을 전부 준다</em></div>
+
+        <div class="gate">
+          <div class="gt"><b>supply/ — as_of 정문</b><span>4,099줄 · 18파일</span></div>
+          <div class="gl">규칙은 하나 — <b>행 T 에 보이는 것은 known_at ≤ T 인 것뿐.</b>
+            as_of 에 기본값이 없고, 문을 우회하는 import 는 시험이 막는다.</div>
+          <div class="three">
+            <div><b>시세 · 학습 표</b>
+              <i>price_series · index_series · training_frame — 학습 전용 문에서만 미래(정리매매)를 본다</i></div>
+            <div><b>원천 정문 셋</b>
+              <i>attach_financial · attach_macro · attach_text — 정정본은 정정일 그대로</i></div>
+            <div><b>업종 · 주권종류</b>
+              <i>attach_industry · attach_security_type — <b>상장 구간</b>이 같은 기록만 (코드 재사용 2곳)</i></div>
+          </div>
+          <div class="holdout"><b>supply.holdout</b>
+            <i>봉인 반출본을 여는 유일한 문 — reports/unseal.log 가 정확히 1줄이고 지문이 맞을 때만 열린다</i></div>
+        </div>
+
+        <div class="flowarrow">↓<em>"그때 알 수 있었던" 행만</em></div>
+
+        <div class="duo">
+          <div class="card">
+            <div class="ct"><b>features/</b><span class="badge done">2,584줄</span></div>
+            <div class="cs">기술적 지표 → 학습 표 X, y · 조합 A~K · 유동 임계값</div>
+          </div>
+          <div class="card">
+            <div class="ct"><b>models/</b><span class="badge done">2,459줄</span></div>
+            <div class="cs">LogReg · RF · XGBoost · LightGBM → 최종 <b>C · K LogReg</b></div>
+          </div>
+        </div>
+
+        <div class="flowarrow">↓<em>positions, returns — 배열 둘만 넘긴다</em></div>
+
+        <div class="duo">
+          <div class="card">
+            <div class="ct"><b>evaluation/</b><span class="badge done">7,262줄</span></div>
+            <div class="cs"><b>models/ 를 import 하지 않는다</b> · 워크포워드 gap · 동적 기준선 · MDD · Sharpe</div>
+          </div>
+          <div class="card">
+            <div class="ct"><b>backtest/</b><span class="badge done">1,059줄</span></div>
+            <div class="cs">A · B · C 분할매매 · 비용 프리셋 4수준 · 손익분기 비용</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 오른쪽: 받침 · 봉인 · 산출 · 화면 -->
+    <div class="panel out">
+      <h3>받침 · 봉인 · 산출 · 화면</h3>
+
+      <div class="card">
+        <div class="ct"><b>common/ · timeseries/</b><span class="badge done">2,851 · 1,631줄</span></div>
+        <div class="cs">경로 · 자격증명 · 거래일 · 기업행위 판정 / ARIMA · ADF — 분류기와 겨루는 기준선</div>
+      </div>
+
+      <div class="card seal">
+        <div class="ct"><b>홀드아웃</b><span class="badge seal">개봉 1회 · 확증 가능</span></div>
+        <div class="cs">2026-09-11 16:18 · 20240901 ~ 20260901 · 봉인본은 <b>data/sealed/</b>(올리지 않음)</div>
+        <div class="chips"><span class="chip s">unseal.log 1줄</span><span class="chip s">승인 JSON</span>
+          <span class="chip s">run final-holdout-20260911</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>HF private 두 레포</b><span class="badge done">배포</span></div>
+        <div class="cs">개발본과 결과를 <b>따로</b> 둔다 — 결과는 학습에 섞지 않는다</div>
+        <div class="chips"><span class="chip t">krx-dev b5e3d52c · 37칸</span>
+          <span class="chip t">krx-holdout 2aab6bd1 · 예측만</span></div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>reports/</b><span class="badge done">커밋</span></div>
+        <div class="cs">개봉 기록 · 승인 · 최종 report · 품질 원장 이력</div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><b>dashboard/ Streamlit</b><span class="badge done">5,977줄 · 9페이지</span>
+          <span class="badge warn">화면 안에서 학습</span></div>
+        <div class="cs">HF 개발본을 받아 Baseline · Model Lab · Backtest 를 <b>버튼으로 돌린다</b> — 공개 배포(09-14)에서 CPU 제한을 만났다</div>
+        <div class="chips"><span class="chip g">Overview</span><span class="chip g">Comparison</span>
+          <span class="chip g">Risk · QFRS</span><span class="chip g">Cost Sens</span><span class="chip g">Universe</span></div>
+      </div>
+
+      <div class="card plan">
+        <div class="ct"><b>미리 계산한 결과 파일</b><span class="badge plan">발전 가능성</span></div>
+        <div class="cs">화면은 파일을 읽기만 — 시연 안정성 (논의 이슈 #263 ~ #268)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="rules">
+    <div class="rule gate-rule">
+      <b>① 저장소를 직접 부르지 않는다</b>
+      <p>features · models · evaluation 이 ingest 를 import 하면 <b>시험이 실패한다</b>
+         (tests/test_supply_boundary.py). 규칙을 문서에만 적으면 급할 때 지나간다.</p>
+    </div>
+    <div class="rule teal-rule">
+      <b>② evaluation 은 models 를 모른다</b>
+      <p>받는 것은 positions · returns 배열 둘뿐이다 — evaluation/ 의 models import <b>0건</b>(09-14).
+         2·3차 자산배분 규칙에도 같은 함수가 돈다.</p>
+    </div>
+    <div class="rule seal-rule">
+      <b>③ 홀드아웃은 한 번만, 기록과 함께 연다</b>
+      <p>두 번째 줄은 <b>반출하기 전에</b> 거부한다. 사전등록 커밋이 개봉보다 앞서야 확증 가능 —
+         결과를 보고 설정을 다시 고르지 않는다(ADR 0009).</p>
+    </div>
+  </div>
+
+  <div class="foot">
+    <span>SQLite 하나 (krx_cache.db · v16 · 6,685 MB)</span><span class="dot"></span>
+    <span>시험 1,783 passed · 3 xfailed</span><span class="dot"></span>
+    <span>노트북 290권</span><span class="dot"></span>
+    <span>줄 수는 작업트리 파이썬 파일 (dashboard/_legacy 제외)</span><span class="dot"></span>
+    <span>2026-09-14 실측 · main c9cb120</span>
+  </div>
+
+</div>
+</body>
+</html>

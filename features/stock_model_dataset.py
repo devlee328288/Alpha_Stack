@@ -43,6 +43,7 @@ DEFAULT_TOP_N = 50
 STOCK_LABEL_HORIZON = 5
 STOCK_NEUTRAL_BAND = 0.02
 LABEL_TO_NUMBER = {"하락": -1, "중립": 0, "상승": 1}
+HALTED_VOLUME_FEATURE_POLICY = "mask_is_halted_as_nan_for_volume_features_only"
 
 STOCK_COMBINATION_FEATURES = {
     "A": (
@@ -136,6 +137,24 @@ STOCK_COMBINATION_FEATURES = {
         "five_day_return",
         "relative_ret_5_market",
     ),
+    # 개발구간 1위 J와, J에 완전히 포함되는 2위 I 대신 3위 A를 합친 조합이다.
+    # 순서는 J를 먼저 유지하고 A에서 아직 없는 피처만 뒤에 붙인다.
+    "K": (
+        "atr_ratio",
+        "bb_bandwidth",
+        "hv_regime",
+        "five_day_return",
+        "relative_ret_5_market",
+        "sma_gap_5_20",
+        "sma_gap_20_60",
+        "rsi_14",
+        "macd_hist_ratio",
+        "bb_position",
+        "hv_20",
+        "vol_ratio_20",
+        "obv_slope_20",
+        "daily_return",
+    ),
 }
 
 # 기존 호출은 조합 A를 뜻한다. 전체 조합의 합집합은 공통 패널 캐시 검증에 사용한다.
@@ -166,6 +185,7 @@ PANEL_PRICE_COLUMNS = {
     "adj_low",
     "adj_close",
     "volume",
+    "is_halted",
 }
 
 OPTIONAL_PANEL_PRICE_COLUMNS = {"value", "market_cap", "industry"}
@@ -397,6 +417,16 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
     high = ordered["adj_high"].to_numpy(dtype=float)
     low = ordered["adj_low"].to_numpy(dtype=float)
     volume = ordered["volume"].to_numpy(dtype=float)
+    halted = ordered["is_halted"]
+    if not is_bool_dtype(halted.dtype):
+        raise TypeError("is_halted는 문자열이나 숫자가 아닌 bool이어야 합니다.")
+    if halted.isna().any():
+        raise ValueError("is_halted를 판정하지 않은 종목 가격 행이 있습니다.")
+    feature_volume = volume.copy()
+    # 거래정지일의 원천 거래량 0은 보존한다. 다만 이를 정상적인 저거래량으로 넣으면
+    # 재개일의 20일 평균이 기계적으로 낮아져 vol_ratio_20이 상한 20에 붙는다(#205).
+    # 피처 계산용 복사본만 결측으로 바꿔 창이 정지 구간을 완전히 벗어날 때까지 가린다.
+    feature_volume[halted.to_numpy(dtype=bool)] = np.nan
     value = pd.to_numeric(
         ordered.get("value", pd.Series(np.nan, index=ordered.index)), errors="coerce"
     ).reset_index(drop=True)
@@ -418,8 +448,8 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         ordered["atr_ratio"] = atr_ratio(high, low, close, 14)
         ordered["hv_20"] = historical_volatility(close, 20)
         ordered["hv_regime"] = hv_regime(close, 20, 250)
-        ordered["vol_ratio_20"] = volume_ratio(volume, 20)
-        ordered["obv_slope_20"] = obv_slope_20(close, volume, 20)
+        ordered["vol_ratio_20"] = volume_ratio(feature_volume, 20)
+        ordered["obv_slope_20"] = obv_slope_20(close, feature_volume, 20)
         ordered["daily_return"] = n_day_return(close, 1)
         ordered["five_day_return"] = n_day_return(close, 5)
         ordered["ret_1"] = ordered["daily_return"]
@@ -439,7 +469,9 @@ def _build_one_stock_features(group: pd.DataFrame) -> pd.DataFrame:
         ordered["range_1"] = price_range / close
         ordered["range_20"] = pd.Series(ordered["range_1"]).rolling(20).mean()
 
-        log_volume = np.log1p(np.where(volume >= 0.0, volume, np.nan))
+        log_volume = np.log1p(
+            np.where(feature_volume >= 0.0, feature_volume, np.nan)
+        )
         log_volume_series = pd.Series(log_volume)
         volume_mean = log_volume_series.rolling(20).mean()
         volume_std = log_volume_series.rolling(20).std(ddof=0)
@@ -478,6 +510,8 @@ def _attach_index_relative_features(
     features: pd.DataFrame,
     source: pd.DataFrame,
     index_prices: pd.DataFrame,
+    *,
+    allow_unsealed: bool = False,
 ) -> pd.DataFrame:
     """종목의 그날 업종과 KOSPI200 과거 수익률만 이용해 상대 피처를 붙인다."""
 
@@ -490,7 +524,7 @@ def _attach_index_relative_features(
 
     indices = index_prices.loc[:, sorted(required)].copy()
     indices["bas_dd"] = _normalize_dates(indices)
-    if (indices["bas_dd"] >= HOLDOUT_START).any():
+    if not allow_unsealed and (indices["bas_dd"] >= HOLDOUT_START).any():
         raise RuntimeError("업종 상대강도 원천에 홀드아웃 행이 들어 있습니다.")
     indices = indices.loc[indices["index_class"].eq("KOSPI")].copy()
     indices["close"] = pd.to_numeric(indices["close"], errors="coerce")
@@ -561,6 +595,7 @@ def build_sector_stock_model_dataset(
     feature_columns: tuple[str, ...] = STOCK_FEATURE_COLUMNS,
     drop_incomplete_features: bool = True,
     holdout_start: str = HOLDOUT_START,
+    allow_unsealed: bool = False,
     horizon: int = STOCK_LABEL_HORIZON,
     neutral_band: float = STOCK_NEUTRAL_BAND,
 ) -> StockModelDataset:
@@ -603,12 +638,16 @@ def build_sector_stock_model_dataset(
     source = daily_prices.loc[:, sorted(source_columns)].copy()
     source["bas_dd"] = _normalize_dates(source)
     source["code"] = source["code"].astype("string").str.strip().str.zfill(6)
-    if (source["bas_dd"] >= holdout_start).any():
+    if not allow_unsealed and (source["bas_dd"] >= holdout_start).any():
         first = str(source.loc[source["bas_dd"] >= holdout_start, "bas_dd"].min())
         raise RuntimeError(f"개별 종목 원천에 홀드아웃 행이 들어 있습니다: {first}")
     source = source.loc[source["market"].eq("KOSPI")].copy()
     if source.duplicated(["bas_dd", "code"]).any():
         raise ValueError("KOSPI에 같은 날짜·종목코드가 두 번 이상 있습니다.")
+    if not is_bool_dtype(source["is_halted"].dtype):
+        raise TypeError("is_halted는 문자열이나 숫자가 아닌 bool이어야 합니다.")
+    if source["is_halted"].isna().any():
+        raise ValueError("is_halted를 판정하지 않은 KOSPI 종목 가격 행이 있습니다.")
     for column in (
         "adj_open",
         "adj_high",
@@ -625,7 +664,7 @@ def build_sector_stock_model_dataset(
     selected = candidates.copy()
     selected["bas_dd"] = _normalize_dates(selected)
     selected["code"] = selected["code"].astype("string").str.strip().str.zfill(6)
-    if (selected["bas_dd"] >= holdout_start).any():
+    if not allow_unsealed and (selected["bas_dd"] >= holdout_start).any():
         raise RuntimeError("종목 후보에 홀드아웃 행이 들어 있습니다.")
     if selected.duplicated(["bas_dd", "code"]).any():
         raise ValueError("종목 후보에 같은 날짜·코드가 두 번 이상 있습니다.")
@@ -641,7 +680,12 @@ def build_sector_stock_model_dataset(
     ]
     features = pd.concat(feature_parts, ignore_index=True)
     if index_prices is not None:
-        features = _attach_index_relative_features(features, feature_source, index_prices)
+        features = _attach_index_relative_features(
+            features,
+            feature_source,
+            index_prices,
+            allow_unsealed=allow_unsealed,
+        )
     selected = selected.merge(
         features,
         on=["bas_dd", "code"],
@@ -729,7 +773,7 @@ def build_sector_stock_model_dataset(
         sort_columns.append("candidate_rank")
     sort_columns.append("code")
     selected = selected.sort_values(sort_columns, kind="stable").reset_index(drop=True)
-    if selected["bas_dd"].max() >= holdout_start:
+    if not allow_unsealed and selected["bas_dd"].max() >= holdout_start:
         raise RuntimeError("개별 종목 모델 입력에 홀드아웃 행이 들어왔습니다.")
     selected.attrs["stock_panel"] = {
         "holdout_start": holdout_start,
@@ -857,6 +901,7 @@ def align_stock_feature_datasets(
 
 __all__ = [
     "ALL_STOCK_FEATURE_COLUMNS",
+    "HALTED_VOLUME_FEATURE_POLICY",
     "STOCK_COMBINATION_FEATURES",
     "STOCK_FEATURE_COLUMNS",
     "StockModelDataset",

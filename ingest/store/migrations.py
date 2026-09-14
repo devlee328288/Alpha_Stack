@@ -222,7 +222,10 @@ def _rebuild_index_price(conn: sqlite3.Connection) -> Optional[List[str]]:
 #      v11 종목기본정보 (stock_base_info · 우선주 판별)               ← 2026-09-03 적용
 #      v12 텍스트 신호 (text_signal — 공시 제목 감성 확률 3칸)  ← 2026-09-04 적용
 #      v13 지수 기본키에 시장 (index_price PK + index_class)     ← 2026-09-07 적용
-#      v14 다음 빈 번호
+#      v14 배당 (dividend — 현금·주식배당과 배당락일)            ← 2026-09-09 적용
+#      v15 총수익 (daily_price.adj_close_tr · adj_dividend)      ← 2026-09-10 적용
+#      v16 기업행위 (corporate_action — 사건 표 · chain 대조)     ← 2026-09-10 적용
+#      v17 다음 빈 번호
 #
 #    ⚠️ v5·v6 은 처음에 공시·거시로 **예약**돼 있었는데, 실제로 먼저 온 것은 반입이라
 #       한 칸씩 밀었다. 밀 수 있었던 이유는 **그 번호를 적용한 DB 가 아직 없기 때문이다** —
@@ -1038,6 +1041,305 @@ MIGRATIONS: Sequence[Tuple[str, Sequence[str]]] = (
             # 기본키인가")은 하나다. 문장마다 다시 재면 첫 문장이 표를 바꾼 뒤 조건이
             # 뒤집혀 나머지가 건너뛰어진다. 한 번 보고 목록을 통째로 준다.
             _rebuild_index_price,
+        ),
+    ),
+    (
+        "v14: 배당 — 기준일은 달력이고, 값이 움직이는 날은 배당락일이다",
+        (
+            # ── 배당 ────────────────────────────────────────────────────
+            # 공공데이터포털 금융위 **주식배당정보**(`GetStocDiviInfoService_V2`)를 담는다.
+            # 전량 71,681행 · 72콜(2026-09-09 실측). 우리 개발구간(2010~)에 드는 것은
+            # 현금·동시배당 26,008행이고 그중 우리 종목에 붙는 것이 21,846행이다.
+            #
+            # 🔴 **왜 필요한가 — 우리 수익률은 배당을 안 담고 있다.**
+            #
+            # FinanceDataReader·pykrx 의 수정주가는 액면분할·무상증자·주식배당까지만 펴고
+            # **현금배당은 안 편다**(`ingest/store/adj_price.py` 와 같은 범위). 학계 표준인
+            # CRSP 는 `RET`(배당 포함)와 `RETX`(배당 제외)를 **나눠서** 주는데, 우리가 가진
+            # 것은 `RETX` 뿐이다. 실측으로 그 크기를 쟀다 — 배당락일의 평균 일간수익률이
+            # 평소보다 **1.4665%p 낮고 17년 전부 음수**다. 개별종목 중립대가 ±2% 이므로
+            # 5거래일 창에 배당락일이 들어오면 그 라벨이 조용히 아래로 밀린다.
+            #
+            # ⚠️ 이 표를 처음 만들 때는 **−0.455%p** 로 적었다. 배당 자료가 없어
+            #    "연말 마지막 거래일 대비 위치" 라는 대용치로 쟀던 값인데, 실제
+            #    배당락일로 다시 재니 **3.2배**였다. 대용치는 크기를 줄이는 쪽으로
+            #    틀린다 — 연말만 봐서 분기배당을, 상위 100 만 봐서 고배당 중소형주를
+            #    놓쳤다.
+            #
+            # 🔴 **기준일(`dvdn_bas_dt`)은 거의 거래일이 아니다.**
+            #
+            # 12월 결산법인의 기준일은 12월 31일인데 그날은 휴장이다. 실측하면 12월 기준일
+            # 중 거래일인 것은 **0.3%** 뿐이다. 값이 실제로 움직이는 날은 **배당락일**이고,
+            # 그것은 결제(T+2) 때문에 기준일에서 두 걸음 앞이다.
+            #
+            #     ex_date = (기준일 이하 마지막 거래일) 에서 1 거래일 앞
+            #
+            # 그래서 `ex_date` 를 **거래일 달력으로 계산해 함께 담는다**. 계산 규칙이 바뀌면
+            # 이 칸을 다시 채운다 — 거시(`macro_series.known_at`)와 같은 성질이다.
+            # 달력을 모르면 계산할 수 없으므로 채우는 것은 저장 계층(`dividend_store`)이고,
+            # 외부 연동 계층(`data_go_kr`)은 원문만 옮긴다.
+            #
+            # 🔴 **액면가는 그날의 값이 아니다.**
+            #
+            # 응답의 `stckParPrc` 는 **적재 시점의 액면가**다(삼성전자 1987년 배당 행에도
+            # 100원이 들어 있다 — 2018년 분할 뒤 값이다). 그래서 옛 행의 배당률(액면 대비 %)에
+            # 이 액면가를 곱하면 틀린다. 금액이 빈 행은 **금액이 없는 채로 둔다.**
+            # 2018년 이후로는 금액 채움이 98% 를 넘으므로 개발구간 대부분은 금액이 있다.
+            """
+            CREATE TABLE IF NOT EXISTS dividend (
+              isin_cd        TEXT NOT NULL,
+              dvdn_bas_dt    TEXT NOT NULL,
+              dvdn_rcd       TEXT NOT NULL,
+              code           TEXT,
+              crno           TEXT,
+              corp_nm        TEXT,
+              item_nm        TEXT,
+              scrs_itms_kcd_nm TEXT,
+              stac_md        TEXT,
+              dvdn_rcd_nm    TEXT,
+              cash_pay_dt    TEXT,
+              stck_hndv_dt   TEXT,
+              genr_dvdn_amt  REAL,
+              grdn_dvdn_amt  REAL,
+              genr_cash_dvdn_rt REAL,
+              genr_dvdn_rt   REAL,
+              cash_grdn_dvdn_rt REAL,
+              grdn_dvdn_rt   REAL,
+              par_price_at_load REAL,
+              ex_date        TEXT,
+              ex_date_rule   TEXT,
+              src_bas_dt     TEXT,
+              fetched_at     TEXT NOT NULL,
+              -- 한 종목(ISIN)·한 기준일에 배당구분마다 한 줄이다. 전량 71,681행에서
+              -- 이 세 칸의 조합이 유일함을 확인하고 정했다(중복 0).
+              -- ⚠️ 재무에서 `account_detail` 을 PK 에 빠뜨려 6.4%가 조용히 사라진 적이
+              --    있다. 그래서 "행 수가 맞다" 로 넘기지 않고 조합을 직접 세었다.
+              PRIMARY KEY (isin_cd, dvdn_bas_dt, dvdn_rcd),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              CHECK (length(dvdn_bas_dt) = 8),
+              -- 배당락일은 못 구할 수 있다(달력 밖의 옛 기준일). 다만 있으면 8자리다.
+              CHECK (ex_date IS NULL OR length(ex_date) = 8),
+              -- 배당락일이 있으면 그것을 어떤 규칙으로 세웠는지도 반드시 있다.
+              CHECK (ex_date IS NULL OR ex_date_rule IS NOT NULL)
+            )
+            """,
+            # 종목별 시계열을 훑을 때. 배당락일이 앞인 이유는 조인의 축이 그쪽이기
+            # 때문이다 — "이 종목의 이 거래일에 배당락이 있었나" 가 우리가 묻는 질문이다.
+            "CREATE INDEX IF NOT EXISTS idx_dividend_ex "
+            "ON dividend(code, ex_date)",
+            # 기준일 축으로 훑을 때(연도별 집계·커버리지 판정).
+            "CREATE INDEX IF NOT EXISTS idx_dividend_bas "
+            "ON dividend(dvdn_bas_dt, code)",
+        ),
+    ),
+    (
+        "v15: 총수익 — 수정주가에 현금배당이 빠져 있다",
+        (
+            # 수정주가 옆에 **총수익 축**을 더한다. `adj_close` 는 그대로 둔다 —
+            # 지우고 덮는 것이 아니라 나란히 놓는 것이다. 둘은 답하는 질문이 다르다.
+            #
+            #   adj_close     "분할·병합을 편 주가가 얼마였나"      (가격 축)
+            #   adj_close_tr  "배당까지 재투자하면 얼마가 됐나"     (성과 축)
+            #
+            # 🔴 **왜 필요한가 — 우리 수익률에 배당이 빠져 있다.**
+            #
+            # FinanceDataReader 의 수정주가는 액면분할·무상증자·주식배당까지만 펴고
+            # 현금배당은 안 편다. 학계 표준인 CRSP 가 `RET`(배당 포함)와 `RETX`(배당
+            # 제외)를 나눠 주는데 우리가 가진 것은 `RETX` 쪽뿐이다. 배당락일의 평균
+            # 일간수익률은 평소보다 **1.4665%p 낮고 17년 전부 음수**다 — 개별종목
+            # 중립대가 ±2% 이므로 5거래일 창에 배당락일이 들어오면 라벨이 조용히
+            # 아래로 밀린다. (v14 를 만들 때 적은 −0.455%p 는 배당 자료가 없어 쓴
+            # 대용치였고, 실제 배당락일로 다시 재니 3.2배였다.)
+            #
+            # 🔴 **성과 축이지 피처가 아니다.**
+            #
+            # 배당 확정은 주주총회다. 그날 이전에는 금액을 알 수 없으므로 이 칸을
+            # 입력 피처로 쓰면 미래참조가 된다. 라벨·성과 평가에만 쓴다.
+            #
+            # 🔴 **배당도 가격과 같은 배율로 조정해야 한다.**
+            #
+            # 배당금은 그날의 원(貨) 단위 절대금액이고 `adj_close` 는 분할 배율이
+            # 곱해진 값이라, 원금액을 그대로 더하면 축이 어긋난다. 조인되는 20,248행
+            # 중 `adj_close/close ≠ 1` 인 행이 6,245행(30.8%)이다 — 안 맞추면 그만큼
+            # 틀린다. 그래서 `adj_dividend = 배당금 × (adj_close / close)` 로 적는다.
+            #
+            #     r_t = (adj_close_t + adj_dividend_t) / adj_close_{t-1} − 1
+            #     adj_close_tr_t = adj_close_tr_{t-1} × (1 + r_t)
+            #
+            # 🔴 **조인 축은 배당락일이지 기준일이 아니다.**
+            #
+            # 기준일(`dvdn_bas_dt`)은 12월 31일 같은 휴장일이 대부분이다(12월 기준일
+            # 중 거래일은 0.3%). 값이 실제로 움직이는 날은 배당락일이고, 그 칸은
+            # 거래일 달력으로 계산해 `dividend.ex_date` 에 담아 두었다. `ex_date` 가
+            # 있는 43,464행은 전부 거래일이고 `daily_price` 에도 있다.
+            _add_column("daily_price", "adj_dividend", "REAL"),
+            _add_column("daily_price", "adj_close_tr", "REAL"),
+            # 원본 배당금의 단위 오류를 표시한다. **지우지 않고 깃발만 세운다** —
+            # CRSP 가 `DlyDistRetFlg` 로 배분 종류를 남기는 것과 같은 이유로, 판정을
+            # 되짚을 수 있어야 하기 때문이다. 총수익 계산에서만 그 배당을 0 으로 본다.
+            #
+            # 🔴 **크기로 자르지 않는다.** 배당이 종가보다 큰 행 넷 중 셋이 정당한
+            # 청산분배금이었다 — 유전펀드 청산(종가 28원에 1,670원 분배)·리츠 분배가
+            # 실제로 그렇게 크다. 극단값이 데이터 오류일 때만 처리하고 데이터 생성
+            # 과정에서 나온 것은 그대로 두는 것이 표준이다(Leone et al.).
+            #
+            # 대신 **원본이 자기 정합적인가**로 가른다. `genr_cash_dvdn_rt` 는 액면가
+            # 대비 배당률이라(현대차 2,500원 = 액면 5,000 × 50%) 금액을 그 비율로 나누면
+            # 그날의 액면가가 되짚어진다. 되짚은 값이 표준 액면가에 붙으면 금액과
+            # 배당률이 서로 맞는다는 뜻이므로 믿는다 — 조인 대상의 99.29%가 그렇다.
+            # 배당률이 없어 되짚을 수 없는 33행만 배당수익률로 최후 판정하는데, 그 안에서
+            # 윙입푸드홀딩스(132,722,717%)와 그다음(19.5%)의 간극이 680만 배다.
+            _add_column("daily_price", "is_dividend_suspect", "INTEGER"),
+        ),
+    ),
+    (
+        "v16: 기업행위 — 결과만 있고 사건이 없었다",
+        (
+            # ── 기업행위 ────────────────────────────────────────────────
+            # 지금까지 자본변동은 **결과로만** 존재했다. `adj_close` 는 이미 펴진 값이고
+            # `adj_source` 는 그 값이 어디서 왔는지만 말한다. "무슨 일이 언제 얼마만큼
+            # 일어났나" 는 어디에도 없어서, 물을 때마다 920만 행을 다시 훑으며
+            # `common.corporate_actions.adjustment_factor` 로 역산해야 했다(3분 남짓).
+            #
+            # zipline 이 `splits`·`mergers`·`dividends` 세 표를 따로 두는 이유가 이것이다.
+            # 조정된 가격과 **조정을 일으킨 사건**은 다른 자료다. 우리는 배당을 v14 에서
+            # 이미 표로 세웠으므로, 남은 자본변동을 여기서 세운다.
+            #
+            # ⚠️ `supply/training.py` 의 `CORPORATE_ACTION_COLUMNS`(`is_liquidation` ·
+            #    `is_halted` · `is_first_listing`)와 **이름이 겹치지만 다른 것**이다.
+            #    그쪽은 "이 행의 가격을 믿어도 되나" 를 말하는 행 단위 깃발이고,
+            #    이 표는 "무슨 사건이 있었나" 를 말하는 사건 단위 기록이다.
+            #
+            # 🔴 **왜 사건마다 증거를 함께 담나 — 출처 하나로는 사건이 안 갈린다.**
+            #
+            # 액면가만 보면 틀린다. 액면가 변경 792건을 자본금(`액면가 × 주식수`)으로
+            # 가르면 성격이 셋으로 갈린다 (2026-09-10 실측).
+            #
+            #     순수 분할·병합 (자본금 불변)   666   가격이 정확히 액면가 비율만큼 움직인다
+            #     동시사건 (자본금이 바뀜)         84   감자와 분할이 같은 날 — 액면가로 예측 불가
+            #     액면가 감액 (주식수 그대로)      42   **가격이 안 움직인다** — 결손금을 턴 것뿐
+            #
+            # 액면가 감액 42건에 액면가 비율을 적용하면 멀쩡한 가격을 10배 망친다.
+            # 그래서 `par_before/after` 와 `shares_before/after` 를 **둘 다** 담고,
+            # 무엇으로 판정했는지를 `source` 에 남긴다.
+            #
+            # 🔴 **주식수가 바뀌었다고 다 조정 대상이 아니다.**
+            #
+            # 주식수 변경 41,051건 중 대부분이 유상증자다 — 주식수만 늘고 KRX 기준가는
+            # 그대로라 **가격이 연속**이다. 그런 행은 `event_type='share_change'` 로 담되
+            # `ratio_num/den` 을 비운다. 담는 이유는 희석이 그 자체로 신호이기 때문이고,
+            # 비우는 이유는 여기에 배율을 적으면 쓰는 쪽이 곱해 버리기 때문이다.
+            #
+            # 🔴 **배율은 유리수 두 칸이다 — REAL 하나가 아니다.**
+            #
+            # 1/50 · 1/1500 같은 계수가 한 종목의 수천 행에 누적으로 곱해진다. REAL 로
+            # 담으면 반올림이 다시 들어온다(`adjustment_factor` 가 `Fraction` 을 주는
+            # 것과 같은 이유). 쓰는 쪽에서 **마지막에 한 번만** float 로 바꾼다.
+            #
+            # 🔴 **판정 결과까지 담는 까닭 — 검사가 대상과 같은 잘못을 공유하면 안 된다.**
+            #
+            # `chain_num/den` 은 `adj_price` 가 실제로 쓴 계수이고, `agrees` 는 이 표가
+            # 증거로 세운 배율과 그것이 맞는지다. 어긋난 자리를 **표 안에 남겨야** 나중에
+            # 새 어긋남이 생겼을 때 드러난다. 밖에서 매번 다시 세면 아무도 안 센다.
+            #
+            # 실측 (2026-09-10 · 전 종목 9,231,938행 · 적재 264초)
+            #
+            #     사건       44,290   2,946종 · 20100105~20260904
+            #     배율을 예고   4,640
+            #     판정 가능      730   액면가·상장일 축 (나머지는 아래 `agrees` 참고)
+            #       어긋남         8
+            #     자기모순        17   **17/17 정리매매**
+            #
+            # 자기모순 17건은 전부 그 종목의 **마지막 7거래일**에서 시작한다. 주식수가
+            # 감자로 크게 줄었는데 KRX 기준가비가 정확히 1 이라(기준가를 안 고쳤다)
+            # 등락률이 가격제한폭 밖으로 나온다(제일바이오 2026-02-09 +29,948%).
+            # 정리매매 구간에는 가격제한폭이 적용되지 않으므로 **원본 오류가 아니다.**
+            # 17건 전부 `is_liquidation` 이 이미 덮고 `training_frame` 이 덜어내므로
+            # 학습 표본으로 새는 것은 0건이다. 그래서 값을 고치지 않고 표시만 한다.
+            """
+            CREATE TABLE IF NOT EXISTS corporate_action (
+              code           TEXT    NOT NULL,
+              -- 사건이 **가격에 반영된 첫 거래일**이다. 공시일도 결의일도 아니다 —
+              -- 우리가 답해야 하는 질문이 "이 거래일의 가격이 앞날과 이어지나" 이므로
+              -- 축을 거래일에 맞춘다. 배당의 `ex_date` 와 같은 뜻의 날짜다.
+              ex_date        TEXT    NOT NULL,
+              event_type     TEXT    NOT NULL,
+              -- 가격 조정 배율. 액면분할 50:1 이면 1/50, 병합 5:1 이면 5.
+              -- **가격이 연속인 사건(유상증자·이전상장)은 비운다.**
+              ratio_num      INTEGER,
+              ratio_den      INTEGER,
+              -- 무엇을 보고 배율을 정했나. par(액면가) · shares(주식수) ·
+              -- basis(KRX 기준가) · listing(상장일) · none(배율 없음)
+              source         TEXT    NOT NULL,
+              -- 증거 — 판정을 되짚을 수 있어야 한다.
+              -- ⚠️ 액면가는 **숫자가 아닐 수 있다.** '무액면' 73,713행 · 주식예탁증권의
+              --    '0' 7,616행 · 외국주 '.5' 같은 소수 표기가 실재한다. 그래서 TEXT 로
+              --    받아 원문 그대로 둔다 — 숫자로 강제하면 그 행이 조용히 결측이 된다.
+              par_before     TEXT,
+              par_after      TEXT,
+              shares_before  INTEGER,
+              shares_after   INTEGER,
+              -- KRX 기준가 / 전일종가. 재개일 판정의 근거라 판정값과 따로 남긴다.
+              basis_ratio    REAL,
+              -- `adj_price` 가 실제로 쓴 계수 (`common.corporate_actions.factor_series`).
+              chain_num      INTEGER,
+              chain_den      INTEGER,
+              -- 증거로 세운 배율과 chain 계수가 맞나.
+              --
+              -- 🔴 **증거가 chain 과 같은 값이면 NULL 이다.** `rights_off` ·
+              --    `resume_revalue` 는 배율을 `adjustment_factor` 에서 얻으므로
+              --    그것을 다시 chain 과 대조하면 3,974건이 통째로 초록이 된다 —
+              --    검사가 대상과 같은 판정을 공유하는 자리다. 잴 수 있는 것은
+              --    액면가(`split_merge`·`par_reduction`)와 상장일
+              --    (`market_transfer`)뿐이고, 그 730건에서 8건이 어긋난다.
+              agrees         INTEGER,
+              -- 원본 두 칸이 서로 모순인가 — **chain 을 안 쓰고 재는 축이다.**
+              --
+              -- 주식수가 1.5배 밖으로 바뀌었는데 그 날 KRX 등락률이 가격제한폭
+              -- 밖이면, 같은 원본이 "주식수가 1,500분의 1 이 됐는데 가격은
+              -- 이어진다" 고 말하는 셈이다. `agrees` 와 **다른 질문**이라 칸을
+              -- 따로 둔다 — 한 칸에 섞으면 붉은불을 보고 무엇을 고쳐야 하는지
+              -- 모른다.
+              --
+              -- 실측 17건 · **17건 전부 정리매매**이고 전부 기준가비가 정확히 1 이다
+              -- (제일바이오 2026-02-09 은 주식수 ×1/1500 에 등락률 +29,948%).
+              -- 정리매매 구간에는 가격제한폭이 적용되지 않으므로 원본 오류가 아니고,
+              -- `is_liquidation` 이 이미 덮어 학습에 안 들어간다.
+              source_conflict INTEGER NOT NULL DEFAULT 0,
+              -- 어긋났을 때의 해명. 그 날이 정리매매 구간인가.
+              is_liquidation INTEGER NOT NULL DEFAULT 0,
+              built_at       TEXT    NOT NULL,
+              -- 한 종목·한 거래일에 종류가 다른 사건이 겹칠 수 있다 — 액면분할과
+              -- 유상증자가 같은 날 나는 자리가 실재한다. 그래서 종류까지 키에 넣는다.
+              -- ⚠️ 재무에서 `account_detail` 을 키에 빠뜨려 6.4%가 조용히 사라진 적이
+              --    있다. 실측으로 조합의 유일성을 확인하고 정했다(중복 0).
+              PRIMARY KEY (code, ex_date, event_type),
+              -- 새 표라 검사할 기존 행이 없다 → CHECK 가 공짜다 (v1 과 같은 이유).
+              CHECK (length(ex_date) = 8),
+              CHECK (event_type IN ('split_merge', 'par_reduction', 'resume_revalue',
+                                    'rights_off', 'series_restart', 'market_transfer',
+                                    'share_change')),
+              CHECK (source IN ('par', 'shares', 'basis', 'listing', 'none')),
+              -- 분모가 0 이면 배율이 아니라 오류다. 분자만 있고 분모가 없는 것도 마찬가지.
+              CHECK ((ratio_num IS NULL) = (ratio_den IS NULL)),
+              CHECK (ratio_den IS NULL OR ratio_den > 0),
+              CHECK ((chain_num IS NULL) = (chain_den IS NULL)),
+              CHECK (chain_den IS NULL OR chain_den > 0),
+              CHECK (agrees IS NULL OR agrees IN (0, 1)),
+              CHECK (source_conflict IN (0, 1)),
+              CHECK (is_liquidation IN (0, 1))
+            )
+            """,
+            # 종목의 시계열을 훑으며 "이 날 사건이 있었나" 를 묻는 것이 주된 질문이라
+            # PK 가 이미 그 축이다. 여기서는 **날짜 축**과 **종류 축**을 따로 연다.
+            #
+            # 날짜 축: "2026-02-09 에 무슨 일이 있었나" (일별 점검·대시보드)
+            "CREATE INDEX IF NOT EXISTS idx_ca_date "
+            "ON corporate_action(ex_date, code)",
+            # 종류 축: "어긋난 자리만 보여 달라" — 붉은불 조회가 전수 훑기가 되면
+            # 아무도 안 본다.
+            "CREATE INDEX IF NOT EXISTS idx_ca_type "
+            "ON corporate_action(event_type, agrees)",
         ),
     ),
 )
