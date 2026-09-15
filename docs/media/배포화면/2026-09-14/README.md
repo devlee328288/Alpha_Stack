@@ -4,7 +4,8 @@
 > 주소 https://data-student-alphastack-qurious.hf.space/ (Space `data-student/alphastack-qurious` · cpu-basic) — main `5e70ee1` 을 Factory rebuild 한 빌드
 > 찍은 방법 — puppeteer 25.3.0 headless · 창 너비 1600 · 본문 높이만큼 창을 늘려 한 장 · 사이드바를 눌러 한 세션 안에서 이동 · **설정은 전부 화면 기본값** · 스코프 MARKET(KOSPI200)
 >
-> ⚠️ **Model Lab 이 조합 E 이던 시점의 화면입니다.** 강민석 님이 공식 조합(KOSPI200 C · 개별종목 K)으로 고치겠다고 답했습니다([#280](https://github.com/devlee328288/Alpha_Stack/issues/280) · 2026-09-14 14:17 KST). 수정 PR 머지와 Space rebuild 뒤 이 폴더를 다시 찍은 화면으로 교체합니다.
+> ⚠️ **Model Lab 이 조합 E 이던 시점의 화면입니다.** 강민석 님이 공식 조합(KOSPI200 C · 개별종목 K)으로 고치겠다고 답했습니다([#280](https://github.com/devlee328288/Alpha_Stack/issues/280) · 2026-09-14 14:17 KST).
+> 🔁 **2026-09-15 — 수정 PR(#287 · #289 · #300 · #301) 머지와 Space rebuild 뒤 다시 찍은 화면은 [2026-09-15](../2026-09-15/README.md) 에 있습니다.** 이 폴더는 조합 E 시점의 기록으로 남깁니다.
 
 ## 화면 목록
 
